@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pantry Depths — Balance Report</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f4f8;
+        --panel: #ffffff;
+        --ink: #1d1a24;
+        --muted: #5f5a6b;
+        --line: #e0dce6;
+        --accent: #6b3fa0;
+        --accent-bg: #f1eafb;
+        --warn: #a4402f;
+        --warn-bg: #fbeae7;
+        --ok: #2f7d54;
+        --ok-bg: #e7f4ec;
+        --code-bg: #efedf3;
+        --shadow: 0 1px 2px rgba(29, 26, 36, 0.06), 0 12px 32px rgba(29, 26, 36, 0.05);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #17151c;
+          --panel: #201d27;
+          --ink: #e8e5ee;
+          --muted: #9c96a8;
+          --line: #302c3a;
+          --accent: #b28ce0;
+          --accent-bg: #251c33;
+          --warn: #e08b7a;
+          --warn-bg: #2e1a16;
+          --ok: #6cd39a;
+          --ok-bg: #16241b;
+          --code-bg: #282430;
+          --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.25);
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.65 -apple-system,
+          "Segoe UI",
+          system-ui,
+          "PingFang TC",
+          "Microsoft JhengHei",
+          sans-serif;
+      }
+      .wrap {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 40px 20px 96px;
+      }
+      h1 {
+        font-size: 26px;
+        margin: 0 0 6px;
+      }
+      h2 {
+        font-size: 19px;
+        margin: 40px 0 12px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+      }
+      .sub {
+        color: var(--muted);
+        margin: 0 0 28px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin: 16px 0;
+        box-shadow: var(--shadow);
+      }
+      .note {
+        background: var(--accent-bg);
+        border-left: 3px solid var(--accent);
+      }
+      .todo {
+        background: var(--warn-bg);
+        border-left: 3px solid var(--warn);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 12px 0;
+      }
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 7px 10px;
+        text-align: left;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+        font-size: 13px;
+      }
+      td.num,
+      th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      code {
+        background: var(--code-bg);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+      .pass {
+        color: var(--ok);
+      }
+      .fail {
+        color: var(--warn);
+      }
+      nav a {
+        color: var(--accent);
+        margin-right: 14px;
+        font-size: 13px;
+      }
+      .overflow {
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Pantry Depths — Balance Report</h1>
+      <p class="sub">從 <code>src/content/</code> 與 <code>src/core/</code> 重新計算。此頁不手動維護。</p>
+
+      <div class="card todo">
+        <strong>框架範本。</strong> 本檔目前是空殼，定義生成器要產出的形狀。Child <code>pantry_rules_04</code>
+        落地後由指令覆寫本檔；在那之前所有表格都是佔位。
+      </div>
+
+      <nav>
+        <a href="#enemies">① 敵人表</a>
+        <a href="#matrix">② 成本矩陣</a>
+        <a href="#route">③ 必經路線</a>
+        <a href="#floors">④ 樓層連通性</a>
+        <a href="#optional">⑤ 可繞過內容</a>
+      </nav>
+
+      <h2 id="enemies">① 敵人表</h2>
+      <p>來源：<code>src/content/enemies.ts</code>。</p>
+      <div class="overflow">
+        <table>
+          <thead>
+            <tr>
+              <th>敵人</th>
+              <th class="num">HP</th>
+              <th class="num">攻擊</th>
+              <th class="num">防禦</th>
+              <th>出現層</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="5" class="sub">待生成</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="matrix">② 成本矩陣</h2>
+      <p>
+        每個 Stage 對每種敵人的擊殺成本，由
+        <code>擊殺成本 = (ceil(HP / (玩家攻擊 − 敵人防禦)) − 1) × max(0, 敵人攻擊 − 玩家防禦)</code> 計算。
+        <code>—</code> 表示玩家攻擊穿不透，完全無法擊殺。
+      </p>
+      <div class="card todo">待生成：5 個 Stage × 5 種敵人。</div>
+
+      <h2 id="route">③ 必經路線 HP 預算</h2>
+      <p>Harness 重播必經路線的逐步結果，包含每一步的 Stage、成本與剩餘生命。</p>
+      <div class="card todo">待生成。收尾要印出必經總成本、佔最大生命的百分比，以及通關剩餘。</div>
+
+      <h2 id="floors">④ 樓層連通性驗證</h2>
+      <p>對五張烘焙地圖的自動檢查。任何一項 <span class="fail">FAIL</span> 都代表地圖資料有問題，不是平衡問題。</p>
+      <div class="overflow">
+        <table>
+          <thead>
+            <tr>
+              <th>檢查</th>
+              <th>說明</th>
+              <th>結果</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>鑰匙可達性</td>
+              <td>沒有鑰匙被鎖在自己顏色的門後</td>
+              <td class="sub">待生成</td>
+            </tr>
+            <tr>
+              <td>路線可通關</td>
+              <td>必經傷害不超過最大生命</td>
+              <td class="sub">待生成</td>
+            </tr>
+            <tr>
+              <td>攻擊力下限</td>
+              <td>沒有必經敵人在玩家當時的攻擊下穿不透</td>
+              <td class="sub">待生成</td>
+            </tr>
+            <tr>
+              <td>樓梯連通</td>
+              <td>每層的上下樓梯都從入口可達</td>
+              <td class="sub">待生成</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="optional">⑤ 可繞過內容</h2>
+      <p>不在必經路線上的敵人，以及它們在各 Stage 的價格。用來確認「現在不要碰」的訊號夠不夠明確。</p>
+      <div class="card todo">待生成。</div>
+    </div>
+  </body>
+</html>
