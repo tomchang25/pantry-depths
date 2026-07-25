@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pantry Depths — Web Prototype</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="app">
+    <aside id="hudPanel" aria-label="遊戲狀態">
+      <header class="dungeon-title">
+        <div>
+          <span class="eyebrow">THE</span>
+          <h1>Pantry<br />Depths</h1>
+        </div>
+        <button id="muteButton" class="icon-button" title="切換聲音" aria-label="切換聲音">♫</button>
+      </header>
+
+      <section class="map-card">
+        <canvas id="miniMap" width="190" height="225"></canvas>
+        <div class="objective-list" id="objectiveList">
+          <div data-step="key"><span class="sigil key-sigil">◆</span><span>取得血鑰</span></div>
+          <div data-step="warden"><span class="sigil skull-sigil">☠</span><span>擊倒守衛</span></div>
+          <div data-step="exit"><span class="sigil door-sigil">▣</span><span>找到出口</span></div>
+        </div>
+      </section>
+
+      <section class="portrait-card">
+        <div class="portrait" aria-hidden="true">
+          <div class="ear left"></div><div class="ear right"></div>
+          <div class="bandana"></div>
+          <div class="eye left"></div><div class="eye right"></div>
+          <div class="nose"></div><div class="mouth"></div>
+        </div>
+        <div class="health-wrap">
+          <div class="health-label"><span>♥</span><strong id="hpText">88 / 88</strong></div>
+          <div class="health-track"><div id="healthBar"></div></div>
+        </div>
+      </section>
+
+      <section class="inventory" aria-label="快捷物品">
+        <div class="slot active"><span class="slot-icon">🔥</span><small>火把</small></div>
+        <div class="slot"><span class="slot-icon">🗡</span><small>短刃</small></div>
+        <div class="slot"><span class="slot-icon" id="potionIcon">—</span><small id="potionCount">0</small></div>
+      </section>
+
+      <footer class="currency-row">
+        <div><span class="coin">●</span><strong id="coinText">0</strong></div>
+        <div><span class="key-icon">◆</span><strong id="keyText">0</strong></div>
+      </footer>
+    </aside>
+
+    <section id="gameShell">
+      <canvas id="gameCanvas"></canvas>
+      <div id="interactionPrompt"></div>
+      <div id="crosshair"><i></i><b></b><i></i></div>
+      <div id="toast"></div>
+      <div id="damageFlash"></div>
+      <div id="startOverlay">
+        <div class="start-card">
+          <span class="start-kicker">A TINY DUNGEON PROTOTYPE</span>
+          <h2>進入食品儲藏窖</h2>
+          <p>在正常迷宮裡尋找血鑰、擊倒守衛，最後打開出口。</p>
+          <div class="controls">
+            <span><kbd>WASD</kbd> 移動</span>
+            <span><kbd>滑鼠</kbd> 轉向</span>
+            <span><kbd>左鍵</kbd> 攻擊</span>
+            <span><kbd>E</kbd> 互動</span>
+            <span><kbd>Shift</kbd> 奔跑</span>
+            <span><kbd>1</kbd> 喝藥</span>
+          </div>
+          <button id="startButton">點擊進入迷宮</button>
+        </div>
+      </div>
+      <div id="winOverlay" hidden>
+        <div class="start-card win-card">
+          <span class="start-kicker">DEPTH CLEARED</span>
+          <h2>你逃出了 Pantry Depths</h2>
+          <p id="winStats"></p>
+          <button id="restartButton">再走一次</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
