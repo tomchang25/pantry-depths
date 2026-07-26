@@ -1,83 +1,103 @@
 # Floor Authoring Workbench Experience
 
-> **Status**: Parked. Not on the V1 critical path and not blocking any `pantry_rules` child. Promote it when hand-authoring final floor content becomes the bottleneck.
+> **Status**: Active. `pantry_authoring_01` is the current implementation target.
 
 ## Goal
 
-Turn the floor authoring surface from a JSON textarea with a read-only picture beside it into a direct-manipulation editor, so a floor can be shaped by pointing at it rather than by counting coordinates. The structural pipeline behind it already works; what is missing is a way to use it without mentally compiling grid text.
+Turn the floor authoring surface from a JSON textarea with a read-only picture beside it into a direct-manipulation editor, so terrain, gameplay content, and presentation metadata can be placed without mentally compiling grid coordinates. The workbench keeps one complete draft while a layered map and a cell editor make that draft understandable and editable.
 
 ## Requirements
 
-1. The authored floor is edited by direct manipulation of the grid: paint terrain, place an entity, and move an entity by dragging it. Coordinate arithmetic is the single largest source of hand-editing mistakes, and it is the one thing a grid view can remove entirely.
-2. The JSON text stays available and stays authoritative in both directions — a manipulation updates the text, and a text edit updates the grid. Text remains the escape hatch for anything the grid cannot express, so it must never become a second source of truth.
-3. Generator counts are configured per key color, with door counts and key counts settable independently, plus a link control that drives both from one number because most sessions want them equal and should not require entering the same value twice.
-4. The size of the key-color palette is selectable rather than fixed at three. **This requirement is blocked on a product decision** — the design document assigns a meaning to each of the three current colors, and additional colors have no assigned meaning in V1. Resolve that before implementing.
-5. Every symbol drawn on the grid is explained next to the grid. A legend is required because the surface encodes entity kind, key color, hint direction, and route membership at once, and none of that is guessable.
-6. The two ways content leaves the page are labelled so the destructive one cannot be taken for the safe one. One writes committed game content in place; the other does not.
-7. No control depends on a function key, and no floor is identified by a label that reads like one, because the browser owns those keys and will act on them first.
+1. The authored floor is edited by selecting cells on a two-dimensional map: terrain can be painted, gameplay entities can be placed and dragged, and environment features can be placed through the selected cell's editor. Coordinate arithmetic is the largest source of hand-editing mistakes, and the map must remove it from ordinary authoring.
+2. The JSON text stays available and remains the complete draft authority in both directions. A map or cell-editor change updates the text, a text edit updates every representable map layer, and no operation may discard authored data outside the field it changes.
+3. The authoring map distinguishes all base terrain materials and every gameplay entity. A breakable wall remains a gameplay entity, appears differently from a permanent wall, and exposes its directional hint faces while authoring; player-facing presentation may later normalize it to an ordinary wall and hide those hints.
+4. The selected cell exposes a side editor for its base tile, optional gameplay entity, and environment-feature collection. Detailed parameters, faces, identifiers, destinations, colors, combat values, and preset identities belong in that editor rather than being crowded into every map cell.
+5. Tile decorations, wall-face decorations, ambient lights, and effect emitters are authorable. The workbench edits their semantic placement, outward face, and named presets without attempting to preview final three-dimensional lighting, particles, animation, or decorative appearance.
+6. Every overview symbol, badge, border, and selected-cell face indicator is explained next to the map. The overview must reveal that authored layers exist even when a gameplay entity and one or more environment features share a cell.
+7. Generator counts are configured independently for red, blue, and yellow. Each color has separate door and key counts plus a link control, enabled by default, that drives both from one number while preserving the independent values when unlinked.
+8. The two ways content leaves the page are labelled so the destructive one cannot be mistaken for the safe one. Export downloads a file without changing the repository; Save names and overwrites the canonical floor content.
+9. Floors are selected from a wrapping row of numbered controls, one per floor. Switching floors takes one click, the floor count remains visible, and no interaction depends on a function key.
 
 ## Design
 
-### Editing model
+### One draft, several projections
 
-The workbench owns one draft. Three surfaces project it: the grid, the JSON text, and the validation report. Any surface may originate a change; all three re-render from the draft afterwards.
+The workbench owns one draft. The map, selected-cell editor, JSON text, and validation report are projections of that draft rather than independent stores. Map and cell-editor mutations patch only their owned fields and then re-render every projection. Text input may temporarily be invalid; an invalid text draft never causes the map to retain a misleading stale projection.
 
-Direct manipulation covers:
+Structural validation remains on demand. An author commonly passes through incomplete or structurally invalid states, so ordinary painting and field edits do not run the full validator or enable Save and Export. Any edit after validation marks the draft unvalidated until the author validates it again.
 
-- **Terrain painting.** Select a terrain kind, then click or drag across cells. Painting a solid kind over an occupied cell is rejected rather than silently deleting the entity standing there.
-- **Entity placement.** Select an entity kind and its parameters, then click a passable cell. Placing onto an occupied cell is rejected; one authored entity per cell is an existing structural rule.
-- **Entity movement.** Drag an entity to another passable, unoccupied cell. Its identity, colour, destination, and hint faces travel with it.
-- **Entity removal.** A delete affordance on the selected entity.
+### Layered authoring map
 
-Validation does not run on every stroke. It runs on demand, as it does today, because the author is mid-edit for long stretches and a half-built floor is expected to be invalid.
+Each map cell has four conceptual layers:
 
-### Layout
+1. **Base terrain**: passable floor, stone wall, old-brick wall, or iron-bar wall.
+2. **Gameplay content**: at most one enemy, key, door, stair, breakable wall, or hot spring.
+3. **Environment content**: zero or more cell- or wall-face-anchored decoration, light, and effect records allowed by the floor contract.
+4. **Tool overlays**: current selection, structural-route membership, and validation evidence.
 
-The grid is the primary surface and sits directly under the generator controls. The JSON text moves below the grid, since it becomes the secondary surface once the grid can express most edits. The validation report stays adjacent to whichever surface caused the last change.
+The overview keeps terrain and the gameplay entity as its primary cell presentation. Compact badges indicate environment-feature kinds without depicting their final visual effects. A selected cell may expose directional ticks around its edges for authored wall faces and breakable-wall hint faces; unselected cells remain legible at overview scale.
 
-Floors are chosen from a row of numbered controls, one per floor, rather than a dropdown. A dropdown hides how many floors exist and costs two interactions per switch; a visible row makes floor count legible and switching a single click. The row must remain usable at the largest floor count the generator accepts, which means it wraps rather than scrolls off.
+This plan does not implement the gameplay minimap or require one DOM component to serve both authoring and Canvas presentation. It establishes renderer-neutral map semantics that a future presentation projection may reuse where useful. The future gameplay projection remains free to apply discovery filtering, active-state filtering, hidden-hint rules, and presentation-specific drawing.
+
+### Cell selection and editing
+
+Selecting a grid cell opens the **Cell Editor** beside the map on wider screens and below it on narrower screens. The name is deliberate: the surface edits more than a base tile.
+
+The editor is organized into:
+
+- **Cell**: read-only coordinates and the base terrain control.
+- **Gameplay Entity**: zero or one entity, with fields specific to its kind. Breakable-wall hint faces and wall-face directions use four explicit cardinal controls.
+- **Environment Features**: a list of records at the selected cell or wall anchor, with add, edit, and remove controls for kind-specific preset and face data.
+
+The map remains the fast spatial surface. Terrain supports click-and-drag painting, and an existing gameplay entity can be dragged to another valid cell. Creation, deletion, and detailed parameters live in the Cell Editor. Environment features use the Cell Editor because several records may legally share a cell and wall-face anchors cannot be expressed by one primary symbol.
+
+Edits that violate an immediately knowable structural rule are rejected at the gesture or control that originated them. Painting a solid tile over an occupied cell does not delete the occupant. Gameplay entities require passable, unoccupied cells. Wall decorations require a solid wall and an outward face with a passable observation cell; cell decorations, lights, and emitters require passable cells. Full-route and cross-floor validation remains on demand.
 
 ### Generator controls
 
-Per key color, two counts: doors and keys. A link toggle, on by default, mirrors one into the other. When the palette size is reduced, counts for the removed colors are retained but not applied, so toggling the palette back does not lose the numbers.
+For each existing key color, the generator exposes separate door and key counts. A per-color link toggle is on by default and mirrors one count into the other. Unlinking restores independent control without losing either remembered value. The generator continues to operate per floor.
 
-Counts remain per floor, matching the existing generator contract.
+Variable palette sizing and additional key colors are outside this plan. White, black, or any other new color requires gameplay meaning and a separate product decision before it can enter the content contract or generator.
 
 ### Departure paths
 
-| Path   | Destination                                | Reversible                              |
-| ------ | ------------------------------------------ | --------------------------------------- |
-| Export | A file downloaded to the author's machine  | Yes — nothing in the repository changes |
-| Save   | The committed floor content the game loads | No — it overwrites in place             |
+| Path   | Destination                                | Reversible                               |
+| ------ | ------------------------------------------ | ---------------------------------------- |
+| Export | A file downloaded to the author's machine | Yes — nothing in the repository changes |
+| Save   | The canonical floor content the game loads | No — it overwrites that target in place  |
 
-Both require a draft that validated as it currently reads. The save path additionally names its target and states that it overwrites, because the only way to notice the overwrite today is to read a diff afterwards.
+Both require a draft that validated exactly as it currently reads. Save additionally names its canonical target and states that it overwrites it.
+
+### Child overview
+
+| Child                 | Focus                                                                                                                | Current document form                                                                                                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `pantry_authoring_01` | Layered read-only map, cell selection and inspector, layout, floor controls, legend, and departure-path labelling   | [Implementation spec](pantry_authoring_01_layered_map_foundation.implementation_spec.md)                                    |
+| `pantry_authoring_02` | Terrain painting, gameplay-entity placement and dragging, editable Cell Editor, and two-way draft synchronization   | Not started                                                                                                                |
+| `pantry_authoring_03` | Environment-feature placement plus wall-face, light, effect, decoration, and preset editing through the Cell Editor | Not started                                                                                                                |
+| `pantry_authoring_04` | Per-color red, blue, and yellow generator counts plus the default-linked door/key controls                           | Not started                                                                                                                |
+
+Recommended landing order: `pantry_authoring_01` -> `pantry_authoring_02` -> `pantry_authoring_03` -> `pantry_authoring_04`.
+
+The first child establishes a readable projection and selection model before any surface can mutate the draft. The second and third children then add the two editing families without forcing single-record gameplay rules and multi-record environment rules into one interaction. Generator control changes remain last because they are independent of map editing and must not distract from the hand-authoring bottleneck.
 
 ## Non-Goals
 
-1. Do not add undo history, multi-cell selection, copy and paste, or clipboard interchange. Those are editor features, not authoring-pipeline features, and each one is larger than the surface it would sit on.
-2. Do not introduce a UI framework or a rendering library. The existing no-framework deviation stands; a grid of cells with pointer handlers does not justify reversing it.
-3. Do not add live validation on every edit, and do not auto-save. Both destroy the author's ability to pass through an invalid intermediate state.
-4. Do not extend the editor to presentation-only environment features. Those belong to the deferred environment-feature slice.
-5. Do not add gameplay meaning for any new key colour here. If the palette grows, the meaning is a design-document decision made before this plan implements it.
-
-## Child Decomposition
-
-| Child                 | Focus                                                                                       | Current document form |
-| --------------------- | ------------------------------------------------------------------------------------------- | --------------------- |
-| `pantry_authoring_01` | Layout rearrangement, numbered floor selection, symbol legend, and departure-path labelling | Not started           |
-| `pantry_authoring_02` | Direct-manipulation grid editing with two-way draft synchronisation                         | Not started           |
-| `pantry_authoring_03` | Per-colour generator counts, the link toggle, and palette sizing                            | Not started           |
-
-Recommended landing order: `pantry_authoring_01` -> `pantry_authoring_02` -> `pantry_authoring_03`.
-
-`pantry_authoring_01` is deliberately first: it is cheap, it removes the two things that actively mislead an author today, and it establishes the layout the editing surface will occupy. `pantry_authoring_03` is last because its palette requirement cannot start until the colour decision is resolved.
+1. Do not implement the gameplay minimap, discovery fog, runtime entity filtering, or a presentation renderer in this plan.
+2. Do not preview final three-dimensional decorations, lights, particles, animation, audio, or atmosphere. The authoring surface edits semantic preset identities and anchors only.
+3. Do not add undo history, multi-cell selection, copy and paste, clipboard interchange, auto-save, or live structural validation on every edit.
+4. Do not introduce a UI framework or rendering library. The existing no-framework deviation stands.
+5. Do not add white, black, or any other key color, variable palette sizing, or gameplay meaning for a new color.
 
 ## Acceptance Criteria
 
-1. A floor can be reshaped — terrain, entity placement, and entity position — without typing a coordinate, and the resulting content validates through the same structural validator used by committed content.
-2. A change made on the grid appears in the JSON text, and a change typed into the JSON text appears on the grid, with neither surface holding state the other cannot see.
-3. An edit that would break an existing structural rule, such as two entities in one cell or an entity inside a solid tile, is refused at the point of the gesture rather than surfaced later as a finding.
-4. Generator door and key counts are set per colour and independently, and the link control keeps them equal without a second entry while it is engaged.
-5. Every symbol on the grid has a visible written explanation on the same screen.
-6. The path that overwrites committed content names its target and is visibly distinct from the path that only downloads a file.
-7. Switching floors takes one click from a control that shows how many floors exist, and no interaction requires a function key.
+1. Terrain, gameplay entities, and environment features can be placed or moved without typing a coordinate, and the resulting content validates through the same structural validator used by canonical content.
+2. A map or Cell Editor change appears in the JSON text, and a valid JSON text change appears in every applicable map and editor layer, without losing untouched fields or co-located records.
+3. The authoring overview distinguishes permanent wall materials from a breakable wall; selecting the breakable wall exposes all authored hint faces.
+4. Selecting a cell reveals its coordinates, base tile, optional gameplay entity, and every environment feature in one adjacent Cell Editor without requiring all details to remain visible inside the map cell.
+5. Decorations, ambient lights, effect emitters, and wall-face decorations can be placed and configured by semantic preset and anchor data without introducing a final-presentation preview.
+6. An edit that would break an immediately knowable structural rule, such as two gameplay entities in one cell, an entity inside permanent solid terrain, or a wall decoration on an invalid face, is refused at the originating interaction.
+7. Every symbol, environment badge, overlay, and face indicator has a visible written explanation on the same screen.
+8. Generator door and key counts are set independently for red, blue, and yellow, and each color's link control keeps the two values equal without duplicate entry while engaged.
+9. The path that overwrites canonical content names its target and is visibly distinct from the path that only downloads a file.
+10. Switching floors takes one click from a wrapping control row that exposes the floor count, and map selection and editing remain keyboard accessible without function keys.

@@ -1,6 +1,6 @@
 # Pantry Depths V1 Mega Plan：一週原型與渲染移植
 
-> **Status**: 執行中。Rules and Content 已交付；下一步是 `/implement pantry_presentation_01`。
+> **Status**: 執行中。Rules and Content 已交付；Authoring Workbench 已主動啟用，但 V1 關鍵路徑的下一步仍是 `/implement pantry_presentation_01`。
 > **Supersedes**: 無。
 > **本文性質**: 執行時以 §5 為工單；§1–§4 與 §6–§8 是決策依據與背景，供未來重新評估時參考。
 > **權威邊界**: 本文擁有架構、交付範圍與 future work。實作前的公式與數字由[設計文件](../design/pantry-depths_v1.md) 擁有；對應規則與 content 落地後由 codebase 接手。設計意圖與 Frozen extensions 不會過期，[報告](../reports/) 是給人看的實作視圖。
@@ -28,7 +28,7 @@
 | 項目                         | 估計                 |
 | ---------------------------- | -------------------- |
 | 總預算                       | 一週                 |
-| Child 數量                   | 13 個 + 1 個平行項目 |
+| Child 數量                   | 18 個 + 1 個平行項目 |
 | 單一 child 上限              | **1 天**             |
 | 前置文件（本文 + 三份 plan） | 半天                 |
 
@@ -217,13 +217,20 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 先寫 style spec（色碼、描邊粗細、剪影規則、平光要求），五隻在同一次作業中一起產出。
 
-### Plan P — Authoring Workbench UX（擱置中）
+### Plan P — Authoring Workbench UX（執行中，非關鍵路徑）
 
 **不在 V1 關鍵路徑上，不擋任何 child。** A04 已經把生成、驗證、預覽、匯出、存檔的管線接通，Plan P 處理的是那個介面本身難用 —— 純 JSON textarea 加唯讀圖，手鋪一張圖要靠心算座標。
 
-擱置的理由是它的價值完全取決於 `pantry_floor_design_01` 手鋪最終五層時的實際痛感，而那還沒發生。等到該 child 開工、手編成為瓶頸時再提升為 active。
+這個 optional stream 已由作者主動提升為 active。它以 layered map 加右側 Cell Editor 編輯 terrain、gameplay entity 與 presentation-only environment metadata；map 負責空間概覽與選取，詳細參數、face anchor 與 preset identity 留在 Cell Editor，避免把所有資料擠進格子。
 
-它有一項需求被產品決策擋住：鑰匙顏色數量可調到五色。設計文件第八節把三色綁定為路／攻／防，白與黑在 V1 沒有任何語意，所以那是設計決策而不是實作細節，必須先在設計文件裡解決。
+| Child                 | 焦點                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| `pantry_authoring_01` | Layered read-only map、cell selection/inspector、layout、floor controls、legend 與 departure labels |
+| `pantry_authoring_02` | Terrain painting、gameplay entity placement/dragging 與雙向 draft synchronization     |
+| `pantry_authoring_03` | Environment feature placement、wall faces、decoration/light/effect presets             |
+| `pantry_authoring_04` | 紅、藍、黃各自的 key/door generator counts 與預設連動控制                              |
+
+白、黑或其他新鑰匙顏色不在本 Plan。它們仍留在 Draft，直到 gameplay 意義先由產品決策確定。
 
 ### 落地順序
 
@@ -235,9 +242,12 @@ pantry_presentation_01 ───────────────────
                                                      └─→ pantry_feel_01 → pantry_feel_02 → pantry_feel_03 → pantry_feel_04
 
 S 全程平行，隨時可以插入
+
+pantry_authoring_01 → pantry_authoring_02 → pantry_authoring_03 → pantry_authoring_04（optional，與 V1 關鍵路徑平行）
 ```
 
 - `pantry_presentation_01` 沒有任何依賴，它是純移植，可以與早期 Rules children 同時進行。
+- `pantry_authoring` 是已啟用的 optional tooling stream，沿自己的四個 children 順序落地，不改變 presentation、feel 與 final-floor 的依賴關係。
 - `pantry_rules_04` needs the grid semantics from `pantry_rules_03` before it can validate topology.
 - `pantry_rules_05` needs A04's provisional content and topology findings before it can build replay and report tooling.
 - `pantry_rules_06` follows the tooling-ownership correction and defines presentation-only floor annotations without waiting for final geometry; it keeps torches, ambient lights, emitters, and wall decorations out of gameplay entities before presentation consumes them.
