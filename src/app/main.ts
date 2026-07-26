@@ -6,6 +6,8 @@
  * single sanctioned wiring point for `src/harness/`.
  */
 
+import { resolveAppRoute } from "@/app/app-route";
+
 const mount = document.querySelector<HTMLDivElement>("#app");
 
 if (!mount) {
@@ -13,10 +15,6 @@ if (!mount) {
 }
 
 const appMount = mount;
-
-function isDebugPath(pathname: string): boolean {
-  return pathname === "/debug" || pathname.startsWith("/debug/");
-}
 
 function renderOrdinaryPlay(): void {
   appMount.textContent = "Pantry Depths — layers not implemented yet.";
@@ -33,15 +31,21 @@ function renderDebugLoadFailure(error: unknown): void {
 function loadDebugRoute(): void {
   void import("@/app/debug/debug-router")
     .then(({ renderDebugRoute }) => {
-      renderDebugRoute(appMount, window.location.pathname);
+      return renderDebugRoute(appMount, window.location.pathname);
     })
     .catch((error: unknown) => {
       renderDebugLoadFailure(error);
     });
 }
 
-if (import.meta.env.DEV && isDebugPath(window.location.pathname)) {
-  loadDebugRoute();
+if (import.meta.env.DEV) {
+  const route = resolveAppRoute(window.location.pathname, true);
+
+  if (route === "debug") {
+    loadDebugRoute();
+  } else {
+    renderOrdinaryPlay();
+  }
 } else {
   renderOrdinaryPlay();
 }

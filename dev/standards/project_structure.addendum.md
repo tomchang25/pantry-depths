@@ -28,11 +28,11 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 
 | Layer               | Directory | Status                                                                                                 |
 | ------------------- | --------- | ------------------------------------------------------------------------------------------------------ |
-| `src/app/`          | Present   | Bootstrap only.                                                                                        |
+| `src/app/`          | Present   | Ordinary/debug route boundary and development tools; ordinary runtime is still a placeholder.          |
 | `src/core/`         | Present   | Empty. Will own grid state, turn resolution, and the attack-minus-defense formula.                     |
 | `src/content/`      | Present   | Empty. Will own the enemy table, door effects, and the five baked floors.                              |
 | `src/runtime/`      | Present   | Empty. Will own input-to-command flow and snapshot routing.                                            |
-| `src/harness/`      | Present   | Empty. Will own the forced-route scenario and the debug API.                                           |
+| `src/harness/`      | Present   | Owns the deterministic action scenario; will also own the forced-route scenario and debug API.         |
 | `src/ui/`           | Present   | Empty. Will own the HUD overlay.                                                                       |
 | `src/presentation/` | Absent    | Earned layer. Created by the renderer port; will own the raycaster, textures, sprites, VFX, and audio. |
 | `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                |
@@ -40,7 +40,7 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 
 A scaffolded empty directory is not a claim that the layer is earned. It carries a `.gitkeep` and nothing else; the first real module in it is still the change that has to justify the placement.
 
-`src/app/debug/` is a development-only subtree owned by application composition. The bootstrap reaches it only through a build-time development guard and a deferred import, so production bundles contain no hub, catalog, or viewer code. The subtree owns tool discovery and dispatch, not gameplay state or mutation; only application composition, including a future debug route, may wire `src/harness/`.
+`src/app/debug/` follows the shared development-tool route surface without a routing deviation. Pantry's ordinary policy currently renders the game placeholder for every non-debug development path and every production path, including the `/debug` namespace. Debug navigation uses native full-document anchors.
 
 ## Feature Placement Detail
 
