@@ -18,14 +18,14 @@ Nothing in flight.
 
 [`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in three plans plus one parallel item.
 
-| Plan | Scope             | Children | State                     |
-| ---- | ----------------- | -------- | ------------------------- |
-| A    | Rules and Content | 4        | Plan document not written |
-| B    | Presentation Port | 2        | Plan document not written |
-| C    | Feel and Endgame  | 4        | Plan document not written |
-| S    | Enemy Sprite Art  | parallel | Plan document not written |
+| Stream | Scope                                                           | Children | State                                              |
+| ------ | --------------------------------------------------------------- | -------: | -------------------------------------------------- |
+| A      | [Rules and Content](dev/docs/plans/pantry_rules.plan.md)        |        5 | Queued; `pantry_rules_01` is next                  |
+| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md) |        2 | Queued                                             |
+| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)          |        4 | Queued                                             |
+| S      | Enemy Sprite Art                                                | parallel | Parallel asset deliverable; style spec not written |
 
-Next action: write the three plan documents from the mega plan's §5, then `/implement` child `pantry_rules_01`.
+Next action: `/implement pantry_rules_01` to build the dev-only debug hub before gameplay rules land.
 
 ---
 
@@ -42,6 +42,6 @@ Playtest-driven balance questions live in mega plan §8, not here — they are p
 
 ## Infrastructure Debt
 
-- [ ] `test` carries `--passWithNoTests`. Remove it with the first unit test (`pantry_rules_01`).
-- [ ] `src/app/main.ts` is a placeholder that only writes text into `#app`. It becomes the real bootstrap at `pantry_feel_01`.
-- [ ] `dev/docs/reports/*.html` are skeletons. The balance report gains a generator at `pantry_rules_04`; the architecture report is filled in at milestone closeout.
+- [ ] `test` carries `--passWithNoTests`. Remove it with the first unit test (`pantry_rules_02`).
+- [ ] `src/app/main.ts` is a placeholder that only writes text into `#app`. `pantry_rules_01` establishes the debug/ordinary-play dispatch; `pantry_feel_01` replaces the ordinary-play placeholder with the runtime.
+- [ ] `dev/docs/reports/*.html` are skeletons. The balance report gains a generator at `pantry_rules_05`; the architecture report is filled in at milestone closeout.

@@ -32,6 +32,18 @@ When the design document and the codebase disagree about a number, the codebase 
 
 ## Lifecycle Scope For V1
 
-V1 is a one-week prototype delivered by a single author. It runs the reduced lifecycle path that `dev/foundation/core/workflows/work_lifecycle.md` already permits: the design document serves as the draft, and work goes straight to a standalone implementation spec. No main plan, probe, or child sketch is opened unless a specific piece of work actually needs one.
+V1 is a one-week prototype delivered by a single author, but its rules, presentation port, and feel/endgame work use different evidence and landing sequences. The design document therefore serves as the product draft, the mega plan owns milestone ordering, and three main plans own the durable requirements and child overviews for those execution streams.
 
-The stages that remain mandatory are unchanged: an implementation spec before implementation, and verification against `dev/agent_rules/test_operations.md` before a change is called delivered.
+The active route is:
+
+```text
+design draft
+-> V1 mega plan
+-> rules, presentation, or feel main plan
+-> focused child implementation spec
+-> implementation
+-> verification
+-> child closeout
+```
+
+Child sketches remain optional and are opened only when an implementation boundary needs exploration. Every child still requires an implementation spec before source mutation and verification against `dev/agent_rules/test_operations.md` before it is called delivered. The parallel enemy-sprite deliverable is asset production, not a fourth main plan.
