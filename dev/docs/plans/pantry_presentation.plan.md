@@ -2,7 +2,7 @@
 
 ## Goal
 
-Preserve the original prototype's distinctive first-person dungeon rendering and procedural audio while moving presentation behind a read-only snapshot and semantic-event boundary. Then add the fixed-image enemy pipeline needed by V1 without allowing the port to become a renderer rewrite or a gameplay owner.
+Preserve the original prototype's distinctive first-person dungeon rendering and procedural audio while moving presentation behind a read-only snapshot and semantic-event boundary. Then add the fixed-image enemy pipeline and consume authored environment annotations without allowing the port to become a renderer rewrite or a gameplay owner.
 
 ## Requirements
 
@@ -11,7 +11,8 @@ Preserve the original prototype's distinctive first-person dungeon rendering and
 3. Separate the faithful port from all improvements, because mixing movement with redesign would make reference comparison impossible and recreate the earlier presentation-refactor failure mode.
 4. Load fixed 512 x 512 enemy images asynchronously, block play behind a clear loading state until required assets are ready, and offer a readable retry state when a required asset fails.
 5. Apply runtime distance darkening and warm torch tint to enemy images, and use pre-baked hit-flash variants so sliced sprite drawing does not rebuild filters hundreds of times per frame.
-6. Preserve a stable reduced-motion rendering mode and a silent degraded mode when browser audio is unavailable; neither capability may change gameplay state.
+6. Render authored wall-face decorations, ambient lights, emitters, and effect presets from the presentation-only floor contract rather than turning them into gameplay entities.
+7. Preserve a stable reduced-motion rendering mode and a silent degraded mode when browser audio is unavailable; neither capability may change gameplay state.
 
 ## Design
 
@@ -58,6 +59,12 @@ Required images load before ordinary play becomes interactive. A failed required
 
 Enemy images receive the same distance attenuation family as walls plus the near-camera warm torch contribution. Their alpha may still fade at long range, but alpha alone is insufficient because a normally lit image would otherwise glow against the dark corridor.
 
+### Authored environment features
+
+The final presentation slice consumes the floor-content contract established by the last Rules child. Wall-mounted features use authored outward-face anchors, while ambient lights and emitters use floor-owned positions and named presets. Content chooses placement and preset identity; presentation owns rendering, animation, timing, and decorative variation.
+
+These annotations remain read-only presentation input. A missing or unsupported optional annotation may omit its visual effect, but it cannot change collision, visibility for gameplay rules, interaction, damage, progression, or deterministic replay.
+
 ### Motion and audio capability
 
 Reduced-motion mode removes non-essential bob, shake, grain motion, ember drift, and decorative oscillation while preserving readable state transitions and required combat cues. Essential event feedback may use a brief opacity, outline, or pose change without large camera motion.
@@ -69,11 +76,11 @@ When Web Audio is unavailable or cannot start, play remains fully usable in sile
 | Child                    | Focus                                                                                                                                | Current document form |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
 | `pantry_presentation_01` | Faithful port of retained raycasting, projection, procedural environment, atmosphere, hands, minimap drawing, and audio capabilities | Not started           |
-| `pantry_presentation_02` | Asynchronous fixed-image loading, loading and retry states, image sizing, distance and torch tint, and pre-baked hit flash           | Not started           |
+| `pantry_presentation_02` | Fixed-image loading and lighting, pre-baked hit flash, and rendering of authored environment features                                | Not started           |
 
 Recommended landing order: `pantry_presentation_01` -> `pantry_presentation_02`.
 
-The faithful port has no gameplay dependency and may proceed in parallel with early rules work. The fixed-image pipeline depends on the faithful sprite projection path but not on final enemy artwork.
+The faithful port has no gameplay dependency and may proceed in parallel with early rules work. The final presentation slice depends on the faithful renderer seams and the authored environment-feature contract from the last Rules child, but not on final enemy artwork or final floor placement.
 
 ## Non-Goals
 
@@ -90,4 +97,5 @@ The faithful port has no gameplay dependency and may proceed in parallel with ea
 3. Presentation can render settled gameplay snapshots and semantic events without importing or mutating gameplay truth.
 4. Required enemy images load before play, failed loads show a retryable error, and successful images use authored scale and anchor values with correct depth occlusion.
 5. Enemy images darken with distance, gain compatible near-torch warmth, and flash on hit through prepared variants without per-slice filtering.
-6. Reduced-motion and silent-audio modes preserve all information and leave gameplay outcomes unchanged.
+6. Authored wall-face decorations, ambient lights, emitters, and effect presets render from presentation-only floor data without becoming gameplay entities or affecting deterministic outcomes.
+7. Reduced-motion and silent-audio modes preserve all information and leave gameplay outcomes unchanged.

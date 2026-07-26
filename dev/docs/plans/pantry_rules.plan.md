@@ -2,14 +2,14 @@
 
 ## Goal
 
-Build the deterministic gameplay model, authored progression content, fixed five-floor world, and inspection surfaces that make Pantry Depths playable and balanceable without depending on the final renderer. The rules must be observable from the first implementation slice so combat, turn order, and map topology can be debugged before presentation work lands.
+Build the deterministic gameplay model, authored progression contracts, provisional five-floor content, and inspection surfaces that make Pantry Depths playable and balanceable without depending on the final renderer. The rules must be observable from the first implementation slice so combat, turn order, and map topology can be debugged before presentation work lands.
 
 ## Requirements
 
 1. Resolve every gameplay command deterministically from explicit state and authored content, because replayable outcomes are the basis of both balance analysis and reproducible playtest failures.
 2. Keep mutable run state and gameplay formulas in the rules owner while authored numbers and layouts remain pure content; neither may depend on the browser, HUD, renderer, wall-clock timing, or random input.
 3. Implement the complete V1 ruleset: four-direction grid movement, no backward movement, adjacency retaliation, deterministic combat, three key colors, six doors, four stat upgrades, bidirectional stairs, one breakable wall, one reusable hot spring, death, and the princess victory trigger.
-4. Ship five fixed, hand-reviewed floors from an offline bake rather than generating maps during play, because runtime generation would add connectivity and recovery behavior outside the V1 budget.
+4. Ship a committed provisional five-floor set from an offline bake rather than generating maps during play, because runtime generation would add connectivity and recovery behavior outside the V1 budget; the presentation-informed final layouts belong to the independent final-floor design plan.
 5. Provide a development-only debug hub and focused viewers that consume the real command and snapshot boundaries; debug tools must never duplicate formulas, own gameplay truth, or mutate state through a bypass.
 6. Prove the rules through focused domain tests, deterministic scenarios, topology checks, and a regenerable balance report that derives every displayed value from the same content and formulas used by play.
 
@@ -92,11 +92,11 @@ The fourth-floor convergence room presents the large blue, red, and yellow doors
 
 The offline generator accepts a seed and arbitrary floor count, but it produces candidate content only and never enters the runtime module graph. The first floor-content slice commits a playable provisional five-floor set, an independent validator, a read-only viewer, and a development-only authoring workbench so generated JSON can be edited, revalidated, previewed, and explicitly saved without trusting or rerunning the generator. Structural validation must return a concrete solution path and prove stair connectivity, legal key and door ordering, valid entity placement, and start-to-goal solvability without making a health-budget promise.
 
-The route-replay slice adds command-level replay and generated balance evidence against the provisional set. A final content slice then hand-reviews the five V1 layouts, locks entity placements and required-route annotations, and uses both topology and balance tooling to establish the final health budget. Runtime play always loads committed fixed JSON and never generates a floor.
+The route-replay slice adds command-level replay and generated balance evidence against the provisional set. The independent final-floor design plan later uses the playable presentation together with this topology and balance tooling to hand-review the five V1 layouts, lock entity placements and required-route annotations, and establish the final health budget. Runtime play always loads committed fixed content and never generates a floor.
 
 The breakable wall uses the combat damage rule, has 6 health and no retaliation, and is the only hidden wall. The hot spring behind it occupies a non-passable water cell: the player stands beside it and faces it to restore health without a use limit. Bidirectional stairs also occupy non-passable interaction cells, preserving run state when the player faces one and uses it.
 
-The baseline required route costs 90 of 120 health and reaches the end with 30 health when the hot spring is unused. This is the initial balance target, not a promise that prevents later playtest-driven tuning through authored content.
+The provisional required route costs 90 of 120 health and reaches the end with 30 health when the hot spring is unused. This is evidence for tooling and a starting point for the independent final-floor design pass, not a final balance promise.
 
 ### Debug hub and viewers
 
@@ -129,12 +129,11 @@ Debug tools obey these boundaries:
 | `pantry_rules_04`  | N-floor offline generation, provisional layouts, topology validation, authoring workbench, floor viewer, and VS Code tasks  | [Implementation spec](pantry_rules_04_floor_pipeline.implementation_spec.md)       |
 | `pantry_rules_05`  | Forced-route scenarios, route replay, and generated balance-report tooling against provisional content                      | [Implementation spec](pantry_rules_05_route_replay_balance.implementation_spec.md) |
 | `pantry_rules_05a` | Offline tooling ownership split, harness-owned balance model, and boundary enforcement over the tooling tree                | [Implementation spec](pantry_rules_05a_tooling_ownership.implementation_spec.md)   |
-| `pantry_rules_06`  | Final five-floor layout, entity placement, required-route annotations, and balance tuning                                   | Not started                                                                        |
-| `pantry_rules_07`  | Presentation-only environment features, wall-face anchoring, light and effect presets, and floor-content ownership refactor | Not started                                                                        |
+| `pantry_rules_06`  | Presentation-only environment features, wall-face anchoring, light and effect presets, and floor-content ownership refactor | Not started                                                                        |
 
-Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05` -> `pantry_rules_05a` -> `pantry_rules_06` -> `pantry_rules_07`.
+Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05` -> `pantry_rules_05a` -> `pantry_rules_06`.
 
-`pantry_rules_05a` is a placement and enforcement child, not new capability. It lands before `pantry_rules_06` because A06 edits floors and routes repeatedly against this tooling, and every such pass through an unenforced tree widens the misplacement it corrects.
+`pantry_rules_05a` is a placement and enforcement child, not new capability. It lands before `pantry_rules_06` so the presentation-only floor contract expands against an enforced tooling boundary; the independent final-floor design plan then performs repeated floor and route edits without widening the old ownership gap.
 
 ## Non-Goals
 
@@ -142,13 +141,14 @@ Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rul
 2. Do not add save/load, runtime map generation, randomness, enemy movement, AI, loot, inventory, equipment, experience, shops, or any stat source beyond the four upgrade doors.
 3. Do not turn the debug hub into an editor, cheat-state owner, alternate game runtime, polished 2.5D client, or production feature.
 4. Do not make the generated balance report or any viewer a second authority for rules or numbers.
+5. Do not finalize the five floor layouts, entity placements, required-route annotations, or health budget before the playable presentation exists; the independent final-floor design plan owns that integrated pass.
 
 ## Acceptance Criteria
 
 1. Equal initial states and command sequences produce equal final states and semantic-event sequences without browser or rendering support.
 2. Every combat matrix entry, including zero-damage and impassable cases, agrees with the shared damage and retaliation rules.
 3. Movement, turns, attacks, interactions, adjacency retaliation, door effects, stairs, the breakable wall, the hot spring, death, and victory follow the documented order and edge cases.
-4. All five fixed floors pass connectivity, placement, key-order, door-order, and required-route health checks, while runtime play contains no map generator.
+4. The committed provisional five-floor set passes connectivity, placement, key-order, and door-order checks and produces reproducible required-route health evidence, while runtime play contains no map generator.
 5. Development viewers expose combat, command traces, floor topology, and route replay from real snapshots and commands; ordinary and production play expose none of the debug surface.
-6. The generated balance report reproduces the enemy table, cost matrix, required-route budget, floor placements, and topology findings from current authored content without hand-maintained numeric copies.
+6. The generated balance report reproduces the enemy table, cost matrix, current required-route budget, floor placements, and topology findings from current authored content without hand-maintained numeric copies or claiming final floor balance.
 7. Presentation-only environment features remain outside gameplay entities and gain an authored floor-data contract before renderer-owned lights, emitters, or wall decorations depend on them.

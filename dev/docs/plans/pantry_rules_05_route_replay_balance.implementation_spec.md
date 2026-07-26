@@ -4,18 +4,18 @@ Parent Plan: `pantry_rules.plan.md`
 
 ## Goal
 
-Add a deterministic forced-route replay for the provisional floor set and use its canonical command results to make progression and health costs inspectable. Generate the balance report from current rules and content so it exposes provisional evidence now and remains useful when A06 replaces the floor layout.
+Add a deterministic forced-route replay for the provisional floor set and use its canonical command results to make progression and health costs inspectable. Generate the balance report from current rules and content so it exposes provisional evidence now and remains useful when the independent final-floor design plan replaces the floor layout.
 
 ## Summary
 
 The provisional route will be an authored harness fixture: a fixed sequence of normal player commands with named checkpoints through the two early upgrades, the B4 convergence upgrades, the route door, and the princess. The replay engine dispatches every command through a fresh `GameSession`, recording before and after snapshots, accepted or rejected results, and semantic events. It stops at the first rejected command or terminal outcome, so a content edit that invalidates the route produces evidence instead of silently discovering a replacement path.
 
-The development-only Route Replay viewer will show the resulting checkpoints, player stage, health, keys, opened entities, accumulated cost, and final outcome. The report generator will consume that same replay plus canonical combat content and floor validation to overwrite the existing balance-report skeleton with the enemy table, cost matrix, provisional route budget, topology status, floor placements, and route membership. All displayed numbers remain derived from the real core and content owners; the report will explicitly identify the result as provisional rather than claiming A06's final balance target.
+The development-only Route Replay viewer will show the resulting checkpoints, player stage, health, keys, opened entities, accumulated cost, and final outcome. The report generator will consume that same replay plus canonical combat content and floor validation to overwrite the existing balance-report skeleton with the enemy table, cost matrix, provisional route budget, topology status, floor placements, and route membership. All displayed numbers remain derived from the real core and content owners; the report will explicitly identify the result as provisional rather than claiming the final-floor plan's balance target.
 
 ## Relational Context
 
 - `GameSession.dispatch()` remains the sole mutable command gateway. The replay engine records its returned `CommandResult`; it must never call the core resolver with a separately maintained snapshot or modify a `RunSnapshot` directly.
-- The forced route is a harness-owned scenario over `PROVISIONAL_RUN_WORLD`, not authored floor data or a new gameplay rule. A06 owns final required-route annotations and may replace this provisional fixture when final content lands.
+- The forced route is a harness-owned scenario over `PROVISIONAL_RUN_WORLD`, not authored floor data or a new gameplay rule. The independent final-floor design plan owns final required-route annotations and may replace this provisional fixture when final content lands.
 - `PROVISIONAL_FLOOR_VALIDATION.solution` proves structural reachability only. The replay and generated report consume its findings as topology evidence but use their own canonical command trace for facing, retaliation, attack penetration, health, and victory evidence.
 - The Route Replay viewer and the report generator both consume the replay result; neither recalculates command outcomes, health cost, keys, door state, or player upgrades from copied rules.
 - The viewer is registered through the one debug catalog and stays behind the existing deferred development route boundary. No ordinary or production route imports harness code.
@@ -85,4 +85,4 @@ The development-only Route Replay viewer will show the resulting checkpoints, pl
 3. A changed route that rejects a command or ends terminally cannot continue and is visibly reported as invalid evidence.
 4. The development Route Replay surface reads the canonical replay trace and remains unavailable from ordinary and production routes.
 5. One command regenerates a report that contains the current enemy table, full combat matrix, provisional route budget and checkpoints, topology findings, floor placements, and route membership without hand-maintained gameplay numbers or skeleton placeholders.
-6. The report distinguishes structural topology status from route combat and survivability evidence, and labels the latter as provisional until A06 finalizes content.
+6. The report distinguishes structural topology status from route combat and survivability evidence, and labels the latter as provisional until the independent final-floor design plan finalizes content.

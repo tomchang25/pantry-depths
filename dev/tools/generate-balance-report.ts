@@ -155,7 +155,7 @@ export function renderBalanceReport(): string {
   <body>
     <main class="wrap">
       <h1>Pantry Depths — Balance Report</h1>
-      <p class="sub">由 <code>src/content/</code>、<code>src/core/</code>、拓撲驗證與 canonical route replay 重新產生。請以此頁檢閱目前 provisional content，不是 A06 的最終平衡承諾。</p>
+      <p class="sub">由 <code>src/content/</code>、<code>src/core/</code>、拓撲驗證與 canonical route replay 重新產生。請以此頁檢閱目前 provisional content，不是最終樓層設計的平衡承諾。</p>
 
       <section class="card" aria-labelledby="summary-heading">
         <h2 id="summary-heading">摘要</h2>

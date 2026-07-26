@@ -8,7 +8,7 @@ Return the derived-balance model to its domain owner, separate reusable tooling 
 
 ## Summary
 
-`dev/tools/` is the only tree in this repository whose layering is not machine-checked: `check:boundaries` cruises `src` alone. Typecheck, lint, and unit tests do cover it, so the gap is specifically layering. Three consequences have already landed and A06 will enlarge all of them, because it edits floors and routes repeatedly and re-runs this exact tooling each time.
+`dev/tools/` is the only tree in this repository whose layering is not machine-checked: `check:boundaries` cruises `src` alone. Typecheck, lint, and unit tests do cover it, so the gap is specifically layering. Three consequences have already landed, and the independent final-floor design pass would enlarge all of them because it edits floors and routes repeatedly and re-runs this exact tooling each time.
 
 | Symptom                                                                                                                                                                                           | Evidence                                                                                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -50,7 +50,7 @@ Behavior does not change. The landed result is the same commands producing the s
 - Any change to gameplay rules, authored content, floor geometry, route fixtures, generation output, validation findings, or report values.
 - Adding a Balance Report tool or a regenerate action to the debug hub. That depends on this landing and is separate work.
 - Creating new root trees under `dev/`, renaming npm scripts, or changing the `verify` stage list.
-- A06 content work.
+- Final-floor content design and tuning.
 
 ## Files to Change
 

@@ -142,17 +142,18 @@ Codebase 是數值的唯一權威，但一堆沒有註解的常數沒辦法 revi
 
 分組判準是**一個 Plan 只有一種驗證方式**。不是按 child 數量分堆，是按「怎麼證明它對」分堆——因為 Acceptance Criteria 必須能用同一種語言寫完。
 
-| Plan                                                      | Scope                 | 驗證方式                                  | 風險   |
-| --------------------------------------------------------- | --------------------- | ----------------------------------------- | ------ |
-| **[A. Rules and Content](pantry_rules.plan.md)**          | `pantry_rules`        | Unit test + debug viewer + 生成的平衡報告 | 低     |
-| **[B. Presentation Port](pantry_presentation.plan.md)**   | `pantry_presentation` | 與 `port-ref/` 在保留能力範圍內並排比對   | **高** |
-| **[C. Feel and Endgame](pantry_feel.plan.md)**            | `pantry_feel`         | 手動試玩與鍵盤／無障礙檢查                | 中     |
-| **S. Enemy Sprite Art（平行項目）**                       | `pantry_sprite_art`   | 目視 + 風格一致性                         | 中     |
-| **[P. Authoring Workbench UX](pantry_authoring.plan.md)** | `pantry_authoring`    | 手動編修一張圖後仍通過結構驗證            | 低     |
+| Plan                                                      | Scope                 | 驗證方式                                     | 風險   |
+| --------------------------------------------------------- | --------------------- | -------------------------------------------- | ------ |
+| **[A. Rules and Content](pantry_rules.plan.md)**          | `pantry_rules`        | Unit test + debug viewer + 生成的平衡報告    | 低     |
+| **[B. Presentation Port](pantry_presentation.plan.md)**   | `pantry_presentation` | 與 `port-ref/` 在保留能力範圍內並排比對      | **高** |
+| **[C. Feel and Endgame](pantry_feel.plan.md)**            | `pantry_feel`         | 手動試玩與鍵盤／無障礙檢查                   | 中     |
+| **[D. Final Floor Design](pantry_floor_design.plan.md)**  | `pantry_floor_design` | Presentation 實玩 + topology／balance report | 中     |
+| **S. Enemy Sprite Art（平行項目）**                       | `pantry_sprite_art`   | 目視 + 風格一致性                            | 中     |
+| **[P. Authoring Workbench UX](pantry_authoring.plan.md)** | `pantry_authoring`    | 手動編修一張圖後仍通過結構驗證               | 低     |
 
 ### Plan A — Rules and Content
 
-Gameplay rules 與 gameplay content 的全部內容。Presentation 與 feel 擁有的設定仍然落在 `content/`，但隨各自 Plan 建立，避免 Plan A 提前放入尚無 owner 的數值。這組先落地，因為其他所有東西都以它為基準做平衡，而且它在最終 renderer 之前就能靠 unit test、debug viewer 與報告完整觀察。
+Gameplay rules、provisional gameplay content、驗證工具與 presentation-only floor data contract。Presentation 與 feel 擁有的設定仍然落在 `content/`，但隨各自 Plan 建立，避免 Plan A 提前放入尚無 owner 的數值。這組先落地，因為其他所有東西都以它為基準做平衡，而且它在最終 renderer 之前就能靠 unit test、debug viewer 與報告完整觀察；最終五層不在這裡定稿。
 
 | Child             | 焦點                                                                                                          |
 | ----------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -161,8 +162,7 @@ Gameplay rules 與 gameplay content 的全部內容。Presentation 與 feel 擁�
 | `pantry_rules_03` | 格子朝向、Action、相鄰反擊、鑰匙門樓梯、可破壞牆、溫泉與 2D action viewer                                     |
 | `pantry_rules_04` | N-floor offline generation, provisional floor set, validation, viewer, authoring workbench, and VS Code tasks |
 | `pantry_rules_05` | Harness scenario, route replay, and balance-report tooling against provisional content                        |
-| `pantry_rules_06` | Final five-floor layouts, entity placement, required-route annotations, and balance tuning                    |
-| `pantry_rules_07` | Presentation-only environment features, wall-face anchoring, light/effect presets, and ownership refactor     |
+| `pantry_rules_06` | Presentation-only environment features, wall-face anchoring, light/effect presets, and ownership refactor     |
 
 `pantry_rules_01` 先建立觀察面，但不創造假的 gameplay model；第一個實際 viewer 隨 `pantry_rules_02` 落地。所有 viewer 都讀真正的 snapshot／semantic event，操作也走正式 command boundary，不得複製公式或直接竄改 state。
 
@@ -194,6 +194,16 @@ Gameplay rules 與 gameplay content 的全部內容。Presentation 與 feel 擁�
 
 `pantry_feel_01` 有一條容易漏的規則：**反擊在補間開始時就結算完成，動畫只是表現**。不要讓動畫時間影響遊戲狀態。
 
+### Plan D — Final Floor Design and Balance
+
+等 Presentation Port 已能實際呈現並遊玩 authored floors 後，才把 provisional set 調成最終五層。Debug viewer、validator 與 balance report 能證明結構和數字，但第一人稱動線、視線、地標辨識、遭遇節奏與環境構圖必須等 presentation 出來才能一起判斷。
+
+| Child                    | 焦點                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `pantry_floor_design_01` | 最終五層 layout、entity 與環境標註 placement、required route、presentation 實玩與 balance tuning |
+
+這個 child 的內容就是反覆編修、驗證、重播、重產報告與實玩五層，直到 provisional content 變成最終 V1 content；它不是 Rules plan 裡的一段尾工，也不再另留一個「最後才定稿」的 child。
+
 ### 平行項目 S — Enemy Sprite Art
 
 **不屬於任何 Plan，不擋任何東西，也不被任何東西擋。**
@@ -211,16 +221,16 @@ Gameplay rules 與 gameplay content 的全部內容。Presentation 與 feel 擁�
 
 **不在 V1 關鍵路徑上，不擋任何 child。** A04 已經把生成、驗證、預覽、匯出、存檔的管線接通，Plan P 處理的是那個介面本身難用 —— 純 JSON textarea 加唯讀圖，手鋪一張圖要靠心算座標。
 
-擱置的理由是它的價值完全取決於 A06 手鋪最終五層時的實際痛感，而那還沒發生。等到 A06 開工、手編成為瓶頸時再提升為 active。
+擱置的理由是它的價值完全取決於 `pantry_floor_design_01` 手鋪最終五層時的實際痛感，而那還沒發生。等到該 child 開工、手編成為瓶頸時再提升為 active。
 
 它有一項需求被產品決策擋住：鑰匙顏色數量可調到五色。設計文件第八節把三色綁定為路／攻／防，白與黑在 V1 沒有任何語意，所以那是設計決策而不是實作細節，必須先在設計文件裡解決。
 
 ### 落地順序
 
 ```text
-pantry_rules_01 → pantry_rules_02 → pantry_rules_03 ─┬─→ pantry_rules_04 → pantry_rules_05 → pantry_rules_06 ─┐
-                                                     │                                                        │
-pantry_presentation_01 ──────────────────────────────┼───────────────────────────────────────────────────────┴→ pantry_rules_07 → pantry_presentation_02
+pantry_rules_01 → pantry_rules_02 → pantry_rules_03 ─┬─→ pantry_rules_04 → pantry_rules_05 → pantry_rules_05a → pantry_rules_06 ─┐
+                                                     │                                                                          │
+pantry_presentation_01 ──────────────────────────────┼─────────────────────────────────────────────────────────────────────────┴→ pantry_presentation_02 → pantry_floor_design_01
                                                      │
                                                      └─→ pantry_feel_01 → pantry_feel_02 → pantry_feel_03 → pantry_feel_04
 
@@ -230,8 +240,9 @@ S 全程平行，隨時可以插入
 - `pantry_presentation_01` 沒有任何依賴，它是純移植，可以與早期 Rules children 同時進行。
 - `pantry_rules_04` needs the grid semantics from `pantry_rules_03` before it can validate topology.
 - `pantry_rules_05` needs A04's provisional content and topology findings before it can build replay and report tooling.
-- `pantry_rules_06` needs the A04 validator and A05 replay/report so manual content edits can re-prove route legality and the health budget.
-- `pantry_rules_07` needs final A06 geometry plus the renderer seams proven by `pantry_presentation_01`; it keeps torches, ambient lights, emitters, and wall decorations out of gameplay entities before `pantry_presentation_02` consumes those annotations.
+- `pantry_rules_06` follows the tooling-ownership correction and defines presentation-only floor annotations without waiting for final geometry; it keeps torches, ambient lights, emitters, and wall decorations out of gameplay entities before presentation consumes them.
+- `pantry_presentation_02` needs the faithful renderer seams from `pantry_presentation_01` and the authored environment-feature contract from `pantry_rules_06`.
+- `pantry_floor_design_01` starts only after the Presentation Port is available. It uses the A04 validator and A05 replay/report while judging and tuning the floors through the actual presentation.
 - `pantry_feel_01` 需要 `pantry_rules_03` 與 `pantry_presentation_01`。
 - `pantry_feel_03` 需要 `pantry_presentation_02` 與 `pantry_feel_02`。
 
@@ -249,10 +260,10 @@ S 全程平行，隨時可以插入
 
 兩份，分開。分開的理由是**覆寫安全**：生成的那份隨時可以重跑覆蓋，手寫的那份不會被蓋掉。
 
-| 報告     | 路徑                                               | 性質                                 | 誰產出            |
-| -------- | -------------------------------------------------- | ------------------------------------ | ----------------- |
-| 平衡報告 | `dev/docs/reports/pantry_depths_balance.html`      | **生成**，由 harness 從 content 重算 | `pantry_rules_05` |
-| 架構導覽 | `dev/docs/reports/pantry_depths_architecture.html` | **手寫**，描述已實作的真相           | milestone 收尾    |
+| 報告     | 路徑                                               | 性質                                 | 誰產出                                                        |
+| -------- | -------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| 平衡報告 | `dev/docs/reports/pantry_depths_balance.html`      | **生成**，由 harness 從 content 重算 | `pantry_rules_05` 建立；`pantry_floor_design_01` 產出最終內容 |
+| 架構導覽 | `dev/docs/reports/pantry_depths_architecture.html` | **手寫**，描述已實作的真相           | milestone 收尾                                                |
 
 ### 6.1 平衡報告（生成）
 
@@ -299,6 +310,7 @@ S 全程平行，隨時可以插入
 | 12  | Sprite 素材獨立平行，不進任何 Plan                                 | 見 §5                                                                                        |
 | 13  | Rules 第一個 child 先建 dev-only debug hub，後續 viewer 隨規則落地 | 在最終 renderer 之前提供真實 snapshot／command 的觀察面，避免用假規則或一路抓瞎              |
 | 14  | Debug tooling 的 shared extraction 不阻擋 V1                       | 先以第二個 Web consumer 驗證 hub 與多種 viewer，再由 game-devkit 的獨立工作抽出通用契約      |
+| 15  | 最終五層設計獨立於 Rules，並等待 Presentation Port 可用            | 結構與數字可提前驗證，但第一人稱動線、視線、節奏與環境構圖必須在實際 presentation 中定稿     |
 
 ---
 
@@ -306,7 +318,7 @@ S 全程平行，隨時可以插入
 
 不阻擋開工。前四項只有 playtest 能回答，最後兩項是流程本身的實驗結果。
 
-1. **必經成本 90 of 120 是否留了足夠的犯錯空間。** 調整順序是先降 B2 骷髏的攻擊（6 → 5），再動公主。平衡調整一律改 `src/content/`，絕不改 `src/core/`。
+1. **必經成本 90 of 120 是否留了足夠的犯錯空間。** 由 `pantry_floor_design_01` 在 presentation 實玩中決定；調整順序是先降 B2 骷髏的攻擊（6 → 5），再動公主。平衡調整一律改 `src/content/`，絕不改 `src/core/`。
 2. **公主 40 的成本佔通關時生命的比重是否夠有壓迫感。** 過輕的話提高她的攻擊而不是 HP——HP 只會拉長回合數。
 3. **死亡直接重來整局是否過於挫折。** 唯一允許的備案是「回到當層樓梯口，保留已開的門與已拾取鑰匙，生命補到 30%」，仍然不加存檔。採用與否是產品決策。
 4. **玩家是否看得懂「無法穿透」而不是以為遊戲壞了。** 若不夠明顯，加一次性教學提示。
