@@ -22,4 +22,14 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
         render: renderCombatExplorer,
       })),
   },
+  {
+    id: "actions",
+    path: "/debug/actions",
+    title: "Action Viewer",
+    description: "Step a real command scenario and inspect snapshots and semantic events.",
+    load: () =>
+      import("@/app/debug/action-viewer").then(({ renderActionViewer }) => ({
+        render: renderActionViewer,
+      })),
+  },
 ];

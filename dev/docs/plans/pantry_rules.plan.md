@@ -92,7 +92,7 @@ The fourth-floor convergence room presents the large blue, red, and yellow doors
 
 The offline bake may generate candidate mazes from fixed seeds, but the selected layouts are then manually adjusted, reviewed, committed as fixed authored data, and loaded directly by the game. Validation must prove stair connectivity, legal key and door ordering, valid entity placement, and a required route whose baseline cost does not exceed maximum health.
 
-The breakable wall uses the combat damage rule, has 6 health and no retaliation, and is the only hidden wall. The hot spring behind it restores health without a use limit. Bidirectional stairs preserve run state and allow returning to earlier floors.
+The breakable wall uses the combat damage rule, has 6 health and no retaliation, and is the only hidden wall. The hot spring behind it occupies a non-passable water cell: the player stands beside it and faces it to restore health without a use limit. Bidirectional stairs also occupy non-passable interaction cells, preserving run state when the player faces one and uses it.
 
 The baseline required route costs 90 of 120 health and reaches the end with 30 health when the hot spring is unused. This is the initial balance target, not a promise that prevents later playtest-driven tuning through authored content.
 
@@ -122,7 +122,7 @@ Debug tools obey these boundaries:
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `pantry_rules_01` | Development-only debug hub, catalog, routing boundary, and production exclusion                                           | [Implementation spec](pantry_rules_01_debug_hub.implementation_spec.md)       |
 | `pantry_rules_02` | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                     | [Implementation spec](pantry_rules_02_combat_explorer.implementation_spec.md) |
-| `pantry_rules_03` | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer | Not started                                                                   |
+| `pantry_rules_03` | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer | [Implementation spec](pantry_rules_03_action_viewer.implementation_spec.md)   |
 | `pantry_rules_04` | Offline floor bake, five fixed layouts, topology validation, and floor viewer                                             | Not started                                                                   |
 | `pantry_rules_05` | Forced-route scenarios, route replay, and generated balance report                                                        | Not started                                                                   |
 
