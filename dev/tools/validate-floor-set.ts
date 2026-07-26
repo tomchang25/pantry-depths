@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { validateFloorSet } from "../../src/content/floor/floor-validation";
+import { validateFloorSet } from "@/content/floor/floor-validation";
 
 const DEFAULT_INPUT = "src/content/floors/provisional-floor-set.json";
 

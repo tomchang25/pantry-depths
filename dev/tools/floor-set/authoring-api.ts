@@ -1,12 +1,10 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { generateFloorSet } from "./floor-set-generator";
-import { parseFloorSet } from "../../src/content/floor/floor-schema";
-import { validateFloorSet } from "../../src/content/floor/floor-validation";
-
-export const FLOOR_AUTHORING_API_ROOT = "/__debug/floor-set";
-export const CANONICAL_FLOOR_SET_PATH = "src/content/floors/provisional-floor-set.json";
+import { CANONICAL_FLOOR_SET_PATH, FLOOR_AUTHORING_API_ROOT } from "./api-contract";
+import { generateFloorSet } from "./generator";
+import { parseFloorSet } from "@/content/floor/floor-schema";
+import { validateFloorSet } from "@/content/floor/floor-validation";
 
 export type FloorAuthoringRequest = Readonly<{
   method: string;

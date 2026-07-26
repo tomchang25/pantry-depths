@@ -27,7 +27,7 @@ Nothing in flight.
 | S      | Enemy Sprite Art                                                  | parallel | Parallel asset deliverable; style spec not written |
 | P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |        3 | Parked; promote if final floor authoring blocks    |
 
-Next action: `/implement pantry_rules_05a` to settle offline tooling ownership before `pantry_rules_06` expands the authored floor-data contract.
+Next action: `/implement pantry_rules_06` for the final five-floor layout, entity placement, and balance tuning.
 
 ---
 

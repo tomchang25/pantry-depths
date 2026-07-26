@@ -1,9 +1,9 @@
+import { FLOOR_AUTHORING_API_ROOT } from "../../../../../dev/tools/floor-set/api-contract";
 import {
-  FLOOR_AUTHORING_API_ROOT,
   handleFloorAuthoringRequest,
   type FloorAuthoringDependencies,
-} from "../../../../dev/tools/floor-authoring-api";
-import { generateFloorSet } from "../../../../dev/tools/floor-set-generator";
+} from "../../../../../dev/tools/floor-set/authoring-api";
+import { generateFloorSet } from "../../../../../dev/tools/floor-set/generator";
 import { describe, expect, it, vi } from "vitest";
 
 function createDependencies(

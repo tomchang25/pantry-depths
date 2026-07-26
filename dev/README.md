@@ -17,7 +17,7 @@ The foundation owns document placement, core workflows, shared agent behavior, a
 - `dev/standards/`: project-specific addenda and any local governance policy.
 - `dev/skills/`: only project-specific hazard cards, never a copy of a foundation skill.
 - `dev/docs/`: product design, active plans, reports, and archives.
-- `dev/tools/`: project-owned validators.
+- `dev/tools/`: project-owned offline tooling. A file directly under it is an executable entrypoint; reusable implementation lives in a named subdirectory. See the tooling ownership section of `dev/standards/project_structure.addendum.md`.
 
 ## Trigger map
 

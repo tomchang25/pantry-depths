@@ -2,30 +2,6 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Floor Set: Generate Candidate",
-      "type": "shell",
-      "command": "npm",
-      "args": [
-        "run",
-        "generate:floor-set",
-        "--",
-        "--seed",
-        "${input:floorSetSeed}",
-        "--floors",
-        "${input:floorSetCount}",
-        "--keys",
-        "${input:floorSetKeys}",
-        "--doors",
-        "${input:floorSetDoors}",
-        "--enemies",
-        "${input:floorSetEnemies}",
-        "--output",
-        "${input:floorSetOutput}"
-      ],
-      "options": { "cwd": "${workspaceFolder}" },
-      "problemMatcher": []
-    },
-    {
       "label": "Floor Set: Validate Canonical",
       "type": "shell",
       "command": "npm",
@@ -34,10 +10,10 @@
       "problemMatcher": []
     },
     {
-      "label": "Floor Set: Validate Candidate",
+      "label": "Balance Report: Regenerate",
       "type": "shell",
       "command": "npm",
-      "args": ["run", "validate:floor-set", "--", "--input", "${input:floorSetInput}"],
+      "args": ["run", "generate:balance-report"],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": []
     },
@@ -49,50 +25,6 @@
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": [],
       "isBackground": true
-    }
-  ],
-  "inputs": [
-    {
-      "id": "floorSetSeed",
-      "type": "promptString",
-      "description": "Deterministic integer seed",
-      "default": "1"
-    },
-    {
-      "id": "floorSetCount",
-      "type": "promptString",
-      "description": "Positive floor count",
-      "default": "5"
-    },
-    {
-      "id": "floorSetKeys",
-      "type": "promptString",
-      "description": "Keys per floor",
-      "default": "1"
-    },
-    {
-      "id": "floorSetDoors",
-      "type": "promptString",
-      "description": "Doors per floor",
-      "default": "1"
-    },
-    {
-      "id": "floorSetEnemies",
-      "type": "promptString",
-      "description": "Enemies per floor",
-      "default": "1"
-    },
-    {
-      "id": "floorSetOutput",
-      "type": "promptString",
-      "description": "Candidate output path",
-      "default": "tmp/generated-floor-set.json"
-    },
-    {
-      "id": "floorSetInput",
-      "type": "promptString",
-      "description": "Candidate input path",
-      "default": "tmp/generated-floor-set.json"
     }
   ]
 }

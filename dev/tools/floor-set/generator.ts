@@ -1,7 +1,7 @@
-import type { Cell, Facing } from "../../src/core/grid";
-import type { KeyColor } from "../../src/core/run-state";
-import type { FloorEntitySource, FloorSetSource, FloorSource } from "../../src/content/floor/floor-schema";
-import { validateParsedFloorSet } from "../../src/content/floor/floor-validation";
+import type { Cell, Facing } from "@/core/grid";
+import type { KeyColor } from "@/core/run-state";
+import type { FloorEntitySource, FloorSetSource, FloorSource } from "@/content/floor/floor-schema";
+import { validateParsedFloorSet } from "@/content/floor/floor-validation";
 
 export type FloorSetGenerationOptions = Readonly<{
   seed: number;

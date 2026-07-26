@@ -2,7 +2,7 @@ import {
   createFloorAuthoringDependencies,
   handleFloorAuthoringRequest,
   type FloorAuthoringRequest,
-} from "./floor-authoring-api";
+} from "./floor-set/authoring-api";
 
 async function readStandardInput(): Promise<string> {
   const chunks: Buffer[] = [];

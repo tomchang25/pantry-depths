@@ -1,4 +1,4 @@
-import { generateFloorSet } from "../../../../dev/tools/floor-set-generator";
+import { generateFloorSet } from "../../../../../dev/tools/floor-set/generator";
 import type { FloorSetSource } from "@/content/floor/floor-schema";
 import { validateParsedFloorSet } from "@/content/floor/floor-validation";
 import { describe, expect, it } from "vitest";

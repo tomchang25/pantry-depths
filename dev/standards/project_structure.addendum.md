@@ -47,4 +47,18 @@ A scaffolded empty directory is not a claim that the layer is earned. It carries
 - The five floor maps are authored data, not code. They live in `src/content/floors/` as JSON and are the only source of map geometry. No generator ships in `src/`; the offline bake script belongs in `dev/tools/`.
 - Numeric records the design document owns — player base stats, the four door effects, the enemy table, sprite `scale` and `anchorY` — live in `src/content/`. They must not be duplicated as literals inside `src/core/` or `src/presentation/`.
 - Enemy art is the one place this project uses image assets. Editable sources (SVG or the generation script) live in `assets/enemies/` and are never imported at runtime; the baked 512×512 PNGs live in `src/content/enemies/assets/` and are imported through source so the bundler fingerprints them. Environment surfaces — walls, floor, ceiling — stay procedurally drawn and ship no image file.
-- The forced-route balance simulation is a `src/harness/` scenario driven by a `dev/tools/` script, so balance can be re-derived without a manual playthrough.
+- The forced-route balance simulation is a `src/harness/` scenario driven by a `dev/tools/` script, so balance can be re-derived without a manual playthrough. The harness also owns the derived balance model — stage identity, accumulated health cost, opened-entity state, and route membership — because those are measurements over a deterministic scenario. The tooling script serializes and writes that model; it never derives a value the model does not already carry.
+
+## Offline Tooling Ownership
+
+`dev/tools/` is the offline tooling tree. A file directly under it is an executable entrypoint: a CLI, a process adapter, or a runner configuration. Reusable implementation lives in a named subdirectory of it, so a reader can tell an entry from an implementation by path alone. The path is the signal; file size is not.
+
+Placement inside the tree follows the same test as the source layers. Deterministic measurement over a scenario belongs in `src/harness/` and is imported, not reimplemented. Content schema and structural validation belong in `src/content/` and are imported, not reimplemented. What legitimately remains in `dev/tools/` is what no game layer may own: offline authoring algorithms that must not ship, artifact serialization, filesystem access, argument parsing, exit status, and development-server request handling.
+
+Import directions, machine-checked by the boundary rules:
+
+- `dev/tools/` imports `src/core/`, `src/content/`, and `src/harness/` through the `@/` alias. It never imports `src/app/`, `src/runtime/`, `src/ui/`, or a renderer; a tool that needs those is a debug tool and belongs in `src/app/debug/`.
+- `src/` never imports `dev/`. The shipped module graph must not depend on development-time tooling.
+- `dev/tools/` is the one sanctioned consumer of `src/harness/` outside `src/app/`, which is why the harness rule names both.
+
+The development authoring endpoint namespace is declared once in the tooling tree. The workbench client keeps its own literal because client code must not import `dev/`; a unit test holds that one copy equal to the declaration. Editor tasks invoke existing npm scripts and own no parameters, defaults, or behavior of their own — a prompt-driven flag surface belongs to the CLI or to the workbench, not to a third entry point.

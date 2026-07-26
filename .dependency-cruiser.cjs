@@ -22,8 +22,11 @@ module.exports = {
       name: "no-orphan-modules",
       severity: "warn",
       comment:
-        "A module nothing imports is either dead or missing its registration. The bootstrap entry is exempt: index.html references it through a script tag the cruiser cannot follow.",
-      from: { orphan: true, pathNot: "\\.d\\.ts$|(^|/)vite-env\\.d\\.ts$|^src/app/main\\.ts$" },
+        "A module nothing imports is either dead or missing its registration. Two kinds of entry are exempt: the bootstrap, which index.html references through a script tag the cruiser cannot follow, and the offline tooling entrypoints directly under dev/tools/, which npm scripts and the development server invoke by path. The exemption stops at the entrypoint level, so an unreferenced tooling implementation module is still reported.",
+      from: {
+        orphan: true,
+        pathNot: "\\.d\\.ts$|(^|/)vite-env\\.d\\.ts$|^src/app/main\\.ts$|^dev/tools/[^/]+\\.ts$",
+      },
       to: {},
     },
 
@@ -72,7 +75,8 @@ module.exports = {
     {
       name: "only-app-imports-harness",
       severity: "error",
-      comment: "The bootstrap is the single harness wiring point, so the harness stays a seam and not a rule bypass.",
+      comment:
+        "Inside the game layer the bootstrap is the single harness wiring point, so the harness stays a seam and not a rule bypass. The offline tooling tree is the one sanctioned harness consumer outside it; see tooling-imports-only-its-measured-set.",
       from: { path: "^src/", pathNot: "^src/(app|harness)/" },
       to: { path: "^src/harness/" },
     },
@@ -82,6 +86,23 @@ module.exports = {
       comment: "Support layers must not depend on the layers that consume them.",
       from: { path: "^src/(platform|shared)/" },
       to: { path: "^src/", pathNot: "^src/(platform|shared)/" },
+    },
+
+    {
+      name: "game-layer-does-not-import-tooling",
+      severity: "error",
+      comment:
+        "Offline tooling is development-time only and reaches the filesystem and the process. The shipped module graph must never depend on it, so the call direction stays one-way: dev/tools imports src, never the reverse.",
+      from: { path: "^src/" },
+      to: { path: "^dev/" },
+    },
+    {
+      name: "tooling-imports-only-its-measured-set",
+      severity: "error",
+      comment:
+        "Offline tooling drives the rules, authored content, and deterministic scenarios. It is the one sanctioned harness consumer outside src/app, and it never reaches application composition, orchestration, or the DOM: a tool that needs those is a debug tool and belongs in src/app/debug.",
+      from: { path: "^dev/tools/" },
+      to: { path: "^src/", pathNot: "^src/(core|content|harness)/" },
     },
   ],
   options: {

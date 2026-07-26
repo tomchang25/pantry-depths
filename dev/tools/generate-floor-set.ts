@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
-import { generateFloorSet } from "./floor-set-generator";
+import { generateFloorSet } from "./floor-set/generator";
 
 type Arguments = Readonly<{
   floorCount: number;

@@ -4,7 +4,8 @@ import type { IncomingMessage } from "node:http";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
-const FLOOR_AUTHORING_API_ROOT = "/__debug/floor-set";
+import { FLOOR_AUTHORING_API_ROOT } from "./dev/tools/floor-set/api-contract";
+
 const FLOOR_AUTHORING_RUNNER_PATH = fileURLToPath(new URL("./node_modules/vite-node/vite-node.mjs", import.meta.url));
 const FLOOR_AUTHORING_SCRIPT_PATH = fileURLToPath(
   new URL("./dev/tools/run-floor-authoring-request.ts", import.meta.url),

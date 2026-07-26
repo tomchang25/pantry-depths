@@ -2,7 +2,13 @@ import { renderFloorSetInspector } from "@/app/debug/floor-viewer";
 import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet, type FloorValidationResult } from "@/content/floor/floor-validation";
 
-const API_ROOT = "/__debug/floor-set";
+/**
+ * Client-side copy of the development authoring endpoint namespace.
+ *
+ * Client code must not import `dev/`, so this literal cannot be shared with the tooling owner directly.
+ * A unit test holds it equal to `dev/tools/floor-set/api-contract.ts`.
+ */
+export const API_ROOT = "/__debug/floor-set";
 
 type ApiResponse = Readonly<{
   message?: string;
