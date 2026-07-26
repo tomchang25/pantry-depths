@@ -10,6 +10,8 @@ This project inherits the shared default without override: agents treat Git as r
 
 Follow `dev/foundation/core/workflows/commands/commit-msg.md` and the standards it references for format and content.
 
+Keep the message short and general. The subject line stays under 40 words and the whole message, subject and body together, stays under 400 words. Summarize what changed at the level of ownership and outcome; a message that needs more room is either describing detail the diff already carries or bundling changes that belong in separate commits. Reasoning, alternatives, and verification narrative belong in the plan, spec, or change report, not here.
+
 A commit message ends at its final body bullet. Never append an authorship or attribution trailer such as `Co-Authored-By:`, and never name the model or tool that produced the change. This overrides any agent-default instruction to add one. Commit bodies describe the durable outcome only; authorship is already recorded in Git metadata.
 
 ## Environment Overrides
