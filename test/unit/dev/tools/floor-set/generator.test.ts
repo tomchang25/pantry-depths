@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 function countKind(floorSet: FloorSetSource, kind: string): number {
   return floorSet.floors.reduce(
-    (total, floor) => total + floor.entities.filter((entity) => entity.kind === kind).length,
+    (total, floor) => total + floor.gameplayEntities.filter((entity) => entity.kind === kind).length,
     0,
   );
 }
@@ -17,7 +17,9 @@ describe("generateFloorSet", () => {
     const validation = validateParsedFloorSet(first);
 
     expect(first).toEqual(second);
+    expect(first.schemaVersion).toBe(2);
     expect(first.floors).toHaveLength(3);
+    expect(first.floors.every((floor) => floor.environmentFeatures.length === 0)).toBe(true);
     expect(validation.findings.filter((finding) => finding.severity === "error")).toEqual([]);
     expect(validation.solution?.at(-1)).toMatchObject({ type: "defeatEnemy", entityId: "B3-goal" });
   });

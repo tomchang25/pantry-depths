@@ -129,7 +129,7 @@ Debug tools obey these boundaries:
 | `pantry_rules_04`  | N-floor offline generation, provisional layouts, topology validation, authoring workbench, floor viewer, and VS Code tasks  | [Implementation spec](pantry_rules_04_floor_pipeline.implementation_spec.md)       |
 | `pantry_rules_05`  | Forced-route scenarios, route replay, and generated balance-report tooling against provisional content                      | [Implementation spec](pantry_rules_05_route_replay_balance.implementation_spec.md) |
 | `pantry_rules_05a` | Offline tooling ownership split, harness-owned balance model, and boundary enforcement over the tooling tree                | [Implementation spec](pantry_rules_05a_tooling_ownership.implementation_spec.md)   |
-| `pantry_rules_06`  | Presentation-only environment features, wall-face anchoring, light and effect presets, and floor-content ownership refactor | Not started                                                                        |
+| `pantry_rules_06`  | Presentation-only environment features, wall-face anchoring, light and effect presets, and floor-content ownership refactor | [Implementation spec](pantry_rules_06_environment_features.implementation_spec.md) |
 
 Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05` -> `pantry_rules_05a` -> `pantry_rules_06`.
 

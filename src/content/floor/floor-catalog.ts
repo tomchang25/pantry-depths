@@ -1,12 +1,17 @@
 import floorSetJson from "@/content/floors/provisional-floor-set.json";
 import { ENEMY_ARCHETYPES } from "@/content/combat/enemies";
 import { PLAYER_BASELINE, PLAYER_UPGRADES } from "@/content/combat/player-stages";
-import { isSolidTile, parseFloorSet, type FloorEntitySource, type FloorSetSource } from "@/content/floor/floor-schema";
+import {
+  isSolidTile,
+  parseFloorSet,
+  type FloorSetSource,
+  type GameplayEntitySource,
+} from "@/content/floor/floor-schema";
 import { validateParsedFloorSet, type FloorValidationResult } from "@/content/floor/floor-validation";
 import type { Cell } from "@/core/grid";
 import type { RunWorld, WorldEntity } from "@/core/run-state";
 
-function assembleEntity(floorId: string, entity: FloorEntitySource, goalEntityId: string): WorldEntity {
+function assembleEntity(floorId: string, entity: GameplayEntitySource, goalEntityId: string): WorldEntity {
   if (entity.kind === "enemy") {
     const archetype = ENEMY_ARCHETYPES.find((candidate) => candidate.id === entity.archetypeId);
 
@@ -144,7 +149,7 @@ export function createRunWorldFromFloorSet(floorSet: FloorSetSource): RunWorld {
     initialCell: floorSet.initial.cell,
     initialFacing: floorSet.initial.facing,
     entities: floorSet.floors.flatMap((floor) =>
-      floor.entities.map((entity) => assembleEntity(floor.id, entity, floorSet.goalEntityId)),
+      floor.gameplayEntities.map((entity) => assembleEntity(floor.id, entity, floorSet.goalEntityId)),
     ),
     upgradeEffects: PLAYER_UPGRADES,
   };

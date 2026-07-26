@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "initial": {
     "floorId": "B1",
     "cell": { "x": 1, "y": 1 },
@@ -23,7 +23,7 @@
         "#.........#",
         "###########"
       ],
-      "entities": [
+      "gameplayEntities": [
         { "kind": "key", "id": "b1-red-key", "cell": { "x": 2, "y": 1 }, "color": "red" },
         { "kind": "door", "id": "b1-red-door", "cell": { "x": 3, "y": 1 }, "color": "red" },
         {
@@ -43,6 +43,42 @@
           "hintFaces": ["east", "west"]
         },
         { "kind": "hotSpring", "id": "b1-hot-spring", "cell": { "x": 6, "y": 5 } }
+      ],
+      "environmentFeatures": [
+        {
+          "kind": "tileDecoration",
+          "id": "b1-bones",
+          "cell": { "x": 4, "y": 4 },
+          "decorationPresetId": "bones"
+        },
+        {
+          "kind": "wallDecoration",
+          "id": "b1-wall-torch",
+          "wallCell": { "x": 4, "y": 0 },
+          "face": "south",
+          "decorationPresetId": "wallTorch",
+          "lightPresetId": "warmTorch",
+          "effectPresetId": "torchEmbers"
+        },
+        {
+          "kind": "wallDecoration",
+          "id": "b1-wall-spikes",
+          "wallCell": { "x": 6, "y": 0 },
+          "face": "south",
+          "decorationPresetId": "wallSpikes"
+        },
+        {
+          "kind": "ambientLight",
+          "id": "b1-hot-spring-light",
+          "cell": { "x": 7, "y": 5 },
+          "lightPresetId": "warmSpring"
+        },
+        {
+          "kind": "effectEmitter",
+          "id": "b1-hot-spring-steam",
+          "cell": { "x": 6, "y": 5 },
+          "effectPresetId": "steam"
+        }
       ]
     },
     {
@@ -63,7 +99,7 @@
         "#...........#",
         "#############"
       ],
-      "entities": [
+      "gameplayEntities": [
         {
           "kind": "stair",
           "id": "b2-up",
@@ -88,7 +124,8 @@
           "destinationCell": { "x": 1, "y": 1 },
           "destinationFacing": "east"
         }
-      ]
+      ],
+      "environmentFeatures": []
     },
     {
       "id": "B3",
@@ -108,7 +145,7 @@
         "#...........#",
         "#############"
       ],
-      "entities": [
+      "gameplayEntities": [
         {
           "kind": "stair",
           "id": "b3-up",
@@ -134,7 +171,8 @@
           "destinationCell": { "x": 1, "y": 1 },
           "destinationFacing": "east"
         }
-      ]
+      ],
+      "environmentFeatures": []
     },
     {
       "id": "B4",
@@ -156,7 +194,7 @@
         "#.............#",
         "###############"
       ],
-      "entities": [
+      "gameplayEntities": [
         {
           "kind": "stair",
           "id": "b4-up",
@@ -190,7 +228,8 @@
           "destinationCell": { "x": 1, "y": 1 },
           "destinationFacing": "east"
         }
-      ]
+      ],
+      "environmentFeatures": []
     },
     {
       "id": "B5",
@@ -208,7 +247,7 @@
         "#.........#",
         "###########"
       ],
-      "entities": [
+      "gameplayEntities": [
         {
           "kind": "stair",
           "id": "b5-up",
@@ -223,7 +262,8 @@
           "cell": { "x": 8, "y": 8 },
           "archetypeId": "princess"
         }
-      ]
+      ],
+      "environmentFeatures": []
     }
   ]
 }

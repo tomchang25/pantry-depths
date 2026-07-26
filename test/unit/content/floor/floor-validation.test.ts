@@ -15,8 +15,8 @@ describe("floor validation", () => {
       floors: source.floors.map((floor) =>
         floor.id === "B1"
           ? Object.assign({}, floor, {
-              entities: [
-                ...floor.entities,
+              gameplayEntities: [
+                ...floor.gameplayEntities,
                 { kind: "key" as const, id: "b1-red-key", cell: { x: 4, y: 1 }, color: "red" as const },
               ],
             })
@@ -31,7 +31,7 @@ describe("floor validation", () => {
 
   it("returns a no-solution error when a required key is isolated behind its matching door", () => {
     const lockedHallway = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "east" },
       goalEntityId: "goal",
       floors: [
@@ -39,11 +39,12 @@ describe("floor validation", () => {
           id: "F1",
           theme: "test",
           tiles: ["#######", "#.....#", "#######"],
-          entities: [
+          gameplayEntities: [
             { kind: "door", id: "red-door", cell: { x: 2, y: 1 }, color: "red" },
             { kind: "key", id: "red-key", cell: { x: 3, y: 1 }, color: "red" },
             { kind: "enemy", id: "goal", cell: { x: 5, y: 1 }, archetypeId: "princess" },
           ],
+          environmentFeatures: [],
         },
       ],
     };
@@ -55,7 +56,7 @@ describe("floor validation", () => {
 
   it("still requires defeating a goal that stands on the initial cell", () => {
     const goalUnderfoot = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "east" },
       goalEntityId: "goal",
       floors: [
@@ -63,7 +64,8 @@ describe("floor validation", () => {
           id: "F1",
           theme: "test",
           tiles: ["#####", "#...#", "#####"],
-          entities: [{ kind: "enemy", id: "goal", cell: { x: 1, y: 1 }, archetypeId: "princess" }],
+          gameplayEntities: [{ kind: "enemy", id: "goal", cell: { x: 1, y: 1 }, archetypeId: "princess" }],
+          environmentFeatures: [],
         },
       ],
     };
@@ -95,7 +97,7 @@ describe("floor validation", () => {
       floors: source.floors.map((floor) =>
         floor.id === "B1"
           ? Object.assign({}, floor, {
-              entities: floor.entities.map((entity) =>
+              gameplayEntities: floor.gameplayEntities.map((entity) =>
                 entity.kind === "breakableWall" ? { ...entity, hintFaces } : entity,
               ),
             })
@@ -123,6 +125,42 @@ describe("floor validation", () => {
 
     expect(validateFloorSet(invalid).findings).toContainEqual(
       expect.objectContaining({ severity: "error", code: "schema.invalid" }),
+    );
+  });
+
+  it("rejects invalid environment anchors without changing topology ownership", () => {
+    const source = cloneFloorSet();
+    const invalid = {
+      ...source,
+      floors: source.floors.map((floor) =>
+        floor.id === "B1"
+          ? Object.assign({}, floor, {
+              environmentFeatures: [
+                ...floor.environmentFeatures,
+                {
+                  kind: "tileDecoration" as const,
+                  id: "invalid-floor-decoration",
+                  cell: { x: 0, y: 0 },
+                  decorationPresetId: "bones",
+                },
+                {
+                  kind: "wallDecoration" as const,
+                  id: "invalid-wall-decoration",
+                  wallCell: { x: 1, y: 1 },
+                  face: "east" as const,
+                  decorationPresetId: "wallSpikes",
+                },
+              ],
+            })
+          : floor,
+      ),
+    } satisfies FloorSetSource;
+
+    expect(validateParsedFloorSet(invalid).findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ severity: "error", code: "environment.invalidFloorPosition" }),
+        expect.objectContaining({ severity: "error", code: "environment.invalidWallDecorationCell" }),
+      ]),
     );
   });
 });

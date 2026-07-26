@@ -1,6 +1,6 @@
 import type { Cell, Facing } from "@/core/grid";
 import type { KeyColor } from "@/core/run-state";
-import type { FloorEntitySource, FloorSetSource, FloorSource } from "@/content/floor/floor-schema";
+import type { FloorSetSource, FloorSource, GameplayEntitySource } from "@/content/floor/floor-schema";
 import { validateParsedFloorSet } from "@/content/floor/floor-validation";
 
 export type FloorSetGenerationOptions = Readonly<{
@@ -290,8 +290,8 @@ function placeFloorEntities(
   options: ResolvedOptions,
   random: () => number,
   occupied: Set<number>,
-): readonly FloorEntitySource[] {
-  const entities: FloorEntitySource[] = [];
+): readonly GameplayEntitySource[] {
+  const entities: GameplayEntitySource[] = [];
   const parents = traverse(plan.passable, plan.entryIndex, EMPTY_BLOCKED);
   const reachable = reachableIndices(parents);
   const gateCount = Math.min(options.keysPerFloor, options.doorsPerFloor, Math.max(0, plan.route.length - 2));
@@ -380,7 +380,7 @@ function buildFloorSet(options: ResolvedOptions, attempt: number): FloorSetSourc
     const floorId = `B${floorIndex + 1}`;
     const isDeepest = floorIndex === options.floorCount - 1;
     const occupied = new Set<number>([plan.entryIndex, plan.exitIndex]);
-    const entities: FloorEntitySource[] = [];
+    const entities: GameplayEntitySource[] = [];
 
     if (floorIndex > 0) {
       const above = plans[floorIndex - 1];
@@ -422,12 +422,13 @@ function buildFloorSet(options: ResolvedOptions, attempt: number): FloorSetSourc
       id: floorId,
       theme: THEMES[floorIndex % THEMES.length] ?? "candidate",
       tiles: renderTiles(plan.passable),
-      entities,
+      gameplayEntities: entities,
+      environmentFeatures: [],
     });
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     initial: { floorId: "B1", cell: ENTRY_CELL, facing: ARRIVAL_FACING },
     goalEntityId: `B${options.floorCount}-goal`,
     floors,

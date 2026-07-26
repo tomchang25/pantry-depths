@@ -1,4 +1,5 @@
 import {
+  createRunWorldFromFloorSet,
   PROVISIONAL_FLOOR_SET,
   PROVISIONAL_FLOOR_VALIDATION,
   PROVISIONAL_RUN_WORLD,
@@ -25,5 +26,28 @@ describe("provisional floor catalog", () => {
       directionalHint: { faces: ["east", "west"] },
       combat: { retaliates: false },
     });
+  });
+
+  it("keeps presentation-only environment features out of the gameplay world", () => {
+    const withoutEnvironment = {
+      ...PROVISIONAL_FLOOR_SET,
+      floors: PROVISIONAL_FLOOR_SET.floors.map((floor) => ({ ...floor, environmentFeatures: [] })),
+    };
+
+    expect(PROVISIONAL_FLOOR_SET.floors[0]?.environmentFeatures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "tileDecoration", decorationPresetId: "bones" }),
+        expect.objectContaining({
+          kind: "wallDecoration",
+          decorationPresetId: "wallTorch",
+          lightPresetId: "warmTorch",
+        }),
+        expect.objectContaining({ kind: "wallDecoration", decorationPresetId: "wallSpikes" }),
+        expect.objectContaining({ kind: "ambientLight", lightPresetId: "warmSpring" }),
+        expect.objectContaining({ kind: "effectEmitter", effectPresetId: "steam" }),
+      ]),
+    );
+    expect(createRunWorldFromFloorSet(withoutEnvironment)).toEqual(PROVISIONAL_RUN_WORLD);
+    expect(PROVISIONAL_RUN_WORLD.entities.map((entity) => entity.id)).not.toContain("b1-wall-spikes");
   });
 });

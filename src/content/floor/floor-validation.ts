@@ -4,9 +4,9 @@ import {
   FloorSchemaError,
   isSolidTile,
   parseFloorSet,
-  type FloorEntitySource,
   type FloorSetSource,
   type FloorSource,
+  type GameplayEntitySource,
 } from "@/content/floor/floor-schema";
 
 export type TopologyFinding = Readonly<{
@@ -32,7 +32,7 @@ export type FloorValidationResult = Readonly<{
 
 type LocatedEntity = Readonly<{
   floorId: string;
-  entity: FloorEntitySource;
+  entity: GameplayEntitySource;
 }>;
 
 type KeyCounts = Record<KeyColor, number>;
@@ -132,7 +132,7 @@ function entityKey(floorId: string, cell: Cell): string {
 }
 
 function collectEntities(floorSet: FloorSetSource): readonly LocatedEntity[] {
-  return floorSet.floors.flatMap((floor) => floor.entities.map((entity) => ({ floorId: floor.id, entity })));
+  return floorSet.floors.flatMap((floor) => floor.gameplayEntities.map((entity) => ({ floorId: floor.id, entity })));
 }
 
 function validateReferences(floorSet: FloorSetSource): readonly TopologyFinding[] {
@@ -140,6 +140,8 @@ function validateReferences(floorSet: FloorSetSource): readonly TopologyFinding[
   const floors = new Map<string, FloorSource>();
   const entityIds = new Set<string>();
   const occupiedCells = new Set<string>();
+  const tileDecorationCells = new Set<string>();
+  const wallDecorationFaces = new Set<string>();
 
   for (const floor of floorSet.floors) {
     if (floors.has(floor.id)) {
@@ -149,7 +151,7 @@ function validateReferences(floorSet: FloorSetSource): readonly TopologyFinding[
 
     floors.set(floor.id, floor);
 
-    for (const entity of floor.entities) {
+    for (const entity of floor.gameplayEntities) {
       if (entityIds.has(entity.id)) {
         findings.push(
           error("entity.duplicateId", `Entity ${entity.id} is declared more than once.`, {
@@ -188,6 +190,85 @@ function validateReferences(floorSet: FloorSetSource): readonly TopologyFinding[
       }
 
       occupiedCells.add(key);
+    }
+
+    for (const feature of floor.environmentFeatures) {
+      if (entityIds.has(feature.id)) {
+        findings.push(
+          error("content.duplicateId", `Content record ${feature.id} is declared more than once.`, {
+            floorId: floor.id,
+            entityId: feature.id,
+          }),
+        );
+      }
+
+      entityIds.add(feature.id);
+
+      if (feature.kind === "wallDecoration") {
+        const anchorKey = `${entityKey(floor.id, feature.wallCell)}|${feature.face}`;
+
+        if (
+          !isInsideFloor(floor, feature.wallCell) ||
+          !isSolidTile(floor.tiles[feature.wallCell.y]?.[feature.wallCell.x] ?? ".")
+        ) {
+          findings.push(
+            error(
+              "environment.invalidWallDecorationCell",
+              `Wall decoration ${feature.id} must anchor to an in-bounds solid base tile.`,
+              { floorId: floor.id, entityId: feature.id, cell: feature.wallCell },
+            ),
+          );
+        }
+
+        if (!isBasePassable(floor, moveForward(feature.wallCell, feature.face))) {
+          findings.push(
+            error(
+              "environment.invalidWallDecorationFace",
+              `Wall decoration ${feature.id} must face an in-bounds passable observation cell.`,
+              { floorId: floor.id, entityId: feature.id, cell: moveForward(feature.wallCell, feature.face) },
+            ),
+          );
+        }
+
+        if (wallDecorationFaces.has(anchorKey)) {
+          findings.push(
+            error(
+              "environment.wallDecorationOverlap",
+              `Only one wall decoration may use ${floor.id} (${feature.wallCell.x}, ${feature.wallCell.y}) ${feature.face}.`,
+              { floorId: floor.id, entityId: feature.id, cell: feature.wallCell },
+            ),
+          );
+        }
+
+        wallDecorationFaces.add(anchorKey);
+        continue;
+      }
+
+      if (!isBasePassable(floor, feature.cell)) {
+        findings.push(
+          error(
+            "environment.invalidFloorPosition",
+            `Environment feature ${feature.id} must use an in-bounds passable base tile.`,
+            { floorId: floor.id, entityId: feature.id, cell: feature.cell },
+          ),
+        );
+      }
+
+      if (feature.kind === "tileDecoration") {
+        const tileKey = entityKey(floor.id, feature.cell);
+
+        if (tileDecorationCells.has(tileKey)) {
+          findings.push(
+            error(
+              "environment.tileDecorationOverlap",
+              `Only one tile decoration may use ${floor.id} (${feature.cell.x}, ${feature.cell.y}).`,
+              { floorId: floor.id, entityId: feature.id, cell: feature.cell },
+            ),
+          );
+        }
+
+        tileDecorationCells.add(tileKey);
+      }
     }
   }
 

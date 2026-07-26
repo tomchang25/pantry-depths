@@ -12,7 +12,7 @@ export type FloorTile = keyof typeof FLOOR_TILE_DEFINITIONS;
 
 export type FloorTileDefinition = (typeof FLOOR_TILE_DEFINITIONS)[FloorTile];
 
-export type FloorEntitySource =
+export type GameplayEntitySource =
   | Readonly<{ kind: "enemy"; id: string; cell: Cell; archetypeId: string }>
   | Readonly<{ kind: "key"; id: string; cell: Cell; color: KeyColor }>
   | Readonly<{ kind: "door"; id: string; cell: Cell; color: KeyColor; upgradeEffectId?: string }>
@@ -34,15 +34,35 @@ export type FloorEntitySource =
     }>
   | Readonly<{ kind: "hotSpring"; id: string; cell: Cell }>;
 
+export type WallFaceAnchor = Readonly<{
+  wallCell: Cell;
+  face: Facing;
+}>;
+
+export type EnvironmentFeatureSource =
+  | Readonly<{ kind: "tileDecoration"; id: string; cell: Cell; decorationPresetId: string }>
+  | Readonly<{
+      kind: "wallDecoration";
+      id: string;
+      wallCell: Cell;
+      face: Facing;
+      decorationPresetId: string;
+      lightPresetId?: string;
+      effectPresetId?: string;
+    }>
+  | Readonly<{ kind: "ambientLight"; id: string; cell: Cell; lightPresetId: string }>
+  | Readonly<{ kind: "effectEmitter"; id: string; cell: Cell; effectPresetId: string }>;
+
 export type FloorSource = Readonly<{
   id: string;
   theme: string;
   tiles: readonly string[];
-  entities: readonly FloorEntitySource[];
+  gameplayEntities: readonly GameplayEntitySource[];
+  environmentFeatures: readonly EnvironmentFeatureSource[];
 }>;
 
 export type FloorSetSource = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 2;
   initial: Readonly<{ floorId: string; cell: Cell; facing: Facing }>;
   goalEntityId: string;
   floors: readonly FloorSource[];
@@ -57,7 +77,13 @@ export class FloorSchemaError extends Error {
 
 const FACINGS = new Set<Facing>(["north", "east", "south", "west"]);
 const KEY_COLORS = new Set<KeyColor>(["red", "blue", "yellow"]);
-const ENTITY_KINDS = new Set<EntityKind>(["enemy", "key", "door", "stair", "breakableWall", "hotSpring"]);
+const GAMEPLAY_ENTITY_KINDS = new Set<EntityKind>(["enemy", "key", "door", "stair", "breakableWall", "hotSpring"]);
+const ENVIRONMENT_FEATURE_KINDS = new Set<EnvironmentFeatureSource["kind"]>([
+  "tileDecoration",
+  "wallDecoration",
+  "ambientLight",
+  "effectEmitter",
+]);
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -119,12 +145,12 @@ function parseKeyColor(value: unknown, label: string): KeyColor {
   return value as KeyColor;
 }
 
-function parseEntity(value: unknown, label: string): FloorEntitySource {
+function parseGameplayEntity(value: unknown, label: string): GameplayEntitySource {
   const record = asRecord(value, label);
   const kind = record.kind;
 
-  if (typeof kind !== "string" || !ENTITY_KINDS.has(kind as EntityKind)) {
-    throw new FloorSchemaError(`${label}.kind must be a supported entity kind`);
+  if (typeof kind !== "string" || !GAMEPLAY_ENTITY_KINDS.has(kind as EntityKind)) {
+    throw new FloorSchemaError(`${label}.kind must be a supported gameplay entity kind`);
   }
 
   const id = asString(record.id, `${label}.id`);
@@ -186,6 +212,57 @@ function parseEntity(value: unknown, label: string): FloorEntitySource {
   return { kind: "hotSpring", id, cell };
 }
 
+function parseEnvironmentFeature(value: unknown, label: string): EnvironmentFeatureSource {
+  const record = asRecord(value, label);
+  const kind = record.kind;
+
+  if (typeof kind !== "string" || !ENVIRONMENT_FEATURE_KINDS.has(kind as EnvironmentFeatureSource["kind"])) {
+    throw new FloorSchemaError(`${label}.kind must be a supported environment feature kind`);
+  }
+
+  const id = asString(record.id, `${label}.id`);
+
+  if (kind === "tileDecoration") {
+    return {
+      kind,
+      id,
+      cell: parseCell(record.cell, `${label}.cell`),
+      decorationPresetId: asString(record.decorationPresetId, `${label}.decorationPresetId`),
+    };
+  }
+
+  if (kind === "wallDecoration") {
+    const lightPresetId = record.lightPresetId;
+    const effectPresetId = record.effectPresetId;
+
+    return {
+      kind,
+      id,
+      wallCell: parseCell(record.wallCell, `${label}.wallCell`),
+      face: parseFacing(record.face, `${label}.face`),
+      decorationPresetId: asString(record.decorationPresetId, `${label}.decorationPresetId`),
+      ...(lightPresetId === undefined ? {} : { lightPresetId: asString(lightPresetId, `${label}.lightPresetId`) }),
+      ...(effectPresetId === undefined ? {} : { effectPresetId: asString(effectPresetId, `${label}.effectPresetId`) }),
+    };
+  }
+
+  if (kind === "ambientLight") {
+    return {
+      kind,
+      id,
+      cell: parseCell(record.cell, `${label}.cell`),
+      lightPresetId: asString(record.lightPresetId, `${label}.lightPresetId`),
+    };
+  }
+
+  return {
+    kind: "effectEmitter",
+    id,
+    cell: parseCell(record.cell, `${label}.cell`),
+    effectPresetId: asString(record.effectPresetId, `${label}.effectPresetId`),
+  };
+}
+
 function parseFloor(value: unknown, index: number): FloorSource {
   const label = `floors[${index}]`;
   const record = asRecord(value, label);
@@ -209,8 +286,11 @@ function parseFloor(value: unknown, index: number): FloorSource {
     id: asString(record.id, `${label}.id`),
     theme: asString(record.theme, `${label}.theme`),
     tiles,
-    entities: asArray(record.entities, `${label}.entities`).map((entity, entityIndex) =>
-      parseEntity(entity, `${label}.entities[${entityIndex}]`),
+    gameplayEntities: asArray(record.gameplayEntities, `${label}.gameplayEntities`).map((entity, entityIndex) =>
+      parseGameplayEntity(entity, `${label}.gameplayEntities[${entityIndex}]`),
+    ),
+    environmentFeatures: asArray(record.environmentFeatures, `${label}.environmentFeatures`).map(
+      (feature, featureIndex) => parseEnvironmentFeature(feature, `${label}.environmentFeatures[${featureIndex}]`),
     ),
   };
 }
@@ -219,14 +299,14 @@ function parseFloor(value: unknown, index: number): FloorSource {
 export function parseFloorSet(value: unknown): FloorSetSource {
   const record = asRecord(value, "floor set");
 
-  if (record.schemaVersion !== 1) {
-    throw new FloorSchemaError("floor set.schemaVersion must be 1");
+  if (record.schemaVersion !== 2) {
+    throw new FloorSchemaError("floor set.schemaVersion must be 2");
   }
 
   const initial = asRecord(record.initial, "floor set.initial");
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     initial: {
       floorId: asString(initial.floorId, "floor set.initial.floorId"),
       cell: parseCell(initial.cell, "floor set.initial.cell"),

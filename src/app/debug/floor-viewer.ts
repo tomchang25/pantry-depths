@@ -1,5 +1,10 @@
 import { PROVISIONAL_FLOOR_SET, PROVISIONAL_FLOOR_VALIDATION } from "@/content/floor/floor-catalog";
-import { getFloorTileDefinition, type FloorEntitySource, type FloorSource } from "@/content/floor/floor-schema";
+import {
+  getFloorTileDefinition,
+  type EnvironmentFeatureSource,
+  type FloorSource,
+  type GameplayEntitySource,
+} from "@/content/floor/floor-schema";
 import type { Cell } from "@/core/grid";
 
 type TilePresentation = Readonly<{
@@ -12,7 +17,7 @@ function sameCell(left: Cell, right: Cell): boolean {
   return left.x === right.x && left.y === right.y;
 }
 
-function entityPresentation(entity: FloorEntitySource): TilePresentation {
+function entityPresentation(entity: GameplayEntitySource): TilePresentation {
   if (entity.kind === "enemy") {
     return { symbol: "☠", label: `Enemy: ${entity.archetypeId}`, background: "#6d1f2e" };
   }
@@ -38,6 +43,54 @@ function entityPresentation(entity: FloorEntitySource): TilePresentation {
   }
 
   return { symbol: "≈", label: "Hot spring", background: "#8f4e2d" };
+}
+
+function environmentFeaturePresentation(
+  features: readonly EnvironmentFeatureSource[],
+): Readonly<Pick<TilePresentation, "label" | "symbol">> | undefined {
+  const first = features[0];
+
+  if (!first) {
+    return undefined;
+  }
+
+  const labels = features.map((feature) => {
+    if (feature.kind === "tileDecoration") {
+      return `Tile decoration: ${feature.decorationPresetId}`;
+    }
+
+    if (feature.kind === "wallDecoration") {
+      const optionalPresets = [
+        feature.lightPresetId && `light ${feature.lightPresetId}`,
+        feature.effectPresetId && `effect ${feature.effectPresetId}`,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(", ");
+      return `Wall decoration: ${feature.decorationPresetId} on ${feature.face} face${optionalPresets ? `; ${optionalPresets}` : ""}`;
+    }
+
+    if (feature.kind === "ambientLight") {
+      return `Ambient light: ${feature.lightPresetId}`;
+    }
+
+    return `Effect emitter: ${feature.effectPresetId}`;
+  });
+
+  if (first.kind === "tileDecoration") {
+    return { symbol: "✦", label: labels.join("; ") };
+  }
+
+  if (first.kind === "wallDecoration") {
+    return { symbol: "↟", label: labels.join("; ") };
+  }
+
+  return { symbol: first.kind === "ambientLight" ? "☼" : "≈", label: labels.join("; ") };
+}
+
+function environmentFeaturesAt(floor: FloorSource, cell: Cell): readonly EnvironmentFeatureSource[] {
+  return floor.environmentFeatures.filter((feature) =>
+    feature.kind === "wallDecoration" ? sameCell(feature.wallCell, cell) : sameCell(feature.cell, cell),
+  );
 }
 
 function basePresentation(tile: string): TilePresentation {
@@ -72,8 +125,12 @@ function createGrid(floor: FloorSource, solutionCells: readonly Cell[]): HTMLEle
 
     for (let x = 0; x < (floor.tiles[y]?.length ?? 0); x += 1) {
       const cell = { x, y };
-      const entity = floor.entities.find((candidate) => sameCell(candidate.cell, cell));
-      const presentation = entity ? entityPresentation(entity) : basePresentation(floor.tiles[y]?.[x] ?? "#");
+      const entity = floor.gameplayEntities.find((candidate) => sameCell(candidate.cell, cell));
+      const environment = environmentFeaturePresentation(environmentFeaturesAt(floor, cell));
+      const base = basePresentation(floor.tiles[y]?.[x] ?? "#");
+      const primary = entity ? entityPresentation(entity) : environment ? { ...base, ...environment } : base;
+      const presentation =
+        entity && environment ? { ...primary, label: `${primary.label}; ${environment.label}` } : primary;
       const isSolutionCell = solutionCells.some((solutionCell) => sameCell(solutionCell, cell));
       const element = document.createElement("span");
       element.setAttribute("role", "gridcell");

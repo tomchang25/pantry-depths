@@ -88,7 +88,7 @@ export function createBalanceAnalysis(): BalanceAnalysis {
   const finalSnapshot = replay.steps.at(-1)?.after ?? initialSnapshot;
   const routeEntityIds = new Set(PROVISIONAL_ROUTE.checkpoints.flatMap((checkpoint) => checkpoint.entityId ?? []));
   const placedEntities = PROVISIONAL_FLOOR_SET.floors.flatMap((floor) =>
-    floor.entities.map((entity) => ({ floorId: floor.id, entity })),
+    floor.gameplayEntities.map((entity) => ({ floorId: floor.id, entity })),
   );
   const doorIds = placedEntities.filter((entry) => entry.entity.kind === "door").map((entry) => entry.entity.id);
 
