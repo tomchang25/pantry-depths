@@ -57,16 +57,16 @@ An enemy definition contains only its cell, health, attack, defense, and appeara
 
 ### Command and retaliation order
 
-One Action resolves atomically in this order:
+One accepted player tick resolves atomically in this order:
 
-1. Validate and apply the requested movement, turn, attack, or interaction.
-2. If attacking, damage only the target in the facing-adjacent cell.
-3. Remove any enemy reduced to zero health.
-4. From the player's post-command cell, inspect the four edge-adjacent cells.
-5. Apply one retaliation from every surviving adjacent enemy.
+1. Capture the surviving enemies edge-adjacent to the player's pre-tick cell.
+2. Validate and apply the requested movement, turn, attack, or interaction.
+3. If attacking, damage only the target in the facing-adjacent cell.
+4. Remove any enemy reduced to zero health.
+5. For every enemy captured in step 1 that survives, inspect whether it remains edge-adjacent to the player's post-tick cell and apply one retaliation only when that adjacency holds at both tick boundaries.
 6. Enter the death outcome when player health reaches zero; otherwise emit the resulting snapshot and semantic events.
 
-Diagonal enemies never retaliate. A solid wall or closed door prevents occupancy and adjacency across that cell. Forward, left-turn, right-turn, and interaction requests are Actions even when a wall blocks movement or a locked door cannot open. A backward request is rejected before Action resolution and therefore causes no retaliation. The presentation of that rejection belongs to the feel plan.
+Diagonal enemies never retaliate. A solid wall or closed door prevents occupancy and adjacency across that cell. A forward request into either one is cancelled before a player tick begins, so it creates no Action and no retaliation. A surviving enemy directly attacked by the player remains adjacent at both boundaries and retaliates; an enemy killed by that attack does not. Entering an enemy's adjacency or leaving it during a successful forward movement produces no retaliation from that enemy, while a turn in place beside it does. Left-turn, right-turn, and interaction requests are Actions even when a locked door cannot open. A backward request is rejected before Action resolution and therefore causes no retaliation. The presentation of that rejection belongs to the feel plan.
 
 ### Keys, doors, and progression
 
@@ -118,13 +118,13 @@ Debug tools obey these boundaries:
 
 ### Child overview
 
-| Child             | Focus                                                                                                                     | Current document form                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `pantry_rules_01` | Development-only debug hub, catalog, routing boundary, and production exclusion                                           | [Implementation spec](pantry_rules_01_debug_hub.implementation_spec.md) |
-| `pantry_rules_02` | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                     | Not started                                                             |
-| `pantry_rules_03` | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer | Not started                                                             |
-| `pantry_rules_04` | Offline floor bake, five fixed layouts, topology validation, and floor viewer                                             | Not started                                                             |
-| `pantry_rules_05` | Forced-route scenarios, route replay, and generated balance report                                                        | Not started                                                             |
+| Child             | Focus                                                                                                                     | Current document form                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `pantry_rules_01` | Development-only debug hub, catalog, routing boundary, and production exclusion                                           | [Implementation spec](pantry_rules_01_debug_hub.implementation_spec.md)       |
+| `pantry_rules_02` | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                     | [Implementation spec](pantry_rules_02_combat_explorer.implementation_spec.md) |
+| `pantry_rules_03` | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer | Not started                                                                   |
+| `pantry_rules_04` | Offline floor bake, five fixed layouts, topology validation, and floor viewer                                             | Not started                                                                   |
+| `pantry_rules_05` | Forced-route scenarios, route replay, and generated balance report                                                        | Not started                                                                   |
 
 Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05`.
 
