@@ -13,7 +13,7 @@ The foundation owns document placement, core workflows, shared agent behavior, a
 
 ## Local ownership
 
-- `dev/agent_rules/`: project snapshot, Git permissions, and executable validation operations.
+- `dev/agent_rules/`: project snapshot, implementation and Git permissions, and executable validation operations.
 - `dev/standards/`: project-specific addenda and any local governance policy.
 - `dev/skills/`: only project-specific hazard cards, never a copy of a foundation skill.
 - `dev/docs/`: product design, active plans, reports, and archives.
@@ -47,5 +47,6 @@ Project rows:
 
 | Work                                                                              | Required reading                                                                                  |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Run `/implement`                                                                  | `dev/agent_rules/implement_operations.md` after the canonical `/implement` workflow               |
 | Change any gameplay rule, stat, enemy, door, key, floor layout, or balance number | `dev/docs/design/pantry-depths_v1.md`                                                             |
 | Anything involving React, IndexedDB, service workers, or PWA                      | The declared deviation in `dev/standards/project_structure.addendum.md` — these do not apply here |

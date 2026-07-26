@@ -24,7 +24,16 @@ CONTRACTS: dict[str, list[str]] = {
     "AGENTS.md": ["foundation_startup.md", "platform_startup.md", "dev/agent_rules/agent_startup.md"],
     "CLAUDE.md": ["foundation_startup.md", "platform_startup.md", "dev/agent_rules/agent_startup.md"],
     "dev/README.md": ["foundation_startup.md", "work_lifecycle.md", "dev/agent_rules/git_operations.md"],
-    "dev/agent_rules/agent_startup.md": ["git_operations.md", "test_operations.md"],
+    "dev/agent_rules/agent_startup.md": [
+        "git_operations.md",
+        "test_operations.md",
+        "implement_operations.md",
+    ],
+    "dev/agent_rules/implement_operations.md": [
+        "commands/implement.md",
+        "Explicit Second-Confirmation Bypass",
+        "Phase 1 target confirmation remains mandatory",
+    ],
     "dev/agent_rules/git_operations.md": ["dev/foundation/core/agent_rules/git_operations.md"],
     "dev/agent_rules/test_operations.md": ["# Test Operations"],
 }

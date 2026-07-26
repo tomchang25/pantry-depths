@@ -27,11 +27,13 @@ Determinism is the project's load-bearing property. Combat contains no random nu
 
 - Read `dev/agent_rules/git_operations.md` before any Git mutation or when Git state is unreliable.
 - Read `dev/agent_rules/test_operations.md` before running any test, build, screenshot, smoke, or other platform validation operation.
+- Read `dev/agent_rules/implement_operations.md` before running `/implement`; it defines the project's explicit second-confirmation bypass.
 
 ## Project-Local Discovery
 
 | Work                                                                  | Required reading                                                                                     |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Run `/implement`                                                      | `dev/agent_rules/implement_operations.md` plus the canonical `/implement` workflow                   |
 | Add or move a source file, create a layer, change an import direction | `dev/standards/project_structure.addendum.md` and the platform project-structure standard            |
 | Change any gameplay rule, stat, enemy, door, key, or floor layout     | `dev/docs/design/pantry-depths_v1.md`; a number that contradicts it is a product decision, not a fix |
 | Add or rename an npm script, or change a verification stage           | `dev/foundation/platforms/web-react/standards/command_surface_standard.md`                           |
