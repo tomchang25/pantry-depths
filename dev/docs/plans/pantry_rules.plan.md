@@ -121,17 +121,20 @@ Debug tools obey these boundaries:
 
 ### Child overview
 
-| Child             | Focus                                                                                                                       | Current document form                                                              |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `pantry_rules_01` | Development-only debug hub, catalog, routing boundary, and production exclusion                                             | [Implementation spec](pantry_rules_01_debug_hub.implementation_spec.md)            |
-| `pantry_rules_02` | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                       | [Implementation spec](pantry_rules_02_combat_explorer.implementation_spec.md)      |
-| `pantry_rules_03` | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer   | [Implementation spec](pantry_rules_03_action_viewer.implementation_spec.md)        |
-| `pantry_rules_04` | N-floor offline generation, provisional layouts, topology validation, authoring workbench, floor viewer, and VS Code tasks  | [Implementation spec](pantry_rules_04_floor_pipeline.implementation_spec.md)       |
-| `pantry_rules_05` | Forced-route scenarios, route replay, and generated balance-report tooling against provisional content                      | [Implementation spec](pantry_rules_05_route_replay_balance.implementation_spec.md) |
-| `pantry_rules_06` | Final five-floor layout, entity placement, required-route annotations, and balance tuning                                   | Not started                                                                        |
-| `pantry_rules_07` | Presentation-only environment features, wall-face anchoring, light and effect presets, and floor-content ownership refactor | Not started                                                                        |
+| Child              | Focus                                                                                                                       | Current document form                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `pantry_rules_01`  | Development-only debug hub, catalog, routing boundary, and production exclusion                                             | [Implementation spec](pantry_rules_01_debug_hub.implementation_spec.md)            |
+| `pantry_rules_02`  | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                       | [Implementation spec](pantry_rules_02_combat_explorer.implementation_spec.md)      |
+| `pantry_rules_03`  | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer   | [Implementation spec](pantry_rules_03_action_viewer.implementation_spec.md)        |
+| `pantry_rules_04`  | N-floor offline generation, provisional layouts, topology validation, authoring workbench, floor viewer, and VS Code tasks  | [Implementation spec](pantry_rules_04_floor_pipeline.implementation_spec.md)       |
+| `pantry_rules_05`  | Forced-route scenarios, route replay, and generated balance-report tooling against provisional content                      | [Implementation spec](pantry_rules_05_route_replay_balance.implementation_spec.md) |
+| `pantry_rules_05a` | Offline tooling ownership split, harness-owned balance model, and boundary enforcement over the tooling tree                | [Implementation spec](pantry_rules_05a_tooling_ownership.implementation_spec.md)   |
+| `pantry_rules_06`  | Final five-floor layout, entity placement, required-route annotations, and balance tuning                                   | Not started                                                                        |
+| `pantry_rules_07`  | Presentation-only environment features, wall-face anchoring, light and effect presets, and floor-content ownership refactor | Not started                                                                        |
 
-Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05` -> `pantry_rules_06` -> `pantry_rules_07`.
+Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05` -> `pantry_rules_05a` -> `pantry_rules_06` -> `pantry_rules_07`.
+
+`pantry_rules_05a` is a placement and enforcement child, not new capability. It lands before `pantry_rules_06` because A06 edits floors and routes repeatedly against this tooling, and every such pass through an unenforced tree widens the misplacement it corrects.
 
 ## Non-Goals
 
