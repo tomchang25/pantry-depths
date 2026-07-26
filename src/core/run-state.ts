@@ -66,12 +66,17 @@ export type CombatCapability = Readonly<
   }
 >;
 
+export type DirectionalHintCapability = Readonly<{
+  faces: readonly Facing[];
+}>;
+
 export type WorldEntity = Readonly<{
   id: string;
   kind: EntityKind;
   floorId: string;
   cell: Cell;
   appearanceId?: string;
+  directionalHint?: DirectionalHintCapability;
   movement?: MovementCapability;
   pickup?: PickupCapability;
   interaction?: InteractionCapability;

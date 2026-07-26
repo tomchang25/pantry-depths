@@ -1,4 +1,5 @@
 import { createActionScenario, type ActionScenario } from "@/harness/action-scenario";
+import { createFloorScenario } from "@/harness/floor-scenario";
 import type { Cell, Facing } from "@/core/grid";
 import type { CommandResult, GameCommand, RunSnapshot, RunWorld, SemanticEvent } from "@/core/run-state";
 
@@ -33,6 +34,21 @@ const COMMANDS: readonly Readonly<{ command: GameCommand; label: string }>[] = [
   { command: "interact", label: "Interact (E)" },
   { command: "backward", label: "Backward (S)" },
 ];
+
+const SCENARIOS = {
+  compact: {
+    label: "Compact mechanics scenario",
+    create: createActionScenario,
+    description: "A small scenario for focused command and interaction checks.",
+  },
+  provisionalFloors: {
+    label: "Provisional five-floor set",
+    create: createFloorScenario,
+    description: "The authored offline floor data assembled through the production catalog path.",
+  },
+} as const;
+
+type ScenarioId = keyof typeof SCENARIOS;
 
 function areSameCell(left: Cell, right: Cell): boolean {
   return left.x === right.x && left.y === right.y;
@@ -172,7 +188,8 @@ function renderMap(map: HTMLElement, world: RunWorld, snapshot: RunSnapshot): vo
 
 /** Renders the development-only command and snapshot inspection surface. */
 export function renderActionViewer(mount: HTMLElement): void {
-  let scenario: ActionScenario = createActionScenario();
+  let scenarioId: ScenarioId = "compact";
+  let scenario: ActionScenario = SCENARIOS[scenarioId].create();
   let beforeSnapshot = scenario.session.getSnapshot();
   let result: CommandResult | undefined;
 
@@ -180,6 +197,8 @@ export function renderActionViewer(mount: HTMLElement): void {
   const heading = document.createElement("h1");
   const description = document.createElement("p");
   const keyboardHelp = document.createElement("p");
+  const scenarioLabel = document.createElement("label");
+  const scenarioSelect = document.createElement("select");
   const controls = document.createElement("section");
   const controlsHeading = document.createElement("h2");
   const mapHeading = document.createElement("h2");
@@ -203,6 +222,9 @@ export function renderActionViewer(mount: HTMLElement): void {
   description.textContent = "Step the real deterministic command boundary through a compact harness scenario.";
   keyboardHelp.textContent = "Use W/A/S/D/E on the keyboard or the buttons below. Press R to reset the scenario.";
   controlsHeading.textContent = "Keyboard and Button Commands";
+  scenarioLabel.textContent = "Scenario: ";
+  scenarioLabel.htmlFor = "action-viewer-scenario";
+  scenarioSelect.id = "action-viewer-scenario";
   mapHeading.textContent = "Current Scenario Map";
   legend.textContent =
     "Legend: arrows Player · ☠ Enemy · ▦ Wall · ◫ Breakable wall · ▣ Door · ◆ Key · ⇩ Stair · ≈ Hot spring.";
@@ -229,12 +251,26 @@ export function renderActionViewer(mount: HTMLElement): void {
   trace.append(traceHeading, beforeDetails, afterDetails);
   mapScroller.append(map);
 
+  for (const [id, definition] of Object.entries(SCENARIOS) as readonly [ScenarioId, (typeof SCENARIOS)[ScenarioId]][]) {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = definition.label;
+    scenarioSelect.append(option);
+  }
+
+  scenarioLabel.append(scenarioSelect);
+
   const resetScenario = (): void => {
-    scenario = createActionScenario();
+    scenario = SCENARIOS[scenarioId].create();
     beforeSnapshot = scenario.session.getSnapshot();
     result = undefined;
     render();
   };
+
+  scenarioSelect.addEventListener("change", () => {
+    scenarioId = scenarioSelect.value as ScenarioId;
+    resetScenario();
+  });
 
   const sendCommand = (command: GameCommand): void => {
     beforeSnapshot = scenario.session.getSnapshot();
@@ -245,6 +281,7 @@ export function renderActionViewer(mount: HTMLElement): void {
   const render = (): void => {
     const afterSnapshot = scenario.session.getSnapshot();
     const player = afterSnapshot.player;
+    description.textContent = SCENARIOS[scenarioId].description;
     playerSummary.textContent = `${player.floorId} · (${player.cell.x}, ${player.cell.y}) · facing ${player.facing} · HP ${player.health}/${player.maxHealth} · ATK ${player.attack} · DEF ${player.defense} · keys R${player.keys.red} B${player.keys.blue} Y${player.keys.yellow} · ${afterSnapshot.outcome}`;
     renderMap(map, scenario.world, afterSnapshot);
     before.textContent = renderSnapshot(beforeSnapshot);
@@ -317,6 +354,7 @@ export function renderActionViewer(mount: HTMLElement): void {
     heading,
     description,
     keyboardHelp,
+    scenarioLabel,
     controlsHeading,
     controls,
     mapHeading,

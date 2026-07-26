@@ -32,4 +32,24 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
         render: renderActionViewer,
       })),
   },
+  {
+    id: "floors",
+    path: "/debug/floors",
+    title: "Floor Set Viewer",
+    description: "Inspect baked floor data, structural validation findings, and a legal route to the goal.",
+    load: () =>
+      import("@/app/debug/floor-viewer").then(({ renderFloorViewer }) => ({
+        render: renderFloorViewer,
+      })),
+  },
+  {
+    id: "floor-workbench",
+    path: "/debug/floor-workbench",
+    title: "Floor Set Workbench",
+    description: "Generate, edit, validate, preview, and explicitly save floor-set JSON in development.",
+    load: () =>
+      import("@/app/debug/floor-workbench").then(({ renderFloorWorkbench }) => ({
+        render: renderFloorWorkbench,
+      })),
+  },
 ];

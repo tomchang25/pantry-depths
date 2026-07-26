@@ -16,16 +16,17 @@ Nothing in flight.
 
 ### V1 prototype milestone
 
-[`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in three plans plus one parallel item.
+[`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in three delivery plans, one parallel asset item, and one parked tooling plan.
 
-| Stream | Scope                                                           | Children | State                                              |
-| ------ | --------------------------------------------------------------- | -------: | -------------------------------------------------- |
-| A      | [Rules and Content](dev/docs/plans/pantry_rules.plan.md)        |        5 | Queued; `pantry_rules_01` is next                  |
-| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md) |        2 | Queued                                             |
-| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)          |        4 | Queued                                             |
-| S      | Enemy Sprite Art                                                | parallel | Parallel asset deliverable; style spec not written |
+| Stream | Scope                                                             | Children | State                                              |
+| ------ | ----------------------------------------------------------------- | -------: | -------------------------------------------------- |
+| A      | [Rules and Content](dev/docs/plans/pantry_rules.plan.md)          |        7 | Active; `pantry_rules_04` in flight                |
+| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)   |        2 | Queued                                             |
+| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)            |        4 | Queued                                             |
+| S      | Enemy Sprite Art                                                  | parallel | Parallel asset deliverable; style spec not written |
+| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |        3 | Parked; promote when hand-authoring blocks A06     |
 
-Next action: `/implement pantry_rules_01` to build the dev-only debug hub before gameplay rules land.
+Next action: finish `pantry_rules_04`, then `/implement pantry_rules_05` for route replay and balance-report tooling.
 
 ---
 
@@ -33,6 +34,7 @@ Next action: `/implement pantry_rules_01` to build the dev-only debug hub before
 
 Not scheduled. Do not start without a decision.
 
+- White and black keys, widening the palette from three colours to five. Blocked on a product decision, not on implementation: the design document's section 八 binds the three current colours to passage, attack, and defence, and white and black have no assigned meaning. Decide what they mean before touching `KeyColor`. Requirement 4 of the authoring plan depends on this.
 - Browser acceptance coverage. Deliberately absent from V1; `dev/agent_rules/test_operations.md` records it as a standing gap.
 - Promote the mega plan shape into game-devkit as `mega_plan_standard.md`. The foundation has no mega-plan contract today; this project is its trial run. See mega plan §8 items 5 and 6.
 

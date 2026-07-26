@@ -20,6 +20,34 @@ describe("resolveDebugRoute", () => {
     }
   });
 
+  it("resolves the Floor Set Viewer from the shared debug catalog", () => {
+    const route = resolveDebugRoute("/debug/floors");
+
+    expect(route.kind).toBe("tool");
+
+    if (route.kind === "tool") {
+      expect(route.tool).toMatchObject({
+        id: "floors",
+        path: "/debug/floors",
+        title: "Floor Set Viewer",
+      });
+    }
+  });
+
+  it("resolves the Floor Set Workbench from the shared debug catalog", () => {
+    const route = resolveDebugRoute("/debug/floor-workbench");
+
+    expect(route.kind).toBe("tool");
+
+    if (route.kind === "tool") {
+      expect(route.tool).toMatchObject({
+        id: "floor-workbench",
+        path: "/debug/floor-workbench",
+        title: "Floor Set Workbench",
+      });
+    }
+  });
+
   it.each(["/debug/unknown", "/debug/combat/"])("falls back to the hub for an unknown exact path: %s", (pathname) => {
     expect(resolveDebugRoute(pathname)).toEqual({ kind: "hub" });
   });

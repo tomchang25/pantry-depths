@@ -90,7 +90,9 @@ The fourth-floor convergence room presents the large blue, red, and yellow doors
 | B4    | 15 x 15 | Guard floor    | Second red and yellow keys, three-door convergence room   |
 | B5    | 11 x 11 | Deep storeroom | Final red-door route, guard, princess, prison             |
 
-The offline bake may generate candidate mazes from fixed seeds, but the selected layouts are then manually adjusted, reviewed, committed as fixed authored data, and loaded directly by the game. Validation must prove stair connectivity, legal key and door ordering, valid entity placement, and a required route whose baseline cost does not exceed maximum health.
+The offline generator accepts a seed and arbitrary floor count, but it produces candidate content only and never enters the runtime module graph. The first floor-content slice commits a playable provisional five-floor set, an independent validator, a read-only viewer, and a development-only authoring workbench so generated JSON can be edited, revalidated, previewed, and explicitly saved without trusting or rerunning the generator. Structural validation must return a concrete solution path and prove stair connectivity, legal key and door ordering, valid entity placement, and start-to-goal solvability without making a health-budget promise.
+
+The route-replay slice adds command-level replay and generated balance evidence against the provisional set. A final content slice then hand-reviews the five V1 layouts, locks entity placements and required-route annotations, and uses both topology and balance tooling to establish the final health budget. Runtime play always loads committed fixed JSON and never generates a floor.
 
 The breakable wall uses the combat damage rule, has 6 health and no retaliation, and is the only hidden wall. The hot spring behind it occupies a non-passable water cell: the player stands beside it and faces it to restore health without a use limit. Bidirectional stairs also occupy non-passable interaction cells, preserving run state when the player faces one and uses it.
 
@@ -109,24 +111,27 @@ Debug tools obey these boundaries:
 - The map view uses symbols or text in addition to color and remains understandable without final art.
 - No placeholder 2.5D renderer is built; the debug surface stays deliberately simple and disposable only in appearance, not in its observation contracts.
 
-| Viewer          | First available with       | Purpose                                                                                                    |
-| --------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Combat explorer | Combat model               | Inspect damage, penetration, hit count, retaliation, and total cost for every player stage and enemy       |
-| Action viewer   | Grid and interaction rules | Step commands on a small 2D grid and inspect before state, semantic events, and after state                |
-| Floor viewer    | Fixed floor content        | Switch floors and inspect tiles, facing, entities, doors, stairs, route annotations, and topology findings |
-| Route replay    | Harness and report         | Replay an authored route and compare stage, health, keys, doors, and accumulated cost at each checkpoint   |
+| Viewer          | First available with             | Purpose                                                                                                                         |
+| --------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Combat explorer | Combat model                     | Inspect damage, penetration, hit count, retaliation, and total cost for every player stage and enemy                            |
+| Action viewer   | Grid and interaction rules       | Step commands on a small 2D grid and inspect before state, semantic events, and after state                                     |
+| Floor viewer    | Provisional or fixed content     | Switch floors and inspect tiles, facing, entities, doors, stairs, directional wall hints, solution paths, and topology findings |
+| Floor workbench | Provisional or candidate content | Generate, edit, validate, preview, and explicitly save floor-set JSON through development-only authoring boundaries             |
+| Route replay    | Harness and report               | Replay an authored route and compare stage, health, keys, doors, and accumulated cost at each checkpoint                        |
 
 ### Child overview
 
-| Child             | Focus                                                                                                                     | Current document form                                                         |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `pantry_rules_01` | Development-only debug hub, catalog, routing boundary, and production exclusion                                           | [Implementation spec](pantry_rules_01_debug_hub.implementation_spec.md)       |
-| `pantry_rules_02` | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                     | [Implementation spec](pantry_rules_02_combat_explorer.implementation_spec.md) |
-| `pantry_rules_03` | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer | [Implementation spec](pantry_rules_03_action_viewer.implementation_spec.md)   |
-| `pantry_rules_04` | Offline floor bake, five fixed layouts, topology validation, and floor viewer                                             | Not started                                                                   |
-| `pantry_rules_05` | Forced-route scenarios, route replay, and generated balance report                                                        | Not started                                                                   |
+| Child             | Focus                                                                                                                       | Current document form                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `pantry_rules_01` | Development-only debug hub, catalog, routing boundary, and production exclusion                                             | [Implementation spec](pantry_rules_01_debug_hub.implementation_spec.md)       |
+| `pantry_rules_02` | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                       | [Implementation spec](pantry_rules_02_combat_explorer.implementation_spec.md) |
+| `pantry_rules_03` | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer   | [Implementation spec](pantry_rules_03_action_viewer.implementation_spec.md)   |
+| `pantry_rules_04` | N-floor offline generation, provisional layouts, topology validation, authoring workbench, floor viewer, and VS Code tasks  | [Implementation spec](pantry_rules_04_floor_pipeline.implementation_spec.md)  |
+| `pantry_rules_05` | Forced-route scenarios, route replay, and generated balance-report tooling against provisional content                      | Not started                                                                   |
+| `pantry_rules_06` | Final five-floor layout, entity placement, required-route annotations, and balance tuning                                   | Not started                                                                   |
+| `pantry_rules_07` | Presentation-only environment features, wall-face anchoring, light and effect presets, and floor-content ownership refactor | Not started                                                                   |
 
-Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05`.
+Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05` -> `pantry_rules_06` -> `pantry_rules_07`.
 
 ## Non-Goals
 
@@ -143,3 +148,4 @@ Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rul
 4. All five fixed floors pass connectivity, placement, key-order, door-order, and required-route health checks, while runtime play contains no map generator.
 5. Development viewers expose combat, command traces, floor topology, and route replay from real snapshots and commands; ordinary and production play expose none of the debug surface.
 6. The generated balance report reproduces the enemy table, cost matrix, required-route budget, floor placements, and topology findings from current authored content without hand-maintained numeric copies.
+7. Presentation-only environment features remain outside gameplay entities and gain an authored floor-data contract before renderer-owned lights, emitters, or wall decorations depend on them.

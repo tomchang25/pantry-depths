@@ -26,24 +26,25 @@ Use the narrowest available layer that proves the changed behavior.
 
 ## Available Layers
 
-| Layer            | Command                    | State                                                |
-| ---------------- | -------------------------- | ---------------------------------------------------- |
-| Format           | `npm run format:check`     | Available                                            |
-| Typecheck        | `npm run typecheck`        | Available                                            |
-| Lint             | `npm run lint`             | Available                                            |
-| Import boundary  | `npm run check:boundaries` | Available                                            |
-| Unit             | `npm run test`             | Available; currently no test files exist             |
-| Production build | `npm run build`            | Available                                            |
-| Governance       | `npm run check:governance` | Available; outside `verify`                          |
-| Browser E2E      | —                          | **Not available.** Deliberately out of scope for V1. |
-| Accessibility    | —                          | **Not available.** Manual keyboard-only check only.  |
+| Layer            | Command                      | State                                                |
+| ---------------- | ---------------------------- | ---------------------------------------------------- |
+| Format           | `npm run format:check`       | Available                                            |
+| Typecheck        | `npm run typecheck`          | Available                                            |
+| Lint             | `npm run lint`               | Available                                            |
+| Import boundary  | `npm run check:boundaries`   | Available                                            |
+| Unit             | `npm run test`               | Available                                            |
+| Production build | `npm run build`              | Available                                            |
+| Governance       | `npm run check:governance`   | Available; outside `verify`                          |
+| Floor content    | `npm run validate:floor-set` | Available; validates the configured floor-set input  |
+| Browser E2E      | —                            | **Not available.** Deliberately out of scope for V1. |
+| Accessibility    | —                            | **Not available.** Manual keyboard-only check only.  |
 
 ## Commands And Pass Criteria
 
 - `npm run verify` runs, in order and stopping on first failure: `format:check` → `typecheck` → `lint` → `check:boundaries` → `test` → `build`. Pass criterion is exit code 0 with no stage skipped. Never pipe a stage through a filter that replaces its exit status.
-- `npm run test` currently carries `--passWithNoTests` because no unit test exists yet. **Remove that flag in the same change that lands the first `test/unit/` file**; until then the unit stage proves nothing and every report must say so.
 - `npm run check:boundaries` passes at 0 errors. Warnings are reported but do not fail the stage; a new warning still requires an explanation in the change report.
 - `npm run check:governance` passes when it prints both `governance: OK` and `foundation: OK`.
+- `npm run validate:floor-set` passes when the selected floor-set JSON has no error findings and yields one structural solution. It defaults to canonical content and accepts `--input <path>` for a candidate. It does not assess HP survivability or balance.
 - Expected noise: `vitest` prints its include/exclude summary when no test file matches. `depcruise` prints a module and dependency count on success.
 
 ## Manual Layers

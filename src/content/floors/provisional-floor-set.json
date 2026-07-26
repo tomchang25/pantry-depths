@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "initial": {
+    "floorId": "B1",
+    "cell": { "x": 1, "y": 1 },
+    "facing": "east"
+  },
+  "goalEntityId": "b5-princess",
+  "floors": [
+    {
+      "id": "B1",
+      "theme": "wine-cellar",
+      "tiles": [
+        "###########",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "###########"
+      ],
+      "entities": [
+        { "kind": "key", "id": "b1-red-key", "cell": { "x": 2, "y": 1 }, "color": "red" },
+        { "kind": "door", "id": "b1-red-door", "cell": { "x": 3, "y": 1 }, "color": "red" },
+        {
+          "kind": "stair",
+          "id": "b1-down",
+          "cell": { "x": 8, "y": 1 },
+          "destinationFloorId": "B2",
+          "destinationCell": { "x": 1, "y": 1 },
+          "destinationFacing": "east"
+        },
+        {
+          "kind": "breakableWall",
+          "id": "b1-hidden-wall",
+          "cell": { "x": 5, "y": 5 },
+          "health": 6,
+          "defense": 0,
+          "hintFaces": ["east", "west"]
+        },
+        { "kind": "hotSpring", "id": "b1-hot-spring", "cell": { "x": 6, "y": 5 } }
+      ]
+    },
+    {
+      "id": "B2",
+      "theme": "ice-cellar",
+      "tiles": [
+        "#############",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#############"
+      ],
+      "entities": [
+        {
+          "kind": "stair",
+          "id": "b2-up",
+          "cell": { "x": 1, "y": 1 },
+          "destinationFloorId": "B1",
+          "destinationCell": { "x": 8, "y": 1 },
+          "destinationFacing": "west"
+        },
+        { "kind": "key", "id": "b2-blue-key", "cell": { "x": 2, "y": 1 }, "color": "blue" },
+        {
+          "kind": "door",
+          "id": "b2-blue-door",
+          "cell": { "x": 3, "y": 1 },
+          "color": "blue",
+          "upgradeEffectId": "blue-door-1"
+        },
+        {
+          "kind": "stair",
+          "id": "b2-down",
+          "cell": { "x": 11, "y": 1 },
+          "destinationFloorId": "B3",
+          "destinationCell": { "x": 1, "y": 1 },
+          "destinationFacing": "east"
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "theme": "meat-cellar",
+      "tiles": [
+        "#############",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#...........#",
+        "#############"
+      ],
+      "entities": [
+        {
+          "kind": "stair",
+          "id": "b3-up",
+          "cell": { "x": 1, "y": 1 },
+          "destinationFloorId": "B2",
+          "destinationCell": { "x": 11, "y": 1 },
+          "destinationFacing": "west"
+        },
+        { "kind": "key", "id": "b3-yellow-key", "cell": { "x": 2, "y": 1 }, "color": "yellow" },
+        {
+          "kind": "door",
+          "id": "b3-yellow-door",
+          "cell": { "x": 3, "y": 1 },
+          "color": "yellow",
+          "upgradeEffectId": "yellow-door-1"
+        },
+        { "kind": "key", "id": "b3-blue-key", "cell": { "x": 5, "y": 1 }, "color": "blue" },
+        {
+          "kind": "stair",
+          "id": "b3-down",
+          "cell": { "x": 11, "y": 1 },
+          "destinationFloorId": "B4",
+          "destinationCell": { "x": 1, "y": 1 },
+          "destinationFacing": "east"
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "theme": "guard-floor",
+      "tiles": [
+        "###############",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "#.............#",
+        "###############"
+      ],
+      "entities": [
+        {
+          "kind": "stair",
+          "id": "b4-up",
+          "cell": { "x": 1, "y": 1 },
+          "destinationFloorId": "B3",
+          "destinationCell": { "x": 11, "y": 1 },
+          "destinationFacing": "west"
+        },
+        { "kind": "key", "id": "b4-red-key", "cell": { "x": 2, "y": 1 }, "color": "red" },
+        { "kind": "key", "id": "b4-yellow-key", "cell": { "x": 3, "y": 1 }, "color": "yellow" },
+        {
+          "kind": "door",
+          "id": "b4-blue-door",
+          "cell": { "x": 5, "y": 3 },
+          "color": "blue",
+          "upgradeEffectId": "blue-door-2"
+        },
+        { "kind": "door", "id": "b4-red-door", "cell": { "x": 7, "y": 3 }, "color": "red" },
+        {
+          "kind": "door",
+          "id": "b4-yellow-door",
+          "cell": { "x": 9, "y": 3 },
+          "color": "yellow",
+          "upgradeEffectId": "yellow-door-2"
+        },
+        {
+          "kind": "stair",
+          "id": "b4-down",
+          "cell": { "x": 7, "y": 5 },
+          "destinationFloorId": "B5",
+          "destinationCell": { "x": 1, "y": 1 },
+          "destinationFacing": "east"
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "theme": "deep-storeroom",
+      "tiles": [
+        "###########",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "###########"
+      ],
+      "entities": [
+        {
+          "kind": "stair",
+          "id": "b5-up",
+          "cell": { "x": 1, "y": 1 },
+          "destinationFloorId": "B4",
+          "destinationCell": { "x": 7, "y": 5 },
+          "destinationFacing": "west"
+        },
+        {
+          "kind": "enemy",
+          "id": "b5-princess",
+          "cell": { "x": 8, "y": 8 },
+          "archetypeId": "princess"
+        }
+      ]
+    }
+  ]
+}

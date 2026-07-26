@@ -486,6 +486,8 @@ HP 6 表示 Stage 0（攻擊 3）要兩刀，後期一刀。每次命中：
 
 全遊戲只有這一面隱藏牆。不要為了「公平」再加第二面。
 
+The breakable wall uses directional hint metadata rather than separate one-way and two-way wall types. `hintFaces` names the wall faces whose material exposes the crack, warm light, and other authored clues. A face name is its outward cardinal normal: `north` is the face seen from the cell north of the wall. Every face remains attackable, all faces share one health value, and destroying the entity opens the cell from every direction.
+
 ### 溫泉
 
 牆後是一個小房間，色調從紫黑地牢切換成暖橘與蒸氣。面向水面按 E：生命補滿。**無使用次數限制，永久有效。**
@@ -540,7 +542,7 @@ HP 6 表示 Stage 0（攻擊 3）要兩刀，後期一刀。每次命中：
 
 ### 選擇性內容
 
-五層另外配置約十隻可繞過的敵人，守在捷徑、裝飾房與死路盡頭。其中兩隻守衛放在 B3，Stage 2 時價格 72，等於明擺著的「現在不要碰」。玩家若在拿到 B4 升級後回頭，它們只值 8——但門後沒有實質獎勵，只有場景。這是刻意的：回頭清怪是玩家自己的滿足感，不是遊戲的獎勵管道。
+The final optional-enemy placements are selected during the final floor-content pass after topology validation and route-report tooling exist. B3 does not contain the previously proposed pair of optional high-cost Guards.
 
 ---
 
@@ -551,14 +553,14 @@ HP 6 表示 Stage 0（攻擊 3）要兩刀，後期一刀。每次命中：
 ### 流程
 
 ```text
-寫一個粗糙的迷宮生成器（開發用腳本，不進遊戲）
-→ 用固定 seed 生成五層
-→ 人工挑一組結構好看的 seed
-→ 匯出成 JSON
-→ 手動放置樓梯、鑰匙、門、敵人、隱藏牆與溫泉
-→ 手動調整死路長度與地標
-→ JSON 進版控，成為唯一權威
-→ 遊戲永遠只載入這五張固定地圖
+Build a rough development-only maze generator that never enters the game
+→ Generate any positive floor count from an explicit seed
+→ Export candidate JSON and validate one concrete structural solution
+→ Commit a provisional five-floor set for pipeline, viewer, and replay-tool development
+→ Manually adjust stairs, keys, doors, enemies, breakable walls, hot springs, dead ends, and landmarks
+→ Revalidate the edited JSON without regenerating it
+→ Use route replay and balance evidence to select the final V1 five-floor content
+→ Keep the committed JSON as runtime authority; the game always loads fixed maps
 ```
 
 生成器不進 build。遊戲本體沒有任何迷宮生成程式碼。
@@ -572,29 +574,27 @@ Floor
 ├── size: { w, h }
 ├── tiles: string[]        // 每字元一格
 ├── entry: { x, y, facing }
-├── stairsUp / stairsDown: cell
+├── stairs: { cell, destinationFloor, destinationCell, destinationFacing }[]
 ├── enemies: Enemy[]
 ├── keys: { color, cell }[]
 ├── doors: { color, cell, effect, opened: false }[]
-└── specials: BreakableWall | HotSpring
+└── specials: BreakableWall[] | HotSpring[]
 ```
 
 `effect` 只有三種：`passage`、`atk: +n`、`def: +n`。
 
-Tile 字元沿用 prototype 慣例並擴充：
+Tile characters describe only static environment geometry and material. Interactive or stateful objects remain separate entity records.
 
-| 字元 | 意義             |
-| ---- | ---------------- |
-| `.`  | 地板             |
-| `#`  | 石牆             |
-| `=`  | 老磚牆           |
-| `+`  | 鐵柵欄（裝飾）   |
-| `%`  | 隱藏牆           |
-| `~`  | 溫泉水面         |
-| `>`  | 下樓梯（往深處） |
-| `<`  | 上樓梯（往回走） |
+| 字元 | 意義                 |
+| ---- | -------------------- |
+| `.`  | Passable floor       |
+| `#`  | Solid stone wall     |
+| `=`  | Solid old brick wall |
+| `+`  | Solid iron-bar wall  |
 
-門、鑰匙、敵人不寫在 tile 字串裡，改用獨立陣列，方便單獨調整而不動迷宮結構。
+Doors, keys, enemies, stairs, hot springs, and breakable walls are separate records so they can move without rewriting base terrain. A breakable wall overlays a floor tile and owns its cell, combat values, and directional hint faces; it is not a permanent solid tile, because its underlying cell becomes passable after destruction. The player-facing minimap treats an active breakable wall as an ordinary wall and does not reveal directional hints.
+
+Presentation-only floor annotations such as wall torches, steam emitters, ambient lights, and wall-mounted decorations are deferred to the dedicated environment-feature slice. They are authored with floor content but do not become gameplay entities merely to reach the renderer.
 
 ---
 

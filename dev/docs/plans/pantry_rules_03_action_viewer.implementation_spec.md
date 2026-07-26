@@ -24,7 +24,7 @@ The Action Viewer uses one harness-owned small scenario, dispatches through the 
 - A forward command attacks a facing-adjacent enemy or breakable wall without entering its cell. A solid wall, closed door, stair, or hot spring water cell cancels forward input. A valid interaction targets only the facing-adjacent closed door, stair, or hot spring; an empty or already-consumed target cancels input, while a locked closed door is still an accepted interaction.
 - The harness owns the compact authored debug scenario and constructs a runtime session from it. The application debug viewer may import that harness seam, but the viewer holds no gameplay truth and must not construct or alter state outside session dispatch.
 - The Action Viewer registers through the existing `DEBUG_TOOLS` catalog. It renders semantic map symbols and textual state/event output from real snapshots and never maintains a second combat, door, retaliation, or terminal-outcome model.
-- A04 supplies the five fixed floor definitions through the same world contract. This child must not ship floor layouts, topology checks, generators, final HUD, renderer behavior, or player-facing feedback effects.
+- Later floor-content children supply provisional and final floor definitions through the same world contract. This child must not ship floor layouts, topology checks, generators, final HUD, renderer behavior, or player-facing feedback effects.
 
 ## Scope
 
