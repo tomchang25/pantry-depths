@@ -14,6 +14,8 @@ Breakable walls remain visibly distinct from permanent terrain and expose their 
 
 This child is read-only with respect to the map and inspector. JSON remains the only editable draft surface until the next child, full structural validation stays on demand, and Save or Export remains enabled only for the exact text that most recently produced a valid structural solution. The standalone Floor Set Viewer uses the same authored-map projection, but the runtime Action Viewer and future Canvas minimap are unchanged.
 
+This child establishes the functional authored-map structure and localized responsive composition only. A separate standalone Debug Surface Shell spec owns the polished page chrome, shared visual tokens, reusable panels and controls, Debug Hub redesign, and migration of every debug scene; that follow-on may replace local presentation styles without changing this child's projection or selection contracts.
+
 ## Relational Context
 
 - `floor-workbench` owns the current JSON text and validation gate. The new map and inspector read a parsed projection of that text; they do not create another draft or mutate authored content in this child.
@@ -25,6 +27,7 @@ This child is read-only with respect to the map and inspector. JSON remains the 
 - Floor and cell selection are local presentation state. Switching floors keeps selection valid for the chosen floor or clears it explicitly; it never changes the floor-set initial location or any authored coordinate.
 - The Floor Set Viewer and embedded Workbench view call the same map projection and DOM rendering owner. The Action Viewer continues to render `RunWorld` plus `RunSnapshot` independently because runtime active state and authored-source metadata are different contracts.
 - No `shared` or `presentation` layer is created for a future consumer. Extraction may happen only after a current non-debug renderer demonstrates the cross-layer ownership.
+- The independent Debug Surface Shell may host and style this viewer and workbench, but it does not own authored-cell semantics, floor selection, draft parsing, validation evidence, or inspector content. This map remains a debug authoring owner rather than a generic map component.
 - Selectable map cells and numbered floor controls must be keyboard reachable, visibly focused, and text-labelled. Color, badges, and borders supplement rather than replace the Cell Inspector and legend.
 
 ## Scope
@@ -47,15 +50,17 @@ This child is read-only with respect to the map and inspector. JSON remains the 
 - Generator count changes or link controls.
 - Action Viewer refactoring, gameplay minimap behavior, discovery filtering, and Canvas presentation.
 - Final decoration, light, particle, or atmosphere previews.
+- Per-floor width or height controls and resize behavior.
+- Project-wide debug page chrome, theme tokens, Hub cards, and migration of other debug scenes; the standalone Debug Surface Shell spec owns those surfaces.
 
 ## Files to Change
 
-| File                                      | Change Size | Purpose                                                                                           |
-| ----------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------- |
-| `src/app/debug/floor-map.ts`              | Large       | Own the pure authored-cell projection, layered DOM grid, selection contract, legend, and inspector. |
-| `src/app/debug/floor-viewer.ts`           | Large       | Compose validation and structural-solution evidence around the shared authored map and floor buttons. |
-| `src/app/debug/floor-workbench.ts`        | Large       | Reorder the workbench, render schema-valid draft projections independently of validation, and clarify departure paths. |
-| `test/unit/app/debug/floor-map.test.ts`   | Medium      | Prove the pure cell projection preserves terrain, gameplay, environment, hint-face, and co-location semantics. |
+| File                                    | Change Size | Purpose                                                                                                                |
+| --------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `src/app/debug/floor-map.ts`            | Large       | Own the pure authored-cell projection, layered DOM grid, selection contract, legend, and inspector.                    |
+| `src/app/debug/floor-viewer.ts`         | Large       | Compose validation and structural-solution evidence around the shared authored map and floor buttons.                  |
+| `src/app/debug/floor-workbench.ts`      | Large       | Reorder the workbench, render schema-valid draft projections independently of validation, and clarify departure paths. |
+| `test/unit/app/debug/floor-map.test.ts` | Medium      | Prove the pure cell projection preserves terrain, gameplay, environment, hint-face, and co-location semantics.         |
 
 ## Execution Outline
 
@@ -76,16 +81,16 @@ This child is read-only with respect to the map and inspector. JSON remains the 
 
 ## Edge Cases
 
-| Case | Expected Handling |
-| ---- | ----------------- |
-| A gameplay entity and one or more environment features share a cell | The entity stays primary, environment badges remain visible, and the inspector lists every record. |
-| Several environment features share a cell | Each record remains separately listed; overview markers may summarize kinds but never imply only one record exists. |
-| A wall decoration anchors to a wall cell and face | The selected wall inspector reports the outward face and preset metadata; the overview uses a face-aware authoring indicator. |
-| The JSON is valid JSON but not a valid floor schema | Keep the text editable, clear the authored projection, report the schema error, and leave Save/Export disabled. |
-| The text changes after successful structural validation | Refresh the schema-valid map when possible, remove route evidence, and disable Save/Export until revalidation. |
-| The selected coordinate does not exist after a floor or draft change | Clear selection and show the inspector's empty instruction rather than selecting another authored cell silently. |
-| The floor button row exceeds the available width | Wrap controls without horizontal page overflow or hidden floors. |
-| The viewport cannot fit map and inspector side by side | Stack the inspector without losing selection, labels, or keyboard access. |
+| Case                                                                 | Expected Handling                                                                                                             |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| A gameplay entity and one or more environment features share a cell  | The entity stays primary, environment badges remain visible, and the inspector lists every record.                            |
+| Several environment features share a cell                            | Each record remains separately listed; overview markers may summarize kinds but never imply only one record exists.           |
+| A wall decoration anchors to a wall cell and face                    | The selected wall inspector reports the outward face and preset metadata; the overview uses a face-aware authoring indicator. |
+| The JSON is valid JSON but not a valid floor schema                  | Keep the text editable, clear the authored projection, report the schema error, and leave Save/Export disabled.               |
+| The text changes after successful structural validation              | Refresh the schema-valid map when possible, remove route evidence, and disable Save/Export until revalidation.                |
+| The selected coordinate does not exist after a floor or draft change | Clear selection and show the inspector's empty instruction rather than selecting another authored cell silently.              |
+| The floor button row exceeds the available width                     | Wrap controls without horizontal page overflow or hidden floors.                                                              |
+| The viewport cannot fit map and inspector side by side               | Stack the inspector without losing selection, labels, or keyboard access.                                                     |
 
 ## Acceptance Criteria
 
