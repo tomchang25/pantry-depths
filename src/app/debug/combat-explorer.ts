@@ -1,3 +1,4 @@
+import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
 import { ENEMY_ARCHETYPES, getEnemyArchetype, type EnemyArchetype, type EnemyId } from "@/content/combat/enemies";
 import { getPlayerStage, PLAYER_STAGES, type PlayerStage } from "@/content/combat/player-stages";
 import { calculateCombatProjection, type CombatProjection } from "@/core/combat";
@@ -18,11 +19,13 @@ function formatCost(projection: CombatProjection): string {
 }
 
 function appendDetail(detail: HTMLDListElement, term: string, description: string): void {
+  const group = document.createElement("div");
   const detailTerm = document.createElement("dt");
   const detailDescription = document.createElement("dd");
   detailTerm.textContent = term;
   detailDescription.textContent = description;
-  detail.append(detailTerm, detailDescription);
+  group.append(detailTerm, detailDescription);
+  detail.append(group);
 }
 
 function renderProjectionDetail(detail: HTMLDListElement, stage: PlayerStage, enemy: EnemyArchetype): void {
@@ -56,7 +59,7 @@ function createMatrix(): HTMLTableElement {
 
   const tableHead = document.createElement("thead");
   tableHead.append(header);
-  table.append(tableHead);
+  table.append(caption, tableHead);
 
   const tableBody = document.createElement("tbody");
 
@@ -82,30 +85,37 @@ function createMatrix(): HTMLTableElement {
 
 /** Renders the development-only inspection surface for the combat content and model. */
 export function renderCombatExplorer(mount: HTMLElement): void {
-  const page = document.createElement("main");
-  const heading = document.createElement("h1");
-  const description = document.createElement("p");
-  const controls = document.createElement("section");
-  const controlsHeading = document.createElement("h2");
+  const { page, content } = createDebugPage({
+    title: "Combat Explorer",
+    description: "Inspect the deterministic combat projection for every authored stage and enemy.",
+  });
+  const controls = createDebugPanel(
+    "Selected Projection",
+    "Choose one authored player stage and enemy to inspect the exact deterministic exchange.",
+  );
   const stageLabel = document.createElement("label");
   const stageSelect = document.createElement("select");
   const enemyLabel = document.createElement("label");
   const enemySelect = document.createElement("select");
-  const detailHeading = document.createElement("h2");
+  const form = document.createElement("div");
+  const detailHeading = document.createElement("h3");
   const detail = document.createElement("dl");
-  const matrixHeading = document.createElement("h2");
+  const matrix = createDebugPanel(
+    "Combat Cost Matrix",
+    "Total health cost for every current player stage and authored enemy pairing.",
+  );
 
-  heading.textContent = "Combat Explorer";
-  description.textContent = "Inspect the deterministic combat projection for every authored stage and enemy.";
-  controlsHeading.textContent = "Selected Projection";
   stageLabel.htmlFor = "combat-stage";
   stageLabel.textContent = "Player Stage";
+  stageLabel.className = "debug-field";
   stageSelect.id = stageLabel.htmlFor;
   enemyLabel.htmlFor = "combat-enemy";
   enemyLabel.textContent = "Enemy";
+  enemyLabel.className = "debug-field";
   enemySelect.id = enemyLabel.htmlFor;
   detailHeading.textContent = "Projection Details";
-  matrixHeading.textContent = "Combat Cost Matrix";
+  form.className = "debug-form-grid";
+  detail.className = "debug-detail-grid";
 
   for (const stage of PLAYER_STAGES) {
     stageSelect.append(createOption(String(stage.id), formatStage(stage)));
@@ -126,7 +136,11 @@ export function renderCombatExplorer(mount: HTMLElement): void {
   enemySelect.addEventListener("change", updateDetail);
   updateDetail();
 
-  controls.append(controlsHeading, stageLabel, stageSelect, enemyLabel, enemySelect, detailHeading, detail);
-  page.append(heading, description, controls, matrixHeading, createMatrix());
+  stageLabel.append(stageSelect);
+  enemyLabel.append(enemySelect);
+  form.append(stageLabel, enemyLabel);
+  controls.body.append(form, detailHeading, detail);
+  matrix.body.append(createDebugScroller(createMatrix(), "Combat cost matrix"));
+  content.append(controls.panel, matrix.panel);
   mount.replaceChildren(page);
 }

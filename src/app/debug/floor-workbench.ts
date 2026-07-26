@@ -1,3 +1,4 @@
+import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
 import { renderFloorSetInspector, type FloorInspectorSelection } from "@/app/debug/floor-viewer";
 import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet, type FloorValidationResult } from "@/content/floor/floor-validation";
@@ -34,8 +35,6 @@ function createButton(
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = label;
-  button.style.minHeight = "2.75rem";
-  button.style.padding = "0.5rem 0.8rem";
   button.addEventListener("click", () => {
     void Promise.resolve(action()).catch(reportError);
   });
@@ -45,14 +44,14 @@ function createButton(
 function createCountField(id: string, label: string, value: number, min: number): HTMLLabelElement {
   const field = document.createElement("label");
   const input = document.createElement("input");
-  field.textContent = `${label} `;
+  field.textContent = label;
+  field.className = "debug-field";
   field.htmlFor = id;
   input.id = id;
   input.type = "number";
   input.min = String(min);
   input.step = "1";
   input.value = String(value);
-  input.style.width = "5rem";
   field.append(input);
   return field;
 }
@@ -77,59 +76,63 @@ function downloadJson(filename: string, text: string): void {
 
 /** Renders the development-only generate, inspect, validate, export, and explicit-save workflow. */
 export function renderFloorWorkbench(mount: HTMLElement): void {
-  const page = document.createElement("main");
-  const heading = document.createElement("h1");
-  const description = document.createElement("p");
-  const generatorHeading = document.createElement("h2");
+  const { page, content } = createDebugPage({
+    title: "Floor Set Workbench",
+    description:
+      "Generate, inspect, tune, validate, export, and explicitly save authored floor-set JSON through one development workspace.",
+    width: "wide",
+  });
+  const generatorPanel = createDebugPanel(
+    "Generator",
+    "Create a solvable candidate from deterministic seed and aggregate content counts.",
+  );
   const generatorControls = document.createElement("div");
   const seedField = createCountField("floor-workbench-seed", "Seed", 1, Number.MIN_SAFE_INTEGER);
   const floorField = createCountField("floor-workbench-floors", "Floors", 5, 1);
   const keyField = createCountField("floor-workbench-keys", "Keys per floor", 1, 0);
   const doorField = createCountField("floor-workbench-doors", "Doors per floor", 1, 0);
   const enemyField = createCountField("floor-workbench-enemies", "Enemies per floor", 1, 0);
-  const mapHeading = document.createElement("h2");
-  const map = document.createElement("section");
-  const editorHeading = document.createElement("h2");
+  const mapPanel = createDebugPanel(
+    "Draft Map",
+    "The schema-valid JSON draft is projected here before full structural validation.",
+  );
+  const map = document.createElement("div");
+  const editorPanel = createDebugPanel(
+    "JSON Editor",
+    "This text remains the complete draft authority until direct editing lands in later authoring work.",
+  );
   const editorLabel = document.createElement("label");
   const editor = document.createElement("textarea");
-  const departureHeading = document.createElement("h2");
+  const departurePanel = createDebugPanel("Export and Save");
   const departureDescription = document.createElement("p");
   const actions = document.createElement("div");
   const status = document.createElement("p");
-  const validationHeading = document.createElement("h2");
+  const validationPanel = createDebugPanel("Validation Findings");
   const validationFindings = document.createElement("ul");
   let draftSelection: FloorInspectorSelection | undefined;
   let validatedText: string | undefined;
   let validatedResult: FloorValidationResult | undefined;
 
-  heading.textContent = "Floor Set Workbench";
-  description.textContent =
-    "Generate a solvable random draft or load canonical content, inspect its layered map and cell metadata, tune the JSON by hand, then validate before exporting a file or overwriting canonical content.";
-  generatorHeading.textContent = "Generator";
-  mapHeading.textContent = "Draft Map";
-  editorHeading.textContent = "JSON Editor";
   editorLabel.textContent = "Floor-set JSON";
+  editorLabel.className = "debug-field";
   editorLabel.htmlFor = "floor-workbench-editor";
   editor.id = editorLabel.htmlFor;
   editor.rows = 28;
   editor.spellcheck = false;
-  editor.style.boxSizing = "border-box";
-  editor.style.fontFamily = "monospace";
-  editor.style.width = "100%";
-  departureHeading.textContent = "Export and Save";
   departureDescription.textContent =
     "Export JSON File downloads the validated draft and leaves canonical content unchanged. Save Canonical JSON overwrites the canonical floor-set target used by the game.";
-  validationHeading.textContent = "Validation Findings";
   status.setAttribute("role", "status");
-  generatorControls.style.display = "flex";
-  generatorControls.style.flexWrap = "wrap";
-  generatorControls.style.gap = "1rem";
-  actions.style.display = "flex";
-  actions.style.flexWrap = "wrap";
-  actions.style.gap = "0.5rem";
+  generatorControls.className = "debug-form-grid";
+  actions.className = "debug-button-row";
+  map.className = "debug-workbench-map";
+
+  const reportStatus = (message: string, tone: "error" | "info" | "success" | "warning" = "info"): void => {
+    status.textContent = message;
+    status.dataset.tone = tone;
+  };
 
   const reportError = (caught: unknown): void => {
-    status.textContent = caught instanceof Error ? caught.message : "Unable to complete the authoring action.";
+    reportStatus(caught instanceof Error ? caught.message : "Unable to complete the authoring action.", "error");
   };
 
   const renderFindings = (validation: FloorValidationResult | undefined, fallback?: string): void => {
@@ -182,7 +185,7 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
     "Save Canonical JSON (Overwrites)",
     async () => {
       if (editor.value !== validatedText || !validatedResult?.solution) {
-        status.textContent = "Validate the current draft before overwriting canonical content.";
+        reportStatus("Validate the current draft before overwriting canonical content.", "warning");
         return;
       }
 
@@ -191,25 +194,27 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: "canonical", source: JSON.parse(editor.value) as unknown }),
       });
-      status.textContent = payload.message ?? "Canonical floor-set content overwritten.";
+      reportStatus(payload.message ?? "Canonical floor-set content overwritten.", "success");
     },
     reportError,
   );
+  saveButton.className = "debug-button--danger";
   saveButton.disabled = true;
 
   const exportButton = createButton(
     "Export JSON File (Download Only)",
     () => {
       if (editor.value !== validatedText || !validatedResult?.solution) {
-        status.textContent = "Validate the current draft before exporting a download.";
+        reportStatus("Validate the current draft before exporting a download.", "warning");
         return;
       }
 
       downloadJson(`floor-set-seed-${fieldValue(seedField)}.json`, `${editor.value}\n`);
-      status.textContent = "Validated draft downloaded. Canonical content is unchanged.";
+      reportStatus("Validated draft downloaded. Canonical content is unchanged.", "success");
     },
     reportError,
   );
+  exportButton.className = "debug-button--primary";
   exportButton.disabled = true;
 
   const clearValidation = (): void => {
@@ -225,7 +230,10 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
     draftSelection = undefined;
     clearValidation();
     renderDraftMap();
-    status.textContent = `${sourceLabel} loaded as an unsaved draft. Validate it to enable download and canonical overwrite.`;
+    reportStatus(
+      `${sourceLabel} loaded as an unsaved draft. Validate it to enable download and canonical overwrite.`,
+      "info",
+    );
   };
 
   const validateDraft = (): void => {
@@ -241,17 +249,23 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
       renderDraftMap();
 
       if (errors.length > 0 || !validation.solution) {
-        status.textContent = `Validation failed with ${errors.length} error findings. Download and canonical overwrite remain disabled.`;
+        reportStatus(
+          `Validation failed with ${errors.length} error findings. Download and canonical overwrite remain disabled.`,
+          "error",
+        );
         return;
       }
 
-      status.textContent = `Valid draft with a ${validation.solution.length}-step structural solution. Download and canonical overwrite are enabled.`;
+      reportStatus(
+        `Valid draft with a ${validation.solution.length}-step structural solution. Download and canonical overwrite are enabled.`,
+        "success",
+      );
     } catch (caught) {
       clearValidation();
       renderDraftMap();
       const message = caught instanceof Error ? caught.message : "Draft JSON could not be parsed.";
       renderFindings(undefined, message);
-      status.textContent = message;
+      reportStatus(message, "error");
     }
   };
 
@@ -261,7 +275,7 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   };
 
   const generate = async (): Promise<void> => {
-    status.textContent = "Generating a solvable candidate. Dense key and door counts take longer to validate.";
+    reportStatus("Generating a solvable candidate. Dense key and door counts take longer to validate.", "info");
 
     const payload = await requestJson("generate", {
       method: "POST",
@@ -280,7 +294,7 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   editor.addEventListener("input", () => {
     clearValidation();
     renderDraftMap();
-    status.textContent = "Draft changed. Validate again before downloading or overwriting canonical content.";
+    reportStatus("Draft changed. Validate again before downloading or overwriting canonical content.", "warning");
   });
 
   generatorControls.append(
@@ -297,27 +311,16 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
     exportButton,
     saveButton,
   );
-  page.append(
-    heading,
-    description,
-    generatorHeading,
-    generatorControls,
-    mapHeading,
-    map,
-    editorHeading,
-    editorLabel,
-    editor,
-    departureHeading,
-    departureDescription,
-    actions,
-    status,
-    validationHeading,
-    validationFindings,
-  );
+  generatorPanel.body.append(generatorControls);
+  mapPanel.body.append(map);
+  editorPanel.body.append(editorLabel, editor);
+  departurePanel.body.append(departureDescription, actions, status);
+  validationPanel.body.append(validationFindings);
+  content.append(generatorPanel.panel, mapPanel.panel, editorPanel.panel, departurePanel.panel, validationPanel.panel);
   mount.replaceChildren(page);
   renderFindings(undefined);
-  status.textContent = "Loading canonical floor-set JSON.";
+  reportStatus("Loading canonical floor-set JSON.");
   void loadCanonical().catch((caught: unknown) => {
-    status.textContent = caught instanceof Error ? caught.message : "Unable to load canonical floor-set JSON.";
+    reportStatus(caught instanceof Error ? caught.message : "Unable to load canonical floor-set JSON.", "error");
   });
 }

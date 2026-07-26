@@ -4,6 +4,7 @@ import {
   createFloorButtons,
   createFloorMapLegend,
 } from "@/app/debug/floor-map";
+import { createDebugPage } from "@/app/debug/debug-shell";
 import { PROVISIONAL_FLOOR_SET, PROVISIONAL_FLOOR_VALIDATION } from "@/content/floor/floor-catalog";
 import type { FloorSetSource } from "@/content/floor/floor-schema";
 import type { FloorValidationResult } from "@/content/floor/floor-validation";
@@ -43,20 +44,33 @@ export function renderFloorSetInspector(
   options: FloorSetInspectorOptions = {},
 ): void {
   const embedded = options.embedded ?? false;
-  const page = document.createElement(embedded ? "section" : "main");
-  const heading = document.createElement(embedded ? "h3" : "h1");
+  const shell = embedded
+    ? undefined
+    : createDebugPage({
+        title,
+        description:
+          "Inspect parsed floor data through a layered authoring map, selected-cell metadata, and structural-validation evidence.",
+        width: "wide",
+      });
+  const page = shell?.page ?? document.createElement("section");
+  const content = shell?.content ?? page;
+  const introduction = document.createElement("section");
+  const heading = document.createElement("h3");
   const description = document.createElement("p");
   const floorControlsHeading = document.createElement(embedded ? "h4" : "h2");
   const floorControls = document.createElement("div");
+  const validationPanel = document.createElement("section");
   const validationStatus = document.createElement("p");
   const findingsHeading = document.createElement(embedded ? "h4" : "h2");
   const findings = document.createElement("ul");
+  const mapPanel = document.createElement("section");
   const floorHeading = document.createElement(embedded ? "h4" : "h2");
   const floorDescription = document.createElement("p");
   const mapLayout = document.createElement("div");
   const mapScroller = document.createElement("div");
   const inspectorMount = document.createElement("div");
   const legendMount = document.createElement("div");
+  const solutionPanel = document.createElement("section");
   const solutionHeading = document.createElement(embedded ? "h4" : "h2");
   const solution = document.createElement("ol");
   let selectedFloorId = floorSet.floors.some((floor) => floor.id === options.selection?.floorId)
@@ -71,16 +85,18 @@ export function renderFloorSetInspector(
   findingsHeading.textContent = "Topology Findings";
   floorHeading.textContent = "Authored Map";
   solutionHeading.textContent = "Structural Solution";
+  page.classList.add("debug-floor-inspector");
+  introduction.className = "debug-panel";
+  validationPanel.className = "debug-panel";
+  mapPanel.className = "debug-panel debug-panel--accent";
+  solutionPanel.className = "debug-panel";
+  floorControls.className = "debug-floor-controls-host";
   validationStatus.setAttribute("role", "status");
-  mapLayout.style.display = "flex";
-  mapLayout.style.flexWrap = "wrap";
-  mapLayout.style.gap = "1rem";
-  mapLayout.style.alignItems = "flex-start";
-  mapScroller.style.flex = "1 1 30rem";
-  mapScroller.style.maxWidth = "100%";
-  mapScroller.style.overflow = "auto";
-  inspectorMount.style.flex = "1 1 18rem";
-  inspectorMount.style.maxWidth = "100%";
+  mapLayout.className = "debug-map-layout";
+  mapScroller.className = "debug-scroller";
+  mapScroller.setAttribute("aria-label", "Authored floor map");
+  mapScroller.setAttribute("role", "region");
+  mapScroller.tabIndex = 0;
 
   const publishSelection = (): void => {
     options.onSelectionChange?.({
@@ -105,6 +121,11 @@ export function renderFloorSetInspector(
       }),
     );
     validationStatus.textContent = validationStatusText(validation);
+    validationStatus.dataset.tone = !validation
+      ? "info"
+      : validation.findings.some((finding) => finding.severity === "error") || !validation.solution
+        ? "error"
+        : "success";
     findings.replaceChildren();
 
     if (!validation) {
@@ -169,22 +190,16 @@ export function renderFloorSetInspector(
     }
   };
 
-  page.append(
-    heading,
-    description,
-    floorControlsHeading,
-    floorControls,
-    validationStatus,
-    findingsHeading,
-    findings,
-    floorHeading,
-    floorDescription,
-    mapLayout,
-    legendMount,
-    solutionHeading,
-    solution,
-  );
+  if (embedded) {
+    introduction.append(heading, description);
+  }
+
+  introduction.append(floorControlsHeading, floorControls);
+  validationPanel.append(findingsHeading, validationStatus, findings);
+  mapPanel.append(floorHeading, floorDescription, mapLayout, legendMount);
+  solutionPanel.append(solutionHeading, solution);
   mapLayout.append(mapScroller, inspectorMount);
+  content.append(introduction, validationPanel, mapPanel, solutionPanel);
   mount.replaceChildren(page);
   render();
 }

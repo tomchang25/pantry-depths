@@ -1,4 +1,5 @@
 import { resolveDebugRoute } from "@/app/debug/debug-router";
+import { DEBUG_TOOLS } from "@/app/debug/debug-tools";
 import { describe, expect, it } from "vitest";
 
 describe("resolveDebugRoute", () => {
@@ -64,5 +65,9 @@ describe("resolveDebugRoute", () => {
 
   it.each(["/debug/unknown", "/debug/combat/"])("falls back to the hub for an unknown exact path: %s", (pathname) => {
     expect(resolveDebugRoute(pathname)).toEqual({ kind: "hub" });
+  });
+
+  it.each(DEBUG_TOOLS)("keeps the registered $id tool reachable from its exact catalog path", (tool) => {
+    expect(resolveDebugRoute(tool.path)).toEqual({ kind: "tool", tool });
   });
 });

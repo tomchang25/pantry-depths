@@ -191,12 +191,8 @@ export function createAuthoredFloorMap(options: AuthoredFloorMapOptions): HTMLEl
   const solutionCells = options.solutionCells ?? [];
 
   grid.setAttribute("aria-label", options.ariaLabel);
-  grid.style.background = "#15121c";
-  grid.style.display = "grid";
-  grid.style.gap = "0.2rem";
+  grid.className = "debug-map-grid";
   grid.style.gridTemplateColumns = `repeat(${width}, 2.75rem)`;
-  grid.style.padding = "0.5rem";
-  grid.style.width = "max-content";
 
   for (let y = 0; y < options.floor.tiles.length; y += 1) {
     const row = options.floor.tiles[y] ?? "";
@@ -213,52 +209,31 @@ export function createAuthoredFloorMap(options: AuthoredFloorMapOptions): HTMLEl
       button.type = "button";
       button.setAttribute("aria-pressed", String(selected));
       button.setAttribute("aria-label", authoredCellLabel(projection, selected));
+      button.className = [
+        "debug-map-cell",
+        selected ? "debug-map-cell--selected" : "",
+        projection.isSolutionCell ? "debug-map-cell--solution" : "",
+        projection.gameplayEntity?.kind === "breakableWall" ? "debug-map-cell--breakable" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
       button.title = button.getAttribute("aria-label") ?? "Authored floor cell";
-      button.style.alignItems = "center";
-      button.style.aspectRatio = "1";
       button.style.background = projection.primary.background;
-      button.style.border = selected
-        ? "3px solid #ffffff"
-        : projection.isSolutionCell
-          ? "2px solid #f5c451"
-          : "1px solid #514b61";
-      button.style.borderRadius = "0.35rem";
       button.style.color = projection.primary.color;
-      button.style.cursor = "pointer";
-      button.style.display = "flex";
-      button.style.fontSize = projection.gameplayEntity?.kind === "breakableWall" ? "1.1rem" : "1.3rem";
-      button.style.fontWeight = "700";
-      button.style.justifyContent = "center";
-      button.style.lineHeight = "1";
-      button.style.minHeight = "2.75rem";
-      button.style.padding = "0";
-      button.style.position = "relative";
-      button.style.width = "2.75rem";
       button.addEventListener("click", () => options.onSelect?.(cell));
 
       symbol.setAttribute("aria-hidden", "true");
       symbol.textContent = projection.primary.symbol || (projection.isSolutionCell ? "·" : "");
       badges.setAttribute("aria-hidden", "true");
+      badges.className = "debug-map-cell__badges";
       badges.textContent = projection.environmentBadges.map((badge) => badge.symbol).join("");
-      badges.style.bottom = "0.08rem";
-      badges.style.color = "#fff3dc";
-      badges.style.fontSize = "0.7rem";
-      badges.style.letterSpacing = "-0.12rem";
-      badges.style.position = "absolute";
-      badges.style.right = "0.15rem";
-      badges.style.textShadow = "0 1px 2px #15121c";
       button.append(symbol, badges);
 
       if (faceSymbols) {
         const faces = document.createElement("span");
         faces.setAttribute("aria-hidden", "true");
+        faces.className = "debug-map-cell__faces";
         faces.textContent = faceSymbols;
-        faces.style.color = "#ffffff";
-        faces.style.fontSize = "0.62rem";
-        faces.style.left = "0.1rem";
-        faces.style.position = "absolute";
-        faces.style.textShadow = "0 1px 2px #15121c";
-        faces.style.top = "0.1rem";
         button.append(faces);
       }
 
@@ -271,18 +246,13 @@ export function createAuthoredFloorMap(options: AuthoredFloorMapOptions): HTMLEl
 
 function detailList(entries: readonly Readonly<{ term: string; value: string }>[]): HTMLDListElement {
   const list = document.createElement("dl");
-  list.style.display = "grid";
-  list.style.gap = "0.25rem 0.75rem";
-  list.style.gridTemplateColumns = "max-content 1fr";
-  list.style.margin = "0";
+  list.className = "debug-detail-list";
 
   for (const entry of entries) {
     const term = document.createElement("dt");
     const value = document.createElement("dd");
     term.textContent = entry.term;
-    term.style.fontWeight = "700";
     value.textContent = entry.value;
-    value.style.margin = "0";
     list.append(term, value);
   }
 
@@ -363,14 +333,7 @@ export function createCellInspector(floor: FloorSource, selectedCell: Cell | und
 
   heading.textContent = "Cell Inspector";
   inspector.setAttribute("aria-label", "Selected authored floor cell");
-  inspector.style.background = "#211e2a";
-  inspector.style.border = "1px solid #514b61";
-  inspector.style.borderRadius = "0.5rem";
-  inspector.style.boxSizing = "border-box";
-  inspector.style.flex = "1 1 18rem";
-  inspector.style.maxWidth = "34rem";
-  inspector.style.minWidth = "16rem";
-  inspector.style.padding = "1rem";
+  inspector.className = "debug-cell-inspector";
   inspector.append(heading);
 
   if (!selectedCell) {
@@ -433,9 +396,7 @@ export function createFloorButtons(
 ): HTMLElement {
   const controls = document.createElement("div");
   controls.setAttribute("aria-label", "Floor selection");
-  controls.style.display = "flex";
-  controls.style.flexWrap = "wrap";
-  controls.style.gap = "0.5rem";
+  controls.className = "debug-floor-controls";
 
   for (const [index, floor] of floors.entries()) {
     const button = document.createElement("button");
@@ -445,13 +406,6 @@ export function createFloorButtons(
     button.title = `${floor.id} — ${floor.theme}`;
     button.setAttribute("aria-label", `Floor ${index + 1}: ${floor.id}, ${floor.theme}`);
     button.setAttribute("aria-pressed", String(selected));
-    button.style.background = selected ? "#f5c451" : "#34313f";
-    button.style.border = "1px solid #514b61";
-    button.style.borderRadius = "0.35rem";
-    button.style.color = selected ? "#201600" : "#fff3dc";
-    button.style.fontWeight = "700";
-    button.style.minHeight = "2.75rem";
-    button.style.minWidth = "2.75rem";
     button.addEventListener("click", () => onSelect(floor.id));
     controls.append(button);
   }
@@ -470,6 +424,7 @@ export function createFloorMapLegend(): HTMLElement {
     "✦ Tile decoration · ↟ Wall-face decoration · ☼ Ambient light · ≈ Effect emitter",
     "Gold border Structural solution · White border Selected cell · Selected face arrows Authored hints or wall anchors",
   ];
+  section.className = "debug-map-legend";
   heading.textContent = "Map Legend";
 
   for (const entry of legendEntries) {
