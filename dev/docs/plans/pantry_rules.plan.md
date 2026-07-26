@@ -118,13 +118,13 @@ Debug tools obey these boundaries:
 
 ### Child overview
 
-| Child             | Focus                                                                                                                     | Current document form                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `pantry_rules_01` | Development-only debug hub, catalog, routing boundary, and production exclusion                                           | Not started; next implementation spec |
-| `pantry_rules_02` | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                     | Not started                           |
-| `pantry_rules_03` | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer | Not started                           |
-| `pantry_rules_04` | Offline floor bake, five fixed layouts, topology validation, and floor viewer                                             | Not started                           |
-| `pantry_rules_05` | Forced-route scenarios, route replay, and generated balance report                                                        | Not started                           |
+| Child             | Focus                                                                                                                     | Current document form                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `pantry_rules_01` | Development-only debug hub, catalog, routing boundary, and production exclusion                                           | [Implementation spec](pantry_rules_01_debug_hub.implementation_spec.md) |
+| `pantry_rules_02` | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                     | Not started                                                             |
+| `pantry_rules_03` | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer | Not started                                                             |
+| `pantry_rules_04` | Offline floor bake, five fixed layouts, topology validation, and floor viewer                                             | Not started                                                             |
+| `pantry_rules_05` | Forced-route scenarios, route replay, and generated balance report                                                        | Not started                                                             |
 
 Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05`.
 

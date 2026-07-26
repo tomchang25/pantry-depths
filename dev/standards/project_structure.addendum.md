@@ -40,6 +40,8 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 
 A scaffolded empty directory is not a claim that the layer is earned. It carries a `.gitkeep` and nothing else; the first real module in it is still the change that has to justify the placement.
 
+`src/app/debug/` is a development-only subtree owned by application composition. The bootstrap reaches it only through a build-time development guard and a deferred import, so production bundles contain no hub, catalog, or viewer code. The subtree owns tool discovery and dispatch, not gameplay state or mutation; only application composition, including a future debug route, may wire `src/harness/`.
+
 ## Feature Placement Detail
 
 - The five floor maps are authored data, not code. They live in `src/content/floors/` as JSON and are the only source of map geometry. No generator ships in `src/`; the offline bake script belongs in `dev/tools/`.

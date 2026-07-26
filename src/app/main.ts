@@ -12,4 +12,36 @@ if (!mount) {
   throw new Error("bootstrap: #app mount point is missing from index.html");
 }
 
-mount.textContent = "Pantry Depths — layers not implemented yet.";
+const appMount = mount;
+
+function isDebugPath(pathname: string): boolean {
+  return pathname === "/debug" || pathname.startsWith("/debug/");
+}
+
+function renderOrdinaryPlay(): void {
+  appMount.textContent = "Pantry Depths — layers not implemented yet.";
+}
+
+function renderDebugLoadFailure(error: unknown): void {
+  console.error("debug hub failed to load", error);
+
+  const failure = document.createElement("main");
+  failure.textContent = "Development tools failed to load. Check the browser console.";
+  appMount.replaceChildren(failure);
+}
+
+function loadDebugRoute(): void {
+  void import("@/app/debug/debug-router")
+    .then(({ renderDebugRoute }) => {
+      renderDebugRoute(appMount, window.location.pathname);
+    })
+    .catch((error: unknown) => {
+      renderDebugLoadFailure(error);
+    });
+}
+
+if (import.meta.env.DEV && isDebugPath(window.location.pathname)) {
+  loadDebugRoute();
+} else {
+  renderOrdinaryPlay();
+}
