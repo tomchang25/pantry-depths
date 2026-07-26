@@ -16,34 +16,34 @@ These files describe Pantry Depths' product intent and forward work. They do not
 | What is the rule?                                              | `src/core/`                  |
 | Why is it this way, and what are we deliberately not building? | The design document          |
 | What ships, in what order?                                     | The mega plan                |
-| Is the balance sane?                                           | The generated balance report |
+| What are the observed combat and route outcomes?               | The generated balance report |
 | How do I add an enemy?                                         | The architecture report      |
 
 When the design document and the codebase disagree about a number, the codebase is right and the design document does not need fixing.
 
 ## Layout
 
-| Directory   | Contents                                         |
-| ----------- | ------------------------------------------------ |
-| `design/`   | Product design documents                         |
-| `plans/`    | Active plans, sketches, and implementation specs |
-| `reports/`  | Review, verification, and closeout reports       |
-| `archived/` | Superseded plans and specs retained for history  |
+| Directory   | Contents                                                     |
+| ----------- | ------------------------------------------------------------ |
+| `design/`   | Product design documents                                     |
+| `plans/`    | Active plans, sketches, and implementation specs             |
+| `reports/`  | Review, verification, and closeout reports                   |
+| `archived/` | Completed or superseded plans and specs retained for history |
 
 ## Lifecycle Scope For V1
 
-V1 is a one-week prototype delivered by a single author, but its rules, presentation port, and feel/endgame work use different evidence and landing sequences. The design document therefore serves as the product draft, the mega plan owns milestone ordering, and three main plans own the durable requirements and child overviews for those execution streams.
+V1 is a one-week prototype delivered by a single author, but its rules, presentation port, feel/endgame work, and final floor design use different evidence and landing sequences. The design document therefore serves as the product draft, the mega plan owns milestone ordering, and four main plans own the durable requirements and child overviews for those execution streams. Rules and Content is shipped and archived; the remaining three plans stay active below the milestone.
 
 The active route is:
 
 ```text
 design draft
 -> V1 mega plan
--> rules, presentation, or feel main plan
+-> active presentation, feel, or final-floor main plan
 -> focused child implementation spec
 -> implementation
 -> verification
 -> child closeout
 ```
 
-Child sketches remain optional and are opened only when an implementation boundary needs exploration. Every child still requires an implementation spec before source mutation and verification against `dev/agent_rules/test_operations.md` before it is called delivered. The parallel enemy-sprite deliverable is asset production, not a fourth main plan.
+Child sketches remain optional and are opened only when an implementation boundary needs exploration. Every child still requires an implementation spec before source mutation and verification against `dev/agent_rules/test_operations.md` before it is called delivered. The parallel enemy-sprite deliverable is asset production, not a fifth main plan.

@@ -20,14 +20,14 @@ Nothing in flight.
 
 | Stream | Scope                                                             | Children | State                                              |
 | ------ | ----------------------------------------------------------------- | -------: | -------------------------------------------------- |
-| A      | [Rules and Content](dev/docs/plans/pantry_rules.plan.md)          |        7 | Active; `pantry_rules_01`–`05` shipped             |
+| A      | Rules and Content                                                 |        7 | Shipped                                            |
 | B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)   |        2 | Queued                                             |
 | C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)            |        4 | Queued                                             |
 | D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)  |        1 | Queued after Presentation Port                     |
 | S      | Enemy Sprite Art                                                  | parallel | Parallel asset deliverable; style spec not written |
 | P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |        3 | Parked; promote if final floor authoring blocks    |
 
-Next action: `/implement pantry_rules_06` for the final five-floor layout, entity placement, and balance tuning.
+Next action: `/implement pantry_presentation_01` to port the retained renderer and make authored floors playable.
 
 ---
 

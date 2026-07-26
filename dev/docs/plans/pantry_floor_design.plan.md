@@ -2,14 +2,14 @@
 
 ## Goal
 
-Turn the provisional five-floor set into the final V1 world after the playable presentation is available, so layout readability, encounter pacing, environmental composition, and health pressure can be judged together. This plan owns the integrated content-tuning pass rather than treating final floors as a rules implementation detail.
+Turn the provisional five-floor set into the final V1 world after the playable presentation is available, so layout readability, encounter pacing, environmental composition, and challenge can be judged together through actual play. This plan owns the integrated content-tuning pass rather than treating final floors as a rules implementation detail.
 
 ## Requirements
 
 1. Begin final floor work only after the Presentation Port can render and play authored floors, because the debug viewers prove topology and numbers but cannot prove first-person readability, sightlines, atmosphere, or pacing.
 2. Hand-adjust all five layouts, gameplay entity placements, presentation-only environment annotations, and required-route annotations while preserving the established floor sizes, themes, landmarks, and progression order.
-3. Revalidate every content revision through structural validation, deterministic route replay, and the generated balance evidence, because a visually improved floor may not break key order, connectivity, solvability, or the health budget.
-4. Tune the required route and optional encounters through authored content while keeping maximum health at 120 and the hot spring unnecessary for completion; the provisional 90-health route is a starting point rather than a frozen target.
+3. Revalidate every content revision through structural validation, deterministic route replay, and generated balance evidence, because a visually improved floor may not break key order, connectivity, solvability, or deterministic outcomes.
+4. Tune the required route and optional encounters through repeated manual play until navigation, pressure, recovery, and pacing feel coherent; no route cost, remaining-health target, enemy cost, or other numeric balance threshold is prescribed.
 5. Keep the final world as committed fixed content and keep offline generation outside runtime, so presentation-informed iteration never introduces runtime generation or procedural recovery behavior.
 
 ## Design
@@ -24,7 +24,7 @@ The final content pass owns:
 - Final stairs, keys, doors, enemies, breakable wall, hot spring, and landmark placement.
 - Final required-route annotations and optional-encounter placement.
 - Final placement and preset selection for presentation-only environment features.
-- The resulting required-route health budget and regenerated balance evidence.
+- The resulting play experience and regenerated descriptive balance evidence.
 
 ### Integrated iteration loop
 
@@ -32,9 +32,9 @@ Each revision follows one loop:
 
 1. Adjust authored floor content.
 2. Revalidate topology, entity placement, stairs, key order, door order, and structural solvability.
-3. Replay the required route and regenerate balance evidence from current rules and content.
-4. Play the revised floors through the presentation and judge navigation clarity, sightlines, landmarks, encounter pacing, and environmental composition.
-5. Repeat until both deterministic evidence and the presented experience support the same final content.
+3. Replay the required route and regenerate descriptive balance evidence from current rules and content.
+4. Play the revised floors through the presentation and judge navigation clarity, sightlines, landmarks, encounter pacing, challenge, recovery, and environmental composition.
+5. Repeat until structural evidence is sound and manual play confirms the intended experience without applying a numeric balance gate.
 
 This iteration is the work itself, not preparation for another final-content slice. Completion means the provisional content has been replaced by the hand-reviewed V1 floors and the current report describes that final set.
 
@@ -57,6 +57,6 @@ Recommended landing order: `pantry_floor_design_01`, after the Presentation Port
 
 1. All five final floors are hand-reviewed through the playable presentation and preserve their required themes, landmarks, progression order, and fixed sizes.
 2. Final geometry and entity placement pass connectivity, placement, stair-link, key-order, door-order, and start-to-goal structural checks.
-3. The final required route is represented by authored annotations, replays deterministically to victory without the hot spring, and stays within the 120-health budget.
-4. The generated balance report describes the final floor placements, topology findings, combat matrix, and required-route cost without provisional labels or hand-maintained numeric copies.
+3. The final required route is represented by authored annotations, replays deterministically to victory, and is manually played through the presentation until its challenge, pacing, and recovery experience are accepted without a numeric balance threshold.
+4. The generated balance report describes the final floor placements, topology findings, combat matrix, and observed route outcomes without provisional labels, hand-maintained numeric copies, or pass/fail balance targets.
 5. Runtime loads only the committed final floor content and contains no map generator or presentation-dependent gameplay decision.

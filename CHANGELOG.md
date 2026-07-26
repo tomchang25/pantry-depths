@@ -29,3 +29,8 @@ Turned the single-file browser prototype into a governed TypeScript project. No 
 - v1.2 moved enemy art from procedural Canvas drawing to fixed 512×512 sprite files, with the authoring spec, per-enemy `scale` and `anchorY`, the distance-tint requirement, and the pre-baked hit flash. Environment surfaces stay procedural.
 - v1.3 settled the fiction against the project name: the dungeon is a manor's five-level cellar and the player descends rather than climbs. Floor themes became wine cellar / ice cellar / meat larder / guard level / deepest storeroom, and the stair tile characters now follow the roguelike convention (`>` down, `<` up). Themes affect texture palette and decor only; no rule changes.
 - Moved the original prototype (`game.js`, `index.html`, `style.css`) into `port-ref/`. Its mouse-look, gold, chests, potions, and inventory are cut by the design document and will not be ported.
+
+### Rules and Content
+
+- 2026-07-26 — [pantry_rules] Shipped deterministic combat and action rules, provisional five-floor content, development inspection surfaces, replayable balance evidence, enforced offline-tool ownership, and presentation-only environment annotations.
+- 2026-07-26 — [pantry_rules] Final floor quality is judged through playable presentation and manual play; generated balance evidence remains descriptive and carries no numeric pass threshold.

@@ -82,7 +82,7 @@ The fourth-floor convergence room presents the large blue, red, and yellow doors
 
 ### Floors and specials
 
-| Floor | Size    | Theme          | Required authored landmarks                               |
+| Floor | Size    | Theme          | Final-design landmarks                                    |
 | ----- | ------- | -------------- | --------------------------------------------------------- |
 | B1    | 11 x 11 | Wine cellar    | First red key and door, breakable wall, hidden hot spring |
 | B2    | 13 x 13 | Ice cellar     | First blue key and attack door                            |
@@ -92,11 +92,11 @@ The fourth-floor convergence room presents the large blue, red, and yellow doors
 
 The offline generator accepts a seed and arbitrary floor count, but it produces candidate content only and never enters the runtime module graph. The first floor-content slice commits a playable provisional five-floor set, an independent validator, a read-only viewer, and a development-only authoring workbench so generated JSON can be edited, revalidated, previewed, and explicitly saved without trusting or rerunning the generator. Structural validation must return a concrete solution path and prove stair connectivity, legal key and door ordering, valid entity placement, and start-to-goal solvability without making a health-budget promise.
 
-The route-replay slice adds command-level replay and generated balance evidence against the provisional set. The independent final-floor design plan later uses the playable presentation together with this topology and balance tooling to hand-review the five V1 layouts, lock entity placements and required-route annotations, and establish the final health budget. Runtime play always loads committed fixed content and never generates a floor.
+The route-replay slice adds command-level replay and generated balance evidence against the provisional set. The independent final-floor design plan later uses the playable presentation together with this topology and balance tooling to hand-review the five V1 layouts, lock entity placements and required-route annotations, and judge the resulting play experience. Runtime play always loads committed fixed content and never generates a floor.
 
 The breakable wall uses the combat damage rule, has 6 health and no retaliation, and is the only hidden wall. The hot spring behind it occupies a non-passable water cell: the player stands beside it and faces it to restore health without a use limit. Bidirectional stairs also occupy non-passable interaction cells, preserving run state when the player faces one and uses it.
 
-The provisional required route costs 90 of 120 health and reaches the end with 30 health when the hot spring is unused. This is evidence for tooling and a starting point for the independent final-floor design pass, not a final balance promise.
+The provisional required route is replayed and reported from current content without a target cost. Its figures are descriptive tooling evidence only; final floor design judges health pressure, pacing, and fairness through manual play and carries no numeric balance threshold.
 
 ### Debug hub and viewers
 
@@ -121,15 +121,15 @@ Debug tools obey these boundaries:
 
 ### Child overview
 
-| Child              | Focus                                                                                                                       | Current document form                                                              |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `pantry_rules_01`  | Development-only debug hub, catalog, routing boundary, and production exclusion                                             | [Implementation spec](pantry_rules_01_debug_hub.implementation_spec.md)            |
-| `pantry_rules_02`  | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                       | [Implementation spec](pantry_rules_02_combat_explorer.implementation_spec.md)      |
-| `pantry_rules_03`  | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer   | [Implementation spec](pantry_rules_03_action_viewer.implementation_spec.md)        |
-| `pantry_rules_04`  | N-floor offline generation, provisional layouts, topology validation, authoring workbench, floor viewer, and VS Code tasks  | [Implementation spec](pantry_rules_04_floor_pipeline.implementation_spec.md)       |
-| `pantry_rules_05`  | Forced-route scenarios, route replay, and generated balance-report tooling against provisional content                      | [Implementation spec](pantry_rules_05_route_replay_balance.implementation_spec.md) |
-| `pantry_rules_05a` | Offline tooling ownership split, harness-owned balance model, and boundary enforcement over the tooling tree                | [Implementation spec](pantry_rules_05a_tooling_ownership.implementation_spec.md)   |
-| `pantry_rules_06`  | Presentation-only environment features, wall-face anchoring, light and effect presets, and floor-content ownership refactor | [Implementation spec](pantry_rules_06_environment_features.implementation_spec.md) |
+| Child              | Focus                                                                                                                       | Current document form                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `pantry_rules_01`  | Development-only debug hub, catalog, routing boundary, and production exclusion                                             | Shipped — pantry_rules_01_debug_hub.implementation_spec.md            |
+| `pantry_rules_02`  | Damage formula, kill-cost model, player stages, enemy and upgrade content, tests, and combat explorer                       | Shipped — pantry_rules_02_combat_explorer.implementation_spec.md      |
+| `pantry_rules_03`  | Grid facing, commands, retaliation, keys, doors, stairs, breakable wall, hot spring, terminal outcomes, and action viewer   | Shipped — pantry_rules_03_action_viewer.implementation_spec.md        |
+| `pantry_rules_04`  | N-floor offline generation, provisional layouts, topology validation, authoring workbench, floor viewer, and VS Code tasks  | Shipped — pantry_rules_04_floor_pipeline.implementation_spec.md       |
+| `pantry_rules_05`  | Forced-route scenarios, route replay, and generated balance-report tooling against provisional content                      | Shipped — pantry_rules_05_route_replay_balance.implementation_spec.md |
+| `pantry_rules_05a` | Offline tooling ownership split, harness-owned balance model, and boundary enforcement over the tooling tree                | Shipped — pantry_rules_05a_tooling_ownership.implementation_spec.md   |
+| `pantry_rules_06`  | Presentation-only environment features, wall-face anchoring, light and effect presets, and floor-content ownership refactor | Shipped — pantry_rules_06_environment_features.implementation_spec.md |
 
 Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rules_03` -> `pantry_rules_04` -> `pantry_rules_05` -> `pantry_rules_05a` -> `pantry_rules_06`.
 
@@ -141,7 +141,7 @@ Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rul
 2. Do not add save/load, runtime map generation, randomness, enemy movement, AI, loot, inventory, equipment, experience, shops, or any stat source beyond the four upgrade doors.
 3. Do not turn the debug hub into an editor, cheat-state owner, alternate game runtime, polished 2.5D client, or production feature.
 4. Do not make the generated balance report or any viewer a second authority for rules or numbers.
-5. Do not finalize the five floor layouts, entity placements, required-route annotations, or health budget before the playable presentation exists; the independent final-floor design plan owns that integrated pass.
+5. Do not finalize the five floor layouts, entity placements, required-route annotations, or play-balance judgment before the playable presentation exists; the independent final-floor design plan owns that integrated pass.
 
 ## Acceptance Criteria
 
@@ -150,5 +150,5 @@ Recommended landing order: `pantry_rules_01` -> `pantry_rules_02` -> `pantry_rul
 3. Movement, turns, attacks, interactions, adjacency retaliation, door effects, stairs, the breakable wall, the hot spring, death, and victory follow the documented order and edge cases.
 4. The committed provisional five-floor set passes connectivity, placement, key-order, and door-order checks and produces reproducible required-route health evidence, while runtime play contains no map generator.
 5. Development viewers expose combat, command traces, floor topology, and route replay from real snapshots and commands; ordinary and production play expose none of the debug surface.
-6. The generated balance report reproduces the enemy table, cost matrix, current required-route budget, floor placements, and topology findings from current authored content without hand-maintained numeric copies or claiming final floor balance.
+6. The generated balance report reproduces the enemy table, cost matrix, current required-route observations, floor placements, and topology findings from current authored content without hand-maintained numeric copies or claiming final floor balance.
 7. Presentation-only environment features remain outside gameplay entities and gain an authored floor-data contract before renderer-owned lights, emitters, or wall decorations depend on them.
