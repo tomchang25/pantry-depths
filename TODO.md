@@ -8,9 +8,7 @@ Plan children get no lines here. They live in their plan's child overview table,
 
 ## Active
 
-[Debug Surface Shell](dev/docs/plans/pantry_debug_surface_shell.implementation_spec.md) — active standalone handoff; establish the shared visual template before direct authoring edits.
-
-[Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) — active parent plan; `pantry_authoring_01` has landed and `pantry_authoring_02` follows the Debug Surface Shell.
+[Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) — active parent plan; `pantry_authoring_01` and the shared Debug Surface Shell have landed, and `pantry_authoring_02` is next.
 
 ---
 
@@ -20,17 +18,17 @@ Plan children get no lines here. They live in their plan's child overview table,
 
 [`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in four critical-path delivery plans, one parallel asset item, and one active optional tooling plan.
 
-| Stream | Scope                                                                                   |   Children | State                                              |
-| ------ | --------------------------------------------------------------------------------------- | ---------: | -------------------------------------------------- |
-| A      | Rules and Content                                                                       |          7 | Shipped                                            |
-| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)                         |          2 | Queued                                             |
-| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)                                  |          4 | Queued                                             |
-| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)                        |          1 | Queued after Presentation Port                     |
-| S      | Enemy Sprite Art                                                                        |   parallel | Parallel asset deliverable; style spec not written |
-| T      | [Debug Surface Shell](dev/docs/plans/pantry_debug_surface_shell.implementation_spec.md) | standalone | Active; shared debug presentation foundation       |
-| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md)                       |          4 | Active; `01` landed, `02` waits for T              |
+| Stream | Scope                                                             |   Children | State                                              |
+| ------ | ----------------------------------------------------------------- | ---------: | -------------------------------------------------- |
+| A      | Rules and Content                                                 |          7 | Shipped                                            |
+| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)   |          2 | Queued                                             |
+| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)            |          4 | Queued                                             |
+| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)  |          1 | Queued after Presentation Port                     |
+| S      | Enemy Sprite Art                                                  |   parallel | Parallel asset deliverable; style spec not written |
+| T      | Debug Surface Shell                                               | standalone | Shipped; shared debug presentation foundation      |
+| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |          4 | Active; `01` landed, `02` is next                  |
 
-Current optional-tooling work is the standalone Debug Surface Shell, followed by the remaining Authoring Workbench children. The V1 critical-path next action remains `/implement pantry_presentation_01`.
+Current optional-tooling work is the remaining Authoring Workbench children. The V1 critical-path next action remains `/implement pantry_presentation_01`.
 
 ---
 

@@ -1,6 +1,6 @@
 # Floor Authoring Workbench Experience
 
-> **Status**: Active. `pantry_authoring_01` has landed; the independent Debug Surface Shell is the next tooling handoff before `pantry_authoring_02`.
+> **Status**: Active. `pantry_authoring_01` and the independent Debug Surface Shell have landed; `pantry_authoring_02` is the next authoring handoff.
 
 ## Goal
 
@@ -90,9 +90,9 @@ Both require a draft that validated exactly as it currently reads. Save addition
 | `pantry_authoring_03` | Environment-feature placement plus wall-face, light, effect, decoration, and preset editing through the Cell Editor                   | Not started                                                                              |
 | `pantry_authoring_04` | Generated width and height plus per-color red, blue, and yellow generator counts with the default-linked door/key controls            | Not started                                                                              |
 
-Recommended landing order: `pantry_authoring_01` -> independent Debug Surface Shell -> `pantry_authoring_02` -> `pantry_authoring_03` -> `pantry_authoring_04`.
+Recommended landing order: `pantry_authoring_01` -> independent Debug Surface Shell (shipped) -> `pantry_authoring_02` -> `pantry_authoring_03` -> `pantry_authoring_04`.
 
-The first child establishes a readable projection and selection model before any surface can mutate the draft. The independent shell then gives it and every other debug scene a shared visual page template without moving authoring ownership out of this plan. The second child adds conservative per-floor resizing before terrain and gameplay editing, and the third adds the multi-record environment family. Generator dimension and color-count controls remain last because they are independent of direct map editing and must not distract from the hand-authoring bottleneck.
+The first child establishes a readable projection and selection model before any surface can mutate the draft. The shipped independent shell gives it and every other debug scene a shared visual page template without moving authoring ownership out of this plan. The second child adds conservative per-floor resizing before terrain and gameplay editing, and the third adds the multi-record environment family. Generator dimension and color-count controls remain last because they are independent of direct map editing and must not distract from the hand-authoring bottleneck.
 
 ## Non-Goals
 
@@ -101,7 +101,7 @@ The first child establishes a readable projection and selection model before any
 3. Do not add undo history, multi-cell selection, copy and paste, clipboard interchange, auto-save, or live structural validation on every edit.
 4. Do not introduce a UI framework or rendering library. The existing no-framework deviation stands.
 5. Do not add white, black, or any other key color, variable palette sizing, or gameplay meaning for a new color.
-6. Do not define or implement the cross-debug page shell, theme, or migration of other debug scenes in this plan; the standalone Debug Surface Shell spec owns that work.
+6. Do not define or implement the cross-debug page shell, theme, or migration of other debug scenes in this plan; the shipped Debug Surface Shell owns that work.
 
 ## Acceptance Criteria
 

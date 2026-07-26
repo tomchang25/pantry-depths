@@ -14,7 +14,7 @@ Breakable walls remain visibly distinct from permanent terrain and expose their 
 
 This child is read-only with respect to the map and inspector. JSON remains the only editable draft surface until the next child, full structural validation stays on demand, and Save or Export remains enabled only for the exact text that most recently produced a valid structural solution. The standalone Floor Set Viewer uses the same authored-map projection, but the runtime Action Viewer and future Canvas minimap are unchanged.
 
-This child establishes the functional authored-map structure and localized responsive composition only. A separate standalone Debug Surface Shell spec owns the polished page chrome, shared visual tokens, reusable panels and controls, Debug Hub redesign, and migration of every debug scene; that follow-on may replace local presentation styles without changing this child's projection or selection contracts.
+This child establishes the functional authored-map structure and localized responsive composition only. The shipped standalone Debug Surface Shell owns the polished page chrome, shared visual tokens, reusable panels and controls, Debug Hub redesign, and migration of every debug scene; that work may replace local presentation styles without changing this child's projection or selection contracts.
 
 ## Relational Context
 
@@ -27,7 +27,7 @@ This child establishes the functional authored-map structure and localized respo
 - Floor and cell selection are local presentation state. Switching floors keeps selection valid for the chosen floor or clears it explicitly; it never changes the floor-set initial location or any authored coordinate.
 - The Floor Set Viewer and embedded Workbench view call the same map projection and DOM rendering owner. The Action Viewer continues to render `RunWorld` plus `RunSnapshot` independently because runtime active state and authored-source metadata are different contracts.
 - No `shared` or `presentation` layer is created for a future consumer. Extraction may happen only after a current non-debug renderer demonstrates the cross-layer ownership.
-- The independent Debug Surface Shell may host and style this viewer and workbench, but it does not own authored-cell semantics, floor selection, draft parsing, validation evidence, or inspector content. This map remains a debug authoring owner rather than a generic map component.
+- The shipped independent Debug Surface Shell hosts and styles this viewer and workbench, but it does not own authored-cell semantics, floor selection, draft parsing, validation evidence, or inspector content. This map remains a debug authoring owner rather than a generic map component.
 - Selectable map cells and numbered floor controls must be keyboard reachable, visibly focused, and text-labelled. Color, badges, and borders supplement rather than replace the Cell Inspector and legend.
 
 ## Scope
@@ -51,7 +51,7 @@ This child establishes the functional authored-map structure and localized respo
 - Action Viewer refactoring, gameplay minimap behavior, discovery filtering, and Canvas presentation.
 - Final decoration, light, particle, or atmosphere previews.
 - Per-floor width or height controls and resize behavior.
-- Project-wide debug page chrome, theme tokens, Hub cards, and migration of other debug scenes; the standalone Debug Surface Shell spec owns those surfaces.
+- Project-wide debug page chrome, theme tokens, Hub cards, and migration of other debug scenes; the shipped Debug Surface Shell owns those surfaces.
 
 ## Files to Change
 

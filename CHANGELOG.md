@@ -34,3 +34,7 @@ Turned the single-file browser prototype into a governed TypeScript project. No 
 
 - 2026-07-26 — [pantry_rules] Shipped deterministic combat and action rules, provisional five-floor content, development inspection surfaces, replayable balance evidence, enforced offline-tool ownership, and presentation-only environment annotations.
 - 2026-07-26 — [pantry_rules] Final floor quality is judged through playable presentation and manual play; generated balance evidence remains descriptive and carries no numeric pass threshold.
+
+### Development Tooling
+
+- 2026-07-26 — [pantry_debug_surface] Shipped a shared development workspace shell, responsive tool hub, consistent inspection panels, and readable floor and action map workflows.

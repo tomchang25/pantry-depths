@@ -108,6 +108,7 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   const actions = document.createElement("div");
   const status = document.createElement("p");
   const validationPanel = createDebugPanel("Validation Findings");
+  const validationExplanation = document.createElement("p");
   const validationFindings = document.createElement("ul");
   let draftSelection: FloorInspectorSelection | undefined;
   let validatedText: string | undefined;
@@ -121,6 +122,9 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   editor.spellcheck = false;
   departureDescription.textContent =
     "Export JSON File downloads the validated draft and leaves canonical content unchanged. Save Canonical JSON overwrites the canonical floor-set target used by the game.";
+  validationExplanation.className = "debug-status debug-status--explanation";
+  validationExplanation.textContent =
+    "Structural validation reports invalid placements, stair destinations, and topology that cannot yield a legal solution.\nNo findings means this validation run reported no issues;\nExport and Save still require the exact current draft to have a structural solution.";
   status.setAttribute("role", "status");
   generatorControls.className = "debug-form-grid";
   actions.className = "debug-button-row";
@@ -315,8 +319,8 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   mapPanel.body.append(map);
   editorPanel.body.append(editorLabel, editor);
   departurePanel.body.append(departureDescription, actions, status);
-  validationPanel.body.append(validationFindings);
-  content.append(generatorPanel.panel, mapPanel.panel, editorPanel.panel, departurePanel.panel, validationPanel.panel);
+  validationPanel.body.append(validationExplanation, validationFindings);
+  content.append(generatorPanel.panel, departurePanel.panel, mapPanel.panel, editorPanel.panel, validationPanel.panel);
   mount.replaceChildren(page);
   renderFindings(undefined);
   reportStatus("Loading canonical floor-set JSON.");

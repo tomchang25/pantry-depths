@@ -142,15 +142,15 @@ Codebase 是數值的唯一權威，但一堆沒有註解的常數沒辦法 revi
 
 分組判準是**一個 Plan 只有一種驗證方式**。不是按 child 數量分堆，是按「怎麼證明它對」分堆——因為 Acceptance Criteria 必須能用同一種語言寫完。
 
-| Plan                                                                            | Scope                  | 驗證方式                                       | 風險   |
-| ------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------- | ------ |
-| **A. Rules and Content（已交付）**                                              | `pantry_rules`         | Unit test + debug viewer + 生成的平衡報告      | 低     |
-| **[B. Presentation Port](pantry_presentation.plan.md)**                         | `pantry_presentation`  | 與 `port-ref/` 在保留能力範圍內並排比對        | **高** |
-| **[C. Feel and Endgame](pantry_feel.plan.md)**                                  | `pantry_feel`          | 手動試玩與鍵盤／無障礙檢查                     | 中     |
-| **[D. Final Floor Design](pantry_floor_design.plan.md)**                        | `pantry_floor_design`  | Presentation 人工實玩 + 結構安全檢查           | 中     |
-| **S. Enemy Sprite Art（平行項目）**                                             | `pantry_sprite_art`    | 目視 + 風格一致性                              | 中     |
-| **[T. Debug Surface Shell](pantry_debug_surface_shell.implementation_spec.md)** | `pantry_debug_surface` | Debug routes 的人工視覺、responsive 與鍵盤檢查 | 低     |
-| **[P. Authoring Workbench UX](pantry_authoring.plan.md)**                       | `pantry_authoring`     | 手動編修一張圖後仍通過結構驗證                 | 低     |
+| Plan                                                      | Scope                  | 驗證方式                                       | 風險   |
+| --------------------------------------------------------- | ---------------------- | ---------------------------------------------- | ------ |
+| **A. Rules and Content（已交付）**                        | `pantry_rules`         | Unit test + debug viewer + 生成的平衡報告      | 低     |
+| **[B. Presentation Port](pantry_presentation.plan.md)**   | `pantry_presentation`  | 與 `port-ref/` 在保留能力範圍內並排比對        | **高** |
+| **[C. Feel and Endgame](pantry_feel.plan.md)**            | `pantry_feel`          | 手動試玩與鍵盤／無障礙檢查                     | 中     |
+| **[D. Final Floor Design](pantry_floor_design.plan.md)**  | `pantry_floor_design`  | Presentation 人工實玩 + 結構安全檢查           | 中     |
+| **S. Enemy Sprite Art（平行項目）**                       | `pantry_sprite_art`    | 目視 + 風格一致性                              | 中     |
+| **T. Debug Surface Shell（已交付）**                      | `pantry_debug_surface` | Debug routes 的人工視覺、responsive 與鍵盤檢查 | 低     |
+| **[P. Authoring Workbench UX](pantry_authoring.plan.md)** | `pantry_authoring`     | 手動編修一張圖後仍通過結構驗證                 | 低     |
 
 ### Plan A — Rules and Content（已交付）
 
@@ -218,11 +218,11 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 先寫 style spec（色碼、描邊粗細、剪影規則、平光要求），五隻在同一次作業中一起產出。
 
-### 平行項目 T — Debug Surface Shell（獨立 spec，非關鍵路徑）
+### 平行項目 T — Debug Surface Shell（已交付，非關鍵路徑）
 
-現有 Debug Hub 與五個 debug scenes 已具備可用的真實資料與互動，但仍是瀏覽器預設排版加各頁零散 inline styles。這個獨立 spec 建立 debug-only 的共用 page shell、視覺 tokens、panel/control/table/status 樣式與 Hub 卡片入口，並將所有既有 debug scenes 接上同一個 template。
+現有 Debug Hub 與五個 debug scenes 已具備可用的真實資料與互動，但原先仍是瀏覽器預設排版加各頁零散 inline styles。這個已交付的獨立工作建立 debug-only 的共用 page shell、視覺 tokens、panel/control/table/status 樣式與 Hub 卡片入口，並將所有既有 debug scenes 接上同一個 template。
 
-它不建立新的 gameplay、authoring 或 presentation state owner，也不改 debug tool registry 與 lazy route boundary。它先於 `pantry_authoring_02` 落地，讓後續 Cell Editor、Floor Settings 及其他 debug scenes 直接使用同一套可閱讀且 responsive 的呈現基礎；它不影響 V1 gameplay 關鍵路徑。
+它不建立新的 gameplay、authoring 或 presentation state owner，也不改 debug tool registry 與 lazy route boundary。它已先於 `pantry_authoring_02` 落地，讓後續 Cell Editor、Floor Settings 及其他 debug scenes 直接使用同一套可閱讀且 responsive 的呈現基礎；它不影響 V1 gameplay 關鍵路徑。
 
 ### Plan P — Authoring Workbench UX（執行中，非關鍵路徑）
 
@@ -250,11 +250,11 @@ pantry_presentation_01 ───────────────────
 
 S 全程平行，隨時可以插入
 
-pantry_authoring_01 → pantry_debug_surface_shell → pantry_authoring_02 → pantry_authoring_03 → pantry_authoring_04（optional，與 V1 關鍵路徑平行）
+pantry_authoring_01 → pantry_debug_surface_shell（已交付） → pantry_authoring_02 → pantry_authoring_03 → pantry_authoring_04（optional，與 V1 關鍵路徑平行）
 ```
 
 - `pantry_presentation_01` 沒有任何依賴，它是純移植，可以與早期 Rules children 同時進行。
-- `pantry_debug_surface_shell` 是 active standalone tooling handoff；它統一現有 debug pages 並先於 authoring 的直接編輯 children 落地，但不改變任何 gameplay 關鍵路徑。
+- `pantry_debug_surface_shell` 已交付共用 debug page template；它統一既有 debug pages，讓 authoring 的直接編輯 children 從同一呈現基礎開始，且不改變任何 gameplay 關鍵路徑。
 - `pantry_authoring` 是已啟用的 optional tooling stream；`01` 已建立功能性 map foundation，後續沿 `02` 到 `04` 落地，不改變 presentation、feel 與 final-floor 的依賴關係。
 - `pantry_rules_04` needs the grid semantics from `pantry_rules_03` before it can validate topology.
 - `pantry_rules_05` needs A04's provisional content and topology findings before it can build replay and report tooling.
