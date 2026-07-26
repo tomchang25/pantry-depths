@@ -577,6 +577,48 @@ textarea {
   border: 3px solid #fff;
 }
 
+.debug-key-summary {
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--debug-border-soft);
+  border-radius: 0.65rem;
+  background: rgb(16 13 22 / 44%);
+}
+
+.debug-key-summary > h3 {
+  margin: 0 0 0.65rem;
+  color: var(--debug-accent-strong);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.debug-key-summary__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.debug-key-summary__count {
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.debug-key-summary__count--red {
+  color: #ff8897;
+}
+
+.debug-key-summary__count--blue {
+  color: #8cc1ff;
+}
+
+.debug-key-summary__count--yellow {
+  color: #f5d761;
+}
+
 .debug-cell-inspector {
   min-width: 0;
   padding: 1rem;
@@ -600,6 +642,44 @@ textarea {
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.debug-cell-inspector form {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.debug-cell-inspector > .debug-button-row,
+.debug-cell-inspector form + .debug-button-row {
+  margin-top: 0.8rem;
+}
+
+.debug-form-grid > .debug-muted {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.debug-cell-inspector > h4 {
+  margin-top: 1.15rem;
+}
+
+.debug-checkbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+  align-items: center;
+  padding: 0.65rem;
+  border: 1px solid var(--debug-border-soft);
+  border-radius: 0.55rem;
+}
+
+.debug-checkbox-row label {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  color: var(--debug-text);
+  font-size: 0.86rem;
 }
 
 .debug-floor-controls button[aria-pressed="true"] {

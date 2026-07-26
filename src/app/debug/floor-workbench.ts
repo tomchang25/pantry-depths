@@ -1,4 +1,15 @@
 import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
+import {
+  addGameplayEntity,
+  createDefaultGameplayEntity,
+  moveGameplayEntity,
+  paintTerrain,
+  removeGameplayEntity,
+  resizeFloor,
+  updateGameplayEntity,
+  type FloorAuthoringResult,
+} from "@/app/debug/floor-authoring";
+import { createCellEditor, type AuthoredMapTool } from "@/app/debug/floor-map";
 import { renderFloorSetInspector, type FloorInspectorSelection } from "@/app/debug/floor-viewer";
 import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet, type FloorValidationResult } from "@/content/floor/floor-validation";
@@ -94,12 +105,12 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   const enemyField = createCountField("floor-workbench-enemies", "Enemies per floor", 1, 0);
   const mapPanel = createDebugPanel(
     "Draft Map",
-    "The schema-valid JSON draft is projected here before full structural validation.",
+    "Select, paint terrain, move gameplay entities, and edit the schema-valid draft before full structural validation.",
   );
   const map = document.createElement("div");
   const editorPanel = createDebugPanel(
     "JSON Editor",
-    "This text remains the complete draft authority until direct editing lands in later authoring work.",
+    "This text remains the complete draft authority; map and Cell Editor changes rewrite it immediately.",
   );
   const editorLabel = document.createElement("label");
   const editor = document.createElement("textarea");
@@ -111,6 +122,10 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   const validationExplanation = document.createElement("p");
   const validationFindings = document.createElement("ul");
   let draftSelection: FloorInspectorSelection | undefined;
+  let mapTool: AuthoredMapTool = "select";
+  let movingEntityId: string | undefined;
+  let terrainPainting = false;
+  let terrainPaintChanged = false;
   let validatedText: string | undefined;
   let validatedResult: FloorValidationResult | undefined;
 
@@ -170,8 +185,137 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
       const source = JSON.parse(editor.value) as unknown;
       const floorSet = parseFloorSet(source);
       const currentValidation = editor.value === validatedText ? validatedResult : undefined;
+
+      const applyDirectEdit = (result: FloorAuthoringResult, successMessage: string): void => {
+        if (!result.ok) {
+          reportStatus(result.message, "error");
+          return;
+        }
+
+        const nextText = JSON.stringify(result.floorSet, null, 2);
+
+        if (nextText === editor.value) {
+          reportStatus("No authored data changed.", "info");
+          return;
+        }
+
+        editor.value = nextText;
+        movingEntityId = undefined;
+        clearValidation();
+
+        if (terrainPainting) {
+          terrainPaintChanged = true;
+          return;
+        }
+
+        renderDraftMap();
+        reportStatus(
+          `${successMessage} Validate again before downloading or overwriting canonical content.`,
+          "warning",
+        );
+      };
+
       renderFloorSetInspector(map, floorSet, currentValidation, "Current Draft", {
         embedded: true,
+        cellEditor: (floor, selectedCell) =>
+          createCellEditor({
+            floor,
+            floorSet,
+            selectedCell,
+            tool: mapTool,
+            ...(movingEntityId ? { movingEntityId } : {}),
+            onToolChange: (tool) => {
+              mapTool = tool;
+              movingEntityId = undefined;
+              renderDraftMap();
+            },
+            onPaintTerrain: (tile) => {
+              if (!selectedCell) {
+                reportStatus("Select a map cell before changing its base terrain.", "warning");
+                return;
+              }
+
+              applyDirectEdit(paintTerrain(floorSet, floor.id, selectedCell, tile), "Terrain updated.");
+            },
+            onAddEntity: (kind) => {
+              if (!selectedCell) {
+                reportStatus("Select a passable map cell before adding gameplay content.", "warning");
+                return;
+              }
+
+              const entity = createDefaultGameplayEntity(floorSet, floor.id, selectedCell, kind);
+
+              if (!entity) {
+                reportStatus("This entity needs a passable cell with valid local configuration.", "error");
+                return;
+              }
+
+              applyDirectEdit(addGameplayEntity(floorSet, floor.id, entity), `${kind} added.`);
+            },
+            onUpdateEntity: (originalId, entity) => {
+              applyDirectEdit(
+                updateGameplayEntity(floorSet, floor.id, originalId, entity),
+                `Gameplay entity ${entity.id} updated.`,
+              );
+            },
+            onRemoveEntity: (entityId) => {
+              applyDirectEdit(
+                removeGameplayEntity(floorSet, floor.id, entityId),
+                `Gameplay entity ${entityId} removed.`,
+              );
+            },
+            onBeginMove: (entityId) => {
+              movingEntityId = movingEntityId === entityId ? undefined : entityId;
+              mapTool = "select";
+              renderDraftMap();
+              reportStatus(
+                movingEntityId
+                  ? `Choose a passable, empty destination for ${entityId}.`
+                  : "Gameplay entity move cancelled.",
+                "info",
+              );
+            },
+            onResize: (width, height) => {
+              applyDirectEdit(resizeFloor(floorSet, floor.id, width, height), "Floor size updated.");
+            },
+          }),
+        mapInteraction: {
+          tool: mapTool,
+          ...(movingEntityId ? { movingEntityId } : {}),
+          onPaintStart: () => {
+            terrainPainting = true;
+            terrainPaintChanged = false;
+          },
+          onPaintEnd: () => {
+            if (!terrainPainting) {
+              return;
+            }
+
+            terrainPainting = false;
+            renderDraftMap();
+
+            if (terrainPaintChanged) {
+              reportStatus(
+                "Terrain updated. Validate again before downloading or overwriting canonical content.",
+                "warning",
+              );
+            }
+          },
+          onPaintTerrain: (floorId, cell, tile) => {
+            try {
+              const currentFloorSet = parseFloorSet(JSON.parse(editor.value) as unknown);
+              applyDirectEdit(paintTerrain(currentFloorSet, floorId, cell, tile), "Terrain updated.");
+            } catch (caught) {
+              reportError(caught);
+            }
+          },
+          onMoveEntity: (floorId, entityId, cell) => {
+            applyDirectEdit(
+              moveGameplayEntity(floorSet, floorId, entityId, cell),
+              `Gameplay entity ${entityId} moved.`,
+            );
+          },
+        },
         onSelectionChange: (selection) => {
           draftSelection = selection;
         },
@@ -232,6 +376,8 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   const applySource = (source: unknown, sourceLabel: string): void => {
     editor.value = JSON.stringify(source, null, 2);
     draftSelection = undefined;
+    mapTool = "select";
+    movingEntityId = undefined;
     clearValidation();
     renderDraftMap();
     reportStatus(
@@ -296,6 +442,7 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   };
 
   editor.addEventListener("input", () => {
+    movingEntityId = undefined;
     clearValidation();
     renderDraftMap();
     reportStatus("Draft changed. Validate again before downloading or overwriting canonical content.", "warning");

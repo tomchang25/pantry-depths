@@ -1,4 +1,4 @@
-import { projectAuthoredFloorCell } from "@/app/debug/floor-map";
+import { countAuthoredKeys, projectAuthoredFloorCell } from "@/app/debug/floor-map";
 import type { FloorSource } from "@/content/floor/floor-schema";
 import { describe, expect, it } from "vitest";
 
@@ -79,6 +79,19 @@ describe("projectAuthoredFloorCell", () => {
       label: `${color} key`,
       color: expectedColor,
     });
+  });
+
+  it("counts every authored key color on the selected floor", () => {
+    const floor: FloorSource = {
+      ...FLOOR,
+      gameplayEntities: [
+        { kind: "key", id: "red-one", cell: { x: 0, y: 1 }, color: "red" },
+        { kind: "key", id: "red-two", cell: { x: 1, y: 1 }, color: "red" },
+        { kind: "key", id: "blue-one", cell: { x: 2, y: 1 }, color: "blue" },
+      ],
+    };
+
+    expect(countAuthoredKeys(floor)).toEqual({ red: 2, blue: 1, yellow: 0 });
   });
 
   it("retains wall-face decorations on their solid anchor cell", () => {

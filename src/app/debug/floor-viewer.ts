@@ -1,8 +1,10 @@
 import {
+  countAuthoredKeys,
   createAuthoredFloorMap,
   createCellInspector,
   createFloorButtons,
   createFloorMapLegend,
+  type AuthoredFloorMapInteraction,
 } from "@/app/debug/floor-map";
 import { createDebugPage } from "@/app/debug/debug-shell";
 import { PROVISIONAL_FLOOR_SET, PROVISIONAL_FLOOR_VALIDATION } from "@/content/floor/floor-catalog";
@@ -16,7 +18,9 @@ export type FloorInspectorSelection = Readonly<{
 }>;
 
 export type FloorSetInspectorOptions = Readonly<{
+  cellEditor?: (floor: FloorSetSource["floors"][number], selectedCell: Cell | undefined) => HTMLElement;
   embedded?: boolean;
+  mapInteraction?: AuthoredFloorMapInteraction;
   onSelectionChange?: (selection: FloorInspectorSelection) => void;
   selection?: FloorInspectorSelection;
 }>;
@@ -66,6 +70,9 @@ export function renderFloorSetInspector(
   const mapPanel = document.createElement("section");
   const floorHeading = document.createElement(embedded ? "h4" : "h2");
   const floorDescription = document.createElement("p");
+  const keySummary = document.createElement("section");
+  const keySummaryHeading = document.createElement("h3");
+  const keyCounts = document.createElement("div");
   const mapLayout = document.createElement("div");
   const mapScroller = document.createElement("div");
   const inspectorMount = document.createElement("div");
@@ -84,6 +91,7 @@ export function renderFloorSetInspector(
   floorControlsHeading.textContent = "Floors";
   findingsHeading.textContent = "Topology Findings";
   floorHeading.textContent = "Authored Map";
+  keySummaryHeading.textContent = "Keys on This Floor";
   solutionHeading.textContent = "Structural Solution";
   page.classList.add("debug-floor-inspector");
   introduction.className = "debug-panel";
@@ -93,6 +101,8 @@ export function renderFloorSetInspector(
   floorControls.className = "debug-floor-controls-host";
   validationStatus.setAttribute("role", "status");
   mapLayout.className = "debug-map-layout";
+  keySummary.className = "debug-key-summary";
+  keyCounts.className = "debug-key-summary__counts";
   mapScroller.className = "debug-scroller";
   mapScroller.setAttribute("aria-label", "Authored floor map");
   mapScroller.setAttribute("role", "region");
@@ -157,11 +167,22 @@ export function renderFloorSetInspector(
     }
 
     const solutionSteps = (validation?.solution ?? []).filter((step) => step.floorId === floor.id);
+    const authoredKeys = countAuthoredKeys(floor);
     floorDescription.textContent = `${floor.id} uses the ${floor.theme} theme. Gold borders mark cells used by the current structural solution; select a cell to inspect every authored layer.`;
+    keyCounts.replaceChildren();
+
+    for (const color of ["red", "blue", "yellow"] as const) {
+      const item = document.createElement("p");
+      item.className = `debug-key-summary__count debug-key-summary__count--${color}`;
+      item.textContent = `${color[0]?.toUpperCase()}${color.slice(1)} key: ${authoredKeys[color]}`;
+      keyCounts.append(item);
+    }
+
     mapScroller.replaceChildren(
       createAuthoredFloorMap({
         ariaLabel: `${floor.id} authored floor map`,
         floor,
+        ...(options.mapInteraction ? { interaction: options.mapInteraction } : {}),
         solutionCells: solutionSteps.map((step) => step.cell),
         onSelect: (cell) => {
           selectedCell = cell;
@@ -171,7 +192,9 @@ export function renderFloorSetInspector(
         ...(selectedCell ? { selectedCell } : {}),
       }),
     );
-    inspectorMount.replaceChildren(createCellInspector(floor, selectedCell));
+    inspectorMount.replaceChildren(
+      options.cellEditor ? options.cellEditor(floor, selectedCell) : createCellInspector(floor, selectedCell),
+    );
     legendMount.replaceChildren(createFloorMapLegend());
     solution.replaceChildren();
 
@@ -196,7 +219,8 @@ export function renderFloorSetInspector(
 
   introduction.append(floorControlsHeading, floorControls);
   validationPanel.append(findingsHeading, validationStatus, findings);
-  mapPanel.append(floorHeading, floorDescription, mapLayout, legendMount);
+  keySummary.append(keySummaryHeading, keyCounts);
+  mapPanel.append(floorHeading, floorDescription, keySummary, mapLayout, legendMount);
   solutionPanel.append(solutionHeading, solution);
   mapLayout.append(mapScroller, inspectorMount);
   content.append(introduction, mapPanel, validationPanel, solutionPanel);
