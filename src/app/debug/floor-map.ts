@@ -131,7 +131,7 @@ function gameplayPresentation(entity: GameplayEntitySource): CellPresentation {
   }
 
   if (entity.kind === "stair") {
-    return { symbol: "⇩", label: `Stair to ${entity.destinationFloorId}`, background: "#315a4b", color: "#e8fff6" };
+    return { symbol: "⇩", label: `Stair to ${entity.destinationStairId}`, background: "#315a4b", color: "#e8fff6" };
   }
 
   if (entity.kind === "breakableWall") {
@@ -413,11 +413,8 @@ function describeGameplayEntity(entity: GameplayEntitySource): readonly Readonly
   if (entity.kind === "stair") {
     return [
       ...common,
-      {
-        term: "Destination",
-        value: `${entity.destinationFloorId} (${entity.destinationCell.x}, ${entity.destinationCell.y})`,
-      },
-      { term: "Destination facing", value: entity.destinationFacing },
+      { term: "Destination stair", value: entity.destinationStairId },
+      { term: "Arrival facing", value: entity.arrivalFacing },
     ];
   }
 
@@ -629,15 +626,24 @@ function createEntityForm(
       });
     });
   } else if (entity.kind === "stair") {
+    const locatedDestination = floorSet.floors
+      .flatMap((floor) =>
+        floor.gameplayEntities
+          .filter(
+            (candidate): candidate is Extract<GameplayEntitySource, { kind: "stair" }> => candidate.kind === "stair",
+          )
+          .map((stair) => ({ floor, stair })),
+      )
+      .find((candidate) => candidate.stair.id === entity.destinationStairId);
     const destinationFloor = createSelect(
       floorSet.floors.map((floor) => ({ label: `${floor.id} — ${floor.theme}`, value: floor.id })),
-      entity.destinationFloorId,
+      locatedDestination?.floor.id ?? floorSet.floors[0]?.id ?? "",
     );
     const destinationStair = document.createElement("select");
     const destinationHelp = document.createElement("p");
     const facing = createSelect(
       FACINGS.map((face) => ({ label: face, value: face })),
-      entity.destinationFacing,
+      entity.arrivalFacing,
     );
     const updateDestinationStairs = (): boolean => {
       const floor = floorSet.floors.find((candidate) => candidate.id === destinationFloor.value);
@@ -645,10 +651,6 @@ function createEntityForm(
         (candidate): candidate is Extract<GameplayEntitySource, { kind: "stair" }> =>
           candidate.kind === "stair" && candidate.id !== entity.id,
       );
-      const currentStair = stairs?.find(
-        (candidate) => candidate.cell.x === entity.destinationCell.x && candidate.cell.y === entity.destinationCell.y,
-      );
-
       destinationStair.replaceChildren();
 
       if (!stairs || stairs.length === 0) {
@@ -664,7 +666,11 @@ function createEntityForm(
         const option = document.createElement("option");
         option.value = stair.id;
         option.textContent = stair.id;
-        option.selected = stair.id === (currentStair ?? stairs[0])?.id;
+        option.selected =
+          stair.id ===
+          (stairs.some((candidate) => candidate.id === entity.destinationStairId)
+            ? entity.destinationStairId
+            : stairs[0]?.id);
         destinationStair.append(option);
       }
 
@@ -677,11 +683,12 @@ function createEntityForm(
       save.disabled = !updateDestinationStairs();
     });
     destinationHelp.className = "debug-muted";
-    destinationHelp.textContent = "Choose an existing stair ID; its destination cell is filled automatically.";
+    destinationHelp.textContent =
+      "Destination stair chooses where this stair leads. Arrival facing controls how players face when another stair arrives here.";
     fields.append(
       createEditorField("Destination floor", destinationFloor),
       createEditorField("Destination stair", destinationStair),
-      createEditorField("Arrive facing", facing),
+      createEditorField("Arrival facing here", facing),
       destinationHelp,
     );
     save.disabled = !hasDestinationStair;
@@ -700,9 +707,8 @@ function createEntityForm(
       onUpdate(entity.id, {
         ...entity,
         id: idInput.value,
-        destinationFloorId: destinationFloor.value,
-        destinationCell: destination.cell,
-        destinationFacing: facing.value as Facing,
+        destinationStairId: destination.id,
+        arrivalFacing: facing.value as Facing,
       });
     });
   } else if (entity.kind === "breakableWall") {

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "initial": {
     "floorId": "B1",
     "cell": { "x": 1, "y": 1 },
@@ -30,9 +30,8 @@
           "kind": "stair",
           "id": "b1-down",
           "cell": { "x": 8, "y": 1 },
-          "destinationFloorId": "B2",
-          "destinationCell": { "x": 1, "y": 1 },
-          "destinationFacing": "east"
+          "destinationStairId": "b2-up",
+          "arrivalFacing": "west"
         },
         {
           "kind": "breakableWall",
@@ -104,9 +103,8 @@
           "kind": "stair",
           "id": "b2-up",
           "cell": { "x": 1, "y": 1 },
-          "destinationFloorId": "B1",
-          "destinationCell": { "x": 8, "y": 1 },
-          "destinationFacing": "west"
+          "destinationStairId": "b1-down",
+          "arrivalFacing": "east"
         },
         { "kind": "key", "id": "b2-blue-key", "cell": { "x": 2, "y": 1 }, "color": "blue" },
         {
@@ -120,9 +118,8 @@
           "kind": "stair",
           "id": "b2-down",
           "cell": { "x": 11, "y": 1 },
-          "destinationFloorId": "B3",
-          "destinationCell": { "x": 1, "y": 1 },
-          "destinationFacing": "east"
+          "destinationStairId": "b3-up",
+          "arrivalFacing": "west"
         }
       ],
       "environmentFeatures": []
@@ -150,9 +147,8 @@
           "kind": "stair",
           "id": "b3-up",
           "cell": { "x": 1, "y": 1 },
-          "destinationFloorId": "B2",
-          "destinationCell": { "x": 11, "y": 1 },
-          "destinationFacing": "west"
+          "destinationStairId": "b2-down",
+          "arrivalFacing": "east"
         },
         { "kind": "key", "id": "b3-yellow-key", "cell": { "x": 2, "y": 1 }, "color": "yellow" },
         {
@@ -167,9 +163,8 @@
           "kind": "stair",
           "id": "b3-down",
           "cell": { "x": 11, "y": 1 },
-          "destinationFloorId": "B4",
-          "destinationCell": { "x": 1, "y": 1 },
-          "destinationFacing": "east"
+          "destinationStairId": "b4-up",
+          "arrivalFacing": "west"
         }
       ],
       "environmentFeatures": []
@@ -199,9 +194,8 @@
           "kind": "stair",
           "id": "b4-up",
           "cell": { "x": 1, "y": 1 },
-          "destinationFloorId": "B3",
-          "destinationCell": { "x": 11, "y": 1 },
-          "destinationFacing": "west"
+          "destinationStairId": "b3-down",
+          "arrivalFacing": "east"
         },
         { "kind": "key", "id": "b4-red-key", "cell": { "x": 2, "y": 1 }, "color": "red" },
         { "kind": "key", "id": "b4-yellow-key", "cell": { "x": 3, "y": 1 }, "color": "yellow" },
@@ -224,9 +218,8 @@
           "kind": "stair",
           "id": "b4-down",
           "cell": { "x": 7, "y": 5 },
-          "destinationFloorId": "B5",
-          "destinationCell": { "x": 1, "y": 1 },
-          "destinationFacing": "east"
+          "destinationStairId": "b5-up",
+          "arrivalFacing": "west"
         }
       ],
       "environmentFeatures": []
@@ -252,9 +245,8 @@
           "kind": "stair",
           "id": "b5-up",
           "cell": { "x": 1, "y": 1 },
-          "destinationFloorId": "B4",
-          "destinationCell": { "x": 7, "y": 5 },
-          "destinationFacing": "west"
+          "destinationStairId": "b4-down",
+          "arrivalFacing": "east"
         },
         {
           "kind": "enemy",

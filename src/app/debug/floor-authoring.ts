@@ -139,6 +139,16 @@ function validateEntityDefinition(
     return `Unknown door upgrade effect ${entity.upgradeEffectId}.`;
   }
 
+  if (entity.kind === "stair") {
+    const destination = floorSet.floors
+      .flatMap((candidateFloor) => candidateFloor.gameplayEntities)
+      .find((candidate) => candidate.id === entity.destinationStairId);
+
+    if (!destination || destination.kind !== "stair" || destination.id === ignoredId) {
+      return "A stair must target another authored stair ID.";
+    }
+  }
+
   return validateBreakableWall(floor, entity);
 }
 
@@ -201,9 +211,8 @@ export function createDefaultGameplayEntity(
       kind,
       id,
       cell,
-      destinationFloorId: destination.floor.id,
-      destinationCell: destination.stair.cell,
-      destinationFacing: "north",
+      destinationStairId: destination.stair.id,
+      arrivalFacing: "north",
     };
   }
 
@@ -295,7 +304,7 @@ export function addGameplayEntity(
   return success(withFloor(floorSet, index, { ...floor, gameplayEntities: [...floor.gameplayEntities, entity] }));
 }
 
-/** Replaces non-coordinate fields for an existing entity without allowing a duplicate ID or invalid hint configuration. */
+/** Replaces non-coordinate fields, rewriting inbound stair references when a stair ID changes. */
 export function updateGameplayEntity(
   floorSet: FloorSetSource,
   floorId: string,
@@ -330,13 +339,23 @@ export function updateGameplayEntity(
   }
 
   const goalEntityId = floorSet.goalEntityId === originalId ? entity.id : floorSet.goalEntityId;
-  return success({
-    ...withFloor(floorSet, index, {
-      ...floor,
-      gameplayEntities: floor.gameplayEntities.map((candidate) => (candidate.id === originalId ? entity : candidate)),
+  const renamedStair = current.kind === "stair" && entity.id !== originalId;
+  const floors = floorSet.floors.map((candidateFloor, candidateIndex) => ({
+    ...candidateFloor,
+    gameplayEntities: candidateFloor.gameplayEntities.map((candidate) => {
+      if (candidateIndex === index && candidate.id === originalId) {
+        return entity;
+      }
+
+      if (renamedStair && candidate.kind === "stair" && candidate.destinationStairId === originalId) {
+        return { ...candidate, destinationStairId: entity.id };
+      }
+
+      return candidate;
     }),
-    goalEntityId,
-  });
+  }));
+
+  return success({ ...floorSet, floors, goalEntityId });
 }
 
 /** Removes a non-goal gameplay entity from the selected floor. */
@@ -351,15 +370,29 @@ export function removeGameplayEntity(
 
   const index = floorIndex(floorSet, floorId);
   const floor = floorSet.floors[index];
+  const entity = floor?.gameplayEntities.find((candidate) => candidate.id === entityId);
 
-  if (!floor || !floor.gameplayEntities.some((entity) => entity.id === entityId)) {
+  if (!floor || !entity) {
     return failure(`Unknown gameplay entity ${entityId}.`);
+  }
+
+  if (entity.kind === "stair") {
+    const inboundStairs = floorSet.floors.flatMap((candidateFloor) =>
+      candidateFloor.gameplayEntities.filter(
+        (candidate): candidate is Extract<GameplayEntitySource, { kind: "stair" }> =>
+          candidate.kind === "stair" && candidate.id !== entityId && candidate.destinationStairId === entityId,
+      ),
+    );
+
+    if (inboundStairs.length > 0) {
+      return failure(`Remove or redirect inbound stairs first: ${inboundStairs.map((stair) => stair.id).join(", ")}.`);
+    }
   }
 
   return success(
     withFloor(floorSet, index, {
       ...floor,
-      gameplayEntities: floor.gameplayEntities.filter((entity) => entity.id !== entityId),
+      gameplayEntities: floor.gameplayEntities.filter((candidate) => candidate.id !== entityId),
     }),
   );
 }
@@ -430,14 +463,6 @@ function resizeConflicts(
 
   if (floorSet.initial.floorId === floor.id && !isRetained(floorSet.initial.cell)) {
     conflicts.push("The initial player cell would be removed.");
-  }
-
-  for (const sourceFloor of floorSet.floors) {
-    for (const entity of sourceFloor.gameplayEntities) {
-      if (entity.kind === "stair" && entity.destinationFloorId === floor.id && !isRetained(entity.destinationCell)) {
-        conflicts.push(`Stair ${entity.id} from ${sourceFloor.id} would lose its destination.`);
-      }
-    }
   }
 
   return conflicts;

@@ -10,7 +10,7 @@ Turn the Floor Set Workbench's selected-cell inspection surface into direct edit
 
 The workbench will retain one schema-valid draft and will serialize every accepted map or Cell Editor mutation back to its JSON textarea. Parsed text continues to redraw the map and editor, while unparseable text clears their projection. Each direct edit invalidates the prior structural validation, solution evidence, and Save/Export authorization until the author validates the exact new text.
 
-The selected floor will expose positive width and height controls. Growth appends stone terrain on the right or bottom. A shrink remains top-left anchored and is refused with a visible conflict list if it would crop gameplay content, environment anchors, the initial location, or a stair destination on any floor.
+The selected floor will expose positive width and height controls. Growth appends stone terrain on the right or bottom. A shrink remains top-left anchored and is refused with a visible conflict list if it would crop gameplay content (including destination stairs), environment anchors, or the initial location.
 
 The map gains explicit Select/Move and terrain-brush modes. A terrain mode supports pointer dragging and keyboard activation; Select/Move keeps ordinary cell selection and lets an existing entity move only to a passable, empty target. The Cell Editor provides terrain selection, entity creation, removal, and complete kind-specific editing. Entity creation is atomic, starts from legal content-derived defaults, and gives a unique editable ID, so direct interaction never leaves a partial schema record in the draft.
 
@@ -21,8 +21,8 @@ The map gains explicit Select/Move and terrain-brush modes. A terrain mode suppo
 - `floor-map` continues to own the authored map projection and DOM controls. Its optional edit callbacks report selection, terrain, and entity-move intents to the Workbench; without those callbacks, the Floor Set Viewer remains read-only.
 - The Cell Editor is a Workbench-only mutation surface. It edits one selected cell and reports a complete intent; environment-feature fields and controls remain absent until `pantry_authoring_03`.
 - Terrain changes reject a solid tile over an occupied gameplay cell. Entity add or move rejects out-of-bounds, solid, or occupied targets. Existing environment records survive every supported mutation unchanged.
-- Resize checks every floor-set reference before changing tiles: the selected floor's entities and environment anchors, the floor-set initial cell when applicable, and every stair destination that targets that floor. A rejected resize returns all detectable conflicts and leaves the draft unchanged.
-- Direct edits deliberately may leave cross-floor topology, reciprocal stairs, goals, or balance invalid. Only the existing on-demand structural validator decides those global concerns and re-enables departure actions.
+- Resize checks every affected authored placement before changing tiles: the selected floor's entities and environment anchors, plus the floor-set initial cell when applicable. Because stairs target authored stair IDs, retaining the target stair retains its destination. A rejected resize returns all detectable conflicts and leaves the draft unchanged.
+- Direct edits deliberately may leave cross-floor topology, stair links, goals, or balance invalid. Only the existing on-demand structural validator decides those global concerns and re-enables departure actions.
 - Content catalogs remain the option source for enemy archetypes and door upgrade effects. Key and door controls expose only the existing red, blue, and yellow colors; no palette or content-contract expansion occurs.
 - Map cells remain native buttons. Select/Move and terrain brushes expose their active state in text and ARIA, and Cell Editor controls provide keyboard-accessible equivalents for direct editing and pending entity moves.
 
@@ -66,21 +66,22 @@ The map gains explicit Select/Move and terrain-brush modes. A terrain mode suppo
 
 - Use a user-visible Select/Move mode plus one mode per terrain material. A terrain mode paints on pointer traversal and button activation; Select/Move retains ordinary selection. Starting an entity move from the editor gives keyboard users a target-selection path.
 - New entity IDs use a deterministic floor, kind, and coordinate base with an incrementing suffix only when needed. Authors may change the resulting ID through the entity form, but duplicate IDs are rejected locally.
-- New enemy, key, door, stair, breakable-wall, and hot-spring records use schema-valid defaults from the existing catalogs and valid enum values. A stair first selects its destination floor and then an existing destination stair ID, which supplies the destination cell; arrival facing remains an explicit transition choice. Required entity fields are submitted atomically rather than written as incomplete JSON.
+- New enemy, key, door, stair, breakable-wall, and hot-spring records use schema-valid defaults from the existing catalogs and valid enum values. A stair first filters by destination floor and then links to an existing destination stair ID. Each stair owns the `arrivalFacing` used by every other stair that arrives there; the source link owns no duplicate destination coordinate or facing. Renaming a stair rewrites inbound links atomically, while removing a referenced stair is refused. Required entity fields are submitted atomically rather than written as incomplete JSON.
 - A breakable-wall editor exposes all four cardinal hints but rejects zero, duplicate, non-opposing pairs, and faces without a passable observation cell before it changes the draft.
 - Treat unchanged resize dimensions as a no-op. Positive integer sizes have no new arbitrary maximum; unsupported values are rejected before mutation.
 
 ## Edge Cases
 
-| Case                                                                        | Expected Handling                                                                              |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| A terrain brush reaches an entity cell                                      | Reject that cell, retain the entity and its base terrain, and report the local conflict.       |
-| An entity move targets solid terrain or another entity                      | Reject the move and leave the source entity in place.                                          |
-| Entity ID edit duplicates any entity or environment record                  | Reject the edit atomically with a visible duplicate-ID message.                                |
-| A floor shrinks over an environment wall anchor or an incoming stair target | Refuse the entire resize and identify each affected reference.                                 |
-| A text edit follows direct manipulation                                     | Reparse and redraw if schema-valid; otherwise clear the projection and retain text for repair. |
-| A valid selection falls outside a resized floor                             | Clear selection rather than silently selecting another cell.                                   |
-| An edit follows successful validation                                       | Clear route overlays and disable Export/Save until exact-text validation succeeds again.       |
+| Case                                                              | Expected Handling                                                                              |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| A terrain brush reaches an entity cell                            | Reject that cell, retain the entity and its base terrain, and report the local conflict.       |
+| An entity move targets solid terrain or another entity            | Reject the move and leave the source entity in place.                                          |
+| Entity ID edit duplicates any entity or environment record        | Reject the edit atomically with a visible duplicate-ID message.                                |
+| A floor shrinks over an environment wall anchor or a stair entity | Refuse the entire resize and identify each affected placement.                                 |
+| Two or more stairs target the same destination stair              | Accept the directed links; all arrivals use the destination stair's cell and `arrivalFacing`.  |
+| A text edit follows direct manipulation                           | Reparse and redraw if schema-valid; otherwise clear the projection and retain text for repair. |
+| A valid selection falls outside a resized floor                   | Clear selection rather than silently selecting another cell.                                   |
+| An edit follows successful validation                             | Clear route overlays and disable Export/Save until exact-text validation succeeds again.       |
 
 ## Acceptance Criteria
 

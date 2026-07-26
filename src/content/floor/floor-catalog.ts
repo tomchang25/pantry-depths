@@ -11,7 +11,17 @@ import { validateParsedFloorSet, type FloorValidationResult } from "@/content/fl
 import type { Cell } from "@/core/grid";
 import type { RunWorld, WorldEntity } from "@/core/run-state";
 
-function assembleEntity(floorId: string, entity: GameplayEntitySource, goalEntityId: string): WorldEntity {
+type LocatedStair = Readonly<{
+  floorId: string;
+  entity: Extract<GameplayEntitySource, { kind: "stair" }>;
+}>;
+
+function assembleEntity(
+  floorId: string,
+  entity: GameplayEntitySource,
+  goalEntityId: string,
+  stairsById: ReadonlyMap<string, LocatedStair>,
+): WorldEntity {
   if (entity.kind === "enemy") {
     const archetype = ENEMY_ARCHETYPES.find((candidate) => candidate.id === entity.archetypeId);
 
@@ -65,6 +75,12 @@ function assembleEntity(floorId: string, entity: GameplayEntitySource, goalEntit
   }
 
   if (entity.kind === "stair") {
+    const destination = stairsById.get(entity.destinationStairId);
+
+    if (!destination) {
+      throw new Error(`unknown destination stair: ${entity.destinationStairId}`);
+    }
+
     return {
       kind: "stair",
       id: entity.id,
@@ -75,9 +91,9 @@ function assembleEntity(floorId: string, entity: GameplayEntitySource, goalEntit
         effects: [
           {
             type: "transition",
-            floorId: entity.destinationFloorId,
-            cell: entity.destinationCell,
-            facing: entity.destinationFacing,
+            floorId: destination.floorId,
+            cell: destination.entity.cell,
+            facing: destination.entity.arrivalFacing,
           },
         ],
       },
@@ -137,6 +153,16 @@ export function createRunWorldFromFloorSet(floorSet: FloorSetSource): RunWorld {
     throw new Error(errors.map((finding) => `${finding.code}: ${finding.message}`).join("\n"));
   }
 
+  const stairsById = new Map<string, LocatedStair>();
+
+  for (const floor of floorSet.floors) {
+    for (const entity of floor.gameplayEntities) {
+      if (entity.kind === "stair") {
+        stairsById.set(entity.id, { floorId: floor.id, entity });
+      }
+    }
+  }
+
   return {
     floors: floorSet.floors.map((floor) => ({
       id: floor.id,
@@ -149,7 +175,7 @@ export function createRunWorldFromFloorSet(floorSet: FloorSetSource): RunWorld {
     initialCell: floorSet.initial.cell,
     initialFacing: floorSet.initial.facing,
     entities: floorSet.floors.flatMap((floor) =>
-      floor.gameplayEntities.map((entity) => assembleEntity(floor.id, entity, floorSet.goalEntityId)),
+      floor.gameplayEntities.map((entity) => assembleEntity(floor.id, entity, floorSet.goalEntityId, stairsById)),
     ),
     upgradeEffects: PLAYER_UPGRADES,
   };

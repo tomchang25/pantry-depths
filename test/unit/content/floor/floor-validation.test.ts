@@ -31,7 +31,7 @@ describe("floor validation", () => {
 
   it("returns a no-solution error when a required key is isolated behind its matching door", () => {
     const lockedHallway = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "east" },
       goalEntityId: "goal",
       floors: [
@@ -56,7 +56,7 @@ describe("floor validation", () => {
 
   it("still requires defeating a goal that stands on the initial cell", () => {
     const goalUnderfoot = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "east" },
       goalEntityId: "goal",
       floors: [
@@ -83,6 +83,24 @@ describe("floor validation", () => {
 
     expect(clearingSteps.length).toBeGreaterThan(0);
     expect(new Set(clearedIds).size).toBe(clearedIds.length);
+  });
+
+  it("allows multiple source stairs to share one destination stair", () => {
+    const source = cloneFloorSet();
+    const directed = {
+      ...source,
+      floors: source.floors.map((floor) =>
+        Object.assign({}, floor, {
+          gameplayEntities: floor.gameplayEntities.map((entity) =>
+            entity.id === "b3-up" && entity.kind === "stair"
+              ? Object.assign({}, entity, { destinationStairId: "b1-down" })
+              : entity,
+          ),
+        }),
+      ),
+    } satisfies FloorSetSource;
+
+    expect(validateParsedFloorSet(directed).findings.filter((finding) => finding.severity === "error")).toEqual([]);
   });
 
   it.each([

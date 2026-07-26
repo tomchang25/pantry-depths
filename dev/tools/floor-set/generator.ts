@@ -383,9 +383,7 @@ function buildFloorSet(options: ResolvedOptions, attempt: number): FloorSetSourc
     const entities: GameplayEntitySource[] = [];
 
     if (floorIndex > 0) {
-      const above = plans[floorIndex - 1];
-
-      if (!above) {
+      if (!plans[floorIndex - 1]) {
         throw new PlacementExhaustedError("Missing the floor above while wiring stairs.");
       }
 
@@ -393,9 +391,8 @@ function buildFloorSet(options: ResolvedOptions, attempt: number): FloorSetSourc
         kind: "stair",
         id: `${floorId}-up`,
         cell: toCell(plan.entryIndex),
-        destinationFloorId: `B${floorIndex}`,
-        destinationCell: toCell(above.exitIndex),
-        destinationFacing: ARRIVAL_FACING,
+        destinationStairId: `B${floorIndex}-down`,
+        arrivalFacing: ARRIVAL_FACING,
       });
     }
 
@@ -411,9 +408,8 @@ function buildFloorSet(options: ResolvedOptions, attempt: number): FloorSetSourc
         kind: "stair",
         id: `${floorId}-down`,
         cell: toCell(plan.exitIndex),
-        destinationFloorId: `B${floorIndex + 2}`,
-        destinationCell: ENTRY_CELL,
-        destinationFacing: ARRIVAL_FACING,
+        destinationStairId: `B${floorIndex + 2}-up`,
+        arrivalFacing: ARRIVAL_FACING,
       });
     }
 
@@ -428,7 +424,7 @@ function buildFloorSet(options: ResolvedOptions, attempt: number): FloorSetSourc
   }
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     initial: { floorId: "B1", cell: ENTRY_CELL, facing: ARRIVAL_FACING },
     goalEntityId: `B${options.floorCount}-goal`,
     floors,

@@ -3,6 +3,7 @@ import {
   createDefaultGameplayEntity,
   moveGameplayEntity,
   paintTerrain,
+  removeGameplayEntity,
   resizeFloor,
   updateGameplayEntity,
 } from "@/app/debug/floor-authoring";
@@ -10,7 +11,7 @@ import type { FloorSetSource } from "@/content/floor/floor-schema";
 import { describe, expect, it } from "vitest";
 
 const FLOOR_SET: FloorSetSource = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "north" },
   goalEntityId: "goal",
   floors: [
@@ -21,6 +22,13 @@ const FLOOR_SET: FloorSetSource = {
       gameplayEntities: [
         { kind: "enemy", id: "goal", cell: { x: 1, y: 1 }, archetypeId: "bat" },
         { kind: "key", id: "key", cell: { x: 2, y: 1 }, color: "red" },
+        {
+          kind: "stair",
+          id: "f1-arrival",
+          cell: { x: 3, y: 3 },
+          destinationStairId: "to-f1",
+          arrivalFacing: "south",
+        },
       ],
       environmentFeatures: [
         { kind: "tileDecoration", id: "bones", cell: { x: 1, y: 2 }, decorationPresetId: "bones" },
@@ -36,9 +44,8 @@ const FLOOR_SET: FloorSetSource = {
           kind: "stair",
           id: "to-f1",
           cell: { x: 1, y: 1 },
-          destinationFloorId: "F1",
-          destinationCell: { x: 3, y: 3 },
-          destinationFacing: "north",
+          destinationStairId: "f1-arrival",
+          arrivalFacing: "north",
         },
       ],
       environmentFeatures: [],
@@ -79,10 +86,29 @@ describe("floor authoring mutations", () => {
 
     expect(stair).toMatchObject({
       kind: "stair",
-      destinationFloorId: "F2",
-      destinationCell: { x: 1, y: 1 },
-      destinationFacing: "north",
+      destinationStairId: "f1-arrival",
+      arrivalFacing: "north",
     });
+  });
+
+  it("rewrites inbound links when a stair ID changes and protects referenced stairs from removal", () => {
+    const destination = FLOOR_SET.floors[0]?.gameplayEntities.find((entity) => entity.id === "f1-arrival");
+
+    if (!destination || destination.kind !== "stair") {
+      throw new Error("expected destination stair");
+    }
+
+    expect(removeGameplayEntity(FLOOR_SET, "F1", destination.id)).toMatchObject({ ok: false });
+
+    const updated = updateGameplayEntity(FLOOR_SET, "F1", destination.id, {
+      ...destination,
+      id: "f1-arrival-renamed",
+    });
+
+    expect(updated).toMatchObject({ ok: true });
+    expect(
+      updated.ok && updated.floorSet.floors[1]?.gameplayEntities.find((entity) => entity.id === "to-f1"),
+    ).toMatchObject({ destinationStairId: "f1-arrival-renamed" });
   });
 
   it("validates breakable-wall hints before replacing an entity", () => {

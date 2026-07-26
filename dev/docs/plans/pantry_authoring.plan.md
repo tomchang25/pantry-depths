@@ -17,9 +17,10 @@ Turn the floor authoring surface from a JSON textarea with a read-only picture b
 7. Generator counts are configured independently for red, blue, and yellow. Each color has separate door and key counts plus a link control, enabled by default, that drives both from one number while preserving the independent values when unlinked.
 8. The two ways content leaves the page are labelled so the destructive one cannot be mistaken for the safe one. Export downloads a file without changing the repository; Save names and overwrites the canonical floor content.
 9. Floors are selected from a wrapping row of numbered controls, one per floor. Switching floors takes one click, the floor count remains visible, and no interaction depends on a function key.
-10. Each authored floor has independently editable width and height. Growth preserves existing coordinates and adds solid stone cells on the right or bottom; shrink keeps the top-left origin and is refused when it would remove authored content or invalidate an initial or stair-destination coordinate.
-11. The generator accepts a width and height for newly generated floors, defaults both to the current 13-cell size, and constrains them to odd dimensions supported by the bordered maze. Generated dimensions do not prevent later per-floor manual resizing.
-12. The workbench adopts the project-wide debug surface shell for page chrome and visual styling. The authoring plan owns its map and editing interactions, while the independent shell owns the reusable template shared by all debug scenes.
+10. Each authored floor has independently editable width and height. Growth preserves existing coordinates and adds solid stone cells on the right or bottom; shrink keeps the top-left origin and is refused when it would remove authored content or invalidate the initial coordinate.
+11. A stair links to another stair by globally unique ID. The destination stair owns its arrival cell and `arrivalFacing`, so every incoming link—including future many-to-one links—resolves to one consistent arrival presentation.
+12. The generator accepts a width and height for newly generated floors, defaults both to the current 13-cell size, and constrains them to odd dimensions supported by the bordered maze. Generated dimensions do not prevent later per-floor manual resizing.
+13. The workbench adopts the project-wide debug surface shell for page chrome and visual styling. The authoring plan owns its map and editing interactions, while the independent shell owns the reusable template shared by all debug scenes.
 
 ## Design
 
@@ -70,7 +71,7 @@ The selected floor exposes width and height above its Cell Editor. Floors remain
 
 Resize is anchored at the top-left origin. Increasing width appends solid stone columns on the right, and increasing height appends solid stone rows at the bottom. This preserves every existing coordinate and avoids opening accidental traversable space.
 
-Shrinking is conservative. The operation is refused and identifies the conflicts when the removed region contains a gameplay entity, environment feature or wall anchor, the floor-set initial cell, or a stair destination from any floor. Empty terrain may be cropped without moving retained content. Resize never silently deletes or relocates authored records.
+Shrinking is conservative. The operation is refused and identifies the conflicts when the removed region contains a gameplay entity (including a destination stair), environment feature or wall anchor, or the floor-set initial cell. Empty terrain may be cropped without moving retained content. Resize never silently deletes or relocates authored records.
 
 ### Departure paths
 

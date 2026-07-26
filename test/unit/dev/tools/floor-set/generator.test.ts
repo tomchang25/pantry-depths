@@ -17,7 +17,7 @@ describe("generateFloorSet", () => {
     const validation = validateParsedFloorSet(first);
 
     expect(first).toEqual(second);
-    expect(first.schemaVersion).toBe(2);
+    expect(first.schemaVersion).toBe(3);
     expect(first.floors).toHaveLength(3);
     expect(first.floors.every((floor) => floor.environmentFeatures.length === 0)).toBe(true);
     expect(validation.findings.filter((finding) => finding.severity === "error")).toEqual([]);
