@@ -1,7 +1,6 @@
 node_modules/
 dist/
 .vite/
-.vscode/*
 !.vscode/tasks.json
 *.local
 .DS_Store
@@ -9,3 +8,6 @@ Thumbs.db
 tmp/
 test-results/
 playwright-report/
+
+.vscode
+.codex
