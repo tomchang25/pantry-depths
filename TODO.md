@@ -20,13 +20,13 @@ Nothing in flight.
 
 | Stream | Scope                                                             | Children | State                                              |
 | ------ | ----------------------------------------------------------------- | -------: | -------------------------------------------------- |
-| A      | [Rules and Content](dev/docs/plans/pantry_rules.plan.md)          |        7 | Active; `pantry_rules_04` in flight                |
+| A      | [Rules and Content](dev/docs/plans/pantry_rules.plan.md)          |        7 | Active; `pantry_rules_01`–`05` shipped             |
 | B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)   |        2 | Queued                                             |
 | C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)            |        4 | Queued                                             |
 | S      | Enemy Sprite Art                                                  | parallel | Parallel asset deliverable; style spec not written |
 | P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |        3 | Parked; promote when hand-authoring blocks A06     |
 
-Next action: finish `pantry_rules_04`, then `/implement pantry_rules_05` for route replay and balance-report tooling.
+Next action: `/implement pantry_rules_06` for the final five-floor layout and balance tuning.
 
 ---
 
@@ -44,6 +44,5 @@ Playtest-driven balance questions live in mega plan §8, not here — they are p
 
 ## Infrastructure Debt
 
-- [ ] `test` carries `--passWithNoTests`. Remove it with the first unit test (`pantry_rules_02`).
 - [ ] `src/app/main.ts` is a placeholder that only writes text into `#app`. `pantry_rules_01` establishes the debug/ordinary-play dispatch; `pantry_feel_01` replaces the ordinary-play placeholder with the runtime.
-- [ ] `dev/docs/reports/*.html` are skeletons. The balance report gains a generator at `pantry_rules_05`; the architecture report is filled in at milestone closeout.
+- [ ] `dev/docs/reports/pantry_depths_architecture.html` is still a skeleton. It is hand-written and filled in at milestone closeout. The balance report is generated as of `pantry_rules_05`.

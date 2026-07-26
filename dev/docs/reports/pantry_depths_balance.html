@@ -13,13 +13,8 @@
         --muted: #5f5a6b;
         --line: #e0dce6;
         --accent: #6b3fa0;
-        --accent-bg: #f1eafb;
-        --warn: #a4402f;
-        --warn-bg: #fbeae7;
         --ok: #2f7d54;
-        --ok-bg: #e7f4ec;
-        --code-bg: #efedf3;
-        --shadow: 0 1px 2px rgba(29, 26, 36, 0.06), 0 12px 32px rgba(29, 26, 36, 0.05);
+        --warn: #a4402f;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -29,13 +24,8 @@
           --muted: #9c96a8;
           --line: #302c3a;
           --accent: #b28ce0;
-          --accent-bg: #251c33;
-          --warn: #e08b7a;
-          --warn-bg: #2e1a16;
           --ok: #6cd39a;
-          --ok-bg: #16241b;
-          --code-bg: #282430;
-          --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.25);
+          --warn: #e08b7a;
         }
       }
       * {
@@ -54,7 +44,7 @@
           sans-serif;
       }
       .wrap {
-        max-width: 920px;
+        max-width: 1100px;
         margin: 0 auto;
         padding: 40px 20px 96px;
       }
@@ -78,15 +68,6 @@
         border-radius: 10px;
         padding: 16px 18px;
         margin: 16px 0;
-        box-shadow: var(--shadow);
-      }
-      .note {
-        background: var(--accent-bg);
-        border-left: 3px solid var(--accent);
-      }
-      .todo {
-        background: var(--warn-bg);
-        border-left: 3px solid var(--warn);
       }
       table {
         border-collapse: collapse;
@@ -98,129 +79,600 @@
         border-bottom: 1px solid var(--line);
         padding: 7px 10px;
         text-align: left;
+        vertical-align: top;
       }
       th {
         color: var(--muted);
-        font-weight: 600;
         font-size: 13px;
       }
-      td.num,
-      th.num {
-        text-align: right;
+      .num {
         font-variant-numeric: tabular-nums;
-      }
-      code {
-        background: var(--code-bg);
-        padding: 1px 5px;
-        border-radius: 4px;
-        font-size: 13px;
       }
       .pass {
         color: var(--ok);
+        font-weight: 700;
       }
       .fail {
         color: var(--warn);
-      }
-      nav a {
-        color: var(--accent);
-        margin-right: 14px;
-        font-size: 13px;
+        font-weight: 700;
       }
       .overflow {
         overflow-x: auto;
       }
+      code {
+        font-size: 13px;
+      }
     </style>
   </head>
   <body>
-    <div class="wrap">
+    <main class="wrap">
       <h1>Pantry Depths — Balance Report</h1>
-      <p class="sub">從 <code>src/content/</code> 與 <code>src/core/</code> 重新計算。此頁不手動維護。</p>
+      <p class="sub">
+        由 <code>src/content/</code>、<code>src/core/</code>、拓撲驗證與 canonical route replay
+        重新產生。請以此頁檢閱目前 provisional content，不是 A06 的最終平衡承諾。
+      </p>
 
-      <div class="card todo">
-        <strong>框架範本。</strong> 本檔目前是空殼，定義生成器要產出的形狀。Child <code>pantry_rules_05</code>
-        落地後由指令覆寫本檔；在那之前所有表格都是佔位。
-      </div>
-
-      <nav>
-        <a href="#enemies">① 敵人表</a>
-        <a href="#matrix">② 成本矩陣</a>
-        <a href="#route">③ 必經路線</a>
-        <a href="#floors">④ 樓層連通性</a>
-        <a href="#optional">⑤ 可繞過內容</a>
-      </nav>
+      <section class="card" aria-labelledby="summary-heading">
+        <h2 id="summary-heading">摘要</h2>
+        <p>強制路線：<span class="pass">PASS</span>；結局：victory；路線成本：40 / 120 HP；剩餘：80 HP。</p>
+        <p>
+          結構拓撲：<span class="pass">PASS</span>；structural solution steps：57。拓撲通過只證明可達，並不取代下方的
+          command、戰鬥與 HP evidence。
+        </p>
+      </section>
 
       <h2 id="enemies">① 敵人表</h2>
-      <p>來源：<code>src/content/enemies.ts</code>。</p>
       <div class="overflow">
         <table>
           <thead>
             <tr>
               <th>敵人</th>
-              <th class="num">HP</th>
-              <th class="num">攻擊</th>
-              <th class="num">防禦</th>
-              <th>出現層</th>
+              <th>HP</th>
+              <th>攻擊</th>
+              <th>防禦</th>
+              <th>目前出現樓層</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="5" class="sub">待生成</td>
+              <td>Bat</td>
+              <td><span class="num">3</span></td>
+              <td><span class="num">2</span></td>
+              <td><span class="num">0</span></td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Goblin</td>
+              <td><span class="num">6</span></td>
+              <td><span class="num">4</span></td>
+              <td><span class="num">0</span></td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Skeleton</td>
+              <td><span class="num">10</span></td>
+              <td><span class="num">6</span></td>
+              <td><span class="num">1</span></td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Guard</td>
+              <td><span class="num">20</span></td>
+              <td><span class="num">10</span></td>
+              <td><span class="num">3</span></td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Princess</td>
+              <td><span class="num">30</span></td>
+              <td><span class="num">14</span></td>
+              <td><span class="num">5</span></td>
+              <td>B5</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <h2 id="matrix">② 成本矩陣</h2>
-      <p>
-        每個 Stage 對每種敵人的擊殺成本，由
-        <code>擊殺成本 = (ceil(HP / (玩家攻擊 − 敵人防禦)) − 1) × max(0, 敵人攻擊 − 玩家防禦)</code> 計算。
-        <code>—</code> 表示玩家攻擊穿不透，完全無法擊殺。
-      </p>
-      <div class="card todo">待生成：5 個 Stage × 5 種敵人。</div>
-
-      <h2 id="route">③ 必經路線 HP 預算</h2>
-      <p>Harness 重播必經路線的逐步結果，包含每一步的 Stage、成本與剩餘生命。</p>
-      <div class="card todo">待生成。收尾要印出必經總成本、佔最大生命的百分比，以及通關剩餘。</div>
-
-      <h2 id="floors">④ 樓層連通性驗證</h2>
-      <p>對五張烘焙地圖的自動檢查。任何一項 <span class="fail">FAIL</span> 都代表地圖資料有問題，不是平衡問題。</p>
+      <p>每格由 shared <code>calculateCombatProjection</code> 計算；<code>—</code> 表示當前攻擊無法穿透。</p>
       <div class="overflow">
         <table>
           <thead>
             <tr>
-              <th>檢查</th>
-              <th>說明</th>
-              <th>結果</th>
+              <th>敵人</th>
+              <th>Stage 0</th>
+              <th>Stage 1</th>
+              <th>Stage 2</th>
+              <th>Stage 3</th>
+              <th>Stage 4</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>鑰匙可達性</td>
-              <td>沒有鑰匙被鎖在自己顏色的門後</td>
-              <td class="sub">待生成</td>
+              <td>Bat</td>
+              <td><span class="num">0</span></td>
+              <td><span class="num">0</span></td>
+              <td><span class="num">0</span></td>
+              <td><span class="num">0</span></td>
+              <td><span class="num">0</span></td>
             </tr>
             <tr>
-              <td>路線可通關</td>
-              <td>必經傷害不超過最大生命</td>
-              <td class="sub">待生成</td>
+              <td>Goblin</td>
+              <td><span class="num">4</span></td>
+              <td><span class="num">4</span></td>
+              <td><span class="num">2</span></td>
+              <td><span class="num">0</span></td>
+              <td><span class="num">0</span></td>
             </tr>
             <tr>
-              <td>攻擊力下限</td>
-              <td>沒有必經敵人在玩家當時的攻擊下穿不透</td>
-              <td class="sub">待生成</td>
+              <td>Skeleton</td>
+              <td><span class="num">24</span></td>
+              <td><span class="num">12</span></td>
+              <td><span class="num">8</span></td>
+              <td><span class="num">4</span></td>
+              <td><span class="num">0</span></td>
             </tr>
             <tr>
-              <td>樓梯連通</td>
-              <td>每層的上下樓梯都從入口可達</td>
-              <td class="sub">待生成</td>
+              <td>Guard</td>
+              <td><span>—</span></td>
+              <td><span class="num">90</span></td>
+              <td><span class="num">72</span></td>
+              <td><span class="num">16</span></td>
+              <td><span class="num">8</span></td>
+            </tr>
+            <tr>
+              <td>Princess</td>
+              <td><span>—</span></td>
+              <td><span>—</span></td>
+              <td><span>—</span></td>
+              <td><span class="num">60</span></td>
+              <td><span class="num">40</span></td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <h2 id="optional">⑤ 可繞過內容</h2>
-      <p>不在必經路線上的敵人，以及它們在各 Stage 的價格。用來確認「現在不要碰」的訊號夠不夠明確。</p>
-      <div class="card todo">待生成。</div>
-    </div>
+      <h2 id="route">③ Provisional 強制路線 HP 預算</h2>
+      <p>
+        每個 checkpoint 都來自同一個 command trace。開啟門欄位依 snapshot 的 entity activity 導出，沒有手動維護的成本或
+        door list。
+      </p>
+      <div class="overflow">
+        <table>
+          <thead>
+            <tr>
+              <th>狀態</th>
+              <th>Checkpoint</th>
+              <th>Stage</th>
+              <th>HP</th>
+              <th>ATK/DEF</th>
+              <th>鑰匙</th>
+              <th>累積成本</th>
+              <th>已開啟門</th>
+              <th>本步事件</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B1 entry</td>
+              <td>Stage 0</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">3/0</span></td>
+              <td><span class="num">R0 B0 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>—</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B1 red key</td>
+              <td>Stage 0</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">3/0</span></td>
+              <td><span class="num">R1 B0 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>—</td>
+              <td>playerMoved, keyCollected, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B1 red route door</td>
+              <td>Stage 0</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">3/0</span></td>
+              <td><span class="num">R0 B0 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door</td>
+              <td>keySpent, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B2 entry</td>
+              <td>Stage 0</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">3/0</span></td>
+              <td><span class="num">R0 B0 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door</td>
+              <td>playerTransitioned</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B2 blue key</td>
+              <td>Stage 0</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">3/0</span></td>
+              <td><span class="num">R0 B1 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door</td>
+              <td>playerMoved, keyCollected, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B2 blue attack door</td>
+              <td>Stage 1</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">5/0</span></td>
+              <td><span class="num">R0 B0 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door</td>
+              <td>keySpent, playerStatsChanged, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B3 entry</td>
+              <td>Stage 1</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">5/0</span></td>
+              <td><span class="num">R0 B0 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door</td>
+              <td>playerTransitioned</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B3 yellow key</td>
+              <td>Stage 1</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">5/0</span></td>
+              <td><span class="num">R0 B0 Y1</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door</td>
+              <td>playerMoved, keyCollected, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B3 yellow defense door</td>
+              <td>Stage 2</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">5/2</span></td>
+              <td><span class="num">R0 B0 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door</td>
+              <td>keySpent, playerStatsChanged, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B3 second blue key</td>
+              <td>Stage 2</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">5/2</span></td>
+              <td><span class="num">R0 B1 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door</td>
+              <td>playerMoved, keyCollected, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B4 entry</td>
+              <td>Stage 2</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">5/2</span></td>
+              <td><span class="num">R0 B1 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door</td>
+              <td>playerTransitioned</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B4 red key</td>
+              <td>Stage 2</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">5/2</span></td>
+              <td><span class="num">R1 B1 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door</td>
+              <td>playerMoved, keyCollected, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B4 yellow key</td>
+              <td>Stage 2</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">5/2</span></td>
+              <td><span class="num">R1 B1 Y1</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door</td>
+              <td>playerMoved, keyCollected, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B4 large blue door</td>
+              <td>Stage 3</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">10/2</span></td>
+              <td><span class="num">R1 B0 Y1</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door, b4-blue-door</td>
+              <td>keySpent, playerStatsChanged, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B4 red route door</td>
+              <td>Stage 3</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">10/2</span></td>
+              <td><span class="num">R0 B0 Y1</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door, b4-blue-door, b4-red-door</td>
+              <td>keySpent, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B4 large yellow door</td>
+              <td>Stage 4</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">10/6</span></td>
+              <td><span class="num">R0 B0 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door, b4-blue-door, b4-red-door, b4-yellow-door</td>
+              <td>keySpent, playerStatsChanged, entityDeactivated</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>B5 entry</td>
+              <td>Stage 4</td>
+              <td><span class="num">120/120</span></td>
+              <td><span class="num">10/6</span></td>
+              <td><span class="num">R0 B0 Y0</span></td>
+              <td><span class="num">0</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door, b4-blue-door, b4-red-door, b4-yellow-door</td>
+              <td>playerTransitioned</td>
+            </tr>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>Princess defeated</td>
+              <td>Stage 4</td>
+              <td><span class="num">80/120</span></td>
+              <td><span class="num">10/6</span></td>
+              <td><span class="num">R0 B0 Y0</span></td>
+              <td><span class="num">40</span></td>
+              <td>b1-red-door, b2-blue-door, b3-yellow-door, b4-blue-door, b4-red-door, b4-yellow-door</td>
+              <td>entityDamaged, entityDefeated, victoryReached</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="floors">④ 樓層連通性驗證</h2>
+      <div class="overflow">
+        <table>
+          <thead>
+            <tr>
+              <th>結果</th>
+              <th>檢查</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="pass">PASS</span></td>
+              <td>No findings</td>
+              <td>Structural validator returned no findings.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="placements">⑤ 樓層實體與路線歸屬</h2>
+      <p>Forced route 表示該實體由 provisional fixture 的 checkpoint 標記；其餘內容不是目前強制路線的一部分。</p>
+      <div class="overflow">
+        <table>
+          <thead>
+            <tr>
+              <th>樓層</th>
+              <th>種類</th>
+              <th>實體</th>
+              <th>座標</th>
+              <th>路線歸屬</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>B1</td>
+              <td>key</td>
+              <td>b1-red-key</td>
+              <td><span class="num">2, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B1</td>
+              <td>door</td>
+              <td>b1-red-door</td>
+              <td><span class="num">3, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B1</td>
+              <td>stair</td>
+              <td>b1-down</td>
+              <td><span class="num">8, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B1</td>
+              <td>breakableWall</td>
+              <td>b1-hidden-wall</td>
+              <td><span class="num">5, 5</span></td>
+              <td><span>Bypassable / not route-marked</span></td>
+            </tr>
+            <tr>
+              <td>B1</td>
+              <td>hotSpring</td>
+              <td>b1-hot-spring</td>
+              <td><span class="num">6, 5</span></td>
+              <td><span>Bypassable / not route-marked</span></td>
+            </tr>
+            <tr>
+              <td>B2</td>
+              <td>stair</td>
+              <td>b2-up</td>
+              <td><span class="num">1, 1</span></td>
+              <td><span>Bypassable / not route-marked</span></td>
+            </tr>
+            <tr>
+              <td>B2</td>
+              <td>key</td>
+              <td>b2-blue-key</td>
+              <td><span class="num">2, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B2</td>
+              <td>door</td>
+              <td>b2-blue-door</td>
+              <td><span class="num">3, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B2</td>
+              <td>stair</td>
+              <td>b2-down</td>
+              <td><span class="num">11, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B3</td>
+              <td>stair</td>
+              <td>b3-up</td>
+              <td><span class="num">1, 1</span></td>
+              <td><span>Bypassable / not route-marked</span></td>
+            </tr>
+            <tr>
+              <td>B3</td>
+              <td>key</td>
+              <td>b3-yellow-key</td>
+              <td><span class="num">2, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B3</td>
+              <td>door</td>
+              <td>b3-yellow-door</td>
+              <td><span class="num">3, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B3</td>
+              <td>key</td>
+              <td>b3-blue-key</td>
+              <td><span class="num">5, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B3</td>
+              <td>stair</td>
+              <td>b3-down</td>
+              <td><span class="num">11, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B4</td>
+              <td>stair</td>
+              <td>b4-up</td>
+              <td><span class="num">1, 1</span></td>
+              <td><span>Bypassable / not route-marked</span></td>
+            </tr>
+            <tr>
+              <td>B4</td>
+              <td>key</td>
+              <td>b4-red-key</td>
+              <td><span class="num">2, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B4</td>
+              <td>key</td>
+              <td>b4-yellow-key</td>
+              <td><span class="num">3, 1</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B4</td>
+              <td>door</td>
+              <td>b4-blue-door</td>
+              <td><span class="num">5, 3</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B4</td>
+              <td>door</td>
+              <td>b4-red-door</td>
+              <td><span class="num">7, 3</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B4</td>
+              <td>door</td>
+              <td>b4-yellow-door</td>
+              <td><span class="num">9, 3</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B4</td>
+              <td>stair</td>
+              <td>b4-down</td>
+              <td><span class="num">7, 5</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+            <tr>
+              <td>B5</td>
+              <td>stair</td>
+              <td>b5-up</td>
+              <td><span class="num">1, 1</span></td>
+              <td><span>Bypassable / not route-marked</span></td>
+            </tr>
+            <tr>
+              <td>B5</td>
+              <td>enemy</td>
+              <td>b5-princess</td>
+              <td><span class="num">8, 8</span></td>
+              <td><span class="pass">Forced route</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="optional">⑥ 可繞過敵人</h2>
+      <div class="overflow">
+        <table>
+          <thead>
+            <tr>
+              <th>樓層</th>
+              <th>實體</th>
+              <th>Archetype</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>—</td>
+              <td>No bypassable enemies in provisional content</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
   </body>
 </html>

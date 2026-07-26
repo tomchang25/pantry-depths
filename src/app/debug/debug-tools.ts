@@ -52,4 +52,14 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
         render: renderFloorWorkbench,
       })),
   },
+  {
+    id: "routes",
+    path: "/debug/routes",
+    title: "Route Replay",
+    description: "Replay the provisional forced route and inspect its canonical progression evidence.",
+    load: () =>
+      import("@/app/debug/route-replay").then(({ renderRouteReplay }) => ({
+        render: renderRouteReplay,
+      })),
+  },
 ];

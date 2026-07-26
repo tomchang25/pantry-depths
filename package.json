@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "generate:floor-set": "vite-node --config dev/tools/vite-node.config.ts dev/tools/generate-floor-set.ts",
     "validate:floor-set": "vite-node --config dev/tools/vite-node.config.ts dev/tools/validate-floor-set.ts",
+    "generate:balance-report": "vite-node --config dev/tools/vite-node.config.ts dev/tools/generate-balance-report.ts && prettier --write dev/docs/reports/pantry_depths_balance.html",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "oxlint",

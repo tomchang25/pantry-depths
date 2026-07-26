@@ -48,6 +48,20 @@ describe("resolveDebugRoute", () => {
     }
   });
 
+  it("resolves Route Replay from the shared debug catalog", () => {
+    const route = resolveDebugRoute("/debug/routes");
+
+    expect(route.kind).toBe("tool");
+
+    if (route.kind === "tool") {
+      expect(route.tool).toMatchObject({
+        id: "routes",
+        path: "/debug/routes",
+        title: "Route Replay",
+      });
+    }
+  });
+
   it.each(["/debug/unknown", "/debug/combat/"])("falls back to the hub for an unknown exact path: %s", (pathname) => {
     expect(resolveDebugRoute(pathname)).toEqual({ kind: "hub" });
   });
