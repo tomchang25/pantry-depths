@@ -64,6 +64,23 @@ describe("projectAuthoredFloorCell", () => {
     expect(projection.isSolutionCell).toBe(true);
   });
 
+  it.each([
+    ["red", "#ff6678"],
+    ["blue", "#69adff"],
+    ["yellow", "#f5d761"],
+  ] as const)("uses the key glyph and authored %s color", (color, expectedColor) => {
+    const floor: FloorSource = {
+      ...FLOOR,
+      gameplayEntities: [{ kind: "key", id: `${color}-key`, cell: { x: 1, y: 1 }, color }],
+    };
+
+    expect(projectAuthoredFloorCell(floor, { x: 1, y: 1 }).primary).toMatchObject({
+      symbol: "⚿",
+      label: `${color} key`,
+      color: expectedColor,
+    });
+  });
+
   it("retains wall-face decorations on their solid anchor cell", () => {
     const projection = projectAuthoredFloorCell(FLOOR, { x: 0, y: 0 });
 

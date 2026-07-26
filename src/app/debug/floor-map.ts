@@ -82,7 +82,8 @@ function gameplayPresentation(entity: GameplayEntitySource): CellPresentation {
   }
 
   if (entity.kind === "key") {
-    return { symbol: "◆", label: `${entity.color} key`, background: "#22202a", color: "#f5d761" };
+    const color = entity.color === "red" ? "#ff6678" : entity.color === "blue" ? "#69adff" : "#f5d761";
+    return { symbol: "⚿", label: `${entity.color} key`, background: "#22202a", color };
   }
 
   if (entity.kind === "door") {
@@ -417,22 +418,76 @@ export function createFloorButtons(
 export function createFloorMapLegend(): HTMLElement {
   const section = document.createElement("section");
   const heading = document.createElement("h3");
-  const entries = document.createElement("ul");
-  const legendEntries = [
-    "▦ Stone wall · ▤ Old-brick wall · ╫ Iron-bar wall · blank Passable floor",
-    "☠ Enemy · ◆ Key · ▣ Door · ⇩ Stair · ◫ Breakable wall · ≈ Hot spring",
-    "✦ Tile decoration · ↟ Wall-face decoration · ☼ Ambient light · ≈ Effect emitter",
-    "Gold border Structural solution · White border Selected cell · Selected face arrows Authored hints or wall anchors",
+  const groups = document.createElement("div");
+  const legendGroups = [
+    {
+      title: "Terrain",
+      entries: [
+        { symbol: "▦", label: "Stone wall" },
+        { symbol: "▤", label: "Old-brick wall" },
+        { symbol: "╫", label: "Iron-bar wall" },
+        { symbol: "·", label: "Passable floor" },
+      ],
+    },
+    {
+      title: "Gameplay",
+      entries: [
+        { symbol: "☠", label: "Enemy" },
+        { symbol: "⚿", label: "Red key", tone: "red" },
+        { symbol: "⚿", label: "Blue key", tone: "blue" },
+        { symbol: "⚿", label: "Yellow key", tone: "yellow" },
+        { symbol: "▣", label: "Door" },
+        { symbol: "⇩", label: "Stair" },
+        { symbol: "◫", label: "Breakable wall" },
+        { symbol: "≈", label: "Hot spring" },
+      ],
+    },
+    {
+      title: "Environment",
+      entries: [
+        { symbol: "✦", label: "Tile decoration" },
+        { symbol: "↟", label: "Wall-face decoration" },
+        { symbol: "☼", label: "Ambient light" },
+        { symbol: "≈", label: "Effect emitter" },
+      ],
+    },
+    {
+      title: "Overlays",
+      entries: [
+        { symbol: "▤", label: "Gold outline: structural solution", tone: "solution" },
+        { symbol: "▤", label: "White outline: selected cell", tone: "selected" },
+        { symbol: "↑", label: "Authored hint or wall anchor face" },
+      ],
+    },
   ];
   section.className = "debug-map-legend";
+  groups.className = "debug-map-legend__groups";
   heading.textContent = "Map Legend";
 
-  for (const entry of legendEntries) {
-    const item = document.createElement("li");
-    item.textContent = entry;
-    entries.append(item);
+  for (const group of legendGroups) {
+    const groupSection = document.createElement("section");
+    const groupHeading = document.createElement("h4");
+    const entries = document.createElement("ul");
+    groupSection.className = "debug-map-legend__group";
+    groupHeading.textContent = group.title;
+    entries.className = "debug-map-legend__entries";
+
+    for (const entry of group.entries) {
+      const item = document.createElement("li");
+      const symbol = document.createElement("span");
+      const label = document.createElement("span");
+      symbol.className = `debug-map-legend__symbol${entry.tone ? ` debug-map-legend__symbol--${entry.tone}` : ""}`;
+      symbol.setAttribute("aria-hidden", "true");
+      symbol.textContent = entry.symbol;
+      label.textContent = entry.label;
+      item.append(symbol, label);
+      entries.append(item);
+    }
+
+    groupSection.append(groupHeading, entries);
+    groups.append(groupSection);
   }
 
-  section.append(heading, entries);
+  section.append(heading, groups);
   return section;
 }

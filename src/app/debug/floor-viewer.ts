@@ -199,7 +199,7 @@ export function renderFloorSetInspector(
   mapPanel.append(floorHeading, floorDescription, mapLayout, legendMount);
   solutionPanel.append(solutionHeading, solution);
   mapLayout.append(mapScroller, inspectorMount);
-  content.append(introduction, validationPanel, mapPanel, solutionPanel);
+  content.append(introduction, mapPanel, validationPanel, solutionPanel);
   mount.replaceChildren(page);
   render();
 }
