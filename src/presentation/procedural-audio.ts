@@ -74,6 +74,17 @@ export class ProceduralAudio {
     }
   }
 
+  /** Backward rejection produces no `SemanticEvent`, so it needs its own non-event cue entry point. */
+  public playRejection(): void {
+    const context = this.#context;
+
+    if (!context || this.#capability !== "ready") {
+      return;
+    }
+
+    this.#tone(94, 0.2, "sawtooth", 0.1, 52);
+  }
+
   public async dispose(): Promise<void> {
     const context = this.#context;
     this.#context = undefined;

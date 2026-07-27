@@ -1,4 +1,5 @@
 import type { EnemyId } from "@/content/combat/enemies";
+import { ACTION_TIMINGS } from "@/content/presentation/action-timings";
 import type { FloorSetSource } from "@/content/floor/floor-schema";
 import {
   CanvasGameplayRenderer,
@@ -8,7 +9,7 @@ import {
 } from "@/presentation/canvas-gameplay-renderer";
 import { loadPresentationImages } from "@/presentation/presentation-image-loader";
 import { ProceduralAudio, type AudioCapability } from "@/presentation/procedural-audio";
-import { createRenderScene, type RenderScene } from "@/presentation/render-scene";
+import { createRenderScene, type CameraPose, type RenderScene } from "@/presentation/render-scene";
 import type { RunSnapshot, RunWorld, SemanticEvent } from "@/core/run-state";
 
 type TimedEnemyEffect = Readonly<{
@@ -21,10 +22,53 @@ type TimedEnemyEffect = Readonly<{
 
 type TimedDeath = Omit<DeathRenderEffect, "progress"> & Readonly<{ startedAt: number; duration: number }>;
 
+/**
+ * What a settled command asks presentation to play. Resolving one of these to the point the
+ * runtime can accept the next command is presentation's only completion contract; presentation
+ * never decides what resolves next, only reports that its own animation is done.
+ */
+export type PresentationIntent =
+  | Readonly<{ kind: "move" }>
+  | Readonly<{ kind: "turn"; direction: "left" | "right" }>
+  | Readonly<{ kind: "attack" }>
+  | Readonly<{ kind: "rejectBackward" }>
+  | Readonly<{ kind: "settle" }>;
+
+type ActiveTween =
+  | Readonly<{ kind: "move"; fromX: number; fromY: number; toX: number; toY: number; angle: number; startedAt: number }>
+  | Readonly<{ kind: "turn"; x: number; y: number; fromAngle: number; toAngle: number; startedAt: number }>
+  | Readonly<{ kind: "attack"; startedAt: number }>
+  | Readonly<{ kind: "rejectBackward"; startedAt: number }>;
+
 export type PresentationStatus = Readonly<{
   audio: AudioCapability;
   reducedMotion: boolean;
 }>;
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function lerp(from: number, to: number, progress: number): number {
+  return from + (to - from) * progress;
+}
+
+/** Attack keeps its existing reduced-motion scale; move/turn collapse to an immediate settle. */
+function effectiveDurationMs(kind: ActiveTween["kind"], reducedMotion: boolean): number {
+  if (kind === "attack") {
+    return reducedMotion ? ACTION_TIMINGS.attackReducedDurationMs : ACTION_TIMINGS.attackDurationMs;
+  }
+
+  if (kind === "rejectBackward") {
+    return ACTION_TIMINGS.backwardRejectionDurationMs;
+  }
+
+  if (kind === "move") {
+    return reducedMotion ? 0 : ACTION_TIMINGS.forwardMoveDurationMs;
+  }
+
+  return reducedMotion ? 0 : ACTION_TIMINGS.turnDurationMs;
+}
 
 export class GamePresentation {
   readonly #renderer: CanvasGameplayRenderer;
@@ -32,11 +76,13 @@ export class GamePresentation {
   readonly #mediaQuery: MediaQueryList;
   readonly #resizeObserver: ResizeObserver | undefined;
   #scene: RenderScene;
+  #restCamera: CameraPose;
+  #activeTween: ActiveTween | undefined;
+  #activeResolve: (() => void) | undefined;
   #animationFrame = 0;
   #startedAt = performance.now();
   #enemyEffects: TimedEnemyEffect[] = [];
   #deaths: TimedDeath[] = [];
-  #swingStartedAt = Number.NEGATIVE_INFINITY;
   #playerHitStartedAt = Number.NEGATIVE_INFINITY;
   #disposed = false;
 
@@ -49,6 +95,7 @@ export class GamePresentation {
   ) {
     this.#renderer = renderer;
     this.#scene = createRenderScene(floorSet, world, snapshot);
+    this.#restCamera = this.#scene.camera;
     this.#mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     this.#resizeObserver =
       typeof ResizeObserver === "undefined"
@@ -79,8 +126,12 @@ export class GamePresentation {
     return { audio: this.#audio.capability, reducedMotion: this.#mediaQuery.matches };
   }
 
-  /** Reconciles a newly settled snapshot and its already-resolved semantic events. */
-  public present(snapshot: RunSnapshot, events: readonly SemanticEvent[]): void {
+  /**
+   * Reconciles a newly settled snapshot and its semantic events, then plays the intent's
+   * animation. The returned promise resolves once that animation completes, which is how the
+   * runtime learns it may resolve the next command; presentation never decides that itself.
+   */
+  public present(snapshot: RunSnapshot, events: readonly SemanticEvent[], intent: PresentationIntent): Promise<void> {
     const now = performance.now();
 
     for (const event of events) {
@@ -93,7 +144,6 @@ export class GamePresentation {
           duration: 260,
           flashDuration: 95,
         });
-        this.#swingStartedAt = now;
       } else if (event.type === "entityRetaliated") {
         this.#enemyEffects = this.#enemyEffects.filter((effect) => effect.entityId !== event.entityId);
         this.#enemyEffects.push({
@@ -123,7 +173,13 @@ export class GamePresentation {
     }
 
     this.#audio.play(events);
+
+    if (intent.kind === "rejectBackward") {
+      this.#audio.playRejection();
+    }
+
     this.#scene = createRenderScene(this.floorSet, this.world, snapshot);
+    return this.#beginTween(intent, now);
   }
 
   public dispose(): void {
@@ -137,6 +193,117 @@ export class GamePresentation {
     window.removeEventListener("resize", this.#resize);
     this.#removeActivationListeners();
     void this.#audio.dispose();
+  }
+
+  #beginTween(intent: PresentationIntent, now: number): Promise<void> {
+    const settledCamera = this.#scene.camera;
+
+    if (intent.kind === "attack") {
+      this.#activeTween = { kind: "attack", startedAt: now };
+    } else if (intent.kind === "move") {
+      this.#activeTween = {
+        kind: "move",
+        fromX: this.#restCamera.x,
+        fromY: this.#restCamera.y,
+        toX: settledCamera.x,
+        toY: settledCamera.y,
+        angle: this.#restCamera.angle,
+        startedAt: now,
+      };
+    } else if (intent.kind === "turn") {
+      const delta = intent.direction === "left" ? -Math.PI / 2 : Math.PI / 2;
+      this.#activeTween = {
+        kind: "turn",
+        x: this.#restCamera.x,
+        y: this.#restCamera.y,
+        fromAngle: this.#restCamera.angle,
+        toAngle: this.#restCamera.angle + delta,
+        startedAt: now,
+      };
+    } else if (intent.kind === "rejectBackward") {
+      this.#activeTween = { kind: "rejectBackward", startedAt: now };
+    } else {
+      this.#restCamera = settledCamera;
+      this.#activeTween = undefined;
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      this.#activeResolve = resolve;
+    });
+  }
+
+  /** Finalizes a tween whose effective duration has elapsed, before this frame is drawn. */
+  #advanceTween(now: number, reducedMotion: boolean): void {
+    const tween = this.#activeTween;
+
+    if (!tween) {
+      return;
+    }
+
+    const duration = effectiveDurationMs(tween.kind, reducedMotion);
+
+    if (duration > 0 && now - tween.startedAt < duration) {
+      return;
+    }
+
+    if (tween.kind === "move") {
+      this.#restCamera = { x: tween.toX, y: tween.toY, angle: tween.angle };
+    } else if (tween.kind === "turn") {
+      this.#restCamera = { x: tween.x, y: tween.y, angle: tween.toAngle };
+    }
+
+    this.#activeTween = undefined;
+    const resolve = this.#activeResolve;
+    this.#activeResolve = undefined;
+    resolve?.();
+  }
+
+  #cameraNow(now: number, reducedMotion: boolean): CameraPose {
+    const tween = this.#activeTween;
+
+    if (!tween || tween.kind === "attack") {
+      return this.#restCamera;
+    }
+
+    if (tween.kind === "rejectBackward") {
+      return reducedMotion ? this.#restCamera : this.#recoiledCamera(now);
+    }
+
+    const duration = effectiveDurationMs(tween.kind, reducedMotion);
+    const progress = duration <= 0 ? 1 : clamp01((now - tween.startedAt) / duration);
+
+    if (tween.kind === "move") {
+      return {
+        x: lerp(tween.fromX, tween.toX, progress),
+        y: lerp(tween.fromY, tween.toY, progress),
+        angle: tween.angle,
+      };
+    }
+
+    return { x: tween.x, y: tween.y, angle: lerp(tween.fromAngle, tween.toAngle, progress) };
+  }
+
+  /**
+   * Pulls the camera straight back along its own facing and lets it spring home, which reads as a
+   * flinch. Offsetting the drawn frame instead would slide the whole world sideways or vertically,
+   * which reads as the walls bobbing rather than the view recoiling.
+   */
+  #recoiledCamera(now: number): CameraPose {
+    const rest = this.#restCamera;
+    const tween = this.#activeTween;
+
+    if (tween?.kind !== "rejectBackward") {
+      return rest;
+    }
+
+    const progress = clamp01((now - tween.startedAt) / ACTION_TIMINGS.backwardRejectionDurationMs);
+    const recoil = Math.sin(progress * Math.PI) * ACTION_TIMINGS.backwardRejectionRecoilCells;
+    return {
+      x: rest.x - Math.cos(rest.angle) * recoil,
+      y: rest.y - Math.sin(rest.angle) * recoil,
+      angle: rest.angle,
+    };
   }
 
   readonly #resize = (): void => {
@@ -161,8 +328,10 @@ export class GamePresentation {
     }
 
     const reducedMotion = this.#mediaQuery.matches;
+    this.#advanceTween(now, reducedMotion);
+    const camera = this.#cameraNow(now, reducedMotion);
     const effects = this.#effectsAt(now, reducedMotion);
-    this.#renderer.render(this.#scene, (now - this.#startedAt) / 1000, effects, { reducedMotion });
+    this.#renderer.render({ ...this.#scene, camera }, (now - this.#startedAt) / 1000, effects, { reducedMotion });
     this.#animationFrame = requestAnimationFrame(this.#renderFrame);
   };
 
@@ -189,19 +358,27 @@ export class GamePresentation {
       verticalAnchor: effect.verticalAnchor,
       progress: reducedMotion ? 1 : (now - effect.startedAt) / effect.duration,
     }));
-    const swingDuration = reducedMotion ? 180 : 330;
-    const swing = clamp01((now - this.#swingStartedAt) / swingDuration);
     const playerHit = clamp01(1 - (now - this.#playerHitStartedAt) / 220);
+    const tween = this.#activeTween;
+    let swing = 0;
+    let walkBob = 0;
+    let rejectionTorch = 1;
+    let rejectionStaticCue = false;
 
-    return {
-      enemies,
-      deaths,
-      swing: swing < 1 ? swing : 0,
-      playerHit,
-    };
+    if (tween?.kind === "attack") {
+      const duration = effectiveDurationMs("attack", reducedMotion);
+      swing = duration <= 0 ? 0 : clamp01((now - tween.startedAt) / duration);
+    } else if (tween?.kind === "move" && !reducedMotion) {
+      const duration = effectiveDurationMs("move", reducedMotion);
+      walkBob = duration <= 0 ? 0 : Math.sin(clamp01((now - tween.startedAt) / duration) * Math.PI);
+    } else if (tween?.kind === "rejectBackward") {
+      const duration = effectiveDurationMs("rejectBackward", reducedMotion);
+      const envelope = Math.sin(clamp01((now - tween.startedAt) / duration) * Math.PI);
+      rejectionTorch = 1 - envelope * (1 - ACTION_TIMINGS.backwardRejectionTorchContraction);
+      // The recoil itself rides the camera pose; reduced motion drops it for a static outline.
+      rejectionStaticCue = reducedMotion;
+    }
+
+    return { enemies, deaths, swing, playerHit, walkBob, rejectionTorch, rejectionStaticCue };
   }
-}
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
 }

@@ -49,11 +49,25 @@ export type PresentationRenderEffects = Readonly<{
   deaths: readonly DeathRenderEffect[];
   swing: number;
   playerHit: number;
+  /** 0..1 envelope for the movement-only walking bob, on top of the always-on idle bob. */
+  walkBob: number;
+  /** Torch-light multiplier during a backward rejection; 1 is normal, lower is contracted. */
+  rejectionTorch: number;
+  /** True only while the reduced-motion static cue should replace the rejection nudge. */
+  rejectionStaticCue: boolean;
 }>;
 
 export type RendererPreferences = Readonly<{ reducedMotion: boolean }>;
 
-const NO_EFFECTS: PresentationRenderEffects = { enemies: [], deaths: [], swing: 0, playerHit: 0 };
+const NO_EFFECTS: PresentationRenderEffects = {
+  enemies: [],
+  deaths: [],
+  swing: 0,
+  playerHit: 0,
+  walkBob: 0,
+  rejectionTorch: 1,
+  rejectionStaticCue: false,
+};
 
 type RayHit = Readonly<{
   distance: number;
@@ -171,8 +185,8 @@ export class CanvasGameplayRenderer {
     }
 
     const surfaceMap = new Map(scene.surfaces.map((surface) => [keyOf(surface.cell.x, surface.cell.y), surface]));
-    this.#drawProjectedPlanes(scene, elapsedSeconds, preferences.reducedMotion);
-    this.#drawWalls(scene, surfaceMap, elapsedSeconds);
+    this.#drawProjectedPlanes(scene, elapsedSeconds, preferences.reducedMotion, effects.rejectionTorch);
+    this.#drawWalls(scene, surfaceMap, elapsedSeconds, effects.rejectionTorch);
     this.#drawSprites(scene, elapsedSeconds, effects);
     this.#drawEmitters(scene.emitters, scene, elapsedSeconds, preferences.reducedMotion);
     this.#drawAtmosphere(elapsedSeconds, preferences.reducedMotion);
@@ -182,9 +196,23 @@ export class CanvasGameplayRenderer {
       this.#context.fillStyle = `rgba(180, 24, 54, ${0.23 * effects.playerHit})`;
       this.#context.fillRect(0, 0, width, height);
     }
+
+    if (effects.rejectionStaticCue) {
+      const lineWidth = Math.max(4, height * 0.02);
+      this.#context.save();
+      this.#context.strokeStyle = "rgba(255, 214, 168, 0.55)";
+      this.#context.lineWidth = lineWidth;
+      this.#context.strokeRect(lineWidth / 2, lineWidth / 2, width - lineWidth, height - lineWidth);
+      this.#context.restore();
+    }
   }
 
-  #drawProjectedPlanes(scene: RenderScene, elapsedSeconds: number, reducedMotion: boolean): void {
+  #drawProjectedPlanes(
+    scene: RenderScene,
+    elapsedSeconds: number,
+    reducedMotion: boolean,
+    torchContraction: number,
+  ): void {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const horizon = Math.floor(height * 0.49);
@@ -208,7 +236,7 @@ export class CanvasGameplayRenderer {
       let floorX = camera.x + rowDistance * rayX0;
       let floorY = camera.y + rowDistance * rayY0;
       const fog = clamp(1 - rowDistance / MAX_DEPTH, 0.12, 1);
-      const torch = clamp(1.2 - rowDistance / 8, 0, 1) * flicker;
+      const torch = clamp(1.2 - rowDistance / 8, 0, 1) * flicker * torchContraction;
 
       for (let x = 0; x < width; x += 1) {
         const textureX = ((Math.floor(floorX * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
@@ -299,7 +327,12 @@ export class CanvasGameplayRenderer {
     return undefined;
   }
 
-  #drawWalls(scene: RenderScene, surfaces: ReadonlyMap<string, RenderSurface>, elapsedSeconds: number): void {
+  #drawWalls(
+    scene: RenderScene,
+    surfaces: ReadonlyMap<string, RenderSurface>,
+    elapsedSeconds: number,
+    torchContraction: number,
+  ): void {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const horizon = height * 0.49;
@@ -323,7 +356,7 @@ export class CanvasGameplayRenderer {
       const texture = this.#textures.walls[material];
       this.#context.drawImage(texture, hit.textureX, 0, 1, TEXTURE_SIZE, x, start, 1, wallHeight);
       const fog = clamp(hit.distance / MAX_DEPTH, 0, 0.88);
-      const torch = clamp(1.15 - hit.distance / 7.5, 0, 1) * flicker;
+      const torch = clamp(1.15 - hit.distance / 7.5, 0, 1) * flicker * torchContraction;
       this.#context.fillStyle = `rgba(13, 5, 24, ${fog + (1 - hit.shade) * 0.15})`;
       this.#context.fillRect(x, start, 1, wallHeight);
 
@@ -646,11 +679,12 @@ export class CanvasGameplayRenderer {
     const image = requireImage(this.images, "presentation.playerViewmodel");
     const viewWidth = Math.min(width * 0.94, height * 1.45);
     const viewHeight = viewWidth;
-    const bob = reducedMotion ? 0 : Math.sin(elapsedSeconds * 2.2) * height * 0.006;
+    const idleBob = reducedMotion ? 0 : Math.sin(elapsedSeconds * 2.2) * height * 0.006;
+    const walkBob = effects.walkBob * height * 0.017;
     const swing = clamp(effects.swing, 0, 1);
     const swingAngle = Math.sin(swing * Math.PI) * -0.16;
     this.#context.save();
-    this.#context.translate(width / 2, height + bob);
+    this.#context.translate(width / 2, height + idleBob + walkBob);
     this.#context.rotate(swingAngle);
     this.#context.drawImage(image, -viewWidth / 2, -viewHeight * 0.8, viewWidth, viewHeight);
     this.#context.restore();
