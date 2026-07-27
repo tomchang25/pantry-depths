@@ -38,3 +38,5 @@ Turned the single-file browser prototype into a governed TypeScript project. No 
 ### Development Tooling
 
 - 2026-07-26 — [pantry_debug_surface] Shipped a shared development workspace shell, responsive tool hub, consistent inspection panels, and readable floor and action map workflows.
+- 2026-07-27 — [pantry_browser_acceptance] Shipped a Playwright browser layer scoped to what a DOM-less unit environment cannot observe in the development console: debug-route boot and lazy tool loading, the Workbench's round trip through the development authoring endpoint, and the interlock holding export and canonical overwrite disabled until the exact draft validates. Debug panel sections became named landmark regions in the same change.
+- 2026-07-27 — [pantry_browser_acceptance] Gameplay presentation, input feel, VFX, and audio remain manual-playtest boundaries, and no browser test may invoke the authoring endpoint's save operation. `dev/agent_rules/test_operations.md` owns both lines.

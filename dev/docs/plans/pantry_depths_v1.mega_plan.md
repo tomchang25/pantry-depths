@@ -289,7 +289,7 @@ pantry_authoring_04 ──→ pantry_preset_01 → pantry_preset_01a → pantry_
 
 ### 明確不做的事
 
-- 不做瀏覽器自動化測試。手動試玩就是 e2e，`dev/agent_rules/test_operations.md` 已記錄為長期缺口。
+- 不做遊戲本體的瀏覽器自動化測試。手動試玩就是 gameplay 的 e2e。`test/e2e/` 只覆蓋 development console 裡 unit 層觀察不到的部分（debug 路由開機、workbench 與 authoring endpoint 的往返、覆寫 canonical 前的驗證閂），範圍由 `dev/agent_rules/test_operations.md` 界定。
 - 不做 `src/platform/` 與 `src/shared/`。V1 沒有持久化、桌面殼或跨 feature 共用需求。
 - 不做設定選單（音量除外）。
 - 不做第六層、真魔王戰、二週目。
