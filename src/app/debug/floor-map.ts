@@ -1,4 +1,9 @@
 import {
+  collectPresetSuggestions,
+  legalEnvironmentFeatureKinds,
+  type EnvironmentPresetSuggestions,
+} from "@/app/debug/floor-authoring";
+import {
   getFloorTileDefinition,
   type EnvironmentFeatureSource,
   type FloorSetSource,
@@ -63,12 +68,15 @@ export type CellEditorOptions = Readonly<{
   floorSet: FloorSetSource;
   movingEntityId?: string;
   onAddEntity: (kind: GameplayEntitySource["kind"]) => void;
+  onAddFeature: (kind: EnvironmentFeatureSource["kind"]) => void;
   onBeginMove: (entityId: string) => void;
   onPaintTerrain: (tile: FloorTile) => void;
   onRemoveEntity: (entityId: string) => void;
+  onRemoveFeature: (featureId: string) => void;
   onResize: (width: number, height: number) => void;
   onToolChange: (tool: AuthoredMapTool) => void;
   onUpdateEntity: (originalId: string, entity: GameplayEntitySource) => void;
+  onUpdateFeature: (originalId: string, feature: EnvironmentFeatureSource) => void;
   selectedCell: Cell | undefined;
   tool: AuthoredMapTool;
 }>;
@@ -750,6 +758,151 @@ function createEntityForm(
   return form;
 }
 
+function createPresetField(
+  label: string,
+  value: string,
+  suggestions: readonly string[],
+  datalistKey: string,
+): Readonly<{ field: HTMLLabelElement; input: HTMLInputElement }> {
+  const field = document.createElement("label");
+  const input = document.createElement("input");
+  const datalist = document.createElement("datalist");
+  const listId = `debug-preset-list-${datalistKey}`;
+
+  input.type = "text";
+  input.value = value;
+  input.setAttribute("list", listId);
+  datalist.id = listId;
+
+  for (const suggestion of suggestions) {
+    const option = document.createElement("option");
+    option.value = suggestion;
+    datalist.append(option);
+  }
+
+  field.className = "debug-field";
+  field.textContent = label;
+  field.append(input, datalist);
+  return { field, input };
+}
+
+function createFeatureForm(
+  feature: EnvironmentFeatureSource,
+  presets: EnvironmentPresetSuggestions,
+  onUpdate: (originalId: string, feature: EnvironmentFeatureSource) => void,
+): HTMLFormElement {
+  const form = document.createElement("form");
+  const fields = document.createElement("div");
+  const idInput = createTextInput(feature.id);
+  const save = document.createElement("button");
+
+  fields.className = "debug-form-grid";
+  save.type = "submit";
+  save.textContent = "Apply Feature Changes";
+  fields.append(createEditorField("ID", idInput));
+
+  if (feature.kind === "tileDecoration") {
+    const decoration = createPresetField(
+      "Decoration preset",
+      feature.decorationPresetId,
+      presets.decoration,
+      feature.id,
+    );
+    fields.append(decoration.field);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      onUpdate(feature.id, { ...feature, id: idInput.value, decorationPresetId: decoration.input.value });
+    });
+  } else if (feature.kind === "ambientLight") {
+    const light = createPresetField("Light preset", feature.lightPresetId, presets.light, feature.id);
+    fields.append(light.field);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      onUpdate(feature.id, { ...feature, id: idInput.value, lightPresetId: light.input.value });
+    });
+  } else if (feature.kind === "effectEmitter") {
+    const effect = createPresetField("Effect preset", feature.effectPresetId, presets.effect, feature.id);
+    fields.append(effect.field);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      onUpdate(feature.id, { ...feature, id: idInput.value, effectPresetId: effect.input.value });
+    });
+  } else {
+    const face = createSelect(
+      FACINGS.map((candidate) => ({ label: candidate, value: candidate })),
+      feature.face,
+    );
+    const decoration = createPresetField(
+      "Decoration preset",
+      feature.decorationPresetId,
+      presets.decoration,
+      `${feature.id}-decoration`,
+    );
+    const light = createPresetField(
+      "Light preset (optional)",
+      feature.lightPresetId ?? "",
+      presets.light,
+      `${feature.id}-light`,
+    );
+    const effect = createPresetField(
+      "Effect preset (optional)",
+      feature.effectPresetId ?? "",
+      presets.effect,
+      `${feature.id}-effect`,
+    );
+    fields.append(createEditorField("Outward face", face), decoration.field, light.field, effect.field);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const { lightPresetId: _ignoredLightPresetId, effectPresetId: _ignoredEffectPresetId, ...rest } = feature;
+      const lightValue = light.input.value.trim();
+      const effectValue = effect.input.value.trim();
+
+      onUpdate(feature.id, {
+        ...rest,
+        id: idInput.value,
+        face: face.value as Facing,
+        decorationPresetId: decoration.input.value,
+        ...(lightValue ? { lightPresetId: lightValue } : {}),
+        ...(effectValue ? { effectPresetId: effectValue } : {}),
+      });
+    });
+  }
+
+  form.append(fields, save);
+  return form;
+}
+
+function createFeatureAddControl(
+  floor: FloorSource,
+  cell: Cell,
+  onAdd: (kind: EnvironmentFeatureSource["kind"]) => void,
+): HTMLElement {
+  const legalKinds = legalEnvironmentFeatureKinds(floor, cell);
+
+  if (legalKinds.length === 0) {
+    const explanation = document.createElement("p");
+    explanation.className = "debug-muted";
+    explanation.textContent = "No environment feature is legal at this cell right now.";
+    return explanation;
+  }
+
+  const wrapper = document.createElement("div");
+  const kind = createSelect(
+    legalKinds.map((value) => ({ label: ENVIRONMENT_BADGES[value].label, value })),
+    legalKinds[0] as EnvironmentFeatureSource["kind"],
+  );
+  const add = document.createElement("button");
+  const actions = document.createElement("div");
+
+  add.type = "button";
+  add.textContent = "Add Environment Feature";
+  add.addEventListener("click", () => onAdd(kind.value as EnvironmentFeatureSource["kind"]));
+  actions.className = "debug-button-row";
+  actions.append(add);
+  wrapper.append(createEditorField("New feature kind", kind), actions);
+  return wrapper;
+}
+
 /** Creates the Workbench-only Cell Editor; callers retain canonical draft mutation ownership. */
 export function createCellEditor(options: CellEditorOptions): HTMLElement {
   const editor = document.createElement("aside");
@@ -858,24 +1011,41 @@ export function createCellEditor(options: CellEditorOptions): HTMLElement {
   }
 
   const environmentHeading = document.createElement("h4");
-  environmentHeading.textContent = "Environment Features (Read-only)";
-  editor.append(environmentHeading);
+  const environmentRules = document.createElement("p");
+  environmentHeading.textContent = "Environment Features";
+  environmentRules.className = "debug-muted";
+  environmentRules.textContent =
+    "A wall-face decoration anchors to a solid wall and needs a passable cell in front of its outward face. Tile decorations, ambient lights, and effect emitters need a passable cell; only one tile decoration may use a given cell, while lights and emitters may stack freely.";
+  editor.append(environmentHeading, environmentRules);
 
   if (projection.environmentFeatures.length === 0) {
     const empty = document.createElement("p");
     empty.textContent = "No environment features anchor to this cell.";
     editor.append(empty);
   } else {
-    const features = document.createElement("ul");
+    const presets = collectPresetSuggestions(options.floorSet);
 
     for (const feature of projection.environmentFeatures) {
-      const item = document.createElement("li");
-      item.textContent = `${feature.id} — ${describeEnvironmentFeature(feature)}`;
-      features.append(item);
-    }
+      const record = document.createElement("div");
+      const recordHeading = document.createElement("p");
+      const actions = document.createElement("div");
+      const remove = document.createElement("button");
 
-    editor.append(features);
+      record.className = "debug-environment-record";
+      recordHeading.className = "debug-muted";
+      recordHeading.textContent = ENVIRONMENT_BADGES[feature.kind].label;
+      actions.className = "debug-button-row";
+      remove.type = "button";
+      remove.textContent = "Remove Feature";
+      remove.className = "debug-button--danger";
+      remove.addEventListener("click", () => options.onRemoveFeature(feature.id));
+      actions.append(remove);
+      record.append(recordHeading, createFeatureForm(feature, presets, options.onUpdateFeature), actions);
+      editor.append(record);
+    }
   }
+
+  editor.append(createFeatureAddControl(options.floor, options.selectedCell, options.onAddFeature));
 
   return editor;
 }

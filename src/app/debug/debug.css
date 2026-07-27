@@ -664,6 +664,18 @@ textarea {
   margin-top: 1.15rem;
 }
 
+.debug-environment-record {
+  padding-top: 0.8rem;
+  margin-top: 0.8rem;
+  border-top: 1px solid var(--debug-border-soft);
+}
+
+.debug-environment-record:first-of-type {
+  padding-top: 0;
+  margin-top: 0.4rem;
+  border-top: none;
+}
+
 .debug-checkbox-row {
   display: flex;
   flex-wrap: wrap;

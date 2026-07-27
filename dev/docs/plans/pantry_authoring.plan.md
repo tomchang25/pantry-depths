@@ -1,6 +1,6 @@
 # Floor Authoring Workbench Experience
 
-> **Status**: Active. `pantry_authoring_01` and the independent Debug Surface Shell have landed; `pantry_authoring_02` is the next authoring handoff.
+> **Status**: Active. `pantry_authoring_01`, the independent Debug Surface Shell, and `pantry_authoring_02` have landed; `pantry_authoring_03` is the current handoff.
 
 ## Goal
 
@@ -88,7 +88,7 @@ Both require a draft that validated exactly as it currently reads. Save addition
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `pantry_authoring_01` | Layered read-only map, cell selection and inspector, floor controls, legend, and departure-path labelling                             | [Implementation spec](pantry_authoring_01_layered_map_foundation.implementation_spec.md) |
 | `pantry_authoring_02` | Per-floor resizing, terrain painting, gameplay-entity placement and dragging, editable Cell Editor, and two-way draft synchronization | [Implementation spec](pantry_authoring_02_direct_floor_editing.implementation_spec.md)   |
-| `pantry_authoring_03` | Environment-feature placement plus wall-face, light, effect, decoration, and preset editing through the Cell Editor                   | Not started                                                                              |
+| `pantry_authoring_03` | Environment-feature placement plus wall-face, light, effect, decoration, and preset editing through the Cell Editor                   | [Implementation spec](pantry_authoring_03_environment_features.implementation_spec.md)   |
 | `pantry_authoring_04` | Generated width and height plus per-color red, blue, and yellow generator counts with the default-linked door/key controls            | Not started                                                                              |
 
 Recommended landing order: `pantry_authoring_01` -> independent Debug Surface Shell (shipped) -> `pantry_authoring_02` -> `pantry_authoring_03` -> `pantry_authoring_04`.

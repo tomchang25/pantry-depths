@@ -8,7 +8,7 @@ Plan children get no lines here. They live in their plan's child overview table,
 
 ## Active
 
-[Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) — active parent plan; `pantry_authoring_01` and the shared Debug Surface Shell have landed, and `pantry_authoring_02` is next.
+[Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) — active parent plan; `pantry_authoring_01`, the shared Debug Surface Shell, and `pantry_authoring_02` have landed, and `pantry_authoring_03` is next.
 
 ---
 
@@ -26,7 +26,7 @@ Plan children get no lines here. They live in their plan's child overview table,
 | D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)  |          1 | Queued after Presentation Port                     |
 | S      | Enemy Sprite Art                                                  |   parallel | Parallel asset deliverable; style spec not written |
 | T      | Debug Surface Shell                                               | standalone | Shipped; shared debug presentation foundation      |
-| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |          4 | Active; `01` landed, `02` is next                  |
+| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |          4 | Active; `01` and `02` landed, `03` is next         |
 
 Current optional-tooling work is the remaining Authoring Workbench children. The V1 critical-path next action remains `/implement pantry_presentation_01`.
 

@@ -3,6 +3,7 @@ import { PLAYER_UPGRADES } from "@/content/combat/player-stages";
 import {
   getFloorTileDefinition,
   isSolidTile,
+  type EnvironmentFeatureSource,
   type FloorSetSource,
   type FloorSource,
   type FloorTile,
@@ -152,7 +153,12 @@ function validateEntityDefinition(
   return validateBreakableWall(floor, entity);
 }
 
-function defaultId(floorSet: FloorSetSource, floorId: string, kind: GameplayEntitySource["kind"], cell: Cell): string {
+function defaultId(
+  floorSet: FloorSetSource,
+  floorId: string,
+  kind: GameplayEntitySource["kind"] | EnvironmentFeatureSource["kind"],
+  cell: Cell,
+): string {
   const base = `${floorId.toLowerCase()}-${kind}-${cell.x}-${cell.y}`;
   const ids = contentIds(floorSet);
   let suffix = 1;
@@ -433,6 +439,344 @@ export function moveGameplayEntity(
   );
 }
 
+function featureAnchorCell(feature: EnvironmentFeatureSource): Cell {
+  return feature.kind === "wallDecoration" ? feature.wallCell : feature.cell;
+}
+
+function wallDecorationConflict(floor: FloorSource, wallCell: Cell, face: Facing, ignoredId?: string): boolean {
+  return floor.environmentFeatures.some(
+    (feature) =>
+      feature.kind === "wallDecoration" &&
+      feature.id !== ignoredId &&
+      areSameCell(feature.wallCell, wallCell) &&
+      feature.face === face,
+  );
+}
+
+function tileDecorationConflict(floor: FloorSource, cell: Cell, ignoredId?: string): boolean {
+  return floor.environmentFeatures.some(
+    (feature) => feature.kind === "tileDecoration" && feature.id !== ignoredId && areSameCell(feature.cell, cell),
+  );
+}
+
+function legalWallDecorationFaces(floor: FloorSource, wallCell: Cell, ignoredId?: string): readonly Facing[] {
+  if (!isInsideFloor(floor, wallCell) || !isSolidTile(floor.tiles[wallCell.y]?.[wallCell.x] ?? ".")) {
+    return [];
+  }
+
+  return FACINGS.filter(
+    (face) =>
+      isPassable(floor, moveForward(wallCell, face)) && !wallDecorationConflict(floor, wallCell, face, ignoredId),
+  );
+}
+
+/** Reports which environment-feature kinds may currently be added at the selected cell. */
+export function legalEnvironmentFeatureKinds(
+  floor: FloorSource,
+  cell: Cell,
+): readonly EnvironmentFeatureSource["kind"][] {
+  const kinds: EnvironmentFeatureSource["kind"][] = [];
+  const passable = isPassable(floor, cell);
+
+  if (passable && !tileDecorationConflict(floor, cell)) {
+    kinds.push("tileDecoration");
+  }
+
+  if (legalWallDecorationFaces(floor, cell).length > 0) {
+    kinds.push("wallDecoration");
+  }
+
+  if (passable) {
+    kinds.push("ambientLight", "effectEmitter");
+  }
+
+  return kinds;
+}
+
+export type EnvironmentPresetSuggestions = Readonly<{
+  decoration: readonly string[];
+  effect: readonly string[];
+  light: readonly string[];
+}>;
+
+/** Collects every preset identifier already used anywhere in the draft, deduplicated and sorted. */
+export function collectPresetSuggestions(floorSet: FloorSetSource): EnvironmentPresetSuggestions {
+  const decoration = new Set<string>();
+  const light = new Set<string>();
+  const effect = new Set<string>();
+
+  for (const floor of floorSet.floors) {
+    for (const feature of floor.environmentFeatures) {
+      if (feature.kind === "tileDecoration" || feature.kind === "wallDecoration") {
+        decoration.add(feature.decorationPresetId);
+      }
+
+      if (feature.kind === "ambientLight") {
+        light.add(feature.lightPresetId);
+      } else if (feature.kind === "wallDecoration" && feature.lightPresetId) {
+        light.add(feature.lightPresetId);
+      }
+
+      if (feature.kind === "effectEmitter") {
+        effect.add(feature.effectPresetId);
+      } else if (feature.kind === "wallDecoration" && feature.effectPresetId) {
+        effect.add(feature.effectPresetId);
+      }
+    }
+  }
+
+  return {
+    decoration: [...decoration].sort(),
+    light: [...light].sort(),
+    effect: [...effect].sort(),
+  };
+}
+
+function defaultPreset(suggestions: readonly string[]): string {
+  return suggestions[0] ?? "unspecified";
+}
+
+/** Creates a complete, editable environment-feature record for the selected cell. */
+export function createDefaultEnvironmentFeature(
+  floorSet: FloorSetSource,
+  floorId: string,
+  cell: Cell,
+  kind: EnvironmentFeatureSource["kind"],
+): EnvironmentFeatureSource | undefined {
+  const floor = floorSet.floors[floorIndex(floorSet, floorId)];
+
+  if (!floor) {
+    return undefined;
+  }
+
+  const suggestions = collectPresetSuggestions(floorSet);
+  const id = defaultId(floorSet, floorId, kind, cell);
+
+  if (kind === "tileDecoration") {
+    if (!isPassable(floor, cell) || tileDecorationConflict(floor, cell)) {
+      return undefined;
+    }
+
+    return { kind, id, cell, decorationPresetId: defaultPreset(suggestions.decoration) };
+  }
+
+  if (kind === "wallDecoration") {
+    const face = legalWallDecorationFaces(floor, cell)[0];
+
+    if (!face) {
+      return undefined;
+    }
+
+    return { kind, id, wallCell: cell, face, decorationPresetId: defaultPreset(suggestions.decoration) };
+  }
+
+  if (kind === "ambientLight") {
+    if (!isPassable(floor, cell)) {
+      return undefined;
+    }
+
+    return { kind, id, cell, lightPresetId: defaultPreset(suggestions.light) };
+  }
+
+  if (!isPassable(floor, cell)) {
+    return undefined;
+  }
+
+  return { kind: "effectEmitter", id, cell, effectPresetId: defaultPreset(suggestions.effect) };
+}
+
+function normalizeEnvironmentFeature(feature: EnvironmentFeatureSource): EnvironmentFeatureSource {
+  const id = feature.id.trim();
+
+  if (feature.kind === "tileDecoration") {
+    return { ...feature, id, decorationPresetId: feature.decorationPresetId.trim() };
+  }
+
+  if (feature.kind === "wallDecoration") {
+    const { lightPresetId: _ignoredLightPresetId, effectPresetId: _ignoredEffectPresetId, ...rest } = feature;
+    const lightPresetId = feature.lightPresetId?.trim();
+    const effectPresetId = feature.effectPresetId?.trim();
+
+    return {
+      ...rest,
+      id,
+      decorationPresetId: feature.decorationPresetId.trim(),
+      ...(lightPresetId ? { lightPresetId } : {}),
+      ...(effectPresetId ? { effectPresetId } : {}),
+    };
+  }
+
+  if (feature.kind === "ambientLight") {
+    return { ...feature, id, lightPresetId: feature.lightPresetId.trim() };
+  }
+
+  return { ...feature, id, effectPresetId: feature.effectPresetId.trim() };
+}
+
+function validateEnvironmentFeatureDefinition(
+  floorSet: FloorSetSource,
+  floor: FloorSource,
+  feature: EnvironmentFeatureSource,
+  ignoredId?: string,
+): string | undefined {
+  if (feature.id.length === 0) {
+    return "Environment features need a non-empty ID.";
+  }
+
+  if (contentIds(floorSet, ignoredId).has(feature.id)) {
+    return `Content ID ${feature.id} is already in use.`;
+  }
+
+  if (feature.kind === "wallDecoration") {
+    if (
+      !isInsideFloor(floor, feature.wallCell) ||
+      !isSolidTile(floor.tiles[feature.wallCell.y]?.[feature.wallCell.x] ?? ".")
+    ) {
+      return "A wall decoration must anchor to an in-bounds solid wall.";
+    }
+
+    if (!isPassable(floor, moveForward(feature.wallCell, feature.face))) {
+      return "A wall decoration's outward face needs a passable observation cell.";
+    }
+
+    if (wallDecorationConflict(floor, feature.wallCell, feature.face, ignoredId)) {
+      return "Only one wall decoration may use this anchor and face.";
+    }
+
+    if (feature.decorationPresetId.length === 0) {
+      return "A wall decoration needs a decoration preset.";
+    }
+
+    if (feature.lightPresetId !== undefined && feature.lightPresetId.length === 0) {
+      return "Clear the light preset field instead of leaving it blank.";
+    }
+
+    if (feature.effectPresetId !== undefined && feature.effectPresetId.length === 0) {
+      return "Clear the effect preset field instead of leaving it blank.";
+    }
+
+    return undefined;
+  }
+
+  if (!isPassable(floor, feature.cell)) {
+    return "Environment features require a passable base tile.";
+  }
+
+  if (feature.kind === "tileDecoration") {
+    if (tileDecorationConflict(floor, feature.cell, ignoredId)) {
+      return "Only one tile decoration may use this cell.";
+    }
+
+    if (feature.decorationPresetId.length === 0) {
+      return "A tile decoration needs a decoration preset.";
+    }
+
+    return undefined;
+  }
+
+  if (feature.kind === "ambientLight") {
+    if (feature.lightPresetId.length === 0) {
+      return "An ambient light needs a light preset.";
+    }
+
+    return undefined;
+  }
+
+  if (feature.effectPresetId.length === 0) {
+    return "An effect emitter needs an effect preset.";
+  }
+
+  return undefined;
+}
+
+/** Adds a complete environment feature after checking local placement and ID invariants. */
+export function addEnvironmentFeature(
+  floorSet: FloorSetSource,
+  floorId: string,
+  feature: EnvironmentFeatureSource,
+): FloorAuthoringResult {
+  const index = floorIndex(floorSet, floorId);
+  const floor = floorSet.floors[index];
+
+  if (!floor) {
+    return failure(`Unknown floor ${floorId}.`);
+  }
+
+  const normalized = normalizeEnvironmentFeature(feature);
+  const issue = validateEnvironmentFeatureDefinition(floorSet, floor, normalized);
+
+  if (issue) {
+    return failure(issue);
+  }
+
+  return success(
+    withFloor(floorSet, index, { ...floor, environmentFeatures: [...floor.environmentFeatures, normalized] }),
+  );
+}
+
+/** Replaces one environment feature's identifier, face, and preset fields. */
+export function updateEnvironmentFeature(
+  floorSet: FloorSetSource,
+  floorId: string,
+  originalId: string,
+  feature: EnvironmentFeatureSource,
+): FloorAuthoringResult {
+  const index = floorIndex(floorSet, floorId);
+  const floor = floorSet.floors[index];
+
+  if (!floor) {
+    return failure(`Unknown floor ${floorId}.`);
+  }
+
+  const current = floor.environmentFeatures.find((candidate) => candidate.id === originalId);
+
+  if (!current) {
+    return failure(`Unknown environment feature ${originalId}.`);
+  }
+
+  if (current.kind !== feature.kind) {
+    return failure("Change an environment feature kind by removing it and adding a new one.");
+  }
+
+  const normalized = normalizeEnvironmentFeature(feature);
+  const issue = validateEnvironmentFeatureDefinition(floorSet, floor, normalized, originalId);
+
+  if (issue) {
+    return failure(issue);
+  }
+
+  return success(
+    withFloor(floorSet, index, {
+      ...floor,
+      environmentFeatures: floor.environmentFeatures.map((candidate) =>
+        candidate.id === originalId ? normalized : candidate,
+      ),
+    }),
+  );
+}
+
+/** Removes an environment feature from the selected floor. */
+export function removeEnvironmentFeature(
+  floorSet: FloorSetSource,
+  floorId: string,
+  featureId: string,
+): FloorAuthoringResult {
+  const index = floorIndex(floorSet, floorId);
+  const floor = floorSet.floors[index];
+  const feature = floor?.environmentFeatures.find((candidate) => candidate.id === featureId);
+
+  if (!floor || !feature) {
+    return failure(`Unknown environment feature ${featureId}.`);
+  }
+
+  return success(
+    withFloor(floorSet, index, {
+      ...floor,
+      environmentFeatures: floor.environmentFeatures.filter((candidate) => candidate.id !== featureId),
+    }),
+  );
+}
+
 function resizeConflicts(
   floorSet: FloorSetSource,
   floor: FloorSource,
@@ -449,7 +793,7 @@ function resizeConflicts(
   }
 
   for (const feature of floor.environmentFeatures) {
-    const cell = feature.kind === "wallDecoration" ? feature.wallCell : feature.cell;
+    const cell = featureAnchorCell(feature);
 
     if (!isRetained(cell)) {
       conflicts.push(`Environment feature ${feature.id} at (${cell.x}, ${cell.y}) would be removed.`);

@@ -1,11 +1,15 @@
 import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
 import {
+  addEnvironmentFeature,
   addGameplayEntity,
+  createDefaultEnvironmentFeature,
   createDefaultGameplayEntity,
   moveGameplayEntity,
   paintTerrain,
+  removeEnvironmentFeature,
   removeGameplayEntity,
   resizeFloor,
+  updateEnvironmentFeature,
   updateGameplayEntity,
   type FloorAuthoringResult,
 } from "@/app/debug/floor-authoring";
@@ -277,6 +281,33 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
             },
             onResize: (width, height) => {
               applyDirectEdit(resizeFloor(floorSet, floor.id, width, height), "Floor size updated.");
+            },
+            onAddFeature: (kind) => {
+              if (!selectedCell) {
+                reportStatus("Select a cell before adding an environment feature.", "warning");
+                return;
+              }
+
+              const feature = createDefaultEnvironmentFeature(floorSet, floor.id, selectedCell, kind);
+
+              if (!feature) {
+                reportStatus("This environment feature needs a legal anchor at the selected cell.", "error");
+                return;
+              }
+
+              applyDirectEdit(addEnvironmentFeature(floorSet, floor.id, feature), `${kind} added.`);
+            },
+            onUpdateFeature: (originalId, feature) => {
+              applyDirectEdit(
+                updateEnvironmentFeature(floorSet, floor.id, originalId, feature),
+                `Environment feature ${feature.id} updated.`,
+              );
+            },
+            onRemoveFeature: (featureId) => {
+              applyDirectEdit(
+                removeEnvironmentFeature(floorSet, floor.id, featureId),
+                `Environment feature ${featureId} removed.`,
+              );
             },
           }),
         mapInteraction: {
