@@ -7,7 +7,7 @@
  */
 
 import { resolveAppRoute } from "@/app/app-route";
-import { mountGameSurface, type MountedGameSurface } from "@/app/game-surface";
+import type { MountedGameSurface } from "@/app/game-surface";
 import { PROVISIONAL_FLOOR_SET, PROVISIONAL_RUN_WORLD } from "@/content/floor/floor-catalog";
 import { GameSession } from "@/runtime/game-session";
 
@@ -19,18 +19,34 @@ if (!mount) {
 
 const appMount = mount;
 let mountedGameSurface: MountedGameSurface | undefined;
+let moduleDisposed = false;
 
-function renderOrdinaryPlay(): void {
-  const session = new GameSession(PROVISIONAL_RUN_WORLD);
-  mountedGameSurface = mountGameSurface(appMount, PROVISIONAL_FLOOR_SET, session);
-}
-
-function renderDebugLoadFailure(error: unknown): void {
-  console.error("debug hub failed to load", error);
+function renderLoadFailure(logLabel: string, message: string, error: unknown): void {
+  console.error(logLabel, error);
 
   const failure = document.createElement("main");
-  failure.textContent = "Development tools failed to load. Check the browser console.";
+  failure.textContent = message;
   appMount.replaceChildren(failure);
+}
+
+/**
+ * The game surface is imported lazily so that its full-viewport stylesheet — which locks
+ * `html`, `body`, and `#app` to the viewport and hides their scrollbars — is only injected
+ * on the play route and never leaks into a scrollable debug page.
+ */
+function renderOrdinaryPlay(): void {
+  void import("@/app/game-surface")
+    .then(({ mountGameSurface }) => {
+      if (moduleDisposed) {
+        return;
+      }
+
+      const session = new GameSession(PROVISIONAL_RUN_WORLD);
+      mountedGameSurface = mountGameSurface(appMount, PROVISIONAL_FLOOR_SET, session);
+    })
+    .catch((error: unknown) => {
+      renderLoadFailure("game surface failed to load", "The game failed to load. Check the browser console.", error);
+    });
 }
 
 function loadDebugRoute(): void {
@@ -39,7 +55,11 @@ function loadDebugRoute(): void {
       return renderDebugRoute(appMount, window.location.pathname);
     })
     .catch((error: unknown) => {
-      renderDebugLoadFailure(error);
+      renderLoadFailure(
+        "debug hub failed to load",
+        "Development tools failed to load. Check the browser console.",
+        error,
+      );
     });
 }
 
@@ -57,6 +77,7 @@ if (import.meta.env.DEV) {
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    moduleDisposed = true;
     mountedGameSurface?.dispose();
   });
 }
