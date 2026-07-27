@@ -1,5 +1,6 @@
 import type { EnemyId } from "@/content/combat/enemies";
 import type { EnemySpriteState } from "@/content/presentation/presentation-asset-definitions";
+import type { Facing } from "@/core/grid";
 import { createProceduralTextures, type TextureSet } from "@/presentation/procedural-textures";
 import type {
   RenderEmitter,
@@ -10,12 +11,22 @@ import type {
 } from "@/presentation/render-scene";
 import type { PresentationImages } from "@/presentation/presentation-image-loader";
 
+const WALL_FACE_NORMALS: Readonly<Record<Facing, Readonly<{ x: number; y: number }>>> = {
+  north: { x: 0, y: -1 },
+  east: { x: 1, y: 0 },
+  south: { x: 0, y: 1 },
+  west: { x: -1, y: 0 },
+};
+
+const DEFAULT_TORCH_COLOR: readonly [number, number, number] = [255, 112, 45];
+
 const FOV = Math.PI / 3;
 const MAX_DEPTH = 18;
 const RENDER_SCALE = 0.55;
 const MAX_WIDTH = 1050;
 const MAX_HEIGHT = 650;
 const TEXTURE_SIZE = 64;
+const LIT_SPRITE_CACHE_LIMIT = 64;
 
 export type EnemyRenderEffect = Readonly<{
   entityId: string;
@@ -323,6 +334,23 @@ export class CanvasGameplayRenderer {
     }
   }
 
+  /** Culls a wall decoration seen from behind its own face and narrows it as the view turns oblique. */
+  #wallFacing(scene: RenderScene, sprite: RenderSprite): number | undefined {
+    if (sprite.placement !== "wall" || !sprite.wallFace) {
+      return 1;
+    }
+
+    const normal = WALL_FACE_NORMALS[sprite.wallFace];
+
+    if ((scene.camera.x - sprite.x) * normal.x + (scene.camera.y - sprite.y) * normal.y <= 0) {
+      return undefined;
+    }
+
+    const viewX = Math.cos(scene.camera.angle);
+    const viewY = Math.sin(scene.camera.angle);
+    return 0.45 + 0.55 * Math.abs(viewX * normal.x + viewY * normal.y);
+  }
+
   #projectSprite(scene: RenderScene, sprite: RenderSprite): ProjectedSprite | undefined {
     const directionX = Math.cos(scene.camera.angle);
     const directionY = Math.sin(scene.camera.angle);
@@ -339,16 +367,24 @@ export class CanvasGameplayRenderer {
       return undefined;
     }
 
+    const facing = this.#wallFacing(scene, sprite);
+
+    if (facing === undefined) {
+      return undefined;
+    }
+
     const screenX = Math.floor((this.canvas.width / 2) * (1 + transformX / depth));
     const baseSize = Math.abs(this.canvas.height / depth) * sprite.scale;
     const height = sprite.placement === "ground" ? baseSize * 0.38 : baseSize;
-    const width = baseSize;
+    const width = baseSize * facing;
     const startX = Math.floor(screenX - width / 2);
     const horizon = this.canvas.height * 0.49;
     const groundLine = horizon + this.canvas.height / (2 * depth);
     // Authored anchors are measured from the floor line: 0 stands on the ground, negative floats.
     const startY =
-      sprite.placement === "ground" ? groundLine - height * 0.58 : groundLine - height + sprite.verticalAnchor * height;
+      sprite.placement === "ground"
+        ? groundLine - height * 0.58 + sprite.verticalAnchor * height
+        : groundLine - height + sprite.verticalAnchor * height;
 
     return { sprite, depth, screenX, startX, endX: Math.ceil(screenX + width / 2), startY, width, height };
   }
@@ -409,18 +445,25 @@ export class CanvasGameplayRenderer {
 
   #litImage(assetId: string, depth: number, scene: RenderScene, x: number, y: number): CanvasImageSource {
     const darknessBucket = Math.round(clamp(depth / MAX_DEPTH, 0, 0.82) * 8) / 8;
-    const warmth = scene.lights.reduce(
-      (strongest, light) => {
-        const distance = Math.hypot(light.x - x, light.y - y);
-        return Math.max(strongest, clamp(1 - distance / light.radius, 0, 1) * light.intensity);
-      },
-      clamp(1 - depth / 7, 0, 0.42),
-    );
+    let warmth = clamp(1 - depth / 7, 0, 0.42);
+    let warmColor = DEFAULT_TORCH_COLOR;
+
+    for (const light of scene.lights) {
+      const reach = clamp(1 - Math.hypot(light.x - x, light.y - y) / light.radius, 0, 1) * light.intensity;
+
+      if (reach > warmth) {
+        warmth = reach;
+        warmColor = light.color;
+      }
+    }
+
     const warmthBucket = Math.round(warmth * 4) / 4;
-    const key = `${assetId}:${darknessBucket}:${warmthBucket}`;
+    const key = `${assetId}:${darknessBucket}:${warmthBucket}:${warmColor.join()}`;
     const cached = this.#litSpriteCache.get(key);
 
     if (cached) {
+      this.#litSpriteCache.delete(key);
+      this.#litSpriteCache.set(key, cached);
       return cached;
     }
 
@@ -439,10 +482,22 @@ export class CanvasGameplayRenderer {
     context.globalCompositeOperation = "source-atop";
     context.fillStyle = `rgba(13, 5, 24, ${darknessBucket})`;
     context.fillRect(0, 0, surface.width, surface.height);
-    context.fillStyle = `rgba(255, 112, 45, ${warmthBucket * 0.22})`;
+    context.fillStyle = `rgba(${warmColor[0]}, ${warmColor[1]}, ${warmColor[2]}, ${warmthBucket * 0.22})`;
     context.fillRect(0, 0, surface.width, surface.height);
     this.#litSpriteCache.set(key, surface);
+    this.#evictLitSprites();
     return surface;
+  }
+
+  /** Every lit variant is a full-size offscreen canvas, so drop the least recently drawn ones. */
+  #evictLitSprites(): void {
+    for (const key of this.#litSpriteCache.keys()) {
+      if (this.#litSpriteCache.size <= LIT_SPRITE_CACHE_LIMIT) {
+        return;
+      }
+
+      this.#litSpriteCache.delete(key);
+    }
   }
 
   #whiteImage(assetId: string): CanvasImageSource {
