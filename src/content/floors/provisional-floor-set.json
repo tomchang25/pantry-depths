@@ -15,13 +15,13 @@
       "tiles": [
         "#############",
         "#.......#...#",
-        "#######.#.#.#",
+        "#######.....#",
+        "#.......###.#",
+        "#.#####...#.#",
+        "#.#...#...#.#",
+        "###...#...#.#",
         "#.........#.#",
-        "#.#.....###.#",
-        "#.#.....#...#",
-        "###.....#.###",
-        "#...........#",
-        "#.###.#.....#",
+        "#.....##.##.#",
         "#.....#.....#",
         "#.#####.....#",
         "#...........#",
@@ -42,8 +42,8 @@
           "kind": "door",
           "id": "B1-gate-door-1",
           "cell": {
-            "x": 7,
-            "y": 6
+            "x": 8,
+            "y": 8
           },
           "color": "blue",
           "upgradeEffectId": "blue-door-1"
@@ -101,6 +101,15 @@
             "y": 5
           },
           "color": "red"
+        },
+        {
+          "kind": "enemy",
+          "id": "b1-enemy-6-11",
+          "cell": {
+            "x": 6,
+            "y": 11
+          },
+          "archetypeId": "greenSlime"
         }
       ],
       "environmentFeatures": [
@@ -179,21 +188,7 @@
     {
       "id": "B2",
       "theme": "icehouse",
-      "tiles": [
-        "#############",
-        "#.#.....#...#",
-        "#.#.###.#.###",
-        "#...#.#.#...#",
-        "#####.#.#.#.#",
-        "#.......#.#.#",
-        "#.....#####.#",
-        "#...........#",
-        "#.....#####.#",
-        "#.....#.#...#",
-        "###.#.#.#.###",
-        "#.....#.....#",
-        "#############"
-      ],
+      "tiles": ["######", "#.#..#", "#.#.##", "#...##", "##.###", "######"],
       "gameplayEntities": [
         {
           "kind": "stair",
@@ -203,34 +198,25 @@
             "y": 1
           },
           "destinationStairId": "B1-down",
-          "arrivalFacing": "east"
+          "arrivalFacing": "south"
         },
         {
           "kind": "stair",
           "id": "B2-down",
           "cell": {
-            "x": 11,
+            "x": 4,
             "y": 1
           },
           "destinationStairId": "B3-up",
-          "arrivalFacing": "east"
+          "arrivalFacing": "west"
         },
         {
           "kind": "hotSpring",
           "id": "b2-spring",
           "cell": {
-            "x": 5,
-            "y": 3
+            "x": 2,
+            "y": 4
           }
-        },
-        {
-          "kind": "key",
-          "id": "b2-blue-key",
-          "cell": {
-            "x": 7,
-            "y": 9
-          },
-          "color": "blue"
         }
       ],
       "environmentFeatures": [
@@ -245,54 +231,13 @@
           "decorationPresetId": "wallTorch",
           "lightPresetId": "warmTorch",
           "effectPresetId": "torchEmbers"
-        },
-        {
-          "kind": "effectEmitter",
-          "id": "b2-mist-3-7",
-          "cell": {
-            "x": 3,
-            "y": 7
-          },
-          "effectPresetId": "steam"
-        },
-        {
-          "kind": "ambientLight",
-          "id": "b2-spring-glow",
-          "cell": {
-            "x": 5,
-            "y": 3
-          },
-          "lightPresetId": "warmSpring"
-        },
-        {
-          "kind": "effectEmitter",
-          "id": "b2-spring-steam",
-          "cell": {
-            "x": 5,
-            "y": 3
-          },
-          "effectPresetId": "steam"
         }
       ]
     },
     {
       "id": "B3",
       "theme": "meat-locker",
-      "tiles": [
-        "#############",
-        "#...........#",
-        "#...#.#.....#",
-        "#...#.#.....#",
-        "###.###.....#",
-        "#.#...#.....#",
-        "#.###.#.###.#",
-        "#.....#...#.#",
-        "#.#####.#.#.#",
-        "#...#...#.#.#",
-        "###.#####.#.#",
-        "#.........#.#",
-        "#############"
-      ],
+      "tiles": ["#####", "#..##", "#...#", "##..#", "#####"],
       "gameplayEntities": [
         {
           "kind": "stair",
@@ -308,20 +253,11 @@
           "kind": "stair",
           "id": "B3-down",
           "cell": {
-            "x": 1,
-            "y": 11
+            "x": 3,
+            "y": 3
           },
           "destinationStairId": "B4-up",
-          "arrivalFacing": "east"
-        },
-        {
-          "kind": "key",
-          "id": "b3-yellow-key",
-          "cell": {
-            "x": 5,
-            "y": 9
-          },
-          "color": "yellow"
+          "arrivalFacing": "west"
         }
       ],
       "environmentFeatures": [
@@ -333,28 +269,6 @@
             "y": 1
           },
           "decorationPresetId": "bones"
-        },
-        {
-          "kind": "wallDecoration",
-          "id": "b3-torch-4-2-west",
-          "wallCell": {
-            "x": 4,
-            "y": 2
-          },
-          "face": "west",
-          "decorationPresetId": "wallTorch",
-          "lightPresetId": "warmTorch",
-          "effectPresetId": "torchEmbers"
-        },
-        {
-          "kind": "wallDecoration",
-          "id": "b3-spikes-6-2-east",
-          "wallCell": {
-            "x": 6,
-            "y": 2
-          },
-          "face": "east",
-          "decorationPresetId": "wallSpikes"
         }
       ]
     },
@@ -498,7 +412,7 @@
             "y": 1
           },
           "destinationStairId": "B4-down",
-          "arrivalFacing": "east"
+          "arrivalFacing": "south"
         },
         {
           "kind": "enemy",
