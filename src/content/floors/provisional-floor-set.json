@@ -46,7 +46,8 @@
             "x": 7,
             "y": 6
           },
-          "color": "blue"
+          "color": "blue",
+          "upgradeEffectId": "blue-door-1"
         },
         {
           "kind": "key",
@@ -82,7 +83,7 @@
             "x": 1,
             "y": 10
           },
-          "archetypeId": "blueSlime"
+          "archetypeId": "greenSlime"
         },
         {
           "kind": "enemy",
@@ -91,7 +92,7 @@
             "x": 2,
             "y": 11
           },
-          "archetypeId": "redSlime"
+          "archetypeId": "yellowSlime"
         },
         {
           "kind": "key",
@@ -222,6 +223,15 @@
             "x": 5,
             "y": 3
           }
+        },
+        {
+          "kind": "key",
+          "id": "b2-blue-key",
+          "cell": {
+            "x": 7,
+            "y": 9
+          },
+          "color": "blue"
         }
       ],
       "environmentFeatures": [
@@ -304,6 +314,15 @@
           },
           "destinationStairId": "B4-up",
           "arrivalFacing": "east"
+        },
+        {
+          "kind": "key",
+          "id": "b3-yellow-key",
+          "cell": {
+            "x": 5,
+            "y": 9
+          },
+          "color": "yellow"
         }
       ],
       "environmentFeatures": [
@@ -408,7 +427,8 @@
             "x": 2,
             "y": 3
           },
-          "color": "blue"
+          "color": "blue",
+          "upgradeEffectId": "blue-door-2"
         },
         {
           "kind": "door",
@@ -417,7 +437,8 @@
             "x": 4,
             "y": 3
           },
-          "color": "yellow"
+          "color": "yellow",
+          "upgradeEffectId": "yellow-door-1"
         },
         {
           "kind": "door",
