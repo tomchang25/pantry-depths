@@ -2,256 +2,320 @@
   "schemaVersion": 3,
   "initial": {
     "floorId": "B1",
-    "cell": { "x": 1, "y": 1 },
+    "cell": {
+      "x": 1,
+      "y": 1
+    },
     "facing": "east"
   },
-  "goalEntityId": "b5-princess",
+  "goalEntityId": "B5-goal",
   "floors": [
     {
       "id": "B1",
-      "theme": "wine-cellar",
-      "tiles": [
-        "###########",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "###########"
-      ],
-      "gameplayEntities": [
-        { "kind": "key", "id": "b1-red-key", "cell": { "x": 2, "y": 1 }, "color": "red" },
-        { "kind": "door", "id": "b1-red-door", "cell": { "x": 3, "y": 1 }, "color": "red" },
-        {
-          "kind": "stair",
-          "id": "b1-down",
-          "cell": { "x": 8, "y": 1 },
-          "destinationStairId": "b2-up",
-          "arrivalFacing": "west"
-        },
-        {
-          "kind": "breakableWall",
-          "id": "b1-hidden-wall",
-          "cell": { "x": 5, "y": 5 },
-          "health": 6,
-          "defense": 0,
-          "hintFaces": ["east", "west"]
-        },
-        { "kind": "hotSpring", "id": "b1-hot-spring", "cell": { "x": 6, "y": 5 } }
-      ],
-      "environmentFeatures": [
-        {
-          "kind": "tileDecoration",
-          "id": "b1-bones",
-          "cell": { "x": 4, "y": 4 },
-          "decorationPresetId": "bones"
-        },
-        {
-          "kind": "wallDecoration",
-          "id": "b1-wall-torch",
-          "wallCell": { "x": 4, "y": 0 },
-          "face": "south",
-          "decorationPresetId": "wallTorch",
-          "lightPresetId": "warmTorch",
-          "effectPresetId": "torchEmbers"
-        },
-        {
-          "kind": "wallDecoration",
-          "id": "b1-wall-spikes",
-          "wallCell": { "x": 6, "y": 0 },
-          "face": "south",
-          "decorationPresetId": "wallSpikes"
-        },
-        {
-          "kind": "ambientLight",
-          "id": "b1-hot-spring-light",
-          "cell": { "x": 7, "y": 5 },
-          "lightPresetId": "warmSpring"
-        },
-        {
-          "kind": "effectEmitter",
-          "id": "b1-hot-spring-steam",
-          "cell": { "x": 6, "y": 5 },
-          "effectPresetId": "steam"
-        }
-      ]
-    },
-    {
-      "id": "B2",
-      "theme": "ice-cellar",
+      "theme": "cellar",
       "tiles": [
         "#############",
+        "#.......#...#",
+        "#######.#.#.#",
+        "#.........#.#",
+        "#.#.....###.#",
+        "#.#.....#...#",
+        "###.....#.###",
         "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
+        "#.###.#.....#",
+        "#.....#.....#",
+        "#.#####.....#",
         "#...........#",
         "#############"
       ],
       "gameplayEntities": [
         {
           "kind": "stair",
-          "id": "b2-up",
-          "cell": { "x": 1, "y": 1 },
-          "destinationStairId": "b1-down",
+          "id": "B1-down",
+          "cell": {
+            "x": 1,
+            "y": 11
+          },
+          "destinationStairId": "B2-up",
           "arrivalFacing": "east"
         },
-        { "kind": "key", "id": "b2-blue-key", "cell": { "x": 2, "y": 1 }, "color": "blue" },
         {
           "kind": "door",
-          "id": "b2-blue-door",
-          "cell": { "x": 3, "y": 1 },
-          "color": "blue",
-          "upgradeEffectId": "blue-door-1"
+          "id": "B1-gate-door-1",
+          "cell": {
+            "x": 7,
+            "y": 6
+          },
+          "color": "blue"
+        },
+        {
+          "kind": "key",
+          "id": "B1-gate-key-1",
+          "cell": {
+            "x": 3,
+            "y": 1
+          },
+          "color": "blue"
+        },
+        {
+          "kind": "enemy",
+          "id": "b1-enemy-6-1",
+          "cell": {
+            "x": 6,
+            "y": 1
+          },
+          "archetypeId": "bat"
+        },
+        {
+          "kind": "enemy",
+          "id": "b1-enemy-5-6",
+          "cell": {
+            "x": 5,
+            "y": 6
+          },
+          "archetypeId": "bat"
+        },
+        {
+          "kind": "enemy",
+          "id": "b1-enemy-1-10",
+          "cell": {
+            "x": 1,
+            "y": 10
+          },
+          "archetypeId": "bat"
+        },
+        {
+          "kind": "enemy",
+          "id": "b1-enemy-2-11",
+          "cell": {
+            "x": 2,
+            "y": 11
+          },
+          "archetypeId": "bat"
+        },
+        {
+          "kind": "key",
+          "id": "b1-key-1-5",
+          "cell": {
+            "x": 1,
+            "y": 5
+          },
+          "color": "red"
+        }
+      ],
+      "environmentFeatures": []
+    },
+    {
+      "id": "B2",
+      "theme": "icehouse",
+      "tiles": [
+        "#############",
+        "#.#.....#...#",
+        "#.#.###.#.###",
+        "#...#.#.#...#",
+        "#####.#.#.#.#",
+        "#.......#.#.#",
+        "#.....#####.#",
+        "#...........#",
+        "#.....#####.#",
+        "#.....#.#...#",
+        "###.#.#.#.###",
+        "#.....#.....#",
+        "#############"
+      ],
+      "gameplayEntities": [
+        {
+          "kind": "stair",
+          "id": "B2-up",
+          "cell": {
+            "x": 1,
+            "y": 1
+          },
+          "destinationStairId": "B1-down",
+          "arrivalFacing": "east"
         },
         {
           "kind": "stair",
-          "id": "b2-down",
-          "cell": { "x": 11, "y": 1 },
-          "destinationStairId": "b3-up",
-          "arrivalFacing": "west"
+          "id": "B2-down",
+          "cell": {
+            "x": 11,
+            "y": 1
+          },
+          "destinationStairId": "B3-up",
+          "arrivalFacing": "east"
         }
       ],
       "environmentFeatures": []
     },
     {
       "id": "B3",
-      "theme": "meat-cellar",
+      "theme": "meat-locker",
       "tiles": [
         "#############",
         "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
-        "#...........#",
+        "#...#.#.....#",
+        "#...#.#.....#",
+        "###.###.....#",
+        "#.#...#.....#",
+        "#.###.#.###.#",
+        "#.....#...#.#",
+        "#.#####.#.#.#",
+        "#...#...#.#.#",
+        "###.#####.#.#",
+        "#.........#.#",
         "#############"
       ],
       "gameplayEntities": [
         {
           "kind": "stair",
-          "id": "b3-up",
-          "cell": { "x": 1, "y": 1 },
-          "destinationStairId": "b2-down",
+          "id": "B3-up",
+          "cell": {
+            "x": 1,
+            "y": 1
+          },
+          "destinationStairId": "B2-down",
           "arrivalFacing": "east"
         },
-        { "kind": "key", "id": "b3-yellow-key", "cell": { "x": 2, "y": 1 }, "color": "yellow" },
-        {
-          "kind": "door",
-          "id": "b3-yellow-door",
-          "cell": { "x": 3, "y": 1 },
-          "color": "yellow",
-          "upgradeEffectId": "yellow-door-1"
-        },
-        { "kind": "key", "id": "b3-blue-key", "cell": { "x": 5, "y": 1 }, "color": "blue" },
         {
           "kind": "stair",
-          "id": "b3-down",
-          "cell": { "x": 11, "y": 1 },
-          "destinationStairId": "b4-up",
-          "arrivalFacing": "west"
+          "id": "B3-down",
+          "cell": {
+            "x": 1,
+            "y": 11
+          },
+          "destinationStairId": "B4-up",
+          "arrivalFacing": "east"
         }
       ],
       "environmentFeatures": []
     },
     {
       "id": "B4",
-      "theme": "guard-floor",
+      "theme": "guard-post",
       "tiles": [
-        "###############",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "#.............#",
-        "###############"
+        "#######",
+        "#.#.#.#",
+        "#.#.#.#",
+        "#.....#",
+        "#.#.#.#",
+        "#.#.#.#",
+        "#######"
       ],
       "gameplayEntities": [
         {
           "kind": "stair",
-          "id": "b4-up",
-          "cell": { "x": 1, "y": 1 },
-          "destinationStairId": "b3-down",
+          "id": "B4-up",
+          "cell": {
+            "x": 3,
+            "y": 1
+          },
+          "destinationStairId": "B3-down",
           "arrivalFacing": "east"
-        },
-        { "kind": "key", "id": "b4-red-key", "cell": { "x": 2, "y": 1 }, "color": "red" },
-        { "kind": "key", "id": "b4-yellow-key", "cell": { "x": 3, "y": 1 }, "color": "yellow" },
-        {
-          "kind": "door",
-          "id": "b4-blue-door",
-          "cell": { "x": 5, "y": 3 },
-          "color": "blue",
-          "upgradeEffectId": "blue-door-2"
-        },
-        { "kind": "door", "id": "b4-red-door", "cell": { "x": 7, "y": 3 }, "color": "red" },
-        {
-          "kind": "door",
-          "id": "b4-yellow-door",
-          "cell": { "x": 9, "y": 3 },
-          "color": "yellow",
-          "upgradeEffectId": "yellow-door-2"
         },
         {
           "kind": "stair",
-          "id": "b4-down",
-          "cell": { "x": 7, "y": 5 },
-          "destinationStairId": "b5-up",
-          "arrivalFacing": "west"
+          "id": "B4-down",
+          "cell": {
+            "x": 3,
+            "y": 5
+          },
+          "destinationStairId": "B5-up",
+          "arrivalFacing": "east"
+        },
+        {
+          "kind": "enemy",
+          "id": "B4-enemy-1",
+          "cell": {
+            "x": 1,
+            "y": 2
+          },
+          "archetypeId": "guard"
+        },
+        {
+          "kind": "enemy",
+          "id": "b4-enemy-5-2",
+          "cell": {
+            "x": 5,
+            "y": 2
+          },
+          "archetypeId": "guard"
+        },
+        {
+          "kind": "enemy",
+          "id": "b4-enemy-5-4",
+          "cell": {
+            "x": 5,
+            "y": 4
+          },
+          "archetypeId": "guard"
+        },
+        {
+          "kind": "enemy",
+          "id": "b4-enemy-1-4",
+          "cell": {
+            "x": 1,
+            "y": 4
+          },
+          "archetypeId": "guard"
+        },
+        {
+          "kind": "door",
+          "id": "b4-door-2-3",
+          "cell": {
+            "x": 2,
+            "y": 3
+          },
+          "color": "blue"
+        },
+        {
+          "kind": "door",
+          "id": "b4-door-4-3",
+          "cell": {
+            "x": 4,
+            "y": 3
+          },
+          "color": "yellow"
+        },
+        {
+          "kind": "door",
+          "id": "b4-door-3-4",
+          "cell": {
+            "x": 3,
+            "y": 4
+          },
+          "color": "red"
         }
       ],
       "environmentFeatures": []
     },
     {
       "id": "B5",
-      "theme": "deep-storeroom",
+      "theme": "deep-store",
       "tiles": [
-        "###########",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "#.........#",
-        "###########"
+        "#####",
+        "#...#",
+        "#...#",
+        "#...#",
+        "#####"
       ],
       "gameplayEntities": [
         {
           "kind": "stair",
-          "id": "b5-up",
-          "cell": { "x": 1, "y": 1 },
-          "destinationStairId": "b4-down",
+          "id": "B5-up",
+          "cell": {
+            "x": 2,
+            "y": 1
+          },
+          "destinationStairId": "B4-down",
           "arrivalFacing": "east"
         },
         {
           "kind": "enemy",
-          "id": "b5-princess",
-          "cell": { "x": 8, "y": 8 },
+          "id": "B5-goal",
+          "cell": {
+            "x": 2,
+            "y": 3
+          },
           "archetypeId": "princess"
         }
       ],
