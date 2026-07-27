@@ -16,19 +16,20 @@ Plan children get no lines here. They live in their plan's child overview table,
 
 ### V1 prototype milestone
 
-[`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in four critical-path delivery plans, one parallel asset item, and one active optional tooling plan.
+[`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in four critical-path delivery plans, one parallel asset item, and two optional tooling and content plans.
 
-| Stream | Scope                                                             |   Children | State                                              |
-| ------ | ----------------------------------------------------------------- | ---------: | -------------------------------------------------- |
-| A      | Rules and Content                                                 |          7 | Shipped                                            |
-| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)   |          2 | Queued                                             |
-| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)            |          4 | Queued                                             |
-| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)  |          1 | Queued after Presentation Port                     |
-| S      | Enemy Sprite Art                                                  |   parallel | Parallel asset deliverable; style spec not written |
-| T      | Debug Surface Shell                                               | standalone | Shipped; shared debug presentation foundation      |
-| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |          4 | Active; `01` and `02` landed, `03` is next         |
+| Stream | Scope                                                                 |   Children | State                                              |
+| ------ | --------------------------------------------------------------------- | ---------: | -------------------------------------------------- |
+| A      | Rules and Content                                                     |          7 | Shipped                                            |
+| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)       |          2 | Queued                                             |
+| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)                |          4 | Queued                                             |
+| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)      |          1 | Queued after Presentation Port                     |
+| S      | Enemy Sprite Art                                                      |   parallel | Parallel asset deliverable; style spec not written |
+| T      | Debug Surface Shell                                                   | standalone | Shipped; shared debug presentation foundation      |
+| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md)     |          4 | Active; `01`–`03` landed, `04` is next             |
+| Q      | [Composite Environment Presets](dev/docs/plans/pantry_preset.plan.md) |          3 | Queued after `pantry_authoring_04`                 |
 
-Current optional-tooling work is the remaining Authoring Workbench children. The V1 critical-path next action remains `/implement pantry_presentation_01`.
+Current optional-tooling work is the remaining Authoring Workbench child. The V1 critical-path next action remains `/implement pantry_presentation_01`.
 
 ---
 

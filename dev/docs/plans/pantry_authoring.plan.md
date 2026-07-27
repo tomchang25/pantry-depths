@@ -1,6 +1,6 @@
 # Floor Authoring Workbench Experience
 
-> **Status**: Active. `pantry_authoring_01`, the independent Debug Surface Shell, and `pantry_authoring_02` have landed; `pantry_authoring_03` is the current handoff.
+> **Status**: Active. `pantry_authoring_01`, the independent Debug Surface Shell, `pantry_authoring_02`, and `pantry_authoring_03` have landed; `pantry_authoring_04` is the next handoff. Closeout for every shipped child is deferred until the whole plan is complete.
 
 ## Goal
 
