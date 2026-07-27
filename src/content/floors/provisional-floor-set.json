@@ -285,7 +285,7 @@
             "y": 1
           },
           "destinationStairId": "B3-down",
-          "arrivalFacing": "east"
+          "arrivalFacing": "south"
         },
         {
           "kind": "stair",
