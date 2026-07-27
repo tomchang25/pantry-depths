@@ -7,9 +7,15 @@ type Arguments = Readonly<{
   floorCount: number;
   output?: string;
   seed: number;
-  keysPerFloor: number;
-  doorsPerFloor: number;
-  enemiesPerFloor: number;
+  width?: number;
+  height?: number;
+  redKeys?: number;
+  redDoors?: number;
+  blueKeys?: number;
+  blueDoors?: number;
+  yellowKeys?: number;
+  yellowDoors?: number;
+  enemies?: number;
 }>;
 
 function parseInteger(value: string | undefined, flag: string): number {
@@ -25,9 +31,15 @@ function parseInteger(value: string | undefined, flag: string): number {
 function parseArguments(values: readonly string[]): Arguments {
   let seed = 1;
   let floorCount = 5;
-  let keysPerFloor = 1;
-  let doorsPerFloor = 1;
-  let enemiesPerFloor = 1;
+  let width: number | undefined;
+  let height: number | undefined;
+  let redKeys: number | undefined;
+  let redDoors: number | undefined;
+  let blueKeys: number | undefined;
+  let blueDoors: number | undefined;
+  let yellowKeys: number | undefined;
+  let yellowDoors: number | undefined;
+  let enemies: number | undefined;
   let output: string | undefined;
 
   for (let index = 0; index < values.length; index += 1) {
@@ -46,20 +58,56 @@ function parseArguments(values: readonly string[]): Arguments {
       continue;
     }
 
-    if (flag === "--keys") {
-      keysPerFloor = parseInteger(value, flag);
+    if (flag === "--width") {
+      width = parseInteger(value, flag);
       index += 1;
       continue;
     }
 
-    if (flag === "--doors") {
-      doorsPerFloor = parseInteger(value, flag);
+    if (flag === "--height") {
+      height = parseInteger(value, flag);
+      index += 1;
+      continue;
+    }
+
+    if (flag === "--red-keys") {
+      redKeys = parseInteger(value, flag);
+      index += 1;
+      continue;
+    }
+
+    if (flag === "--red-doors") {
+      redDoors = parseInteger(value, flag);
+      index += 1;
+      continue;
+    }
+
+    if (flag === "--blue-keys") {
+      blueKeys = parseInteger(value, flag);
+      index += 1;
+      continue;
+    }
+
+    if (flag === "--blue-doors") {
+      blueDoors = parseInteger(value, flag);
+      index += 1;
+      continue;
+    }
+
+    if (flag === "--yellow-keys") {
+      yellowKeys = parseInteger(value, flag);
+      index += 1;
+      continue;
+    }
+
+    if (flag === "--yellow-doors") {
+      yellowDoors = parseInteger(value, flag);
       index += 1;
       continue;
     }
 
     if (flag === "--enemies") {
-      enemiesPerFloor = parseInteger(value, flag);
+      enemies = parseInteger(value, flag);
       index += 1;
       continue;
     }
@@ -80,9 +128,15 @@ function parseArguments(values: readonly string[]): Arguments {
   return {
     floorCount,
     seed,
-    keysPerFloor,
-    doorsPerFloor,
-    enemiesPerFloor,
+    ...(width === undefined ? {} : { width }),
+    ...(height === undefined ? {} : { height }),
+    ...(redKeys === undefined ? {} : { redKeys }),
+    ...(redDoors === undefined ? {} : { redDoors }),
+    ...(blueKeys === undefined ? {} : { blueKeys }),
+    ...(blueDoors === undefined ? {} : { blueDoors }),
+    ...(yellowKeys === undefined ? {} : { yellowKeys }),
+    ...(yellowDoors === undefined ? {} : { yellowDoors }),
+    ...(enemies === undefined ? {} : { enemies }),
     ...(output === undefined ? {} : { output }),
   };
 }
@@ -91,7 +145,11 @@ async function main(): Promise<void> {
   if (process.argv.includes("--help")) {
     process.stdout.write(
       "Usage: npm run generate:floor-set -- --seed <integer> --floors <positive integer>" +
-        " [--keys <count per floor>] [--doors <count per floor>] [--enemies <count per floor>] [--output <path>]\n",
+        " [--width <odd integer>=5] [--height <odd integer>=5]" +
+        " [--red-keys <candidate total>] [--red-doors <candidate total>]" +
+        " [--blue-keys <candidate total>] [--blue-doors <candidate total>]" +
+        " [--yellow-keys <candidate total>] [--yellow-doors <candidate total>]" +
+        " [--enemies <candidate total>] [--output <path>]\n",
     );
     return;
   }

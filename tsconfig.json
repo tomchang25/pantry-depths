@@ -25,6 +25,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "test", "dev/tools", "vite.config.ts"],
+  "include": ["src", "test", "dev/tools", "playwright.config.ts", "vite.config.ts"],
   "exclude": ["node_modules", "dist", "dev/foundation", "port-ref"]
 }

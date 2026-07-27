@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "generate:floor-set": "vite-node --config dev/tools/vite-node.config.ts dev/tools/generate-floor-set.ts",
     "validate:floor-set": "vite-node --config dev/tools/vite-node.config.ts dev/tools/validate-floor-set.ts",
     "generate:balance-report": "vite-node --config dev/tools/vite-node.config.ts dev/tools/generate-balance-report.ts && prettier --write dev/docs/reports/pantry_depths_balance.html",
@@ -22,6 +23,7 @@
     "verify": "npm run format:check && npm run typecheck && npm run lint && npm run check:boundaries && npm run test && npm run build"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@types/node": "^24.0.15",
     "dependency-cruiser": "^18.1.0",
     "oxlint": "1.74.0",

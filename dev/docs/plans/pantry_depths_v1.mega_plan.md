@@ -1,6 +1,6 @@
 # Pantry Depths V1 Mega Plan：一週原型與渲染移植
 
-> **Status**: 執行中。Rules and Content 已交付；合併後的 Presentation renderer implementation spec 已備妥。
+> **Status**: 執行中。Rules and Content 與 Authoring Workbench 已交付；V1 關鍵路徑的下一步是合併後的 Presentation renderer implementation spec（`pantry_presentation_01`）。
 > **Supersedes**: 無。
 > **本文性質**: 執行時以 §5 為工單；§1–§4 與 §6–§8 是決策依據與背景，供未來重新評估時參考。
 > **權威邊界**: 本文擁有架構、交付範圍與 future work。實作前的公式與數字由[設計文件](../design/pantry-depths_v1.md) 擁有；對應規則與 content 落地後由 codebase 接手。設計意圖與 Frozen extensions 不會過期，[報告](../reports/) 是給人看的實作視圖。
@@ -25,12 +25,13 @@
 
 ### 1.2 時程預算
 
-| 項目                         | 估計                 |
-| ---------------------------- | -------------------- |
-| 總預算                       | 一週                 |
-| Child 數量                   | 13 個 + 1 個平行項目 |
-| 單一 child 上限              | **1 天**             |
-| 前置文件（本文 + 三份 plan） | 半天                 |
+| 項目                         | 估計                                         |
+| ---------------------------- | -------------------------------------------- |
+| 總預算                       | 一週                                         |
+| Child 數量                   | 18 個 + 1 個平行項目                         |
+| 單一 child 上限              | **1 天**                                     |
+| 前置文件（本文 + 三份 plan） | 半天                                         |
+| 週預算外                     | Plan Q 的 3 個 child，排在 V1 milestone 之後 |
 
 **單一 child 超過一天沒收就是估錯了。** 這是本專案唯一的早期警報訊號，不要忽略它。
 
@@ -142,13 +143,15 @@ Codebase 是數值的唯一權威，但一堆沒有註解的常數沒辦法 revi
 
 分組判準是**一個 Plan 只有一種驗證方式**。不是按 child 數量分堆，是按「怎麼證明它對」分堆——因為 Acceptance Criteria 必須能用同一種語言寫完。
 
-| Plan                                                      | Scope                 | 驗證方式                                  | 風險   |
-| --------------------------------------------------------- | --------------------- | ----------------------------------------- | ------ |
-| **A. Rules and Content（已交付）**                        | `pantry_rules`        | Unit test + debug viewer + 生成的平衡報告 | 低     |
-| **[B. Presentation Port](pantry_presentation.plan.md)**   | `pantry_presentation` | 與 `port-ref/` 在保留能力範圍內並排比對   | **高** |
-| **[C. Feel and Endgame](pantry_feel.plan.md)**            | `pantry_feel`         | 手動試玩與鍵盤／無障礙檢查                | 中     |
-| **[D. Final Floor Design](pantry_floor_design.plan.md)**  | `pantry_floor_design` | Presentation 人工實玩 + 結構安全檢查      | 中     |
-| **[P. Authoring Workbench UX](pantry_authoring.plan.md)** | `pantry_authoring`    | 手動編修一張圖後仍通過結構驗證            | 低     |
+| Plan                                                          | Scope                  | 驗證方式                                             | 風險   |
+| ------------------------------------------------------------- | ---------------------- | ---------------------------------------------------- | ------ |
+| **A. Rules and Content（已交付）**                            | `pantry_rules`         | Unit test + debug viewer + 生成的平衡報告            | 低     |
+| **[B. Presentation Port](pantry_presentation.plan.md)**       | `pantry_presentation`  | 與 `port-ref/` 在保留能力範圍內並排比對              | **高** |
+| **[C. Feel and Endgame](pantry_feel.plan.md)**                | `pantry_feel`          | 手動試玩與鍵盤／無障礙檢查                           | 中     |
+| **[D. Final Floor Design](pantry_floor_design.plan.md)**      | `pantry_floor_design`  | Presentation 人工實玩 + 結構安全檢查                 | 中     |
+| **T. Debug Surface Shell（已交付）**                          | `pantry_debug_surface` | Debug routes 的人工視覺、responsive 與鍵盤檢查       | 低     |
+| **P. Authoring Workbench UX（已交付）**                       | `pantry_authoring`     | 手動編修一張圖後仍通過結構驗證                       | 低     |
+| **[Q. Composite Environment Presets](pantry_preset.plan.md)** | `pantry_preset`        | 遷移後 canonical content 呈現意圖不變 + 組裝預覽目視 | 中     |
 
 ### Plan A — Rules and Content（已交付）
 
@@ -210,13 +213,44 @@ Enemy runtime assets 是綠、黃、藍、紅、紫五色史萊姆各自的 norm
 
 這些素材是完整 renderer 的必要輸入，不再保留另一個平行交付項；主題化或 archetype-specific enemy art 仍不在 V1 範圍。
 
-### Plan P — Authoring Workbench UX（擱置中）
+### 平行項目 T — Debug Surface Shell（已交付，非關鍵路徑）
 
-**不在 V1 關鍵路徑上，不擋任何 child。** A04 已經把生成、驗證、預覽、匯出、存檔的管線接通，Plan P 處理的是那個介面本身難用 —— 純 JSON textarea 加唯讀圖，手鋪一張圖要靠心算座標。
+現有 Debug Hub 與五個 debug scenes 已具備可用的真實資料與互動，但原先仍是瀏覽器預設排版加各頁零散 inline styles。這個已交付的獨立工作建立 debug-only 的共用 page shell、視覺 tokens、panel/control/table/status 樣式與 Hub 卡片入口，並將所有既有 debug scenes 接上同一個 template。
 
-擱置的理由是它的價值完全取決於 `pantry_floor_design_01` 手鋪最終五層時的實際痛感，而那還沒發生。等到該 child 開工、手編成為瓶頸時再提升為 active。
+它不建立新的 gameplay、authoring 或 presentation state owner，也不改 debug tool registry 與 lazy route boundary。它已先於 `pantry_authoring_02` 落地，讓後續 Cell Editor、Floor Settings 及其他 debug scenes 直接使用同一套可閱讀且 responsive 的呈現基礎；它不影響 V1 gameplay 關鍵路徑。
 
-它有一項需求被產品決策擋住：鑰匙顏色數量可調到五色。設計文件第八節把三色綁定為路／攻／防，白與黑在 V1 沒有任何語意，所以那是設計決策而不是實作細節，必須先在設計文件裡解決。
+### Plan P — Authoring Workbench UX（已交付，非關鍵路徑）
+
+**不在 V1 關鍵路徑上，不擋任何 child。** A04 已經把生成、驗證、預覽、匯出、存檔的管線接通,Plan P 處理的是那個介面本身難用 —— 純 JSON textarea 加唯讀圖,手鋪一張圖要靠心算座標。
+
+四個 child 全部落地。Floor Set Workbench 現在以 layered map 加右側 Cell Editor 編輯 terrain、gameplay entity 與 presentation-only environment metadata;map 負責空間概覽與選取,詳細參數、face anchor 與 preset identity 留在 Cell Editor。放置內容不再需要手打座標,當下就能判定的違規在觸發的控制項當場拒絕,而 Export 與 Save 在草稿通過結構驗證前維持停用。
+
+| Child                 | 焦點                                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| `pantry_authoring_01` | Layered read-only map、cell selection/inspector、floor controls、legend 與 departure labels         |
+| `pantry_authoring_02` | Per-floor resize、terrain painting、gameplay entity placement/dragging 與雙向 draft synchronization |
+| `pantry_authoring_03` | Environment feature placement、wall faces、decoration/light/effect presets                          |
+| `pantry_authoring_04` | Generated width/height、紅藍黃各自的 key/door **candidate totals** 與預設連動控制                   |
+
+`pantry_authoring_04` 交付時把 generator 的計數語意從「每層」改成「整個 candidate 的總數」,並移除 `keysPerFloor`／`doorsPerFloor`／`enemiesPerFloor`。這是刻意的破壞性契約變更:每層計數會隨樓層數放大,讓「三扇紅門」在十層候選裡變成三十扇。
+
+白、黑或其他新鑰匙顏色不在本 Plan。它們仍留在 Draft，直到 gameplay 意義先由產品決策確定。
+
+起點／終點標記與跨層鎖都刻意留在本 Plan 之外,各自是獨立 sketch,見 `TODO.md`。
+
+### Plan Q — Composite Environment Presets（Queued，非關鍵路徑）
+
+**不在 V1 關鍵路徑上。** `pantry_rules_06` 當初刻意讓 decoration、light、effect preset 維持三個各自獨立的自由字串，並且不比對任何 renderer catalog——因為那時 renderer 還不存在。代價是：哪三個 preset 該湊在一起，變成每次放置都要重新手動回答一次，沒有任何東西會擋錯；而各元件之間的相對 offset 在契約裡根本無處可放。
+
+Plan Q 把它收斂成 composite preset：一個 composite 擁有一個原點與若干 decoration／light／effect component，每個 component 帶自己相對原點的 offset。四種 environment feature kind 全部改為引用同一種 composite——獨立的 ambient light 就是只含一個 light component 的 composite。Placement 只能移動原點，不能單獨動 component，這條界線正是「預覽過的組合就是實際會渲染的組合」的保證。視覺變化走具名變體（`wallTorchWarm` / `wallTorchCold`），不做 per-placement override。
+
+| Child               | 焦點                                                                         |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `pantry_preset_01`  | Composite 契約、catalog 所有權、schema version 提升與 canonical content 遷移 |
+| `pantry_preset_01a` | Floor Set Workbench 對齊 composite 契約                                      |
+| `pantry_preset_02`  | Composite 組裝編輯器與 component／offset 的實際渲染預覽                      |
+
+`01` 與 `01a` 之間 Workbench 會短暫不可用，這是已接受的取捨：它是 development-only surface，沒有 gameplay 依賴，而把兩者併成一次變更會讓本來就很大的遷移無法審閱。
 
 ### 落地順序
 
@@ -227,19 +261,29 @@ pantry_presentation_01 ───────────────────
                                                      │
                                                      └─→ pantry_feel_01 → pantry_feel_02 → pantry_feel_03 → pantry_feel_04
 
+pantry_authoring_01 → pantry_debug_surface_shell → pantry_authoring_02 → pantry_authoring_03 → pantry_authoring_04（P 全部已交付）
+
+pantry_preset_01 → pantry_preset_01a → pantry_preset_02（optional，與 V1 關鍵路徑平行）
+                                             ↑
+                     pantry_presentation_01 ─┘
 ```
 
 - `pantry_presentation_01` 需要已交付的 `pantry_rules_06` authored environment-feature contract；faithful core 本身沒有 gameplay 依賴。
+- `pantry_debug_surface_shell` 已交付共用 debug page template；它統一既有 debug pages，讓 authoring 的直接編輯 children 從同一呈現基礎開始，且不改變任何 gameplay 關鍵路徑。
+- `pantry_authoring` 四個 child 全部已交付，未改變 presentation、feel 與 final-floor 的依賴關係。
 - `pantry_rules_04` needs the grid semantics from `pantry_rules_03` before it can validate topology.
 - `pantry_rules_05` needs A04's provisional content and topology findings before it can build replay and report tooling.
 - `pantry_rules_06` follows the tooling-ownership correction and defines presentation-only floor annotations without waiting for final geometry; it keeps torches, ambient lights, emitters, and wall decorations out of gameplay entities before presentation consumes them.
 - `pantry_floor_design_01` starts only after the Presentation Port is available. It uses the A04 validator and A05 replay/report while judging and tuning the floors through the actual presentation.
 - `pantry_feel_01` 需要 `pantry_rules_03` 與 `pantry_presentation_01`。
 - `pantry_feel_03` 需要完整的 `pantry_presentation_01` 與 `pantry_feel_02`。
+- `pantry_preset_01` 原本等 `pantry_authoring_04` 落地後才開始，避免 `_04` 的 generator 控制被 `pantry_preset_01a` 蓋掉；該依賴已滿足，Plan Q 現在可以開始。
+- `pantry_preset_02` 硬依賴 `pantry_presentation_01`：要預覽組裝結果就得渲染它，faithful port 落地前沒有 renderer 可用。
+- `pantry_presentation_01` 消費 flat 或 composite 契約的先後由 Plan B 自行決定，Plan Q 只定義 composite 契約，不排 presentation 的採用時程。
 
 ### 明確不做的事
 
-- 不做瀏覽器自動化測試。手動試玩就是 e2e，`dev/agent_rules/test_operations.md` 已記錄為長期缺口。
+- 不做遊戲本體的瀏覽器自動化測試。手動試玩就是 gameplay 的 e2e。`test/e2e/` 只覆蓋 development console 裡 unit 層觀察不到的部分（debug 路由開機、workbench 與 authoring endpoint 的往返、覆寫 canonical 前的驗證閂），範圍由 `dev/agent_rules/test_operations.md` 界定。
 - 不做 `src/platform/` 與 `src/shared/`。V1 沒有持久化、桌面殼或跨 feature 共用需求。
 - 不做設定選單（音量除外）。
 - 不做第六層、真魔王戰、二週目。
@@ -302,6 +346,7 @@ pantry_presentation_01 ───────────────────
 | 13  | Rules 第一個 child 先建 dev-only debug hub，後續 viewer 隨規則落地      | 在最終 renderer 之前提供真實 snapshot／command 的觀察面，避免用假規則或一路抓瞎              |
 | 14  | Debug tooling 的 shared extraction 不阻擋 V1                            | 先以第二個 Web consumer 驗證 hub 與多種 viewer，再由 game-devkit 的獨立工作抽出通用契約      |
 | 15  | 最終五層設計獨立於 Rules，並等待 Presentation Port 可用                 | 結構與數字可提前驗證，但第一人稱動線、視線、節奏與環境構圖必須在實際 presentation 中定稿     |
+| 16  | Debug Surface Shell 使用獨立 spec，先於直接 authoring editing 落地      | 共用視覺 template 橫跨所有 debug scenes，不應由 floor authoring 擁有，也不應改變各工具 state |
 
 ---
 

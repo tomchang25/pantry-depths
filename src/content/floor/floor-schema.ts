@@ -20,9 +20,8 @@ export type GameplayEntitySource =
       kind: "stair";
       id: string;
       cell: Cell;
-      destinationFloorId: string;
-      destinationCell: Cell;
-      destinationFacing: Facing;
+      destinationStairId: string;
+      arrivalFacing: Facing;
     }>
   | Readonly<{
       kind: "breakableWall";
@@ -62,7 +61,7 @@ export type FloorSource = Readonly<{
 }>;
 
 export type FloorSetSource = Readonly<{
-  schemaVersion: 2;
+  schemaVersion: 3;
   initial: Readonly<{ floorId: string; cell: Cell; facing: Facing }>;
   goalEntityId: string;
   floors: readonly FloorSource[];
@@ -183,9 +182,8 @@ function parseGameplayEntity(value: unknown, label: string): GameplayEntitySourc
       kind,
       id,
       cell,
-      destinationFloorId: asString(record.destinationFloorId, `${label}.destinationFloorId`),
-      destinationCell: parseCell(record.destinationCell, `${label}.destinationCell`),
-      destinationFacing: parseFacing(record.destinationFacing, `${label}.destinationFacing`),
+      destinationStairId: asString(record.destinationStairId, `${label}.destinationStairId`),
+      arrivalFacing: parseFacing(record.arrivalFacing, `${label}.arrivalFacing`),
     };
   }
 
@@ -299,14 +297,14 @@ function parseFloor(value: unknown, index: number): FloorSource {
 export function parseFloorSet(value: unknown): FloorSetSource {
   const record = asRecord(value, "floor set");
 
-  if (record.schemaVersion !== 2) {
-    throw new FloorSchemaError("floor set.schemaVersion must be 2");
+  if (record.schemaVersion !== 3) {
+    throw new FloorSchemaError("floor set.schemaVersion must be 3");
   }
 
   const initial = asRecord(record.initial, "floor set.initial");
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     initial: {
       floorId: asString(initial.floorId, "floor set.initial.floorId"),
       cell: parseCell(initial.cell, "floor set.initial.cell"),

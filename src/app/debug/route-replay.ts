@@ -1,3 +1,4 @@
+import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
 import { PLAYER_STAGES } from "@/content/combat/player-stages";
 import { PROVISIONAL_RUN_WORLD } from "@/content/floor/floor-catalog";
 import { PROVISIONAL_ROUTE, replayProvisionalRoute } from "@/harness/provisional-route";
@@ -62,12 +63,17 @@ export function renderRouteReplay(mount: HTMLElement): void {
   const finalSnapshot = replay.steps.at(-1)?.after ?? replay.initialSnapshot;
   const complete = routeCompleted(replay);
   const routeSucceeded = complete && finalSnapshot.outcome === "victory";
-  const page = document.createElement("main");
-  const heading = document.createElement("h1");
-  const description = document.createElement("p");
+  const { page, content } = createDebugPage({
+    title: "Route Replay",
+    description:
+      "Replay the provisional forced route through a fresh canonical session and inspect its progression evidence.",
+    width: "wide",
+  });
   const status = document.createElement("p");
-  const checkpointHeading = document.createElement("h2");
-  const checkpointScroller = document.createElement("div");
+  const checkpointPanel = createDebugPanel(
+    "Progression Checkpoints",
+    "Named balance checkpoints observed along the current canonical route.",
+  );
   const checkpointTable = createTable([
     "Status",
     "Checkpoint",
@@ -79,24 +85,17 @@ export function renderRouteReplay(mount: HTMLElement): void {
     "Opened doors",
     "Events",
   ]);
-  const traceHeading = document.createElement("h2");
-  const traceScroller = document.createElement("div");
+  const tracePanel = createDebugPanel(
+    "Canonical Command Trace",
+    "Every command is shown with its acceptance state, before/after location, health, and semantic events.",
+  );
   const traceTable = createTable(["#", "Command", "Status", "Before", "After", "Events"]);
 
-  heading.textContent = "Route Replay";
-  description.textContent =
-    "Replays the provisional forced route through a fresh canonical session. It stops at the first rejected command or terminal outcome.";
   status.setAttribute("role", "status");
+  status.dataset.tone = routeSucceeded ? "success" : "error";
   status.textContent = routeSucceeded
     ? `Route passed: ${replay.steps.length} canonical commands reached victory with ${finalSnapshot.player.health} HP.`
     : `Route evidence failed: ${replay.steps.length} of ${PROVISIONAL_ROUTE.commands.length} commands ran; outcome is ${finalSnapshot.outcome}.`;
-  checkpointHeading.textContent = "Progression Checkpoints";
-  traceHeading.textContent = "Canonical Command Trace";
-
-  for (const scroller of [checkpointScroller, traceScroller]) {
-    scroller.style.maxWidth = "100%";
-    scroller.style.overflow = "auto";
-  }
 
   for (const checkpoint of PROVISIONAL_ROUTE.checkpoints) {
     const observed = getRouteCheckpoint(replay, checkpoint);
@@ -130,8 +129,8 @@ export function renderRouteReplay(mount: HTMLElement): void {
     traceTable.body.append(row);
   }
 
-  checkpointScroller.append(checkpointTable.table);
-  traceScroller.append(traceTable.table);
-  page.append(heading, description, status, checkpointHeading, checkpointScroller, traceHeading, traceScroller);
+  checkpointPanel.body.append(createDebugScroller(checkpointTable.table, "Progression checkpoints"));
+  tracePanel.body.append(createDebugScroller(traceTable.table, "Canonical command trace"));
+  content.append(status, checkpointPanel.panel, tracePanel.panel);
   mount.replaceChildren(page);
 }

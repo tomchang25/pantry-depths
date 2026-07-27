@@ -32,9 +32,9 @@ When the design document and the codebase disagree about a number, the codebase 
 
 ## Lifecycle Scope For V1
 
-V1 is a one-week prototype delivered by a single author, but its rules, presentation port, feel/endgame work, and final floor design use different evidence and landing sequences. The design document therefore serves as the product draft, the mega plan owns milestone ordering, and four main plans own the durable requirements and child overviews for those execution streams. Rules and Content is shipped and archived; the remaining three plans stay active below the milestone.
+V1 is a one-week prototype delivered by a single author, but its rules, presentation port, feel/endgame work, and final floor design use different evidence and landing sequences. The design document therefore serves as the product draft, the mega plan owns milestone ordering, and four critical-path main plans own the durable requirements and child overviews for those execution streams. Rules and Content is shipped and archived, as is the optional Authoring Workbench; the remaining three critical-path plans stay active below the milestone.
 
-The active route is:
+The critical-path route is:
 
 ```text
 design draft
@@ -45,5 +45,7 @@ design draft
 -> verification
 -> child closeout
 ```
+
+Optional tooling and content plans may run alongside that route without changing the presentation-first V1 dependency order. The Authoring Workbench has shipped; Composite Environment Presets is the queued successor, and `TODO.md` tracks the standalone sketches that no plan owns.
 
 Child sketches remain optional and are opened only when an implementation boundary needs exploration. Every child still requires an implementation spec before source mutation and verification against `dev/agent_rules/test_operations.md` before it is called delivered. The approved minimal slime and gameplay sprite manifest is part of the Presentation Port rather than a separate delivery stream.

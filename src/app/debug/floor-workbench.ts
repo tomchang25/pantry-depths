@@ -1,4 +1,20 @@
-import { renderFloorSetInspector } from "@/app/debug/floor-viewer";
+import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
+import {
+  addEnvironmentFeature,
+  addGameplayEntity,
+  createDefaultEnvironmentFeature,
+  createDefaultGameplayEntity,
+  moveGameplayEntity,
+  paintTerrain,
+  removeEnvironmentFeature,
+  removeGameplayEntity,
+  resizeFloor,
+  updateEnvironmentFeature,
+  updateGameplayEntity,
+  type FloorAuthoringResult,
+} from "@/app/debug/floor-authoring";
+import { createCellEditor, type AuthoredMapTool } from "@/app/debug/floor-map";
+import { renderFloorSetInspector, type FloorInspectorSelection } from "@/app/debug/floor-viewer";
 import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet, type FloorValidationResult } from "@/content/floor/floor-validation";
 
@@ -34,8 +50,6 @@ function createButton(
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = label;
-  button.style.minHeight = "2.75rem";
-  button.style.padding = "0.5rem 0.8rem";
   button.addEventListener("click", () => {
     void Promise.resolve(action()).catch(reportError);
   });
@@ -45,14 +59,14 @@ function createButton(
 function createCountField(id: string, label: string, value: number, min: number): HTMLLabelElement {
   const field = document.createElement("label");
   const input = document.createElement("input");
-  field.textContent = `${label} `;
+  field.textContent = label;
+  field.className = "debug-field";
   field.htmlFor = id;
   input.id = id;
   input.type = "number";
   input.min = String(min);
   input.step = "1";
   input.value = String(value);
-  input.style.width = "5rem";
   field.append(input);
   return field;
 }
@@ -61,7 +75,70 @@ function fieldValue(field: HTMLLabelElement): number {
   return Number(field.querySelector("input")?.value ?? "0");
 }
 
-/** Hands the validated draft to the browser as a downloaded file without touching committed content. */
+type ColorCountGroup = Readonly<{
+  container: HTMLElement;
+  doorInput: HTMLInputElement;
+  keyInput: HTMLInputElement;
+}>;
+
+/** Creates one color's linked key/door total controls; unlinking remembers the last independent pair. */
+function createColorCountGroup(colorId: string, colorLabel: string): ColorCountGroup {
+  const container = document.createElement("fieldset");
+  const legend = document.createElement("legend");
+  const fields = document.createElement("div");
+  const keyField = createCountField(`floor-workbench-${colorId}-keys`, "Keys", 1, 0);
+  const doorField = createCountField(`floor-workbench-${colorId}-doors`, "Doors", 1, 0);
+  const linkLabel = document.createElement("label");
+  const linkInput = document.createElement("input");
+  const keyInput = keyField.querySelector("input");
+  const doorInput = doorField.querySelector("input");
+
+  if (!keyInput || !doorInput) {
+    throw new Error("A generator count field is missing its input element.");
+  }
+
+  container.className = "debug-color-count-group";
+  // The unit lives in the legend so each group states it once instead of repeating it on both inputs.
+  legend.textContent = `${colorLabel} — candidate totals`;
+  fields.className = "debug-color-count-fields";
+  fields.append(keyField, doorField);
+  linkInput.type = "checkbox";
+  linkInput.checked = true;
+  linkLabel.className = "debug-color-link-field";
+  linkLabel.append(linkInput, ` Link ${colorLabel.toLowerCase()} keys and doors`);
+  container.append(legend, fields, linkLabel);
+
+  let rememberedPair: Readonly<{ door: string; key: string }> | undefined;
+
+  linkInput.addEventListener("change", () => {
+    if (linkInput.checked) {
+      rememberedPair = { key: keyInput.value, door: doorInput.value };
+      doorInput.value = keyInput.value;
+      return;
+    }
+
+    if (rememberedPair) {
+      keyInput.value = rememberedPair.key;
+      doorInput.value = rememberedPair.door;
+    }
+  });
+
+  keyInput.addEventListener("input", () => {
+    if (linkInput.checked) {
+      doorInput.value = keyInput.value;
+    }
+  });
+
+  doorInput.addEventListener("input", () => {
+    if (linkInput.checked) {
+      keyInput.value = doorInput.value;
+    }
+  });
+
+  return { container, keyInput, doorInput };
+}
+
+/** Hands the validated draft to the browser as a downloaded file without touching canonical content. */
 function downloadJson(filename: string, text: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
   const link = document.createElement("a");
@@ -75,55 +152,82 @@ function downloadJson(filename: string, text: string): void {
   globalThis.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-/** Renders the development-only generate, edit, validate, preview, and explicit-save workflow. */
+/** Renders the development-only generate, inspect, validate, export, and explicit-save workflow. */
 export function renderFloorWorkbench(mount: HTMLElement): void {
-  const page = document.createElement("main");
-  const heading = document.createElement("h1");
-  const description = document.createElement("p");
-  const generatorHeading = document.createElement("h2");
+  const { page, content } = createDebugPage({
+    title: "Floor Set Workbench",
+    description:
+      "Generate, inspect, tune, validate, export, and explicitly save authored floor-set JSON through one development workspace.",
+    width: "wide",
+  });
+  const generatorPanel = createDebugPanel(
+    "Generator",
+    "Create a solvable candidate from a deterministic seed, an odd width and height, and candidate-wide red, blue, and yellow key/door totals.",
+  );
   const generatorControls = document.createElement("div");
+  const generatorShapeRow = document.createElement("div");
+  const generatorColorRow = document.createElement("div");
+  const generatorFinishRow = document.createElement("div");
   const seedField = createCountField("floor-workbench-seed", "Seed", 1, Number.MIN_SAFE_INTEGER);
   const floorField = createCountField("floor-workbench-floors", "Floors", 5, 1);
-  const keyField = createCountField("floor-workbench-keys", "Keys per floor", 1, 0);
-  const doorField = createCountField("floor-workbench-doors", "Doors per floor", 1, 0);
-  const enemyField = createCountField("floor-workbench-enemies", "Enemies per floor", 1, 0);
-  const editorHeading = document.createElement("h2");
+  const widthField = createCountField("floor-workbench-width", "Width (odd, ≥5)", 13, 5);
+  const heightField = createCountField("floor-workbench-height", "Height (odd, ≥5)", 13, 5);
+  const redGroup = createColorCountGroup("red", "Red");
+  const blueGroup = createColorCountGroup("blue", "Blue");
+  const yellowGroup = createColorCountGroup("yellow", "Yellow");
+  const enemyField = createCountField("floor-workbench-enemies", "Enemies (candidate total)", 1, 0);
+  const mapPanel = createDebugPanel(
+    "Draft Map",
+    "Select, paint terrain, move gameplay entities, and edit the schema-valid draft before full structural validation.",
+  );
+  const map = document.createElement("div");
+  const editorPanel = createDebugPanel(
+    "JSON Editor",
+    "This text remains the complete draft authority; map and Cell Editor changes rewrite it immediately.",
+  );
   const editorLabel = document.createElement("label");
   const editor = document.createElement("textarea");
+  const departurePanel = createDebugPanel("Export and Save");
+  const departureDescription = document.createElement("p");
   const actions = document.createElement("div");
   const status = document.createElement("p");
-  const validationHeading = document.createElement("h2");
+  const validationPanel = createDebugPanel("Validation Findings");
+  const validationExplanation = document.createElement("p");
   const validationFindings = document.createElement("ul");
-  const previewHeading = document.createElement("h2");
-  const preview = document.createElement("section");
+  let draftSelection: FloorInspectorSelection | undefined;
+  let mapTool: AuthoredMapTool = "select";
+  let movingEntityId: string | undefined;
+  let terrainPainting = false;
+  let terrainPaintChanged = false;
   let validatedText: string | undefined;
   let validatedResult: FloorValidationResult | undefined;
 
-  heading.textContent = "Floor Set Workbench";
-  description.textContent =
-    "Generate a solvable random draft or load canonical content, tune the JSON by hand, validate and preview it, then export the result as a file or explicitly save it to canonical content. Only a validated draft can leave this page.";
-  generatorHeading.textContent = "Generator";
-  editorHeading.textContent = "JSON Editor";
   editorLabel.textContent = "Floor-set JSON";
+  editorLabel.className = "debug-field";
   editorLabel.htmlFor = "floor-workbench-editor";
   editor.id = editorLabel.htmlFor;
   editor.rows = 28;
   editor.spellcheck = false;
-  editor.style.boxSizing = "border-box";
-  editor.style.fontFamily = "monospace";
-  editor.style.width = "100%";
-  previewHeading.textContent = "Validated Preview";
-  validationHeading.textContent = "Validation Findings";
+  departureDescription.textContent =
+    "Export JSON File downloads the validated draft and leaves canonical content unchanged. Save Canonical JSON overwrites the canonical floor-set target used by the game.";
+  validationExplanation.className = "debug-status debug-status--explanation";
+  validationExplanation.textContent =
+    "Structural validation reports invalid placements, stair destinations, and topology that cannot yield a legal solution.\nNo findings means this validation run reported no issues;\nExport and Save still require the exact current draft to have a structural solution.";
   status.setAttribute("role", "status");
-  generatorControls.style.display = "flex";
-  generatorControls.style.flexWrap = "wrap";
-  generatorControls.style.gap = "1rem";
-  actions.style.display = "flex";
-  actions.style.flexWrap = "wrap";
-  actions.style.gap = "0.5rem";
+  generatorControls.className = "debug-generator-controls";
+  generatorShapeRow.className = "debug-generator-row";
+  generatorColorRow.className = "debug-generator-colors";
+  generatorFinishRow.className = "debug-generator-row debug-generator-row--finish";
+  actions.className = "debug-button-row";
+  map.className = "debug-workbench-map";
+
+  const reportStatus = (message: string, tone: "error" | "info" | "success" | "warning" = "info"): void => {
+    status.textContent = message;
+    status.dataset.tone = tone;
+  };
 
   const reportError = (caught: unknown): void => {
-    status.textContent = caught instanceof Error ? caught.message : "Unable to complete the authoring action.";
+    reportStatus(caught instanceof Error ? caught.message : "Unable to complete the authoring action.", "error");
   };
 
   const renderFindings = (validation: FloorValidationResult | undefined, fallback?: string): void => {
@@ -150,11 +254,189 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
     }
   };
 
+  const renderDraftMap = (): void => {
+    map.replaceChildren();
+
+    try {
+      const source = JSON.parse(editor.value) as unknown;
+      const floorSet = parseFloorSet(source);
+      const currentValidation = editor.value === validatedText ? validatedResult : undefined;
+
+      const applyDirectEdit = (result: FloorAuthoringResult, successMessage: string): void => {
+        if (!result.ok) {
+          reportStatus(result.message, "error");
+          return;
+        }
+
+        const nextText = JSON.stringify(result.floorSet, null, 2);
+
+        if (nextText === editor.value) {
+          reportStatus("No authored data changed.", "info");
+          return;
+        }
+
+        editor.value = nextText;
+        movingEntityId = undefined;
+        clearValidation();
+
+        if (terrainPainting) {
+          terrainPaintChanged = true;
+          return;
+        }
+
+        renderDraftMap();
+        reportStatus(
+          `${successMessage} Validate again before downloading or overwriting canonical content.`,
+          "warning",
+        );
+      };
+
+      renderFloorSetInspector(map, floorSet, currentValidation, "Current Draft", {
+        embedded: true,
+        cellEditor: (floor, selectedCell) =>
+          createCellEditor({
+            floor,
+            floorSet,
+            selectedCell,
+            tool: mapTool,
+            ...(movingEntityId ? { movingEntityId } : {}),
+            onToolChange: (tool) => {
+              mapTool = tool;
+              movingEntityId = undefined;
+              renderDraftMap();
+            },
+            onPaintTerrain: (tile) => {
+              if (!selectedCell) {
+                reportStatus("Select a map cell before changing its base terrain.", "warning");
+                return;
+              }
+
+              applyDirectEdit(paintTerrain(floorSet, floor.id, selectedCell, tile), "Terrain updated.");
+            },
+            onAddEntity: (kind) => {
+              if (!selectedCell) {
+                reportStatus("Select a passable map cell before adding gameplay content.", "warning");
+                return;
+              }
+
+              const entity = createDefaultGameplayEntity(floorSet, floor.id, selectedCell, kind);
+
+              if (!entity) {
+                reportStatus("This entity needs a passable cell with valid local configuration.", "error");
+                return;
+              }
+
+              applyDirectEdit(addGameplayEntity(floorSet, floor.id, entity), `${kind} added.`);
+            },
+            onUpdateEntity: (originalId, entity) => {
+              applyDirectEdit(
+                updateGameplayEntity(floorSet, floor.id, originalId, entity),
+                `Gameplay entity ${entity.id} updated.`,
+              );
+            },
+            onRemoveEntity: (entityId) => {
+              applyDirectEdit(
+                removeGameplayEntity(floorSet, floor.id, entityId),
+                `Gameplay entity ${entityId} removed.`,
+              );
+            },
+            onBeginMove: (entityId) => {
+              movingEntityId = movingEntityId === entityId ? undefined : entityId;
+              mapTool = "select";
+              renderDraftMap();
+              reportStatus(
+                movingEntityId
+                  ? `Choose a passable, empty destination for ${entityId}.`
+                  : "Gameplay entity move cancelled.",
+                "info",
+              );
+            },
+            onResize: (width, height) => {
+              applyDirectEdit(resizeFloor(floorSet, floor.id, width, height), "Floor size updated.");
+            },
+            onAddFeature: (kind) => {
+              if (!selectedCell) {
+                reportStatus("Select a cell before adding an environment feature.", "warning");
+                return;
+              }
+
+              const feature = createDefaultEnvironmentFeature(floorSet, floor.id, selectedCell, kind);
+
+              if (!feature) {
+                reportStatus("This environment feature needs a legal anchor at the selected cell.", "error");
+                return;
+              }
+
+              applyDirectEdit(addEnvironmentFeature(floorSet, floor.id, feature), `${kind} added.`);
+            },
+            onUpdateFeature: (originalId, feature) => {
+              applyDirectEdit(
+                updateEnvironmentFeature(floorSet, floor.id, originalId, feature),
+                `Environment feature ${feature.id} updated.`,
+              );
+            },
+            onRemoveFeature: (featureId) => {
+              applyDirectEdit(
+                removeEnvironmentFeature(floorSet, floor.id, featureId),
+                `Environment feature ${featureId} removed.`,
+              );
+            },
+          }),
+        mapInteraction: {
+          tool: mapTool,
+          ...(movingEntityId ? { movingEntityId } : {}),
+          onPaintStart: () => {
+            terrainPainting = true;
+            terrainPaintChanged = false;
+          },
+          onPaintEnd: () => {
+            if (!terrainPainting) {
+              return;
+            }
+
+            terrainPainting = false;
+            renderDraftMap();
+
+            if (terrainPaintChanged) {
+              reportStatus(
+                "Terrain updated. Validate again before downloading or overwriting canonical content.",
+                "warning",
+              );
+            }
+          },
+          onPaintTerrain: (floorId, cell, tile) => {
+            try {
+              const currentFloorSet = parseFloorSet(JSON.parse(editor.value) as unknown);
+              applyDirectEdit(paintTerrain(currentFloorSet, floorId, cell, tile), "Terrain updated.");
+            } catch (caught) {
+              reportError(caught);
+            }
+          },
+          onMoveEntity: (floorId, entityId, cell) => {
+            applyDirectEdit(
+              moveGameplayEntity(floorSet, floorId, entityId, cell),
+              `Gameplay entity ${entityId} moved.`,
+            );
+          },
+        },
+        onSelectionChange: (selection) => {
+          draftSelection = selection;
+        },
+        ...(draftSelection ? { selection: draftSelection } : {}),
+      });
+    } catch (caught) {
+      const unavailable = document.createElement("p");
+      const message = caught instanceof Error ? caught.message : "Draft JSON could not be parsed.";
+      unavailable.textContent = `Draft map unavailable: ${message}`;
+      map.append(unavailable);
+    }
+  };
+
   const saveButton = createButton(
-    "Save Canonical JSON",
+    "Save Canonical JSON (Overwrites)",
     async () => {
       if (editor.value !== validatedText || !validatedResult?.solution) {
-        status.textContent = "Validate the current draft before saving.";
+        reportStatus("Validate the current draft before overwriting canonical content.", "warning");
         return;
       }
 
@@ -163,36 +445,48 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: "canonical", source: JSON.parse(editor.value) as unknown }),
       });
-      status.textContent = payload.message ?? "Canonical floor-set content saved.";
+      reportStatus(payload.message ?? "Canonical floor-set content overwritten.", "success");
     },
     reportError,
   );
+  saveButton.className = "debug-button--danger";
   saveButton.disabled = true;
 
   const exportButton = createButton(
-    "Export JSON File",
+    "Export JSON File (Download Only)",
     () => {
       if (editor.value !== validatedText || !validatedResult?.solution) {
-        status.textContent = "Validate the current draft before exporting.";
+        reportStatus("Validate the current draft before exporting a download.", "warning");
         return;
       }
 
       downloadJson(`floor-set-seed-${fieldValue(seedField)}.json`, `${editor.value}\n`);
-      status.textContent = "Validated draft exported as a downloaded file. Committed content is unchanged.";
+      reportStatus("Validated draft downloaded. Canonical content is unchanged.", "success");
     },
     reportError,
   );
+  exportButton.className = "debug-button--primary";
   exportButton.disabled = true;
 
-  const applySource = (source: unknown, sourceLabel: string): void => {
-    editor.value = JSON.stringify(source, null, 2);
+  const clearValidation = (): void => {
     validatedText = undefined;
     validatedResult = undefined;
     saveButton.disabled = true;
     exportButton.disabled = true;
-    preview.replaceChildren();
     renderFindings(undefined);
-    status.textContent = `${sourceLabel} loaded as an unsaved draft. Validate it to enable preview, export, and save.`;
+  };
+
+  const applySource = (source: unknown, sourceLabel: string): void => {
+    editor.value = JSON.stringify(source, null, 2);
+    draftSelection = undefined;
+    mapTool = "select";
+    movingEntityId = undefined;
+    clearValidation();
+    renderDraftMap();
+    reportStatus(
+      `${sourceLabel} loaded as an unsaved draft. Validate it to enable download and canonical overwrite.`,
+      "info",
+    );
   };
 
   const validateDraft = (): void => {
@@ -205,23 +499,26 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
       renderFindings(validation);
       saveButton.disabled = errors.length > 0 || !validation.solution;
       exportButton.disabled = saveButton.disabled;
+      renderDraftMap();
 
       if (errors.length > 0 || !validation.solution) {
-        preview.replaceChildren();
-        status.textContent = `Validation failed with ${errors.length} error findings. Export and canonical save remain disabled.`;
+        reportStatus(
+          `Validation failed with ${errors.length} error findings. Download and canonical overwrite remain disabled.`,
+          "error",
+        );
         return;
       }
 
-      renderFloorSetInspector(preview, parseFloorSet(source), validation, "Draft Floor Set", true);
-      status.textContent = `Valid draft with a ${validation.solution.length}-step structural solution. Export and explicit save are enabled.`;
+      reportStatus(
+        `Valid draft with a ${validation.solution.length}-step structural solution. Download and canonical overwrite are enabled.`,
+        "success",
+      );
     } catch (caught) {
-      validatedText = editor.value;
-      validatedResult = undefined;
-      saveButton.disabled = true;
-      exportButton.disabled = true;
-      preview.replaceChildren();
-      renderFindings(undefined, caught instanceof Error ? caught.message : "Draft JSON could not be parsed.");
-      status.textContent = caught instanceof Error ? caught.message : "Draft JSON could not be parsed.";
+      clearValidation();
+      renderDraftMap();
+      const message = caught instanceof Error ? caught.message : "Draft JSON could not be parsed.";
+      renderFindings(undefined, message);
+      reportStatus(message, "error");
     }
   };
 
@@ -231,7 +528,7 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   };
 
   const generate = async (): Promise<void> => {
-    status.textContent = "Generating a solvable candidate. Dense key and door counts take longer to validate.";
+    reportStatus("Generating a solvable candidate. Dense key and door totals take longer to validate.", "info");
 
     const payload = await requestJson("generate", {
       method: "POST",
@@ -239,56 +536,47 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
       body: JSON.stringify({
         seed: fieldValue(seedField),
         floorCount: fieldValue(floorField),
-        keysPerFloor: fieldValue(keyField),
-        doorsPerFloor: fieldValue(doorField),
-        enemiesPerFloor: fieldValue(enemyField),
+        width: fieldValue(widthField),
+        height: fieldValue(heightField),
+        redKeys: Number(redGroup.keyInput.value),
+        redDoors: Number(redGroup.doorInput.value),
+        blueKeys: Number(blueGroup.keyInput.value),
+        blueDoors: Number(blueGroup.doorInput.value),
+        yellowKeys: Number(yellowGroup.keyInput.value),
+        yellowDoors: Number(yellowGroup.doorInput.value),
+        enemies: fieldValue(enemyField),
       }),
     });
     applySource(payload.source, "Generated candidate");
   };
 
   editor.addEventListener("input", () => {
-    validatedText = undefined;
-    validatedResult = undefined;
-    saveButton.disabled = true;
-    exportButton.disabled = true;
-    renderFindings(undefined);
-    status.textContent = "Draft changed. Validate again before previewing, exporting, or saving.";
+    movingEntityId = undefined;
+    clearValidation();
+    renderDraftMap();
+    reportStatus("Draft changed. Validate again before downloading or overwriting canonical content.", "warning");
   });
 
-  generatorControls.append(
-    seedField,
-    floorField,
-    keyField,
-    doorField,
-    enemyField,
-    createButton("Generate Draft", generate, reportError),
-  );
+  generatorShapeRow.append(seedField, floorField, widthField, heightField);
+  generatorColorRow.append(redGroup.container, blueGroup.container, yellowGroup.container);
+  generatorFinishRow.append(enemyField, createButton("Generate Draft", generate, reportError));
+  generatorControls.append(generatorShapeRow, generatorColorRow, generatorFinishRow);
   actions.append(
     createButton("Load Canonical JSON", loadCanonical, reportError),
-    createButton("Validate and Preview", validateDraft, reportError),
+    createButton("Validate Draft", validateDraft, reportError),
     exportButton,
     saveButton,
   );
-  page.append(
-    heading,
-    description,
-    generatorHeading,
-    generatorControls,
-    editorHeading,
-    editorLabel,
-    editor,
-    actions,
-    status,
-    validationHeading,
-    validationFindings,
-    previewHeading,
-    preview,
-  );
+  generatorPanel.body.append(generatorControls);
+  mapPanel.body.append(map);
+  editorPanel.body.append(editorLabel, editor);
+  departurePanel.body.append(departureDescription, actions, status);
+  validationPanel.body.append(validationExplanation, validationFindings);
+  content.append(generatorPanel.panel, departurePanel.panel, mapPanel.panel, editorPanel.panel, validationPanel.panel);
   mount.replaceChildren(page);
   renderFindings(undefined);
-  status.textContent = "Loading canonical floor-set JSON.";
+  reportStatus("Loading canonical floor-set JSON.");
   void loadCanonical().catch((caught: unknown) => {
-    status.textContent = caught instanceof Error ? caught.message : "Unable to load canonical floor-set JSON.";
+    reportStatus(caught instanceof Error ? caught.message : "Unable to load canonical floor-set JSON.", "error");
   });
 }

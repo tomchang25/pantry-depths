@@ -90,10 +90,6 @@ function isBasePassable(floor: FloorSource, cell: Cell): boolean {
   return tile !== undefined && !isSolidTile(tile);
 }
 
-function sameCell(left: Cell, right: Cell): boolean {
-  return left.x === right.x && left.y === right.y;
-}
-
 /** Assigns one bit per collectable key and openable door so search state fits in two integers. */
 function createEntityBits(entities: readonly LocatedEntity[]): ReadonlyMap<string, bigint> {
   const bits = new Map<string, bigint>();
@@ -293,31 +289,11 @@ function validateReferences(floorSet: FloorSetSource): readonly TopologyFinding[
 
   for (const { floorId, entity } of allEntities) {
     if (entity.kind === "stair") {
-      const destinationFloor = floors.get(entity.destinationFloorId);
+      const destination = allEntities.find((candidate) => candidate.entity.id === entity.destinationStairId);
 
-      if (!destinationFloor || !isBasePassable(destinationFloor, entity.destinationCell)) {
+      if (!destination || destination.entity.kind !== "stair" || destination.entity.id === entity.id) {
         findings.push(
-          error("stair.invalidDestination", `Stair ${entity.id} must target a passable cell on an existing floor.`, {
-            floorId,
-            entityId: entity.id,
-            cell: entity.cell,
-          }),
-        );
-        continue;
-      }
-
-      const reciprocal = allEntities.some(
-        (candidate) =>
-          candidate.floorId === entity.destinationFloorId &&
-          candidate.entity.kind === "stair" &&
-          sameCell(candidate.entity.cell, entity.destinationCell) &&
-          candidate.entity.destinationFloorId === floorId &&
-          sameCell(candidate.entity.destinationCell, entity.cell),
-      );
-
-      if (!reciprocal) {
-        findings.push(
-          error("stair.notReciprocal", `Stair ${entity.id} must have a reciprocal stair at its destination.`, {
+          error("stair.invalidDestination", `Stair ${entity.id} must target another authored stair ID.`, {
             floorId,
             entityId: entity.id,
             cell: entity.cell,
@@ -433,16 +409,19 @@ type ReachNode = Readonly<{
 type EntityIndex = Readonly<{
   floors: ReadonlyMap<string, FloorSource>;
   entitiesAt: ReadonlyMap<string, LocatedEntity>;
+  entitiesById: ReadonlyMap<string, LocatedEntity>;
 }>;
 
 function indexFloorSet(floorSet: FloorSetSource): EntityIndex {
   const entitiesAt = new Map<string, LocatedEntity>();
+  const entitiesById = new Map<string, LocatedEntity>();
 
   for (const entity of collectEntities(floorSet)) {
     entitiesAt.set(entityKey(entity.floorId, entity.entity.cell), entity);
+    entitiesById.set(entity.entity.id, entity);
   }
 
-  return { floors: new Map(floorSet.floors.map((floor) => [floor.id, floor])), entitiesAt };
+  return { floors: new Map(floorSet.floors.map((floor) => [floor.id, floor])), entitiesAt, entitiesById };
 }
 
 /**
@@ -508,12 +487,16 @@ function exploreReachable(
         };
         next = { floorId: current.floorId, cell: targetCell, parentKey: currentKey, steps: [clearStep, moveStep] };
       } else if (entity.kind === "stair") {
-        next = {
-          floorId: entity.destinationFloorId,
-          cell: entity.destinationCell,
-          parentKey: currentKey,
-          steps: [{ type: "useStair", floorId: current.floorId, cell: targetCell, entityId: entity.id }],
-        };
+        const destination = index.entitiesById.get(entity.destinationStairId);
+
+        if (destination?.entity.kind === "stair") {
+          next = {
+            floorId: destination.floorId,
+            cell: destination.entity.cell,
+            parentKey: currentKey,
+            steps: [{ type: "useStair", floorId: current.floorId, cell: targetCell, entityId: entity.id }],
+          };
+        }
       } else if (entity.kind === "door" && opened.has(entity.id)) {
         next = { floorId: current.floorId, cell: targetCell, parentKey: currentKey, steps: [moveStep] };
       }
@@ -661,9 +644,11 @@ function solveTopology(floorSet: FloorSetSource): SolveOutcome {
   const entities = collectEntities(floorSet);
   const entityBits = createEntityBits(entities);
   const entitiesAt = new Map<string, LocatedEntity>();
+  const entitiesById = new Map<string, LocatedEntity>();
 
   for (const entity of entities) {
     entitiesAt.set(entityKey(entity.floorId, entity.entity.cell), entity);
+    entitiesById.set(entity.entity.id, entity);
   }
 
   const initialState: SearchState = {
@@ -797,10 +782,16 @@ function solveTopology(floorSet: FloorSetSource): SolveOutcome {
       }
 
       if (entity.kind === "stair") {
+        const destination = entitiesById.get(entity.destinationStairId);
+
+        if (!destination || destination.entity.kind !== "stair") {
+          continue;
+        }
+
         enqueue({
           ...current,
-          floorId: entity.destinationFloorId,
-          cell: entity.destinationCell,
+          floorId: destination.floorId,
+          cell: destination.entity.cell,
           parentIndex: currentIndex,
           steps: [{ type: "useStair", floorId: current.floorId, cell: targetCell, entityId: entity.id }],
         });

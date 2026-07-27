@@ -1,3 +1,5 @@
+import "@/app/debug/debug.css";
+
 import { renderDebugHub } from "@/app/debug/debug-hub";
 import { DEBUG_TOOLS, type DebugTool } from "@/app/debug/debug-tools";
 

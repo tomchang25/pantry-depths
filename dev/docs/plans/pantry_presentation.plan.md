@@ -63,6 +63,8 @@ Enemy images receive the same distance attenuation family as walls plus the near
 
 The final presentation slice consumes the floor-content contract established by the last Rules child. Wall-mounted features use authored outward-face anchors, while ambient lights and emitters use floor-owned positions and named presets. Content chooses placement and preset identity; presentation owns rendering, animation, timing, and decorative variation.
 
+That contract has a queued successor. `pantry_preset` replaces the current flat per-placement preset references with composite presets that carry their own components and offsets. Which of the two this plan implements first, and whether it implements both, stays this plan's decision — but the rendering path must not harden around the flat shape, because a renderer that assumes one identifier per visual layer would make the composite contract a migration rather than a substitution.
+
 These annotations remain read-only presentation input. A missing or unsupported optional annotation may omit its visual effect, but it cannot change collision, visibility for gameplay rules, interaction, damage, progression, or deterministic replay.
 
 ### Motion and audio capability
@@ -99,5 +101,5 @@ The combined child depends on the authored environment-feature contract from the
 3. Presentation can render settled gameplay snapshots and semantic events without importing or mutating gameplay truth.
 4. All separately baked enemy state images load before play, failed loads show a retryable error, and successful images use authored scale and anchor values with correct depth occlusion.
 5. Enemy images darken with distance, gain compatible near-torch warmth, use the hurt pose plus dynamic white VFX on hit, and split the hurt pose on death without per-slice filtering.
-6. Authored wall-face decorations, ambient lights, emitters, and effect presets render from presentation-only floor data without becoming gameplay entities or affecting deterministic outcomes.
+6. Authored wall-face decorations, ambient lights, emitters, and effect presets render from presentation-only floor data — in either the flat per-placement preset form or the composite preset form defined by `pantry_preset`, whichever this plan adopts — without becoming gameplay entities or affecting deterministic outcomes.
 7. Reduced-motion and silent-audio modes preserve all information and leave gameplay outcomes unchanged.

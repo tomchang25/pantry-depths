@@ -557,7 +557,7 @@ Floor
 ├── size: { w, h }
 ├── tiles: string[]        // 每字元一格
 ├── entry: { x, y, facing }
-├── stairs: { cell, destinationFloor, destinationCell, destinationFacing }[]
+├── stairs: { id, cell, destinationStairId, arrivalFacing }[]
 ├── enemies: Enemy[]
 ├── keys: { color, cell }[]
 ├── doors: { color, cell, effect, opened: false }[]

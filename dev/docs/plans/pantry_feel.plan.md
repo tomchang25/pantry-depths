@@ -107,7 +107,7 @@ Recommended landing order: `pantry_feel_01` -> `pantry_feel_02` -> `pantry_feel_
 2. Do not add mouse controls, pointer lock, free look, strafing, backward movement, running, configurable key bindings, or touch controls.
 3. Do not show computed expected combat loss, auto-play routes, hints for optimal progression, or a permanent tutorial system.
 4. Do not add new gameplay rules, stat sources, enemy abilities, ending branches, or renderer improvements while integrating feel.
-5. Do not introduce browser acceptance automation for V1; visual, motion, audio, and interaction feel remain explicit manual-playtest boundaries.
+5. Do not introduce browser acceptance automation for gameplay; visual, motion, audio, and interaction feel remain explicit manual-playtest boundaries. The browser layer in `test/e2e/` covers the development console only.
 
 ## Acceptance Criteria
 

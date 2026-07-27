@@ -8,7 +8,7 @@ Plan children get no lines here. They live in their plan's child overview table,
 
 ## Active
 
-Nothing in flight.
+Nothing currently in progress.
 
 ---
 
@@ -16,17 +16,27 @@ Nothing in flight.
 
 ### V1 prototype milestone
 
-[`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in four delivery plans and one parked tooling plan.
+[`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in four critical-path delivery plans and two optional tooling and content plans.
 
-| Stream | Scope                                                             | Children | State                                           |
-| ------ | ----------------------------------------------------------------- | -------: | ----------------------------------------------- |
-| A      | Rules and Content                                                 |        7 | Shipped                                         |
-| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)   |        1 | Active — combined renderer spec ready           |
-| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)            |        4 | Queued                                          |
-| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)  |        1 | Queued after Presentation Port                  |
-| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |        3 | Parked; promote if final floor authoring blocks |
+| Stream | Scope                                                                 |   Children | State                                                |
+| ------ | --------------------------------------------------------------------- | ---------: | ---------------------------------------------------- |
+| A      | Rules and Content                                                     |          7 | Shipped                                              |
+| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)       |          1 | Active — combined renderer spec ready                |
+| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)                |          4 | Queued                                               |
+| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)      |          1 | Queued after Presentation Port                       |
+| T      | Debug Surface Shell                                                   | standalone | Shipped; shared debug presentation foundation        |
+| P      | Authoring Workbench UX                                                |          4 | Shipped; direct floor authoring and generator totals |
+| Q      | [Composite Environment Presets](dev/docs/plans/pantry_preset.plan.md) |          3 | Queued; its blocking dependency has landed           |
 
-Next action: confirm the current `/implement` preview for `pantry_presentation_01`, then execute the combined 2.5D renderer spec.
+The Authoring Workbench is shipped, so Composite Environment Presets is the next available optional-tooling work. The V1 critical-path next action remains `pantry_presentation_01`, now carried by the combined 2.5D renderer spec.
+
+### Standalone sketches
+
+Direction chosen, no plan owns the area. Each becomes actionable through `/implement`, which rewrites it into a standalone implementation spec.
+
+- [Start and end markers](dev/docs/plans/pantry_start_and_end_markers.sketch.md) — make the spawn position and the run-completion condition authored markers instead of a fixed corner and one enemy's identity. The completion half is a product decision the design document owns and overlaps the feel plan's ending sequence; settle that before writing a spec.
+- [Cross-floor locks](dev/docs/plans/pantry_cross_floor_locks.sketch.md) — let the generator place a key on one floor and the door it opens on a later one. Runtime and the validator already support it; the generator's per-floor construction guarantee does not. The generator allocation layer it builds on has now shipped, so nothing blocks it.
+- [Cross-floor entity move](dev/docs/plans/pantry_cross_floor_entity_move.sketch.md) — let the Workbench move a gameplay entity to another floor instead of forcing delete-and-recreate. The two-click move mode already survives a floor switch; the authoring mutation resolves the entity against the destination floor and refuses.
 
 ---
 
@@ -34,8 +44,9 @@ Next action: confirm the current `/implement` preview for `pantry_presentation_0
 
 Not scheduled. Do not start without a decision.
 
-- White and black keys, widening the palette from three colours to five. Blocked on a product decision, not on implementation: the design document's section 八 binds the three current colours to passage, attack, and defence, and white and black have no assigned meaning. Decide what they mean before touching `KeyColor`. Requirement 4 of the authoring plan depends on this.
-- Browser acceptance coverage. Deliberately absent from V1; `dev/agent_rules/test_operations.md` records it as a standing gap.
+- White and black keys, widening the palette beyond the current three colours. Blocked on a product decision, not on implementation: the design document's section 八 binds red, blue, and yellow to passage, attack, and defence, while additional colours have no assigned meaning. The shipped authoring workbench and generator deliberately expose only the three existing colours, so widening the palette is a content-contract change, not a tooling change.
+- Browser acceptance coverage for gameplay. `test/e2e/` now covers the development console only — the parts of `src/app/debug/` that a DOM-less unit environment cannot observe. Presentation, input feel, VFX, and audio remain deliberate manual-playtest boundaries; `dev/agent_rules/test_operations.md` owns that scope line.
+- A jsdom component layer — `jsdom` plus `@testing-library/dom`, no React — between unit and browser. Not earned today: `src/ui/` is empty, every DOM module in the tree is a dev-only debug tool, and those tools' pure logic is already extracted and unit-covered. It becomes a real decision when `pantry_feel_01`/`_02` land the HUD, because that DOM ships to players and the feel plan's acceptance criteria 3 and 6 — required information without relying on colour alone, keyboard reachable and semantically labelled — are semantic assertions that belong below the browser layer, not in a manual playtest.
 - Promote the mega plan shape into game-devkit as `mega_plan_standard.md`. The foundation has no mega-plan contract today; this project is its trial run. See mega plan §8 items 5 and 6.
 
 Playtest-driven balance questions live in mega plan §8, not here — they are product decisions against `src/content/`, not forward work.

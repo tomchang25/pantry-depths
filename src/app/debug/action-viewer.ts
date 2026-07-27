@@ -1,3 +1,4 @@
+import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
 import { createActionScenario, type ActionScenario } from "@/harness/action-scenario";
 import { createFloorScenario } from "@/harness/floor-scenario";
 import type { Cell, Facing } from "@/core/grid";
@@ -127,7 +128,7 @@ function mapCellPresentation(world: RunWorld, snapshot: RunSnapshot, cell: Cell)
   if (key) {
     const color = key.pickup?.effects.find((effect) => effect.type === "grantKey")?.color;
     return {
-      symbol: "◆",
+      symbol: "⚿",
       label: `${color ?? "unknown"} key`,
       background: "#22202a",
       color: color === "red" ? "#ff6678" : color === "blue" ? "#69adff" : "#f5d761",
@@ -159,31 +160,111 @@ function renderMap(map: HTMLElement, world: RunWorld, snapshot: RunSnapshot): vo
   for (let y = 0; y < floor.height; y += 1) {
     const row = document.createElement("span");
     row.setAttribute("role", "row");
-    row.style.display = "contents";
+    row.className = "debug-action-map__row";
 
     for (let x = 0; x < floor.width; x += 1) {
       const cell = document.createElement("span");
       const presentation = mapCellPresentation(world, snapshot, { x, y });
       cell.setAttribute("role", "gridcell");
       cell.setAttribute("aria-label", `${presentation.label} at ${x}, ${y}`);
+      cell.className = "debug-action-map__cell";
       cell.title = presentation.label;
       cell.textContent = presentation.symbol;
-      cell.style.alignItems = "center";
-      cell.style.aspectRatio = "1";
       cell.style.background = presentation.background;
-      cell.style.border = "1px solid #514b61";
-      cell.style.borderRadius = "0.35rem";
       cell.style.color = presentation.color;
-      cell.style.display = "flex";
-      cell.style.fontSize = "1.4rem";
-      cell.style.fontWeight = "700";
-      cell.style.justifyContent = "center";
-      cell.style.lineHeight = "1";
       row.append(cell);
     }
 
     map.append(row);
   }
+}
+
+function renderRunSummary(summary: HTMLDListElement, snapshot: RunSnapshot): void {
+  const player = snapshot.player;
+  const entries = [
+    { term: "Floor", value: player.floorId },
+    { term: "Cell", value: `${player.cell.x}, ${player.cell.y}` },
+    { term: "Facing", value: player.facing },
+    { term: "Health", value: `${player.health}/${player.maxHealth}` },
+    { term: "Attack / Defense", value: `${player.attack} / ${player.defense}` },
+    { term: "Keys", value: `R${player.keys.red} B${player.keys.blue} Y${player.keys.yellow}` },
+    { term: "Outcome", value: snapshot.outcome },
+  ];
+
+  summary.replaceChildren();
+
+  for (const entry of entries) {
+    const term = document.createElement("dt");
+    const value = document.createElement("dd");
+    term.textContent = entry.term;
+    value.textContent = entry.value;
+    summary.append(term, value);
+  }
+}
+
+function createActionMapLegend(): HTMLElement {
+  const section = document.createElement("section");
+  const heading = document.createElement("h3");
+  const groups = document.createElement("div");
+  const legendGroups = [
+    {
+      title: "Current State",
+      entries: [
+        { symbol: "↑", label: "Player facing" },
+        { symbol: "·", label: "Open floor" },
+      ],
+    },
+    {
+      title: "World Content",
+      entries: [
+        { symbol: "☠", label: "Enemy" },
+        { symbol: "⚿", label: "Red key", tone: "red" },
+        { symbol: "⚿", label: "Blue key", tone: "blue" },
+        { symbol: "⚿", label: "Yellow key", tone: "yellow" },
+        { symbol: "▣", label: "Door" },
+        { symbol: "⇩", label: "Stair" },
+        { symbol: "≈", label: "Hot spring" },
+      ],
+    },
+    {
+      title: "Obstacles",
+      entries: [
+        { symbol: "▦", label: "Solid wall" },
+        { symbol: "◫", label: "Breakable wall" },
+      ],
+    },
+  ];
+
+  section.className = "debug-map-legend";
+  groups.className = "debug-map-legend__groups";
+  heading.textContent = "Map Legend";
+
+  for (const group of legendGroups) {
+    const groupSection = document.createElement("section");
+    const groupHeading = document.createElement("h4");
+    const entries = document.createElement("ul");
+    groupSection.className = "debug-map-legend__group";
+    groupHeading.textContent = group.title;
+    entries.className = "debug-map-legend__entries";
+
+    for (const entry of group.entries) {
+      const item = document.createElement("li");
+      const symbol = document.createElement("span");
+      const label = document.createElement("span");
+      symbol.className = `debug-map-legend__symbol${entry.tone ? ` debug-map-legend__symbol--${entry.tone}` : ""}`;
+      symbol.setAttribute("aria-hidden", "true");
+      symbol.textContent = entry.symbol;
+      label.textContent = entry.label;
+      item.append(symbol, label);
+      entries.append(item);
+    }
+
+    groupSection.append(groupHeading, entries);
+    groups.append(groupSection);
+  }
+
+  section.append(heading, groups);
+  return section;
 }
 
 /** Renders the development-only command and snapshot inspection surface. */
@@ -193,24 +274,31 @@ export function renderActionViewer(mount: HTMLElement): void {
   let beforeSnapshot = scenario.session.getSnapshot();
   let result: CommandResult | undefined;
 
-  const page = document.createElement("main");
-  const heading = document.createElement("h1");
-  const description = document.createElement("p");
+  const { page, content } = createDebugPage({
+    title: "Action Viewer",
+    description:
+      "Step the real deterministic command boundary and inspect the active map, semantic events, and exact snapshots.",
+    width: "wide",
+  });
+  const controlsPanel = createDebugPanel(
+    "Scenario Commands",
+    "Run a real scenario through the canonical command boundary and inspect every resulting state change.",
+  );
+  const scenarioDescription = document.createElement("p");
   const keyboardHelp = document.createElement("p");
   const scenarioLabel = document.createElement("label");
   const scenarioSelect = document.createElement("select");
-  const controls = document.createElement("section");
-  const controlsHeading = document.createElement("h2");
-  const mapHeading = document.createElement("h2");
-  const playerSummary = document.createElement("p");
-  const mapScroller = document.createElement("div");
+  const controls = document.createElement("div");
+  const mapPanel = createDebugPanel("Current Scenario Map");
+  const mapLayout = document.createElement("div");
   const map = document.createElement("div");
-  const legend = document.createElement("p");
-  const resultHeading = document.createElement("h2");
+  const runInspector = document.createElement("aside");
+  const runInspectorHeading = document.createElement("h3");
+  const runSummary = document.createElement("dl");
+  const resultPanel = createDebugPanel("Last Command Result");
   const status = document.createElement("p");
   const events = document.createElement("ol");
-  const trace = document.createElement("section");
-  const traceHeading = document.createElement("h2");
+  const tracePanel = createDebugPanel("Snapshot Trace");
   const beforeDetails = document.createElement("details");
   const beforeHeading = document.createElement("summary");
   const before = document.createElement("pre");
@@ -218,38 +306,26 @@ export function renderActionViewer(mount: HTMLElement): void {
   const afterHeading = document.createElement("summary");
   const after = document.createElement("pre");
 
-  heading.textContent = "Action Viewer";
-  description.textContent = "Step the real deterministic command boundary through a compact harness scenario.";
   keyboardHelp.textContent = "Use W/A/S/D/E on the keyboard or the buttons below. Press R to reset the scenario.";
-  controlsHeading.textContent = "Keyboard and Button Commands";
-  scenarioLabel.textContent = "Scenario: ";
+  keyboardHelp.className = "debug-muted";
+  scenarioLabel.textContent = "Scenario";
+  scenarioLabel.className = "debug-field";
   scenarioLabel.htmlFor = "action-viewer-scenario";
   scenarioSelect.id = "action-viewer-scenario";
-  mapHeading.textContent = "Current Scenario Map";
-  legend.textContent =
-    "Legend: arrows Player · ☠ Enemy · ▦ Wall · ◫ Breakable wall · ▣ Door · ◆ Key · ⇩ Stair · ≈ Hot spring.";
-  resultHeading.textContent = "Last Command Result";
-  traceHeading.textContent = "Snapshot Trace";
   beforeHeading.textContent = "Before Snapshot";
   afterHeading.textContent = "After Snapshot";
-  controls.setAttribute("aria-labelledby", "action-controls-heading");
-  controlsHeading.id = "action-controls-heading";
-  controls.style.display = "flex";
-  controls.style.flexWrap = "wrap";
-  controls.style.gap = "0.5rem";
-  mapScroller.style.maxWidth = "100%";
-  mapScroller.style.overflow = "auto";
-  map.style.background = "#15121c";
-  map.style.display = "grid";
-  map.style.gap = "0.2rem";
-  map.style.padding = "0.5rem";
-  map.style.width = "max-content";
+  controls.className = "debug-button-row";
+  mapLayout.className = "debug-map-layout";
+  map.className = "debug-action-map";
   map.setAttribute("role", "grid");
+  runInspector.className = "debug-cell-inspector";
+  runInspector.setAttribute("aria-label", "Current run state");
+  runInspectorHeading.textContent = "Current Run";
+  runSummary.className = "debug-detail-list";
+  runInspector.append(runInspectorHeading, runSummary);
   status.setAttribute("role", "status");
   beforeDetails.append(beforeHeading, before);
   afterDetails.append(afterHeading, after);
-  trace.append(traceHeading, beforeDetails, afterDetails);
-  mapScroller.append(map);
 
   for (const [id, definition] of Object.entries(SCENARIOS) as readonly [ScenarioId, (typeof SCENARIOS)[ScenarioId]][]) {
     const option = document.createElement("option");
@@ -280,9 +356,8 @@ export function renderActionViewer(mount: HTMLElement): void {
 
   const render = (): void => {
     const afterSnapshot = scenario.session.getSnapshot();
-    const player = afterSnapshot.player;
-    description.textContent = SCENARIOS[scenarioId].description;
-    playerSummary.textContent = `${player.floorId} · (${player.cell.x}, ${player.cell.y}) · facing ${player.facing} · HP ${player.health}/${player.maxHealth} · ATK ${player.attack} · DEF ${player.defense} · keys R${player.keys.red} B${player.keys.blue} Y${player.keys.yellow} · ${afterSnapshot.outcome}`;
+    scenarioDescription.textContent = SCENARIOS[scenarioId].description;
+    renderRunSummary(runSummary, afterSnapshot);
     renderMap(map, scenario.world, afterSnapshot);
     before.textContent = renderSnapshot(beforeSnapshot);
     after.textContent = renderSnapshot(afterSnapshot);
@@ -290,10 +365,12 @@ export function renderActionViewer(mount: HTMLElement): void {
 
     if (!result) {
       status.textContent = "No command has been sent yet.";
+      status.dataset.tone = "info";
       return;
     }
 
     status.textContent = result.accepted ? "Accepted player tick." : `Cancelled input: ${result.reason}.`;
+    status.dataset.tone = result.accepted ? "success" : "warning";
 
     for (const event of result.events) {
       const item = document.createElement("li");
@@ -306,8 +383,6 @@ export function renderActionViewer(mount: HTMLElement): void {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = entry.label;
-    button.style.minHeight = "2.75rem";
-    button.style.padding = "0.5rem 0.8rem";
     button.addEventListener("click", () => sendCommand(entry.command));
     controls.append(button);
   }
@@ -315,8 +390,6 @@ export function renderActionViewer(mount: HTMLElement): void {
   const reset = document.createElement("button");
   reset.type = "button";
   reset.textContent = "Reset Scenario";
-  reset.style.minHeight = "2.75rem";
-  reset.style.padding = "0.5rem 0.8rem";
   reset.addEventListener("click", resetScenario);
   controls.append(reset);
 
@@ -350,22 +423,12 @@ export function renderActionViewer(mount: HTMLElement): void {
   activeKeyboardHandlers.set(mount, handleKeyboard);
   window.addEventListener("keydown", handleKeyboard);
 
-  page.append(
-    heading,
-    description,
-    keyboardHelp,
-    scenarioLabel,
-    controlsHeading,
-    controls,
-    mapHeading,
-    playerSummary,
-    mapScroller,
-    legend,
-    resultHeading,
-    status,
-    events,
-    trace,
-  );
+  controlsPanel.body.append(scenarioDescription, scenarioLabel, keyboardHelp, controls);
+  mapLayout.append(createDebugScroller(map, "Current scenario map"), runInspector);
+  mapPanel.body.append(mapLayout, createActionMapLegend());
+  resultPanel.body.append(status, events);
+  tracePanel.body.append(beforeDetails, afterDetails);
+  content.append(controlsPanel.panel, mapPanel.panel, resultPanel.panel, tracePanel.panel);
   mount.replaceChildren(page);
   render();
 }
