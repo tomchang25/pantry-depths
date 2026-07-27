@@ -119,16 +119,28 @@ function breakable(documentOwner: Document): HTMLCanvasElement {
   return surface;
 }
 
-function plane(documentOwner: Document, base: string, line: string): HTMLCanvasElement {
+/**
+ * One tile of this texture covers exactly one cell, so its outer edge is the only line in the scene
+ * that marks a cell boundary. The four flagstones inside are decoration, and drawing them in the
+ * same weight as that edge doubled the apparent number of lines down a corridor: a player counting
+ * squares to judge how far away an opening is read every cell as two. The seam is therefore drawn
+ * heavier and brighter than the flagstone joints it must never be mistaken for.
+ */
+function plane(documentOwner: Document, base: string, seam: string, joint: string): HTMLCanvasElement {
   const [surface, context] = canvas(documentOwner);
   context.fillStyle = base;
   context.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE);
-  context.strokeStyle = line;
+  context.strokeStyle = joint;
   context.lineWidth = 1;
   context.strokeRect(0.5, 0.5, 31, 31);
   context.strokeRect(32.5, 32.5, 31, 31);
   context.strokeRect(32.5, 0.5, 31, 31);
   context.strokeRect(0.5, 32.5, 31, 31);
+  // Inset by half the line width so the whole stroke lands inside the tile; a stroke centred on the
+  // edge would be clipped, and the neighbouring cell contributes the other half of the seam anyway.
+  context.strokeStyle = seam;
+  context.lineWidth = 2;
+  context.strokeRect(1, 1, TEXTURE_SIZE - 2, TEXTURE_SIZE - 2);
   noise(context);
   return surface;
 }
@@ -145,7 +157,9 @@ export function createProceduralTextures(documentOwner: Document): TextureSet {
       doorYellow: door(documentOwner, "#80632e", "#d0ae58"),
       breakableWall: breakable(documentOwner),
     },
-    floor: plane(documentOwner, "#281e31", "#3c2c46"),
-    ceiling: plane(documentOwner, "#191321", "#2a2034"),
+    // The floor carries the cell count the player navigates by, so its seam is the readable one.
+    // The ceiling is never counted against and keeps its seam near the base colour to stay quiet.
+    floor: plane(documentOwner, "#281e31", "#54406a", "#33253e"),
+    ceiling: plane(documentOwner, "#191321", "#2f2440", "#211a2b"),
   };
 }

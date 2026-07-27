@@ -20,7 +20,6 @@ const WALL_FACE_NORMALS: Readonly<Record<Facing, Readonly<{ x: number; y: number
 
 const DEFAULT_TORCH_COLOR: readonly [number, number, number] = [255, 112, 45];
 
-const FOV = Math.PI / 3;
 const MAX_DEPTH = 18;
 const RENDER_SCALE = 0.55;
 const MAX_WIDTH = 1050;
@@ -158,8 +157,12 @@ export class CanvasGameplayRenderer {
       return;
     }
 
-    const width = Math.max(1, Math.min(MAX_WIDTH, Math.round(cssWidth * devicePixelRatio * RENDER_SCALE)));
-    const height = Math.max(1, Math.min(MAX_HEIGHT, Math.round(cssHeight * devicePixelRatio * RENDER_SCALE)));
+    // One scale for both axes. Clamping them independently shrank the backing store on only one
+    // side while CSS still stretched it across the whole box, so the world arrived at the eye
+    // horizontally squashed by whatever the two clamps happened to disagree by.
+    const scale = Math.min(devicePixelRatio * RENDER_SCALE, MAX_WIDTH / cssWidth, MAX_HEIGHT / cssHeight);
+    const width = Math.max(1, Math.round(cssWidth * scale));
+    const height = Math.max(1, Math.round(cssHeight * scale));
 
     if (this.canvas.width === width && this.canvas.height === height) {
       return;
@@ -169,6 +172,20 @@ export class CanvasGameplayRenderer {
     this.canvas.height = height;
     this.#context.imageSmoothingEnabled = false;
     this.#depthBuffer = new Float64Array(width);
+  }
+
+  /**
+   * Half-width of the camera plane at unit depth, which is what sets the horizontal field of view.
+   *
+   * Walls, floor rows, and sprites are all projected as `canvasHeight / depth`, so the vertical
+   * field of view is pinned by that convention and cannot be authored. The horizontal half-width
+   * must therefore be derived from the canvas aspect: any other value renders square world geometry
+   * as a non-square number of pixels. A fixed 60-degree angle left the world magnified about 1.4x
+   * horizontally, which cost the player the side walls at a junction and made a 90-degree turn
+   * sweep far more of the screen than the quarter-turn it represents.
+   */
+  #planeLength(): number {
+    return this.canvas.width / (2 * this.canvas.height);
   }
 
   public render(
@@ -219,7 +236,7 @@ export class CanvasGameplayRenderer {
     const camera = scene.camera;
     const directionX = Math.cos(camera.angle);
     const directionY = Math.sin(camera.angle);
-    const planeLength = Math.tan(FOV / 2);
+    const planeLength = this.#planeLength();
     const planeX = -directionY * planeLength;
     const planeY = directionX * planeLength;
     const rayX0 = directionX - planeX;
@@ -277,7 +294,7 @@ export class CanvasGameplayRenderer {
   #castRay(scene: RenderScene, surfaces: ReadonlyMap<string, RenderSurface>, cameraX: number): RayHit | undefined {
     const directionX = Math.cos(scene.camera.angle);
     const directionY = Math.sin(scene.camera.angle);
-    const planeLength = Math.tan(FOV / 2);
+    const planeLength = this.#planeLength();
     const rayX = directionX - directionY * planeLength * cameraX;
     const rayY = directionY + directionX * planeLength * cameraX;
     let mapX = Math.floor(scene.camera.x);
@@ -387,7 +404,7 @@ export class CanvasGameplayRenderer {
   #projectSprite(scene: RenderScene, sprite: RenderSprite): ProjectedSprite | undefined {
     const directionX = Math.cos(scene.camera.angle);
     const directionY = Math.sin(scene.camera.angle);
-    const planeLength = Math.tan(FOV / 2);
+    const planeLength = this.#planeLength();
     const planeX = -directionY * planeLength;
     const planeY = directionX * planeLength;
     const relativeX = sprite.x - scene.camera.x;
