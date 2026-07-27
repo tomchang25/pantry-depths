@@ -164,6 +164,32 @@ describe("TurnRunner", () => {
     expect(messages).toHaveLength(4);
   });
 
+  it("notifies a readout of every resolved command, refused ones included", async () => {
+    const world = createWorld({
+      entities: [enemy({ combat: { health: 10, attack: 2, defense: 0, retaliates: true } })],
+    });
+    const session = new GameSession(world);
+    const presentation = new FakePresentation();
+    const settled: Array<{ health: number; eventCount: number }> = [];
+    const runner = new TurnRunner(session, presentation, {
+      onSettled: (snapshot, events) => settled.push({ health: snapshot.player.health, eventCount: events.length }),
+    });
+
+    // Backward from the west edge is refused, so it carries the unchanged snapshot and no events.
+    runner.submit("backward");
+    presentation.resolveNext();
+    await flush();
+
+    expect(settled).toEqual([{ health: 20, eventCount: 0 }]);
+
+    runner.submit("forward");
+    presentation.resolveNext();
+    await flush();
+
+    expect(settled).toHaveLength(2);
+    expect(settled[1]?.eventCount).toBeGreaterThan(0);
+  });
+
   it("stops accepting commands once the run reaches a terminal outcome", () => {
     // Leaving through the exit is the only thing that ends a run in victory; no enemy's death does.
     const world = createWorld({

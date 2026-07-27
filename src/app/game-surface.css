@@ -33,6 +33,12 @@ body,
   opacity: 0;
   image-rendering: pixelated;
   transition: opacity 240ms ease-out;
+  /*
+   * The pointer steers the view lean rather than clicking targets, so an arrow sitting over the
+   * first-person image reads as a stray desktop cursor. Interactive overlay controls opt back in,
+   * and the HUD's non-interactive areas fall through to this because they take no pointer events.
+   */
+  cursor: none;
 }
 
 .game-surface__canvas--ready {

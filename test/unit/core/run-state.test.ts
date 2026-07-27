@@ -1,5 +1,6 @@
 import {
   createInitialRunSnapshot,
+  findFacedEnemy,
   resolveCommand,
   type RunSnapshot,
   type RunWorld,
@@ -431,5 +432,64 @@ describe("resolveCommand", () => {
       snapshot,
       events: [],
     });
+  });
+});
+
+describe("findFacedEnemy", () => {
+  it("prices both directions of the exchange against the faced enemy", () => {
+    const world = createWorld({ entities: [enemy()] });
+    const faced = findFacedEnemy(world, createInitialRunSnapshot(world));
+
+    // Player 3/0 against the default enemy 6 HP, 4 attack, 0 defense.
+    expect(faced).toMatchObject({
+      health: 6,
+      maxHealth: 6,
+      playerDamagePerHit: 3,
+      enemyDamagePerHit: 4,
+    });
+    expect(faced?.entity.id).toBe("enemy");
+  });
+
+  it("reports a zero player hit rather than hiding an impenetrable enemy", () => {
+    const world = createWorld({
+      entities: [enemy({ combat: { health: 6, attack: 4, defense: 9, retaliates: true } })],
+    });
+    const faced = findFacedEnemy(world, createInitialRunSnapshot(world));
+
+    expect(faced?.playerDamagePerHit).toBe(0);
+  });
+
+  it("reports a zero enemy hit when defense absorbs the whole retaliation", () => {
+    const world = createWorld({ entities: [enemy()] });
+    const snapshot = withPlayer(createInitialRunSnapshot(world), { defense: 9 });
+
+    expect(findFacedEnemy(world, snapshot)?.enemyDamagePerHit).toBe(0);
+  });
+
+  it("returns nothing when the faced cell holds no combat entity", () => {
+    const openFloor = createWorld();
+    const wall = createWorld({ floors: [{ id: "B1", width: 5, height: 5, solidCells: [{ x: 2, y: 1 }] }] });
+
+    expect(findFacedEnemy(openFloor, createInitialRunSnapshot(openFloor))).toBeUndefined();
+    expect(findFacedEnemy(wall, createInitialRunSnapshot(wall))).toBeUndefined();
+  });
+
+  it("still reports a combat entity that carries no archetype, such as a breakable wall", () => {
+    const world = createWorld({
+      entities: [
+        {
+          kind: "breakableWall",
+          id: "hidden-wall",
+          floorId: "B1",
+          cell: { x: 2, y: 1 },
+          movement: { blocksEntry: true },
+          combat: { health: 4, attack: 0, defense: 0, retaliates: false },
+        },
+      ],
+    });
+    const faced = findFacedEnemy(world, createInitialRunSnapshot(world));
+
+    expect(faced?.entity.archetypeId).toBeUndefined();
+    expect(faced?.maxHealth).toBe(4);
   });
 });

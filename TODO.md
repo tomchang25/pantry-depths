@@ -22,6 +22,7 @@ The V1 prototype milestone lives in [`pantry_depths_v1.mega_plan.md`](dev/docs/p
 
 Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line becomes actionable through `/implement`, which rewrites the sketch into a standalone implementation spec; the line stays here until the work ships. If a plan later adopts the work, the sketch moves into that plan as a child and this line is removed in the same change.
 
+- [run_readout] Give the player the numbers and the floor map needed to price an encounter, and give a finished run a surface it can be seen and restarted from, since death currently reads as a freeze - [ref plans/pantry_run_readout.implementation_spec.md]
 - [player_screen_layer] Make the held torch and sword, the attack slash, the torch flame, and the damage flash authored values instead of renderer constants; the open shape question is what each value is a fraction of - [ref plans/pantry_player_screen_layer.sketch.md]
 - [cross_floor_locks] Let the generator place a key on one floor and the door it opens on a later one, since runtime and the validator already allow it but the per-floor construction guarantee does not - [ref plans/pantry_cross_floor_locks.sketch.md]
 - [cross_floor_entity_move] Let the Workbench move a gameplay entity to another floor instead of forcing delete-and-recreate, by giving the move mutation an explicit source and destination floor - [ref plans/pantry_cross_floor_entity_move.sketch.md]

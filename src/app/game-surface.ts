@@ -1,19 +1,25 @@
 import "@/app/game-surface.css";
 
 import type { FloorSetSource } from "@/content/floor/floor-schema";
+import type { RunSnapshot, SemanticEvent } from "@/core/run-state";
 import { GamePresentation } from "@/presentation/game-presentation";
 import { commandForKey } from "@/runtime/keymap";
 import { TurnRunner } from "@/runtime/turn-runner";
+import { createHudOverlay } from "@/ui/hud-overlay";
+import { deriveHudView } from "@/ui/hud-view";
 import type { GameSession } from "@/runtime/game-session";
 
 export type MountedGameSurface = Readonly<{ dispose: () => void }>;
 
 const REJECTION_MESSAGE_VISIBLE_MS = 1800;
 
+/** Anything that owns its own activation, so a gameplay key never fires it and vice versa. */
+const INTERACTIVE_SELECTOR = "a[href], button, input, select, textarea, [tabindex]";
+
 export function mountGameSurface(
   mount: HTMLElement,
   floorSet: FloorSetSource,
-  session: GameSession,
+  createSession: () => GameSession,
 ): MountedGameSurface {
   const surface = document.createElement("main");
   surface.className = "game-surface";
@@ -34,6 +40,30 @@ export function mountGameSurface(
   let turnRunner: TurnRunner | undefined;
   let messageHideTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   let disposed = false;
+  let session = createSession();
+
+  /**
+   * The one value the readout needs that a snapshot cannot answer: stairs run both ways, so the
+   * snapshot only knows where the player is now. It dies with the session and resets on restart.
+   */
+  let deepestFloorId = session.getSnapshot().player.floorId;
+
+  const floorDepth = (floorId: string): number => session.world.floors.findIndex((floor) => floor.id === floorId);
+
+  const hud = createHudOverlay(() => {
+    if (presentation) {
+      startRun(presentation);
+    }
+  });
+  surface.append(hud.element);
+
+  const refreshHud = (snapshot: RunSnapshot, events: readonly SemanticEvent[]): void => {
+    if (floorDepth(snapshot.player.floorId) > floorDepth(deepestFloorId)) {
+      deepestFloorId = snapshot.player.floorId;
+    }
+
+    hud.update(deriveHudView(session.world, snapshot, events, deepestFloorId));
+  };
 
   /**
    * Every refusal shows the line, but repeated refusals extend the one message rather than
@@ -51,6 +81,23 @@ export function mountGameSurface(
     messageHideTimer = globalThis.setTimeout(() => {
       message.classList.remove("game-surface__message--visible");
     }, REJECTION_MESSAGE_VISIBLE_MS);
+  };
+
+  /**
+   * Binds a fresh run to the loaded presentation. A `settle` intent rebuilds the render scene and
+   * reseats the camera, so restarting reuses the presentation instead of disposing it and paying
+   * for image loading again. The runner is replaced rather than reset because held-forward and
+   * buffered-command state lives on it and must not survive into the new run.
+   */
+  const startRun = (activePresentation: GamePresentation): void => {
+    session = createSession();
+    deepestFloorId = session.getSnapshot().player.floorId;
+    void activePresentation.present(session.getSnapshot(), [], { kind: "settle" });
+    turnRunner = new TurnRunner(session, activePresentation, {
+      onRejectionMessage: showRejectionMessage,
+      onSettled: refreshHud,
+    });
+    refreshHud(session.getSnapshot(), []);
   };
 
   const load = async (): Promise<void> => {
@@ -71,7 +118,11 @@ export function mountGameSurface(
 
       presentation?.dispose();
       presentation = nextPresentation;
-      turnRunner = new TurnRunner(session, nextPresentation, { onRejectionMessage: showRejectionMessage });
+      turnRunner = new TurnRunner(session, nextPresentation, {
+        onRejectionMessage: showRejectionMessage,
+        onSettled: refreshHud,
+      });
+      refreshHud(session.getSnapshot(), []);
       canvas.classList.add("game-surface__canvas--ready");
       status.hidden = true;
     } catch (caught) {
@@ -93,6 +144,12 @@ export function mountGameSurface(
 
   const handleKeyDown = (event: KeyboardEvent): void => {
     if (!turnRunner) {
+      return;
+    }
+
+    // Keys are listened for on the window, so a focused control would otherwise receive its own
+    // activation and a gameplay command from the same press.
+    if (event.target instanceof HTMLElement && event.target.closest(INTERACTIVE_SELECTOR)) {
       return;
     }
 
@@ -161,6 +218,7 @@ export function mountGameSurface(
     dispose: () => {
       disposed = true;
       presentation?.dispose();
+      hud.dispose();
       turnRunner = undefined;
 
       if (messageHideTimer !== undefined) {

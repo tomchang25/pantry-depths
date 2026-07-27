@@ -86,6 +86,8 @@ export type WorldEntity = Readonly<{
   floorId: string;
   cell: Cell;
   appearanceId?: string;
+  /** Which archetype this entity was assembled from. Appearance is shared between archetypes, so it cannot identify one. */
+  archetypeId?: string;
   directionalHint?: DirectionalHintCapability;
   movement?: MovementCapability;
   pickup?: PickupCapability;
@@ -462,6 +464,37 @@ function inspectMoveTarget(world: RunWorld, snapshot: RunSnapshot, direction: Mo
   }
 
   return { kind: "open", cell };
+}
+
+export type FacedEnemy = Readonly<{
+  entity: WorldEntity;
+  health: number;
+  maxHealth: number;
+  playerDamagePerHit: number;
+  enemyDamagePerHit: number;
+}>;
+
+/**
+ * The enemy the sword would reach, with both directions of the exchange already priced.
+ *
+ * Returning per-hit damage rather than raw stats keeps `max(0, attack - defense)` owned here. A
+ * readout that recomputed it would become a second place the rule could drift, and the two zero
+ * cases — cannot penetrate and fully blocked — are exactly what a player needs read back to them.
+ */
+export function findFacedEnemy(world: RunWorld, snapshot: RunSnapshot): FacedEnemy | undefined {
+  const target = inspectMoveTarget(world, snapshot, "forward");
+
+  if (target.kind !== "attack" || !target.entity.combat || target.snapshot.health === undefined) {
+    return undefined;
+  }
+
+  return {
+    entity: target.entity,
+    health: target.snapshot.health,
+    maxHealth: target.entity.combat.health,
+    playerDamagePerHit: calculateDamage(snapshot.player, target.entity.combat),
+    enemyDamagePerHit: calculateDamage(target.entity.combat, snapshot.player),
+  };
 }
 
 function resolveMove(

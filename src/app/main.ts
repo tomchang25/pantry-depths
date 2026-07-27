@@ -41,8 +41,11 @@ function renderOrdinaryPlay(): void {
         return;
       }
 
-      const session = new GameSession(PROVISIONAL_RUN_WORLD);
-      mountedGameSurface = mountGameSurface(appMount, PROVISIONAL_FLOOR_SET, session);
+      mountedGameSurface = mountGameSurface(
+        appMount,
+        PROVISIONAL_FLOOR_SET,
+        () => new GameSession(PROVISIONAL_RUN_WORLD),
+      );
     })
     .catch((error: unknown) => {
       renderLoadFailure("game surface failed to load", "The game failed to load. Check the browser console.", error);

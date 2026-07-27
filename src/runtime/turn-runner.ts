@@ -9,6 +9,12 @@ export type PresentationPort = Readonly<{
 
 export type TurnRunnerCallbacks = Readonly<{
   onRejectionMessage?: (text: string) => void;
+  /**
+   * Fires once per resolved command, accepted or refused, carrying the settled snapshot and the
+   * events that produced it. A readout needs both: the snapshot cannot say how much health a hit
+   * just cost, and two identical exchanges are indistinguishable without the events.
+   */
+  onSettled?: (snapshot: RunSnapshot, events: readonly SemanticEvent[]) => void;
 }>;
 
 const MOVE_INTENTS: Readonly<Partial<Record<GameCommand, PresentationIntent>>> = {
@@ -96,6 +102,8 @@ export class TurnRunner {
     if (intent.kind === "rejectBlocked") {
       this.callbacks.onRejectionMessage?.(BLOCKED_MOVE_TEXT);
     }
+
+    this.callbacks.onSettled?.(result.snapshot, result.events);
 
     const presented = this.presentation.present(result.snapshot, result.events, intent);
 
