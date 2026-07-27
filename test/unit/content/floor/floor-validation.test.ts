@@ -17,7 +17,7 @@ describe("floor validation", () => {
           ? Object.assign({}, floor, {
               gameplayEntities: [
                 ...floor.gameplayEntities,
-                { kind: "key" as const, id: "b1-red-key", cell: { x: 4, y: 1 }, color: "red" as const },
+                { kind: "key" as const, id: "b1-key-1-5", cell: { x: 4, y: 1 }, color: "red" as const },
               ],
             })
           : floor,
@@ -115,9 +115,17 @@ describe("floor validation", () => {
       floors: source.floors.map((floor) =>
         floor.id === "B1"
           ? Object.assign({}, floor, {
-              gameplayEntities: floor.gameplayEntities.map((entity) =>
-                entity.kind === "breakableWall" ? { ...entity, hintFaces } : entity,
-              ),
+              gameplayEntities: [
+                ...floor.gameplayEntities,
+                {
+                  kind: "breakableWall" as const,
+                  id: "b1-hint-config-wall",
+                  cell: { x: 4, y: 1 },
+                  health: 1,
+                  defense: 0,
+                  hintFaces,
+                },
+              ],
             })
           : floor,
       ),
