@@ -31,14 +31,14 @@ export type PresentationIntent =
   | Readonly<{ kind: "move" }>
   | Readonly<{ kind: "turn"; direction: "left" | "right" }>
   | Readonly<{ kind: "attack" }>
-  | Readonly<{ kind: "rejectBackward" }>
+  | Readonly<{ kind: "rejectBlocked" }>
   | Readonly<{ kind: "settle" }>;
 
 type ActiveTween =
   | Readonly<{ kind: "move"; fromX: number; fromY: number; toX: number; toY: number; angle: number; startedAt: number }>
   | Readonly<{ kind: "turn"; x: number; y: number; fromAngle: number; toAngle: number; startedAt: number }>
   | Readonly<{ kind: "attack"; startedAt: number }>
-  | Readonly<{ kind: "rejectBackward"; startedAt: number }>;
+  | Readonly<{ kind: "rejectBlocked"; startedAt: number }>;
 
 export type PresentationStatus = Readonly<{
   audio: AudioCapability;
@@ -53,14 +53,24 @@ function lerp(from: number, to: number, progress: number): number {
   return from + (to - from) * progress;
 }
 
+/**
+ * Smoothstep, applied to the turn only. Forward is authored as a linear slide, but a linear turn
+ * starts and stops the rotational optical flow on a hard edge, which the inner ear reads as the
+ * view being yanked rather than turned. Easing both ends keeps the same authored duration while
+ * removing the abrupt onset.
+ */
+function easeInOut(progress: number): number {
+  return progress * progress * (3 - 2 * progress);
+}
+
 /** Attack keeps its existing reduced-motion scale; move/turn collapse to an immediate settle. */
 function effectiveDurationMs(kind: ActiveTween["kind"], reducedMotion: boolean): number {
   if (kind === "attack") {
     return reducedMotion ? ACTION_TIMINGS.attackReducedDurationMs : ACTION_TIMINGS.attackDurationMs;
   }
 
-  if (kind === "rejectBackward") {
-    return ACTION_TIMINGS.backwardRejectionDurationMs;
+  if (kind === "rejectBlocked") {
+    return ACTION_TIMINGS.blockedMoveDurationMs;
   }
 
   if (kind === "move") {
@@ -84,6 +94,9 @@ export class GamePresentation {
   #enemyEffects: TimedEnemyEffect[] = [];
   #deaths: TimedDeath[] = [];
   #playerHitStartedAt = Number.NEGATIVE_INFINITY;
+  #pointerLeanTarget = 0;
+  #pointerLean = 0;
+  #lastFrameAt: number | undefined;
   #disposed = false;
 
   private constructor(
@@ -107,6 +120,8 @@ export class GamePresentation {
     window.addEventListener("resize", this.#resize);
     window.addEventListener("keydown", this.#activateAudio);
     window.addEventListener("pointerdown", this.#activateAudio);
+    canvas.addEventListener("pointermove", this.#trackPointerLean);
+    canvas.addEventListener("pointerleave", this.#releasePointerLean);
     this.#resize();
     this.#animationFrame = requestAnimationFrame(this.#renderFrame);
   }
@@ -174,7 +189,7 @@ export class GamePresentation {
 
     this.#audio.play(events);
 
-    if (intent.kind === "rejectBackward") {
+    if (intent.kind === "rejectBlocked") {
       this.#audio.playRejection();
     }
 
@@ -191,6 +206,8 @@ export class GamePresentation {
     cancelAnimationFrame(this.#animationFrame);
     this.#resizeObserver?.disconnect();
     window.removeEventListener("resize", this.#resize);
+    this.canvas.removeEventListener("pointermove", this.#trackPointerLean);
+    this.canvas.removeEventListener("pointerleave", this.#releasePointerLean);
     this.#removeActivationListeners();
     void this.#audio.dispose();
   }
@@ -220,8 +237,8 @@ export class GamePresentation {
         toAngle: this.#restCamera.angle + delta,
         startedAt: now,
       };
-    } else if (intent.kind === "rejectBackward") {
-      this.#activeTween = { kind: "rejectBackward", startedAt: now };
+    } else if (intent.kind === "rejectBlocked") {
+      this.#activeTween = { kind: "rejectBlocked", startedAt: now };
     } else {
       this.#restCamera = settledCamera;
       this.#activeTween = undefined;
@@ -266,7 +283,7 @@ export class GamePresentation {
       return this.#restCamera;
     }
 
-    if (tween.kind === "rejectBackward") {
+    if (tween.kind === "rejectBlocked") {
       return reducedMotion ? this.#restCamera : this.#recoiledCamera(now);
     }
 
@@ -281,7 +298,7 @@ export class GamePresentation {
       };
     }
 
-    return { x: tween.x, y: tween.y, angle: lerp(tween.fromAngle, tween.toAngle, progress) };
+    return { x: tween.x, y: tween.y, angle: lerp(tween.fromAngle, tween.toAngle, easeInOut(progress)) };
   }
 
   /**
@@ -293,17 +310,57 @@ export class GamePresentation {
     const rest = this.#restCamera;
     const tween = this.#activeTween;
 
-    if (tween?.kind !== "rejectBackward") {
+    if (tween?.kind !== "rejectBlocked") {
       return rest;
     }
 
-    const progress = clamp01((now - tween.startedAt) / ACTION_TIMINGS.backwardRejectionDurationMs);
-    const recoil = Math.sin(progress * Math.PI) * ACTION_TIMINGS.backwardRejectionRecoilCells;
+    const progress = clamp01((now - tween.startedAt) / ACTION_TIMINGS.blockedMoveDurationMs);
+    const recoil = Math.sin(progress * Math.PI) * ACTION_TIMINGS.blockedMoveRecoilCells;
     return {
       x: rest.x - Math.cos(rest.angle) * recoil,
       y: rest.y - Math.sin(rest.angle) * recoil,
       angle: rest.angle,
     };
+  }
+
+  /**
+   * The pointer only ever leans the drawn view. It never reaches `#restCamera`, so the discrete
+   * facing that the sword, interactions, and enemy adjacency all read stays exactly where the last
+   * Q or E left it — the lean is a glance down a side passage, not a second way to aim.
+   */
+  readonly #trackPointerLean = (event: PointerEvent): void => {
+    const bounds = this.canvas.getBoundingClientRect();
+
+    if (bounds.width === 0) {
+      return;
+    }
+
+    const offset = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+    this.#pointerLeanTarget = Math.max(-1, Math.min(1, offset)) * ACTION_TIMINGS.pointerLeanRadians;
+  };
+
+  readonly #releasePointerLean = (): void => {
+    this.#pointerLeanTarget = 0;
+  };
+
+  /**
+   * Travels toward the target at a constant angular speed, which is also what pulls the view back
+   * to centre once the pointer stops asking for a lean. Easing proportionally instead would make
+   * the return asymptotic, so the view would never quite settle and the walls would keep creeping.
+   */
+  #advancePointerLean(now: number, reducedMotion: boolean): void {
+    const previous = this.#lastFrameAt;
+    this.#lastFrameAt = now;
+    const target = reducedMotion ? 0 : this.#pointerLeanTarget;
+
+    if (previous === undefined) {
+      this.#pointerLean = target;
+      return;
+    }
+
+    const step = (ACTION_TIMINGS.pointerLeanSpeedRadiansPerSecond * Math.max(0, now - previous)) / 1000;
+    const remaining = target - this.#pointerLean;
+    this.#pointerLean += Math.sign(remaining) * Math.min(Math.abs(remaining), step);
   }
 
   readonly #resize = (): void => {
@@ -329,7 +386,9 @@ export class GamePresentation {
 
     const reducedMotion = this.#mediaQuery.matches;
     this.#advanceTween(now, reducedMotion);
-    const camera = this.#cameraNow(now, reducedMotion);
+    this.#advancePointerLean(now, reducedMotion);
+    const settled = this.#cameraNow(now, reducedMotion);
+    const camera = { ...settled, angle: settled.angle + this.#pointerLean };
     const effects = this.#effectsAt(now, reducedMotion);
     this.#renderer.render({ ...this.#scene, camera }, (now - this.#startedAt) / 1000, effects, { reducedMotion });
     this.#animationFrame = requestAnimationFrame(this.#renderFrame);
@@ -371,10 +430,10 @@ export class GamePresentation {
     } else if (tween?.kind === "move" && !reducedMotion) {
       const duration = effectiveDurationMs("move", reducedMotion);
       walkBob = duration <= 0 ? 0 : Math.sin(clamp01((now - tween.startedAt) / duration) * Math.PI);
-    } else if (tween?.kind === "rejectBackward") {
-      const duration = effectiveDurationMs("rejectBackward", reducedMotion);
+    } else if (tween?.kind === "rejectBlocked") {
+      const duration = effectiveDurationMs("rejectBlocked", reducedMotion);
       const envelope = Math.sin(clamp01((now - tween.startedAt) / duration) * Math.PI);
-      rejectionTorch = 1 - envelope * (1 - ACTION_TIMINGS.backwardRejectionTorchContraction);
+      rejectionTorch = 1 - envelope * (1 - ACTION_TIMINGS.blockedMoveTorchContraction);
       // The recoil itself rides the camera pose; reduced motion drops it for a static outline.
       rejectionStaticCue = reducedMotion;
     }

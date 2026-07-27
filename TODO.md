@@ -71,7 +71,7 @@ A jsdom component layer — `jsdom` plus `@testing-library/dom`, no React — be
 
 ### V2 Direction
 
-The [post-V1 product direction](dev/docs/design/pantry_depths_v2_direction.md): extraction runs, exit unlock conditions, spawn conditions, map difficulty tiers, inventory and items, blessings and curses, and fog. It is a direction document, not forward work: no requirements, no children, and nothing in it loosens V1's frozen-extension contract. Several of its open questions — fog versus the explored map, backward movement against the core positioning, and the persistence debt that carried items imply — need answers before any of it becomes a plan.
+The [post-V1 product direction](dev/docs/design/pantry_depths_v2_direction.md): extraction runs, exit unlock conditions, spawn conditions, map difficulty tiers, inventory and items, blessings and curses, and fog. It is a direction document, not forward work: no requirements, no children, and nothing in it loosens V1's frozen-extension contract. Two of its open questions — fog versus the explored map, and the persistence debt that carried items imply — need answers before any of it becomes a plan.
 
 ---
 

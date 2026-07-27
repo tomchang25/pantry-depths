@@ -13,10 +13,12 @@ const FACING_SYMBOLS: Readonly<Record<Facing, string>> = {
 
 const KEY_COMMANDS: Readonly<Partial<Record<string, GameCommand>>> = {
   KeyW: "forward",
-  KeyA: "turnLeft",
-  KeyD: "turnRight",
-  KeyE: "interact",
   KeyS: "backward",
+  KeyA: "strafeLeft",
+  KeyD: "strafeRight",
+  KeyQ: "turnLeft",
+  KeyE: "turnRight",
+  KeyF: "interact",
 };
 
 type MapCellPresentation = Readonly<{
@@ -30,10 +32,12 @@ const activeKeyboardHandlers = new WeakMap<HTMLElement, (event: KeyboardEvent) =
 
 const COMMANDS: readonly Readonly<{ command: GameCommand; label: string }>[] = [
   { command: "forward", label: "Forward (W)" },
-  { command: "turnLeft", label: "Turn Left (A)" },
-  { command: "turnRight", label: "Turn Right (D)" },
-  { command: "interact", label: "Interact (E)" },
   { command: "backward", label: "Backward (S)" },
+  { command: "strafeLeft", label: "Strafe Left (A)" },
+  { command: "strafeRight", label: "Strafe Right (D)" },
+  { command: "turnLeft", label: "Turn Left (Q)" },
+  { command: "turnRight", label: "Turn Right (E)" },
+  { command: "interact", label: "Interact (F)" },
 ];
 
 const SCENARIOS = {

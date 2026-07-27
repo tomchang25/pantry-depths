@@ -25,6 +25,7 @@ describe("route scenario replay", () => {
 
   it("stops at a rejected command instead of creating a replacement route", () => {
     const scenario = createFloorScenario(BALANCE_TEST_SCENARIO.world);
+    // The scenario opens facing east from the west edge, so the first step walks into the wall behind.
     const replay = replayRoute(scenario.session, {
       id: "invalid-route",
       label: "Invalid route",
@@ -34,7 +35,7 @@ describe("route scenario replay", () => {
 
     expect(routeCompleted(replay)).toBe(false);
     expect(replay.steps).toHaveLength(1);
-    expect(replay.steps[0]).toMatchObject({ accepted: false, rejectionReason: "backwardNotAllowed" });
+    expect(replay.steps[0]).toMatchObject({ accepted: false, rejectionReason: "blockedMove" });
     expect(getRouteCheckpoint(replay, replay.plan.checkpoints[0]!)).toMatchObject({ reached: false });
   });
 });

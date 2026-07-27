@@ -6,7 +6,7 @@ A first-person grid dungeon crawler in the 魔塔 tradition. Five baked floors, 
 damage = max(0, attacker.attack − defender.defense)
 ```
 
-You cannot walk backwards. Every action — attacking, turning, opening a door — lets every adjacent enemy hit you once. So the cost of passing an enemy is known before you touch it, and the whole game is deciding which costs to pay.
+Every action — stepping, turning, attacking, opening a door — lets each enemy already within reach hit you once. Stepping into that reach is free and stepping out of it is free; standing there and doing anything is what costs. So the cost of passing an enemy is known before you touch it, and the whole game is deciding which costs to pay.
 
 Red keys open the way. Blue keys buy attack. Yellow keys buy defense. You spend HP to reach a key, and the stat it unlocks makes the rest of the route cheaper. Attack decides whether you can hurt something at all; defense decides how much it costs.
 

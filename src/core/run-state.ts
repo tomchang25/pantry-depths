@@ -1,5 +1,15 @@
 import { calculateDamage, type CombatStats } from "@/core/combat";
-import { areEdgeAdjacent, areSameCell, moveForward, turnLeft, turnRight, type Cell, type Facing } from "@/core/grid";
+import {
+  areEdgeAdjacent,
+  areSameCell,
+  moveForward,
+  moveInDirection,
+  turnLeft,
+  turnRight,
+  type Cell,
+  type Facing,
+  type MoveDirection,
+} from "@/core/grid";
 
 export type KeyColor = "red" | "blue" | "yellow";
 
@@ -118,9 +128,9 @@ export type RunSnapshot = Readonly<{
   outcome: RunOutcome;
 }>;
 
-export type GameCommand = "forward" | "turnLeft" | "turnRight" | "interact" | "backward";
+export type GameCommand = "forward" | "backward" | "strafeLeft" | "strafeRight" | "turnLeft" | "turnRight" | "interact";
 
-export type CommandRejectionReason = "backwardNotAllowed" | "blockedForward" | "noInteractionTarget" | "terminal";
+export type CommandRejectionReason = "blockedMove" | "noInteractionTarget" | "terminal";
 
 export type SemanticEvent =
   | Readonly<{ type: "playerMoved"; cell: Cell }>
@@ -164,21 +174,21 @@ function findFloor(world: RunWorld, floorId: string): FloorDefinition {
   return floor;
 }
 
-function findEntity(world: RunWorld, entityId: string): WorldEntity {
-  const entity = world.entities.find((candidate) => candidate.id === entityId);
-
-  if (!entity) {
-    throw new Error(`unknown entity: ${entityId}`);
-  }
-
-  return entity;
-}
-
 function findEntitySnapshot(snapshot: RunSnapshot, entityId: string): EntitySnapshot {
   const entity = snapshot.entities.find((candidate) => candidate.id === entityId);
 
   if (!entity) {
     throw new Error(`unknown entity snapshot: ${entityId}`);
+  }
+
+  return entity;
+}
+
+function findEntity(world: RunWorld, entityId: string): WorldEntity {
+  const entity = world.entities.find((candidate) => candidate.id === entityId);
+
+  if (!entity) {
+    throw new Error(`unknown entity: ${entityId}`);
   }
 
   return entity;
@@ -228,6 +238,13 @@ function updateEntity(snapshot: RunSnapshot, entityId: string, update: Partial<E
   });
 }
 
+/**
+ * The enemies already within reach when the player committed to an action.
+ *
+ * Capturing before the action and re-checking after is what keeps both edges of an encounter free:
+ * an enemy the player only just stepped next to was not on this list, and one the player stepped
+ * away from fails the adjacency re-check. Only acting while already adjacent is paid for.
+ */
 function captureAdjacentAttackers(world: RunWorld, snapshot: RunSnapshot): readonly string[] {
   return world.entities
     .filter(
@@ -415,13 +432,13 @@ function applyPickupsAtPlayer(world: RunWorld, snapshot: RunSnapshot, events: Se
   return nextSnapshot;
 }
 
-type ForwardTarget =
+type MoveTarget =
   | Readonly<{ kind: "blocked" }>
   | Readonly<{ kind: "attack"; entity: WorldEntity; snapshot: EntitySnapshot }>
   | Readonly<{ kind: "open"; cell: Cell }>;
 
-function inspectForwardTarget(world: RunWorld, snapshot: RunSnapshot): ForwardTarget {
-  const cell = moveForward(snapshot.player.cell, snapshot.player.facing);
+function inspectMoveTarget(world: RunWorld, snapshot: RunSnapshot, direction: MoveDirection): MoveTarget {
+  const cell = moveInDirection(snapshot.player.cell, snapshot.player.facing, direction);
   const floor = findFloor(world, snapshot.player.floorId);
   const blockedByTerrain = !isInsideFloor(floor, cell) || floor.solidCells.some((solid) => areSameCell(solid, cell));
 
@@ -433,7 +450,11 @@ function inspectForwardTarget(world: RunWorld, snapshot: RunSnapshot): ForwardTa
   const attackable = occupants.find((entity) => entity.combat);
 
   if (attackable) {
-    return { kind: "attack", entity: attackable, snapshot: findEntitySnapshot(snapshot, attackable.id) };
+    // The sword only reaches the cell the player is looking at, so a sidestep or a retreat into an
+    // enemy is refused rather than quietly converted into an attack the player never aimed.
+    return direction === "forward"
+      ? { kind: "attack", entity: attackable, snapshot: findEntitySnapshot(snapshot, attackable.id) }
+      : { kind: "blocked" };
   }
 
   if (occupants.some((entity) => entity.movement?.blocksEntry)) {
@@ -443,11 +464,16 @@ function inspectForwardTarget(world: RunWorld, snapshot: RunSnapshot): ForwardTa
   return { kind: "open", cell };
 }
 
-function resolveForward(world: RunWorld, snapshot: RunSnapshot, capturedEntityIds: readonly string[]): CommandResult {
-  const target = inspectForwardTarget(world, snapshot);
+function resolveMove(
+  world: RunWorld,
+  snapshot: RunSnapshot,
+  direction: MoveDirection,
+  capturedEntityIds: readonly string[],
+): CommandResult {
+  const target = inspectMoveTarget(world, snapshot, direction);
 
   if (target.kind === "blocked") {
-    return rejected(snapshot, "blockedForward");
+    return rejected(snapshot, "blockedMove");
   }
 
   const events: SemanticEvent[] = [];
@@ -474,11 +500,16 @@ function resolveForward(world: RunWorld, snapshot: RunSnapshot, capturedEntityId
   return completeAcceptedTick(world, applyPickupsAtPlayer(world, movedSnapshot, events), capturedEntityIds, events);
 }
 
-function resolveInteract(world: RunWorld, snapshot: RunSnapshot, capturedEntityIds: readonly string[]): CommandResult {
+/** The entity `interact` would reach, which is also what tells a pointer click which verb it means. */
+export function findInteractionTarget(world: RunWorld, snapshot: RunSnapshot): WorldEntity | undefined {
   const targetCell = moveForward(snapshot.player.cell, snapshot.player.facing);
-  const entity = findActiveEntitiesAt(world, snapshot, snapshot.player.floorId, targetCell).find(
+  return findActiveEntitiesAt(world, snapshot, snapshot.player.floorId, targetCell).find(
     (candidate) => candidate.interaction,
   );
+}
+
+function resolveInteract(world: RunWorld, snapshot: RunSnapshot, capturedEntityIds: readonly string[]): CommandResult {
+  const entity = findInteractionTarget(world, snapshot);
   const events: SemanticEvent[] = [];
 
   if (!entity?.interaction) {
@@ -518,20 +549,25 @@ export function createInitialRunSnapshot(world: RunWorld): RunSnapshot {
   };
 }
 
+/** The four commands that consume a step; the rest turn in place or reach into the facing cell. */
+const MOVE_DIRECTIONS: Readonly<Partial<Record<GameCommand, MoveDirection>>> = {
+  forward: "forward",
+  backward: "backward",
+  strafeLeft: "left",
+  strafeRight: "right",
+};
+
 /** Resolves one command without mutating the input world or input snapshot. */
 export function resolveCommand(world: RunWorld, snapshot: RunSnapshot, command: GameCommand): CommandResult {
   if (snapshot.outcome !== "active") {
     return rejected(snapshot, "terminal");
   }
 
-  if (command === "backward") {
-    return rejected(snapshot, "backwardNotAllowed");
-  }
-
   const capturedEntityIds = captureAdjacentAttackers(world, snapshot);
+  const direction = MOVE_DIRECTIONS[command];
 
-  if (command === "forward") {
-    return resolveForward(world, snapshot, capturedEntityIds);
+  if (direction) {
+    return resolveMove(world, snapshot, direction, capturedEntityIds);
   }
 
   if (command === "interact") {

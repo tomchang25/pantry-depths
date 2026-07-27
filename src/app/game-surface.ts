@@ -135,9 +135,24 @@ export function mountGameSurface(
     }
   };
 
+  /**
+   * Left click spends the cell the player is facing: an enemy there is attacked, a door, stair,
+   * spring, or exit is used. Both branches already have a keyboard binding, so the pointer stays a
+   * convenience and never becomes the only way to reach anything.
+   */
+  const handlePointerDown = (event: PointerEvent): void => {
+    if (event.button !== 0 || !turnRunner) {
+      return;
+    }
+
+    event.preventDefault();
+    turnRunner.submit(session.hasInteractionTargetAhead() ? "interact" : "forward");
+  };
+
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
   window.addEventListener("blur", releaseHeldForward);
+  canvas.addEventListener("pointerdown", handlePointerDown);
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
   void load();
@@ -155,6 +170,7 @@ export function mountGameSurface(
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", releaseHeldForward);
+      canvas.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       surface.remove();
     },

@@ -1,4 +1,4 @@
-import { BACKWARD_REJECTION_TEXT } from "@/content/presentation/action-timings";
+import { BLOCKED_MOVE_TEXT } from "@/content/presentation/action-timings";
 import type { CommandResult, GameCommand, RunSnapshot, SemanticEvent } from "@/core/run-state";
 import type { PresentationIntent } from "@/presentation/game-presentation";
 import type { GameSession } from "@/runtime/game-session";
@@ -11,20 +11,27 @@ export type TurnRunnerCallbacks = Readonly<{
   onRejectionMessage?: (text: string) => void;
 }>;
 
+const MOVE_INTENTS: Readonly<Partial<Record<GameCommand, PresentationIntent>>> = {
+  forward: { kind: "move" },
+  backward: { kind: "move" },
+  strafeLeft: { kind: "move" },
+  strafeRight: { kind: "move" },
+};
+
 function intentForResult(command: GameCommand, result: CommandResult): PresentationIntent {
   if (!result.accepted) {
-    return result.reason === "backwardNotAllowed" ? { kind: "rejectBackward" } : { kind: "settle" };
+    return result.reason === "blockedMove" ? { kind: "rejectBlocked" } : { kind: "settle" };
   }
 
-  if (command === "forward") {
-    return result.events.some((event) => event.type === "entityDamaged") ? { kind: "attack" } : { kind: "move" };
+  if (command === "forward" && result.events.some((event) => event.type === "entityDamaged")) {
+    return { kind: "attack" };
   }
 
   if (command === "turnLeft" || command === "turnRight") {
     return { kind: "turn", direction: command === "turnLeft" ? "left" : "right" };
   }
 
-  return { kind: "settle" };
+  return MOVE_INTENTS[command] ?? { kind: "settle" };
 }
 
 function hasDuration(intent: PresentationIntent): boolean {
@@ -86,8 +93,8 @@ export class TurnRunner {
       this.#lastForwardMoved = intent.kind === "move";
     }
 
-    if (intent.kind === "rejectBackward") {
-      this.callbacks.onRejectionMessage?.(BACKWARD_REJECTION_TEXT);
+    if (intent.kind === "rejectBlocked") {
+      this.callbacks.onRejectionMessage?.(BLOCKED_MOVE_TEXT);
     }
 
     const presented = this.presentation.present(result.snapshot, result.events, intent);

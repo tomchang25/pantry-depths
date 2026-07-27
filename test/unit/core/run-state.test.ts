@@ -56,7 +56,7 @@ describe("resolveCommand", () => {
     const snapshot = createInitialRunSnapshot(world);
     const result = resolveCommand(world, snapshot, "forward");
 
-    expect(result).toEqual({ accepted: false, reason: "blockedForward", snapshot, events: [] });
+    expect(result).toEqual({ accepted: false, reason: "blockedMove", snapshot, events: [] });
   });
 
   it.each(["door", "stair", "hotSpring"] as const)(
@@ -76,7 +76,7 @@ describe("resolveCommand", () => {
       const snapshot = createInitialRunSnapshot(world);
       const result = resolveCommand(world, snapshot, "forward");
 
-      expect(result).toEqual({ accepted: false, reason: "blockedForward", snapshot, events: [] });
+      expect(result).toEqual({ accepted: false, reason: "blockedMove", snapshot, events: [] });
     },
   );
 
@@ -106,7 +106,7 @@ describe("resolveCommand", () => {
     }
   });
 
-  it("does not retaliate when successful forward movement enters or leaves adjacency", () => {
+  it("does not retaliate when successful movement enters or leaves adjacency", () => {
     const world = createWorld({ entities: [enemy({ cell: { x: 3, y: 1 } })] });
     const initial = createInitialRunSnapshot(world);
     const enteredAdjacency = resolveCommand(world, initial, "forward");
@@ -115,6 +115,7 @@ describe("resolveCommand", () => {
       throw new Error("forward movement should be accepted");
     }
 
+    // The enemy was not yet in reach when this step was committed, so arriving is free.
     expect(enteredAdjacency.snapshot.player.health).toBe(20);
     const turnedSouth = resolveCommand(world, enteredAdjacency.snapshot, "turnRight");
 
@@ -122,6 +123,7 @@ describe("resolveCommand", () => {
       throw new Error("turn should be accepted");
     }
 
+    expect(turnedSouth.snapshot.player.health).toBe(16);
     const movedAway = resolveCommand(world, turnedSouth.snapshot, "forward");
 
     expect(movedAway.accepted).toBe(true);
@@ -130,6 +132,49 @@ describe("resolveCommand", () => {
       expect(movedAway.snapshot.player.health).toBe(16);
       expect(movedAway.events.some((event) => event.type === "entityRetaliated")).toBe(false);
     }
+  });
+
+  it("lets a sidestep leave an enemy's reach without paying for it", () => {
+    const world = createWorld({ entities: [enemy()] });
+    const initial = createInitialRunSnapshot(world);
+    const sidestepped = resolveCommand(world, initial, "strafeRight");
+
+    expect(sidestepped.accepted).toBe(true);
+
+    if (sidestepped.accepted) {
+      // Facing east from (1,1) with the enemy at (2,1), a right sidestep breaks adjacency.
+      expect(sidestepped.snapshot.player.cell).toEqual({ x: 1, y: 2 });
+      expect(sidestepped.snapshot.player.health).toBe(20);
+      expect(sidestepped.events.some((event) => event.type === "entityRetaliated")).toBe(false);
+    }
+  });
+
+  it("sidesteps and retreats without turning, and refuses the step when the cell is taken", () => {
+    const world = createWorld({ entities: [enemy({ cell: { x: 3, y: 1 } })] });
+    const initial = createInitialRunSnapshot(world);
+    const strafed = resolveCommand(world, initial, "strafeRight");
+
+    if (!strafed.accepted) {
+      throw new Error("sidestep should be accepted");
+    }
+
+    // Facing east, a right sidestep travels south and the eyes never leave east.
+    expect(strafed.snapshot.player.cell).toEqual({ x: 1, y: 2 });
+    expect(strafed.snapshot.player.facing).toBe("east");
+
+    const retreated = resolveCommand(world, strafed.snapshot, "backward");
+
+    if (!retreated.accepted) {
+      throw new Error("retreat should be accepted");
+    }
+
+    expect(retreated.snapshot.player.cell).toEqual({ x: 0, y: 2 });
+    expect(retreated.snapshot.player.facing).toBe("east");
+
+    // The sword only reaches the facing cell, so a sidestep into an enemy is refused, not an attack.
+    const blocked = resolveCommand(world, withPlayer(initial, { cell: { x: 3, y: 2 } }), "strafeLeft");
+
+    expect(blocked).toMatchObject({ accepted: false, reason: "blockedMove" });
   });
 
   it("deactivates a defeated combat entity before retaliation", () => {
@@ -370,14 +415,14 @@ describe("resolveCommand", () => {
     }
   });
 
-  it("cancels backward and empty interaction requests without retaliation", () => {
+  it("cancels a walled-in step and an empty interaction request without retaliation", () => {
     const world = createWorld({ entities: [enemy({ cell: { x: 1, y: 2 } })] });
     const snapshot = createInitialRunSnapshot(world);
 
-    expect(resolveCommand(world, snapshot, "backward")).toEqual({
+    // Facing east from x=1, backward leaves the floor: a refused step costs no tick and no blood.
+    expect(resolveCommand(world, withPlayer(snapshot, { cell: { x: 0, y: 1 } }), "backward")).toMatchObject({
       accepted: false,
-      reason: "backwardNotAllowed",
-      snapshot,
+      reason: "blockedMove",
       events: [],
     });
     expect(resolveCommand(world, snapshot, "interact")).toEqual({

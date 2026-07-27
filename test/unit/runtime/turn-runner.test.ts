@@ -98,7 +98,7 @@ describe("TurnRunner", () => {
     await flush();
 
     expect(presentation.calls).toHaveLength(2);
-    expect(presentation.calls[1]?.intent).toEqual({ kind: "settle" });
+    expect(presentation.calls[1]?.intent).toEqual({ kind: "rejectBlocked" });
     expect(session.getSnapshot().player.cell).toEqual({ x: 1, y: 0 });
   });
 
@@ -141,7 +141,7 @@ describe("TurnRunner", () => {
     expect(presentation.calls[1]?.intent).toEqual({ kind: "turn", direction: "left" });
   });
 
-  it("reports the backward rejection line on every refusal", async () => {
+  it("reports the blocked-move line on every refusal", async () => {
     const world = createWorld();
     const session = new GameSession(world);
     const presentation = new FakePresentation();
@@ -160,27 +160,29 @@ describe("TurnRunner", () => {
     await rejectOnce();
 
     expect(presentation.calls).toHaveLength(4);
-    expect(presentation.calls.every((call) => call.intent.kind === "rejectBackward")).toBe(true);
+    expect(presentation.calls.every((call) => call.intent.kind === "rejectBlocked")).toBe(true);
     expect(messages).toHaveLength(4);
   });
 
-  it("stops accepting commands once the run reaches a terminal outcome", async () => {
+  it("stops accepting commands once the run reaches a terminal outcome", () => {
+    // Leaving through the exit is the only thing that ends a run in victory; no enemy's death does.
     const world = createWorld({
       floors: [{ id: "B1", width: 3, height: 1, solidCells: [] }],
       entities: [
-        enemy({
+        {
+          kind: "exit",
+          id: "exit",
+          floorId: "B1",
           cell: { x: 1, y: 0 },
-          combat: { health: 1, attack: 0, defense: 0, retaliates: false, defeatOutcome: "victory" },
-        }),
+          interaction: { effects: [{ type: "completeRun" }] },
+        },
       ],
     });
     const session = new GameSession(world);
     const presentation = new FakePresentation();
     const runner = new TurnRunner(session, presentation);
 
-    runner.submit("forward");
-    presentation.resolveNext();
-    await flush();
+    runner.submit("interact");
 
     expect(session.getSnapshot().outcome).toBe("victory");
     expect(presentation.calls).toHaveLength(1);

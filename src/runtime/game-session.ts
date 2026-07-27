@@ -1,5 +1,6 @@
 import {
   createInitialRunSnapshot,
+  findInteractionTarget,
   resolveCommand,
   type CommandResult,
   type GameCommand,
@@ -20,6 +21,11 @@ export class GameSession {
 
   getSnapshot(): RunSnapshot {
     return this.#snapshot;
+  }
+
+  /** Whether the facing cell holds something `interact` would use, rather than something to walk into. */
+  hasInteractionTargetAhead(): boolean {
+    return findInteractionTarget(this.world, this.#snapshot) !== undefined;
   }
 
   dispatch(command: GameCommand): CommandResult {
