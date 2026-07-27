@@ -1,9 +1,9 @@
 # Pantry Depths V1 Mega Plan：一週原型與渲染移植
 
-> **Status**: 執行中。Rules and Content、Presentation Port、Authoring Workbench 與獨立項目 Run Exit 已交付；V1 關鍵路徑的下一步是 `pantry_feel_01`。
+> **Status**: 執行中。Rules and Content、Presentation Port、Authoring Workbench 與獨立項目 Run Exit 已交付；Feel and Endgame 的 `pantry_feel_01` 已交付，`_02` 由獨立項目 Run Readout 交付；V1 關鍵路徑的下一步是 `pantry_feel_03`。
 > **Supersedes**: 無。
 > **本文性質**: 執行時以 §5 為工單；§1–§4 與 §6–§8 是決策依據與背景，供未來重新評估時參考。
-> **權威邊界**: 本文擁有架構、交付範圍與 future work。實作前的公式與數字由[設計文件](../design/pantry-depths_v1.md) 擁有；對應規則與 content 落地後由 codebase 接手。設計意圖與 Frozen extensions 不會過期，[報告](../reports/) 是給人看的實作視圖。
+> **權威邊界**: 本文擁有架構、交付範圍與 future work。規則歸 `src/core/`、數字歸 `src/content/`，[報告](../reports/) 是給人看的實作視圖。設計文件已凍結，見 §2.1。
 
 ---
 
@@ -54,22 +54,21 @@
 
 三層文件加 codebase，各有不同壽命。同一件事只能住在一個地方。
 
-| 來源                    | 擁有                                                | 壽命                           |
-| ----------------------- | --------------------------------------------------- | ------------------------------ |
-| **本 Mega Plan**        | 架構、交付範圍、落地順序、跨切面不變式、future work | 到 milestone 結束              |
-| **Plan**                | 該組的行為需求、child overview                      | 到該 plan 收掉                 |
-| **Implementation Spec** | 檔案座標、函式、落地順序                            | 到 child ship                  |
-| **`src/content/`**      | **所有實際數值**                                    | 永久                           |
-| **`src/core/`**         | **所有規則與公式**                                  | 永久                           |
-| **設計文件**            | Frozen extensions 範圍契約、設計意圖                | 永久                           |
-| 設計文件的數值章節      | 數字（暫時）                                        | **到 `src/content/` 存在為止** |
-| **HTML 報告**           | 實作後的真相，給人看的視圖                          | 隨 codebase 重新生成           |
+| 來源                    | 擁有                                                | 壽命                 |
+| ----------------------- | --------------------------------------------------- | -------------------- |
+| **本 Mega Plan**        | 架構、交付範圍、落地順序、跨切面不變式、future work | 到 milestone 結束    |
+| **Plan**                | 該組的行為需求、child overview                      | 到該 plan 收掉       |
+| **Implementation Spec** | 檔案座標、函式、落地順序                            | 到 child ship        |
+| **`src/content/`**      | **所有實際數值**                                    | 永久                 |
+| **`src/core/`**         | **所有規則與公式**                                  | 永久                 |
+| **設計文件**            | 本 plan 當初的推導來源                              | **已凍結**，見下     |
+| **HTML 報告**           | 實作後的真相，給人看的視圖                          | 隨 codebase 重新生成 |
 
-### 2.1 設計文件的到期規則
+### 2.1 設計文件已凍結
 
-`dev/docs/design/pantry-depths_v1.md` 第五、六、七、十節（傷害公式、玩家數值、敵人表與成本矩陣、生命預算）在對應的 `src/content/` 與 `src/core/` 檔案存在之後**降級為歷史紀錄**。之後那些數字若與 codebase 不一致，**codebase 是對的**，設計文件不需要回頭修。
+設計文件的角色只剩一個：它是當初推導出本 plan 的來源，而那件事已經發生完了。整份文件現在不讀、不引用、不修改，只能以新增新文件的方式延伸。規則歸 `src/core/`，數字歸 `src/content/`，交付範圍歸 plan，刻意不做的事歸做出該決定的 plan 或 `TODO.md` 的 `## Draft`。
 
-不會過期的部分：第一節的 Frozen extensions 範圍契約，以及各節的設計意圖說明（為什麼不能後退、為什麼顏色對應路／攻／防、為什麼溫泉是彩蛋）。**沒有任何程式碼能編碼「我們刻意不做 X」**，那只能住在文件裡。
+`dev/standards/design_document_freeze.md` 擁有這條規則與它的理由，並明文推翻設計文件自己宣稱「範圍契約與設計意圖永不過期」的那張表。本節不重述它。
 
 ### 2.2 為什麼要有報告
 
@@ -186,12 +185,12 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 只能靠玩才知道對不對的部分。
 
-| Child            | 焦點                                                                         |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `pantry_feel_01` | Runtime 與輸入：離散補間、補間期間鎖輸入、`S` 的拒絕回饋                     |
-| `pantry_feel_02` | HUD：DOM overlay，玩家攻防、鑰匙、樓層、探索 minimap、面向敵人的數值面板     |
-| `pantry_feel_03` | VFX 與兩個下限狀況：Block 藍框、`無法穿透`、側面威脅提示、裂痕階段、溫泉暖光 |
-| `pantry_feel_04` | 出口離開演出、死亡畫面與統計                                                 |
+| Child            | 焦點                                                                 | 狀態                          |
+| ---------------- | -------------------------------------------------------------------- | ----------------------------- |
+| `pantry_feel_01` | Runtime 與輸入：離散補間、補間期間鎖輸入、受阻步伐的拒絕回饋         | 已交付                        |
+| `pantry_feel_02` | HUD：DOM overlay，玩家攻防、鑰匙、樓層、樓層地圖、面向敵人的數值面板 | 已交付（Run Readout）         |
+| `pantry_feel_03` | VFX：側面威脅提示、裂痕階段、溫泉暖光、升級演出、開門失敗            | 未開始；已被 Run Readout 縮小 |
+| `pantry_feel_04` | 出口離開演出                                                         | 未開始；死亡畫面與統計已交付  |
 
 `pantry_feel_01` 有一條容易漏的規則：**反擊在補間開始時就結算完成，動畫只是表現**。不要讓動畫時間影響遊戲狀態。
 
