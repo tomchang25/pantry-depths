@@ -11,3 +11,8 @@ playwright-report/
 
 .vscode
 .codex
+
+# Agent-harness scratch worktrees. Ignored here rather than only in .git/info/exclude because that file
+# is per-clone: Prettier also reads .gitignore, so one entry keeps both git status and format:check clean
+# on every machine. Keep this narrow — .claude/settings.json is tracked and stays formatted.
+.claude/worktrees/
