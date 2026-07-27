@@ -16,18 +16,17 @@ Nothing in flight.
 
 ### V1 prototype milestone
 
-[`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in four delivery plans, one parallel asset item, and one parked tooling plan.
+[`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in four delivery plans and one parked tooling plan.
 
-| Stream | Scope                                                             | Children | State                                              |
-| ------ | ----------------------------------------------------------------- | -------: | -------------------------------------------------- |
-| A      | Rules and Content                                                 |        7 | Shipped                                            |
-| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)   |        2 | Queued                                             |
-| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)            |        4 | Queued                                             |
-| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)  |        1 | Queued after Presentation Port                     |
-| S      | Enemy Sprite Art                                                  | parallel | Parallel asset deliverable; style spec not written |
-| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |        3 | Parked; promote if final floor authoring blocks    |
+| Stream | Scope                                                             | Children | State                                           |
+| ------ | ----------------------------------------------------------------- | -------: | ----------------------------------------------- |
+| A      | Rules and Content                                                 |        7 | Shipped                                         |
+| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)   |        1 | Active — combined renderer spec ready           |
+| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)            |        4 | Queued                                          |
+| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)  |        1 | Queued after Presentation Port                  |
+| P      | [Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) |        3 | Parked; promote if final floor authoring blocks |
 
-Next action: `/implement pantry_presentation_01` to port the retained renderer and make authored floors playable.
+Next action: confirm the current `/implement` preview for `pantry_presentation_01`, then execute the combined 2.5D renderer spec.
 
 ---
 

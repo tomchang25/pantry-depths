@@ -329,7 +329,7 @@ Enemy
 
 ### 外觀
 
-敵人使用**固定的 512×512 sprite 圖檔**，不再沿用 prototype 的程序化繪製。牆面、地板與天花板維持程序化材質：可平鋪、需要透視取樣的表面適合程序生成，而角色需要的是剪影辨識度，那是手繪贏的地方。
+敵人使用**固定的 512×512 sprite 圖檔**，不再沿用 prototype 的 runtime 程序化繪製。五種敵人都採同一個史萊姆造型，以 offline-baked 綠、黃、藍、紅、紫區分 gameplay archetype；牆面、地板與天花板維持程序化材質。
 
 #### 為什麼是 512
 
@@ -347,11 +347,11 @@ Enemy
 
 - 描邊在 512 尺度下要 **8–12 px**，不是 2–3 px。
 - 大色塊、高對比，細線條與小圖案在降採樣後會消失。
-- 剪影優先：五種敵人在純黑走廊裡只靠輪廓就要能分辨。
+- 史萊姆輪廓在純黑走廊裡仍要清楚；五種 gameplay archetype 由離線烘焙的顏色、顯示尺寸與浮空位置區分。
 - **平光、中性打光。** 不在圖裡烘進光源方向與陰影。
 - 每張都畫滿整個 512 框、腳底貼下緣，尺寸由資料控制而不是由圖控制。
 
-五張 sprite 必須共用一份 style spec（色碼、描邊粗細、剪影規則），並在同一次作業中一起產出。分次產出會得到五種畫風。它們要在暗紫地牢背景上被暖橘火把照亮，配色以 prototype 現有的調色盤為錨。
+一般、攻擊、受擊三張綠色史萊姆母版必須共用一份 style spec（描邊粗細、輪廓規則、平光要求），再 offline bake 成五色獨立 PNG。Runtime 分別載入十五張圖片，不從共用來源即時改色。它們要在暗紫地牢背景上被暖橘火把照亮，配色以 prototype 現有的調色盤為錨。
 
 #### Sprite 記錄
 
@@ -359,18 +359,20 @@ Enemy
 
 ```text
 Sprite
-├── image: 512×512 PNG（含 alpha）
+├── normalImage: 512×512 PNG（含 alpha）
+├── attackImage: 512×512 PNG（含 alpha）
+├── hurtImage: 512×512 PNG（含 alpha）
 ├── scale: 相對於格高的顯示倍率
 └── anchorY: 垂直偏移，0 為腳底貼地，負值為浮空
 ```
 
-| 敵人 | scale | anchorY | 備註     |
-| ---- | ----: | ------: | -------- |
-| 蝙蝠 |  0.40 |   −0.25 | 浮在空中 |
-| 地精 |  0.70 |       0 |          |
-| 骷髏 |  0.85 |       0 |          |
-| 守衛 |  1.05 |       0 |          |
-| 公主 |  1.30 |       0 | 最大立繪 |
+| 敵人 | 顏色 | scale | anchorY | 備註       |
+| ---- | ---- | ----: | ------: | ---------- |
+| 蝙蝠 | 綠   |  0.40 |   −0.25 | 浮空史萊姆 |
+| 地精 | 黃   |  0.70 |       0 |            |
+| 骷髏 | 藍   |  0.85 |       0 |            |
+| 守衛 | 紅   |  1.05 |       0 |            |
+| 公主 | 紫   |  1.30 |       0 | 最大史萊姆 |
 
 調整敵人大小是改 `scale`，不是重出圖。
 
@@ -384,17 +386,17 @@ Sprite
 
 sprite 是逐欄 2 px 切片繪製的，一隻敵人一幀就是 150–300 次 `drawImage`。因此受擊閃白**不能用 `ctx.filter`**，那會變成每幀數百次濾鏡重建。
 
-改為載入時預烘一張白閃版本（畫一次原圖，再以 `source-atop` 疊白），受擊時直接換圖。五張額外的 512×512 快取約 5 MB，換來零成本閃白。
+受擊時先切換成 offline-baked hurt image，再由 presentation 依該圖片 alpha 產生短暫的 depth-aware 白色 silhouette。白閃是 event-time VFX，不是額外 runtime color variant，也不能在逐片 draw loop 裡使用 `ctx.filter`。
 
-公主的倒下同樣是第二張圖，不是動畫。
+敵人死亡沿用 hurt image，由 presentation 把它切成左右兩片後向外墜落並淡出；公主遵守相同規則。
 
 #### 不做
 
-- **不做動畫幀。** 敵人永遠不移動，每種一張待機圖即可。需要生氣就用 `sin()` 做輕微上下浮動，零素材成本。
-- **不做 sprite sheet、atlas packer 或動畫狀態機。** 五個 PNG 放一個資料夾。
+- **不做 frame-by-frame 動畫。** 每個顏色只有 normal、attack、hurt 三個 semantic states；裝飾性浮動與死亡位移由 presentation timing 實現。
+- **不做 sprite sheet、atlas packer 或 runtime recoloring。** 十五張敵人 PNG 各自載入。
 - **不把牆面材質也換成圖檔。** 程序化在那裡是正確的。
 
-公主使用最大立繪、專屬倒下圖與更重的鏡頭震動，但遵守完全相同的公式。她沒有二階段、召喚、法術或場地攻擊。
+公主使用最大的紫色史萊姆立繪與較重的死亡 VFX，但遵守完全相同的圖片狀態與公式。她沒有二階段、召喚、法術或場地攻擊。
 
 ---
 
@@ -612,13 +614,13 @@ HP 10 / 10
 
 ### 戰鬥回饋
 
-| 情況               | 表現                                               |
-| ------------------ | -------------------------------------------------- |
-| 正常命中           | 敵人切換為預烘的白閃 sprite、傷害數字彈出、打擊音  |
-| 玩家穿不透         | 刀彈開動畫、火花、金屬高頻音、`無法穿透` 文字      |
-| 玩家受傷           | 鏡頭震動、紅色 radial flash、低頻撞擊音            |
-| 玩家 Block（免傷） | 藍色外框 VFX、短促金屬彈開音、無震動、無紅色 flash |
-| 敵人死亡           | Sprite 崩解粒子、低頻收尾音                        |
+| 情況               | 表現                                                       |
+| ------------------ | ---------------------------------------------------------- |
+| 正常命中           | 敵人切換 hurt sprite、疊動態白閃 VFX、傷害數字彈出、打擊音 |
+| 玩家穿不透         | 刀彈開動畫、火花、金屬高頻音、`無法穿透` 文字              |
+| 玩家受傷           | 鏡頭震動、紅色 radial flash、低頻撞擊音                    |
+| 玩家 Block（免傷） | 藍色外框 VFX、短促金屬彈開音、無震動、無紅色 flash         |
+| 敵人死亡           | Hurt sprite 切成兩片墜落淡出、低頻收尾音                   |
 
 Block 的藍框必須明顯到玩家在拿到黃門之後立刻注意到「這隻怪打不到我了」。這是防禦升級唯一的即時回饋管道。
 
@@ -655,18 +657,18 @@ Block 的藍框必須明顯到玩家在拿到黃門之後立刻注意到「這�
 
 渲染架構完全沿用現有 prototype，不重寫。
 
-| 項目     | 作法                                                         |
-| -------- | ------------------------------------------------------------ |
-| 3D       | Canvas 2D 的 DDA raycasting，逐欄 depth buffer               |
-| 地板天花 | Floor casting，逐 scanline 透視取樣                          |
-| Sprite   | Billboard + depth buffer 遮蔽；來源為固定的 512×512 PNG      |
-| 環境材質 | 啟動時以隱藏 Canvas 程序化繪製，無圖檔                       |
-| 光照     | 距離衰減 + 暖色火把加成 + 牆面朝向明暗差 + screen-space glow |
-| 氛圍     | 紫色距離霧、暗角、餘燼粒子、film grain                       |
-| 手部     | 每幀以 Canvas path 繪製的 view model                         |
-| HUD      | DOM overlay，非 Canvas 文字                                  |
-| Minimap  | 獨立的小 Canvas                                              |
-| 音效     | Web Audio 即時合成，無音檔                                   |
+| 項目     | 作法                                                           |
+| -------- | -------------------------------------------------------------- |
+| 3D       | Canvas 2D 的 DDA raycasting，逐欄 depth buffer                 |
+| 地板天花 | Floor casting，逐 scanline 透視取樣                            |
+| Sprite   | Billboard + depth buffer 遮蔽；來源為固定的 512×512 PNG        |
+| 環境材質 | 啟動時以隱藏 Canvas 程序化繪製，無圖檔                         |
+| 光照     | 距離衰減 + 暖色火把加成 + 牆面朝向明暗差 + screen-space glow   |
+| 氛圍     | 紫色距離霧、暗角、餘燼粒子、film grain                         |
+| 手部     | 固定圖片 view model：左手火把、右手長劍，Canvas transform 攻擊 |
+| HUD      | DOM overlay，非 Canvas 文字                                    |
+| Minimap  | 獨立的小 Canvas                                                |
+| 音效     | Web Audio 即時合成，無音檔                                     |
 
 材質與角色的分工是固定的：**環境用程序化，角色用圖檔**。牆面、地板、天花板需要可平鋪並經過透視取樣，程序化在那裡更省也更一致；角色需要剪影辨識度，圖檔才做得到。
 
@@ -679,7 +681,7 @@ HUD 用 DOM 而不是畫進 Canvas，理由有三：遊戲是回合制，HUD 一
 - 移除 pointer lock 與滑鼠視角。
 - **sprite 來源改為載入的 512×512 圖檔，因此新增一個非同步載入階段與 loading 狀態。** 投影、billboard 與 depth buffer 遮蔽的數學不變。
 - **sprite 補上與牆面相同的距離衰減與暖色火把加成**；現行實作只有 `globalAlpha` 淡出。
-- **載入時預烘每種敵人的白閃版本**，取代逐片 `ctx.filter`。
+- **命中時依 hurt sprite 產生短暫白色 silhouette VFX**，取代逐片 `ctx.filter`。
 - 新增隱藏牆的裂痕 texture 階段。
 - 新增溫泉房的暖色光照 override 與蒸氣粒子。
 - 新增三色門 texture 與開啟狀態。
@@ -688,10 +690,12 @@ HUD 用 DOM 而不是畫進 Canvas，理由有三：遊戲是回合制，HUD 一
 
 ### 素材歸屬
 
-| 內容                            | 位置                          | 性質                     |
-| ------------------------------- | ----------------------------- | ------------------------ |
-| sprite 原始檔（SVG 或生成腳本） | `assets/enemies/`             | 可編輯來源，不進 runtime |
-| 烘好的 512×512 PNG              | `src/content/enemies/assets/` | Runtime 素材，經 bundler |
+| 內容                                   | 位置                               | 性質                     |
+| -------------------------------------- | ---------------------------------- | ------------------------ |
+| 敵人 sprite 母版與離線變體來源         | `assets/enemies/`                  | 可編輯來源，不進 runtime |
+| 其他 presentation sprite 原始檔        | `assets/presentation/`             | 可編輯來源，不進 runtime |
+| 十五張烘好的 512×512 enemy PNG         | `src/content/enemies/assets/`      | Runtime 素材，經 bundler |
+| Player、VFX 與 environment runtime PNG | `src/content/presentation/assets/` | Runtime 素材，經 bundler |
 
 保留原始檔的價值是可以重新烘成其他尺寸；若原始檔是 SVG，還能在版控中 diff。
 
@@ -716,7 +720,7 @@ HUD 用 DOM 而不是畫進 Canvas，理由有三：遊戲是回合制，HUD 一
 - 死亡畫面與一鍵重開
 - 結局演出與通關統計
 - 現有 raycasting 渲染、程序化環境材質與程序化音效的移植
-- 五種敵人的固定 512×512 sprite、素材載入階段、距離 tint 與預烘白閃
+- 五色敵人的 normal／attack／hurt 固定 512×512 sprite、素材載入階段、距離 tint、動態白閃與 hurt-image 死亡 VFX
 
 ### 不包含
 

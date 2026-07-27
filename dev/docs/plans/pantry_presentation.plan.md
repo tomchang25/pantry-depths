@@ -2,15 +2,15 @@
 
 ## Goal
 
-Preserve the original prototype's distinctive first-person dungeon rendering and procedural audio while moving presentation behind a read-only snapshot and semantic-event boundary. Then add the fixed-image enemy pipeline and consume authored environment annotations without allowing the port to become a renderer rewrite or a gameplay owner.
+Preserve the original prototype's distinctive first-person dungeon rendering and procedural audio while moving presentation behind a read-only snapshot and semantic-event boundary. Deliver the faithful renderer, fixed-image enemy pipeline, and authored environment features together as one complete 2.5D gameplay-rendering slice without allowing the port to become a renderer rewrite or a gameplay owner.
 
 ## Requirements
 
-1. Port the retained raycasting, floor and ceiling projection, procedural environment textures, atmosphere, hands, minimap drawing, and synthesized audio with visual and auditory behavior equivalent to the reference prototype.
+1. Port the retained raycasting, floor and ceiling projection, procedural environment textures, atmosphere, hands, and synthesized audio with visual and auditory behavior equivalent to the reference prototype.
 2. Keep presentation downstream of gameplay: it may interpolate snapshots and realize semantic events, but it never validates commands, changes health, removes entities, opens doors, or decides when an Action completes.
-3. Separate the faithful port from all improvements, because mixing movement with redesign would make reference comparison impossible and recreate the earlier presentation-refactor failure mode.
-4. Load fixed 512 x 512 enemy images asynchronously, block play behind a clear loading state until required assets are ready, and offer a readable retry state when a required asset fails.
-5. Apply runtime distance darkening and warm torch tint to enemy images, and use pre-baked hit-flash variants so sliced sprite drawing does not rebuild filters hundreds of times per frame.
+3. Keep faithful-port code and evidence internally separable from the fixed-image and authored-feature additions, because a single complete delivery still needs a trustworthy reference-comparison baseline and must not become a renderer redesign.
+4. Load separately baked 512 x 512 normal, attack, and hurt images for each of the five enemy colors asynchronously, block play behind a clear loading state until required assets are ready, and offer a readable retry state when a required asset fails.
+5. Apply runtime distance darkening and warm torch tint to enemy images, use a depth-aware dynamic white-flash effect without per-slice filters, and realize death by splitting the hurt image into two presentation-only pieces.
 6. Render authored wall-face decorations, ambient lights, emitters, and effect presets from the presentation-only floor contract rather than turning them into gameplay entities.
 7. Preserve a stable reduced-motion rendering mode and a silent degraded mode when browser audio is unavailable; neither capability may change gameplay state.
 
@@ -34,8 +34,8 @@ The faithful port preserves:
 - The existing field of view, horizon placement, wall orientation shading, purple distance fog, near-camera warm torch contribution, and render-depth behavior.
 - An internal render scale of 0.55 with an approximate maximum internal resolution of 1050 x 650.
 - Procedural atmosphere including glow, fog, vignette, embers, subtle grain, and torch flicker.
-- The torch-and-knife first-person hands and the existing sinusoidal attack swing shape.
-- Billboard projection, far-to-near sprite ordering, per-column depth rejection, minimap drawing primitives, ambient hum, procedural noise, and synthesized impact sounds.
+- The left-hand torch and right-hand long-sword first-person viewmodel plus the existing sinusoidal attack swing shape.
+- Billboard projection, far-to-near sprite ordering, per-column depth rejection, ambient hum, procedural noise, and synthesized impact sounds.
 
 Random flicker, grain, embers, and audio noise remain presentation-only variation. They are not seeded gameplay inputs and never enter deterministic state.
 
@@ -43,7 +43,7 @@ A retained scene viewed at matching pose should preserve geometry, scale, occlus
 
 ### Fixed enemy image pipeline
 
-Each enemy type uses one transparent 512 x 512 idle image. The princess additionally has one defeated image. Image frames are flat-lit and neutral so runtime lighting remains the only light-direction owner.
+Each enemy type is represented by a separately baked colored slime with transparent 512 x 512 normal, attack, and hurt images. Runtime never recolors a shared source. Image frames are flat-lit and neutral so runtime lighting remains the only light-direction owner.
 
 | Enemy    | Display scale | Vertical anchor |
 | -------- | ------------: | --------------: |
@@ -53,9 +53,9 @@ Each enemy type uses one transparent 512 x 512 idle image. The princess addition
 | Guard    |          1.05 |               0 |
 | Princess |          1.30 |               0 |
 
-Display size is authored data; changing size never requires regenerating the image. Character art is produced by the separate sprite-art deliverable. Until that deliverable lands, the pipeline accepts consistent procedural placeholders without changing its loading, projection, lighting, or hit-feedback contracts.
+The color mapping is green Bat, yellow Goblin, blue Skeleton, red Guard, and purple Princess. Display size is authored data; changing size never requires regenerating the image. The five colors share one slime design language and are baked offline into independent runtime assets for every state.
 
-Required images load before ordinary play becomes interactive. A failed required image keeps the game in a clear error state with retry rather than starting with missing enemies. Successful loading prepares an additional white hit-flash image once per source image by compositing white over its alpha. Hit events switch to this prepared image and never apply a per-slice filter.
+Required images load before ordinary play becomes interactive. A failed required image keeps the game in a clear error state with retry rather than starting with missing enemies. Hit events switch to the baked hurt pose and apply a short depth-aware white silhouette as dynamic VFX; the effect does not use `ctx.filter` inside the sliced draw loop. Defeat events split the hurt image into two falling, fading pieces after gameplay has already marked the entity inactive.
 
 Enemy images receive the same distance attenuation family as walls plus the near-camera warm torch contribution. Their alpha may still fade at long range, but alpha alone is insufficient because a normally lit image would otherwise glow against the dark corridor.
 
@@ -71,31 +71,33 @@ Reduced-motion mode removes non-essential bob, shake, grain motion, ember drift,
 
 When Web Audio is unavailable or cannot start, play remains fully usable in silence and the presentation exposes a degraded capability state for the interface to describe. Muting is a presentation preference only and has no effect on event generation.
 
+### Merged delivery boundary
+
+The renderer lands as one complete child so the first reviewable product surface is a coherent 2.5D authored-floor scene rather than a deliberately incomplete intermediate renderer. Its implementation still establishes and verifies the faithful raycaster before layering fixed enemy state images, runtime sprite lighting, dynamic hit/death VFX, and authored environment effects onto the same projection and depth seams.
+
 ### Child overview
 
-| Child                    | Focus                                                                                                                                | Current document form |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
-| `pantry_presentation_01` | Faithful port of retained raycasting, projection, procedural environment, atmosphere, hands, minimap drawing, and audio capabilities | Not started           |
-| `pantry_presentation_02` | Fixed-image loading and lighting, pre-baked hit flash, and rendering of authored environment features                                | Not started           |
+| Child                    | Focus                                                                                                                                                                   | Current document form                                                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `pantry_presentation_01` | Complete 2.5D gameplay renderer: faithful raycasting and atmosphere, offline-baked state sprites, authored environment features, hands, audio, and capability fallbacks | [`pantry_presentation_01_complete_renderer.implementation_spec.md`](pantry_presentation_01_complete_renderer.implementation_spec.md) |
 
-Recommended landing order: `pantry_presentation_01` -> `pantry_presentation_02`.
-
-The faithful port has no gameplay dependency and may proceed in parallel with early rules work. The final presentation slice depends on the faithful renderer seams and the authored environment-feature contract from the last Rules child, but not on final enemy artwork or final floor placement.
+The combined child depends on the authored environment-feature contract from the last Rules child, which is already available. It includes the deliberately minimal slime and gameplay sprite set but does not depend on final floor placement.
 
 ## Non-Goals
 
 1. Do not implement gameplay rules, input interpretation, HUD state, debug viewers, death, victory, or the ending sequence.
-2. Do not improve rendering behavior during the faithful port, even when the reference implementation is awkward; record any desired improvement for the second child or future work.
+2. Do not improve rendering behavior inside the faithful core, even when the reference implementation is awkward; record any desired redesign for the Feel and Endgame stream or future work.
 3. Do not add WebGL, a scene graph, animated sprite frames, sprite sheets, an atlas packer, wall-image assets, dynamic shadows, variable wall heights, free look, or higher render resolution.
-4. Do not produce the final enemy artwork inside this plan; the separate sprite-art deliverable owns visual style and source generation.
+4. Do not add themed or archetype-specific enemy art beyond the approved five-color slime set.
 5. Do not make animation lifetime or asset state authoritative for entity existence or gameplay progression.
+6. Do not add a HUD, crosshair, combat text, health bars, or 2D minimap; those surfaces belong to the separate Feel and Endgame stream.
 
 ## Acceptance Criteria
 
-1. Equivalent reference snapshots produce recognizably equivalent geometry, occlusion, materials, palette, fog, torch warmth, atmosphere, hands, minimap drawing, and procedural sound character within the retained parity envelope.
+1. Equivalent reference snapshots produce recognizably equivalent geometry, occlusion, materials, palette, fog, torch warmth, atmosphere, hands, and procedural sound character within the retained parity envelope.
 2. The faithful port contains none of the prototype's removed gameplay, AI, inventory, pointer-lock, mouse-look, or HUD behavior and introduces no presentation redesign.
 3. Presentation can render settled gameplay snapshots and semantic events without importing or mutating gameplay truth.
-4. Required enemy images load before play, failed loads show a retryable error, and successful images use authored scale and anchor values with correct depth occlusion.
-5. Enemy images darken with distance, gain compatible near-torch warmth, and flash on hit through prepared variants without per-slice filtering.
+4. All separately baked enemy state images load before play, failed loads show a retryable error, and successful images use authored scale and anchor values with correct depth occlusion.
+5. Enemy images darken with distance, gain compatible near-torch warmth, use the hurt pose plus dynamic white VFX on hit, and split the hurt pose on death without per-slice filtering.
 6. Authored wall-face decorations, ambient lights, emitters, and effect presets render from presentation-only floor data without becoming gameplay entities or affecting deterministic outcomes.
 7. Reduced-motion and silent-audio modes preserve all information and leave gameplay outcomes unchanged.

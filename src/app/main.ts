@@ -7,6 +7,9 @@
  */
 
 import { resolveAppRoute } from "@/app/app-route";
+import { mountGameSurface, type MountedGameSurface } from "@/app/game-surface";
+import { PROVISIONAL_FLOOR_SET, PROVISIONAL_RUN_WORLD } from "@/content/floor/floor-catalog";
+import { GameSession } from "@/runtime/game-session";
 
 const mount = document.querySelector<HTMLDivElement>("#app");
 
@@ -15,9 +18,11 @@ if (!mount) {
 }
 
 const appMount = mount;
+let mountedGameSurface: MountedGameSurface | undefined;
 
 function renderOrdinaryPlay(): void {
-  appMount.textContent = "Pantry Depths — layers not implemented yet.";
+  const session = new GameSession(PROVISIONAL_RUN_WORLD);
+  mountedGameSurface = mountGameSurface(appMount, PROVISIONAL_FLOOR_SET, session);
 }
 
 function renderDebugLoadFailure(error: unknown): void {
@@ -48,4 +53,10 @@ if (import.meta.env.DEV) {
   }
 } else {
   renderOrdinaryPlay();
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    mountedGameSurface?.dispose();
+  });
 }

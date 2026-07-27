@@ -1,0 +1,85 @@
+:root {
+  color-scheme: dark;
+  font-family: Georgia, "Times New Roman", serif;
+  background: #0c0711;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.game-surface {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 20rem;
+  isolation: isolate;
+  background: radial-gradient(circle at 30% 54%, rgb(78 32 50 / 28%), transparent 34%), #0c0711;
+}
+
+.game-surface__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  image-rendering: pixelated;
+  transition: opacity 240ms ease-out;
+}
+
+.game-surface__canvas--ready {
+  opacity: 1;
+}
+
+.game-surface__status {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  min-width: min(24rem, calc(100% - 2rem));
+  padding: 1.1rem 1.35rem;
+  transform: translate(-50%, -50%);
+  color: #f4dfc7;
+  text-align: center;
+  border: 1px solid rgb(203 151 105 / 45%);
+  background: rgb(19 10 25 / 92%);
+  box-shadow: 0 1.2rem 4rem rgb(0 0 0 / 58%);
+}
+
+.game-surface__status[hidden] {
+  display: none;
+}
+
+.game-surface__status p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.game-surface__status button {
+  margin-top: 1rem;
+  padding: 0.6rem 1rem;
+  color: #251429;
+  font: inherit;
+  font-weight: 700;
+  border: 0;
+  border-radius: 0.2rem;
+  background: #e3ad69;
+  cursor: pointer;
+}
+
+.game-surface__status button:focus-visible {
+  outline: 0.2rem solid #fff0bf;
+  outline-offset: 0.2rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-surface__canvas {
+    transition: none;
+  }
+}

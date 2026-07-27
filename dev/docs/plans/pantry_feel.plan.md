@@ -31,7 +31,7 @@ Mouse look, pointer lock, mouse attack, strafing, free rotation, and running do 
 | ------------------ | -----------: | --------------------------------------------------------------- |
 | Forward movement   | 0.22 seconds | Linear cell-center interpolation with movement-only walking bob |
 | Left or right turn | 0.18 seconds | Ease-in-out quarter-turn interpolation                          |
-| Attack             | 0.32 seconds | Existing sine-shaped knife swing                                |
+| Attack             | 0.32 seconds | Existing sine-shaped long-sword swing                           |
 
 Retaliation, enemy removal, health loss, death, and victory are already settled at animation start. Presentation may interpolate camera position or angle between snapshots, but no midpoint can be observed as an authoritative gameplay cell or facing.
 

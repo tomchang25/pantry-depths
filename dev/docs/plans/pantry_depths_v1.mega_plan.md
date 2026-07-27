@@ -1,6 +1,6 @@
 # Pantry Depths V1 Mega Plan：一週原型與渲染移植
 
-> **Status**: 執行中。Rules and Content 已交付；下一步是 `/implement pantry_presentation_01`。
+> **Status**: 執行中。Rules and Content 已交付；合併後的 Presentation renderer implementation spec 已備妥。
 > **Supersedes**: 無。
 > **本文性質**: 執行時以 §5 為工單；§1–§4 與 §6–§8 是決策依據與背景，供未來重新評估時參考。
 > **權威邊界**: 本文擁有架構、交付範圍與 future work。實作前的公式與數字由[設計文件](../design/pantry-depths_v1.md) 擁有；對應規則與 content 落地後由 codebase 接手。設計意圖與 Frozen extensions 不會過期，[報告](../reports/) 是給人看的實作視圖。
@@ -40,7 +40,7 @@
 
 | 去向                 | 內容                                                                                                       | 量            |
 | -------------------- | ---------------------------------------------------------------------------------------------------------- | ------------- |
-| 搬進 `presentation/` | textures、raycast、floor casting、atmosphere、hands、minimap、audio                                        | 約 450–500 行 |
+| 搬進 `presentation/` | textures、raycast、floor casting、atmosphere、hands、audio                                                 | 約 450–500 行 |
 | **直接刪除**         | `updateEnemies`／`findNextDirection`／`lineOfSight`／`canEnemyMove`（全部 AI）、`drinkPotion`、`drawChest` | 約 90 行      |
 | 重寫進 `core/`       | `cellAt`、`isSolid`、`attack`、`interact`、`hurtPlayer`                                                    | 不算移植      |
 | 移進 `ui/`           | `updateHud`、`updateObjectives`、`showToast`                                                               | 小            |
@@ -125,16 +125,16 @@ Codebase 是數值的唯一權威，但一堆沒有註解的常數沒辦法 revi
 
 **這是本專案最高的風險項目**，Plan B 獨立存在就是為了關住它。
 
-渲染移植之所以會爆炸，永遠是因為「搬過來」在過程中悄悄變成「順手改好」。對策是把**搬**和**改**拆成不同的 child：
+渲染移植之所以會爆炸，永遠是因為「搬過來」在過程中悄悄變成「順手改好」。原規劃用兩個 child 分隔**搬**和**改**，但第一個 child 只會留下刻意不完整、無法代表正常 gameplay render 的中間畫面。現在改成一個完整 renderer child，並在同一份 spec 的落地順序與證據裡維持兩層邊界：
 
-- **`pantry_presentation_01`（搬）**：驗收標準是保留的 presentation 能力可與 `port-ref/` 並排比對，沒有非預期差異。只准移動程式碼、拆檔、刪除已裁掉的功能。
-- **`pantry_presentation_02`（改）**：非同步載入、距離 tint、預烘白閃——全部是新功能，全部歸這裡。
+- **faithful core（搬）**：先建立可與 `port-ref/` 並排比對的 raycaster、投影、材質、氛圍、手部與音效基線，不在這層順手重設視覺。
+- **complete gameplay render（改）**：再沿同一組 projection/depth seams 加入非同步 state images、距離 tint、動態 hit/death VFX 與 authored environment features，兩層一起交付。
 
-在 `pantry_presentation_01` 期間發現「這裡順手改一下會更好」的任何念頭，一律記進 `pantry_presentation_02` 或 §8，不當場改。
+任何不屬於已確認完整 renderer 的改進仍一律留給 Feel plan 或 §8；合併 child 不授權 renderer redesign。
 
-### 4.3 素材生成的風格不一致
+### 4.3 素材生成與 runtime variant 漂移
 
-五隻敵人分次生成會得到五種畫風，而且是要全部重做才修得掉的那種。對策見 §5 平行項目 S。
+敵人改為同一個史萊姆設計的五色版本。一般、攻擊、受擊三張綠色母版先形成一致狀態組，再 offline bake 成十五張獨立 runtime PNG；runtime 不改色、不組合 variant，也不承擔美術一致性。
 
 ---
 
@@ -148,7 +148,6 @@ Codebase 是數值的唯一權威，但一堆沒有註解的常數沒辦法 revi
 | **[B. Presentation Port](pantry_presentation.plan.md)**   | `pantry_presentation` | 與 `port-ref/` 在保留能力範圍內並排比對   | **高** |
 | **[C. Feel and Endgame](pantry_feel.plan.md)**            | `pantry_feel`         | 手動試玩與鍵盤／無障礙檢查                | 中     |
 | **[D. Final Floor Design](pantry_floor_design.plan.md)**  | `pantry_floor_design` | Presentation 人工實玩 + 結構安全檢查      | 中     |
-| **S. Enemy Sprite Art（平行項目）**                       | `pantry_sprite_art`   | 目視 + 風格一致性                         | 中     |
 | **[P. Authoring Workbench UX](pantry_authoring.plan.md)** | `pantry_authoring`    | 手動編修一張圖後仍通過結構驗證            | 低     |
 
 ### Plan A — Rules and Content（已交付）
@@ -172,14 +171,13 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 從 `port-ref/` 把渲染搬過來。
 
-| Child                    | 焦點                                                                                          |
-| ------------------------ | --------------------------------------------------------------------------------------------- |
-| `pantry_presentation_01` | 渲染層移植：raycast、floor casting、程序化材質、氛圍、手部、minimap、音效。保留能力的行為不變 |
-| `pantry_presentation_02` | Sprite pipeline：非同步載入階段、距離 tint 與暖色火把加成、預烘白閃                           |
+| Child                    | 焦點                                                                                                                                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pantry_presentation_01` | 完整 2.5D gameplay renderer：faithful raycast、floor casting、程序化材質、氛圍、手部與音效，加上 offline-baked state sprites、sprite lighting、動態 hit/death VFX 與 authored environment features |
 
-並排比對只涵蓋保留的 presentation 能力，不包含已裁掉的 AI、寶箱、金幣、藥水、舊 HUD、pointer lock、滑鼠視角或連續移動。
+並排比對只涵蓋保留的 presentation 能力，不包含已裁掉的 AI、寶箱、金幣、藥水、任何 HUD（包含 2D minimap）、pointer lock、滑鼠視角或連續移動。
 
-`pantry_presentation_02` 的三件事都是真正的新工作，不是移植。特別是**距離 tint**——現行實作只用 `globalAlpha` 淡出，沒有距離變暗，換成正常打光的圖檔後遠處敵人會在紫黑走廊裡發亮。
+圖片載入、距離 tint、動態 hit/death VFX 與 authored feature rendering 都是真正的新工作，不是假裝成 faithful port。特別是**距離 tint**——現行實作只用 `globalAlpha` 淡出，沒有距離變暗，換成正常打光的圖檔後遠處敵人會在紫黑走廊裡發亮。
 
 ### Plan C — Feel and Endgame
 
@@ -204,18 +202,13 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 這個 child 的內容就是反覆編修、驗證、重播、重產報告與實玩五層，直到 provisional content 變成最終 V1 content；它不是 Rules plan 裡的一段尾工，也不再另留一個「最後才定稿」的 child。
 
-### 平行項目 S — Enemy Sprite Art
+### Sprite assets folded into Plan B
 
-**不屬於任何 Plan，不擋任何東西，也不被任何東西擋。**
+原本的平行 Enemy Sprite Art 項目已被更小且決策完整的素材契約取代，因此直接併入 `pantry_presentation_01`。
 
-五張固定 512×512 PNG（蝙蝠、地精、骷髏、守衛、公主）加公主的倒下圖。它獨立的理由有二：
+Enemy runtime assets 是綠、黃、藍、紅、紫五色史萊姆各自的 normal、attack、hurt PNG，共十五張，全部 offline baked 並獨立載入。死亡從 hurt image 程序化切成兩片；白閃是 event-time VFX。Plan B 同時擁有已確認的 player viewmodel、slash、key、stair、hot-spring、bones、wall-torch 與 wall-spike sprite manifest。
 
-1. 它是素材生產，不是程式工作，驗證方式（風格一致性）與任何一個 Plan 都不同。塞進 Plan A 或 B 會讓那個 Plan 的 Acceptance Criteria 變成四不像。
-2. 它有唯一的不確定性來源（生成結果可能要重來），把它放進關鍵路徑會讓程式進度被素材卡住。
-
-**程式端一路使用 `port-ref` 的程序化 sprite 當 placeholder**，素材什麼時候好就什麼時候換進去。`pantry_presentation_02` 的載入管線對「載進來的是什麼圖」不做假設。
-
-先寫 style spec（色碼、描邊粗細、剪影規則、平光要求），五隻在同一次作業中一起產出。
+這些素材是完整 renderer 的必要輸入，不再保留另一個平行交付項；主題化或 archetype-specific enemy art 仍不在 V1 範圍。
 
 ### Plan P — Authoring Workbench UX（擱置中）
 
@@ -230,21 +223,19 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 ```text
 pantry_rules_01 → pantry_rules_02 → pantry_rules_03 ─┬─→ pantry_rules_04 → pantry_rules_05 → pantry_rules_05a → pantry_rules_06 ─┐
                                                      │                                                                          │
-pantry_presentation_01 ──────────────────────────────┼─────────────────────────────────────────────────────────────────────────┴→ pantry_presentation_02 → pantry_floor_design_01
+pantry_presentation_01 ──────────────────────────────┼─────────────────────────────────────────────────────────────────────────┴→ pantry_floor_design_01
                                                      │
                                                      └─→ pantry_feel_01 → pantry_feel_02 → pantry_feel_03 → pantry_feel_04
 
-S 全程平行，隨時可以插入
 ```
 
-- `pantry_presentation_01` 沒有任何依賴，它是純移植，可以與早期 Rules children 同時進行。
+- `pantry_presentation_01` 需要已交付的 `pantry_rules_06` authored environment-feature contract；faithful core 本身沒有 gameplay 依賴。
 - `pantry_rules_04` needs the grid semantics from `pantry_rules_03` before it can validate topology.
 - `pantry_rules_05` needs A04's provisional content and topology findings before it can build replay and report tooling.
 - `pantry_rules_06` follows the tooling-ownership correction and defines presentation-only floor annotations without waiting for final geometry; it keeps torches, ambient lights, emitters, and wall decorations out of gameplay entities before presentation consumes them.
-- `pantry_presentation_02` needs the faithful renderer seams from `pantry_presentation_01` and the authored environment-feature contract from `pantry_rules_06`.
 - `pantry_floor_design_01` starts only after the Presentation Port is available. It uses the A04 validator and A05 replay/report while judging and tuning the floors through the actual presentation.
 - `pantry_feel_01` 需要 `pantry_rules_03` 與 `pantry_presentation_01`。
-- `pantry_feel_03` 需要 `pantry_presentation_02` 與 `pantry_feel_02`。
+- `pantry_feel_03` 需要完整的 `pantry_presentation_01` 與 `pantry_feel_02`。
 
 ### 明確不做的事
 
@@ -252,7 +243,7 @@ S 全程平行，隨時可以插入
 - 不做 `src/platform/` 與 `src/shared/`。V1 沒有持久化、桌面殼或跨 feature 共用需求。
 - 不做設定選單（音量除外）。
 - 不做第六層、真魔王戰、二週目。
-- 不在 `pantry_presentation_01` 期間改進任何渲染行為。
+- 不把合併後的 `pantry_presentation_01` 擴成 renderer redesign；只允許 spec 已列出的固定圖片與 authored-feature 能力。
 
 ---
 
@@ -294,23 +285,23 @@ S 全程平行，隨時可以插入
 
 ## 7. 決策記錄
 
-| #   | 決策                                                               | 理由                                                                                         |
-| --- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| 1   | 採用 game-devkit，`platform: web-react`，無 profile                | `/implement` 是實際工作方式，不是額外開銷。web-react 是唯一 Web 軸                           |
-| 2   | 宣告 no-React 偏離                                                 | 專案是 TypeScript + Canvas 2D。九份平台標準中三份的 trigger 永不觸發                         |
-| 3   | 不用 React／Pixi／GSAP                                             | HUD 是八個數字沒有樹；raycaster 不經過 scene graph；補間必須與回合結算同步，不能交給外部時鐘 |
-| 4   | 渲染用 Canvas，HUD 用 DOM                                          | 回合制 HUD 一秒只變兩次；Canvas 文字沒有排版且對輔助技術不存在                               |
-| 5   | 地圖離線烘焙，生成器不進 build                                     | Runtime 生成會逼出一整套連通性與可通關性驗證框架，成本遠高於遊戲本身且對玩家不可見           |
-| 6   | 敵人改固定 512×512 sprite，環境維持程序化                          | 角色需要剪影辨識度；牆地天花需要可平鋪與透視取樣                                             |
-| 7   | 溫泉無限次補滿                                                     | 定位是彩蛋兼 debug 工具；它對路線體驗的影響由 presentation 實玩判斷，不綁定預設生命預算      |
-| 8   | 無存檔，死亡整局重來                                               | 單局 12–18 分鐘，所有數字對玩家可見，死亡永遠是規劃錯誤                                      |
-| 9   | 三層文件 + 兩份報告                                                | 見 §2                                                                                        |
-| 10  | 每個 Plan 的 child 從 `01` 重新編號                                | 見 §4.1                                                                                      |
-| 11  | 移植與改進分成不同 child                                           | 見 §4.2                                                                                      |
-| 12  | Sprite 素材獨立平行，不進任何 Plan                                 | 見 §5                                                                                        |
-| 13  | Rules 第一個 child 先建 dev-only debug hub，後續 viewer 隨規則落地 | 在最終 renderer 之前提供真實 snapshot／command 的觀察面，避免用假規則或一路抓瞎              |
-| 14  | Debug tooling 的 shared extraction 不阻擋 V1                       | 先以第二個 Web consumer 驗證 hub 與多種 viewer，再由 game-devkit 的獨立工作抽出通用契約      |
-| 15  | 最終五層設計獨立於 Rules，並等待 Presentation Port 可用            | 結構與數字可提前驗證，但第一人稱動線、視線、節奏與環境構圖必須在實際 presentation 中定稿     |
+| #   | 決策                                                                    | 理由                                                                                         |
+| --- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1   | 採用 game-devkit，`platform: web-react`，無 profile                     | `/implement` 是實際工作方式，不是額外開銷。web-react 是唯一 Web 軸                           |
+| 2   | 宣告 no-React 偏離                                                      | 專案是 TypeScript + Canvas 2D。九份平台標準中三份的 trigger 永不觸發                         |
+| 3   | 不用 React／Pixi／GSAP                                                  | HUD 是八個數字沒有樹；raycaster 不經過 scene graph；補間必須與回合結算同步，不能交給外部時鐘 |
+| 4   | 渲染用 Canvas，HUD 用 DOM                                               | 回合制 HUD 一秒只變兩次；Canvas 文字沒有排版且對輔助技術不存在                               |
+| 5   | 地圖離線烘焙，生成器不進 build                                          | Runtime 生成會逼出一整套連通性與可通關性驗證框架，成本遠高於遊戲本身且對玩家不可見           |
+| 6   | 敵人改固定 512×512 sprite，環境維持程序化                               | 角色需要剪影辨識度；牆地天花需要可平鋪與透視取樣                                             |
+| 7   | 溫泉無限次補滿                                                          | 定位是彩蛋兼 debug 工具；它對路線體驗的影響由 presentation 實玩判斷，不綁定預設生命預算      |
+| 8   | 無存檔，死亡整局重來                                                    | 單局 12–18 分鐘，所有數字對玩家可見，死亡永遠是規劃錯誤                                      |
+| 9   | 三層文件 + 兩份報告                                                     | 見 §2                                                                                        |
+| 10  | 每個 Plan 的 child 從 `01` 重新編號                                     | 見 §4.1                                                                                      |
+| 11  | Presentation 移植與必要改進合併交付，但在內部落地順序與證據中保持分層   | 見 §4.2；避免先交付刻意不完整的 gameplay render                                              |
+| 12  | 最小 sprite manifest 併入 Presentation Port，runtime 不產生顏色 variant | 見 §4.3 與 §5                                                                                |
+| 13  | Rules 第一個 child 先建 dev-only debug hub，後續 viewer 隨規則落地      | 在最終 renderer 之前提供真實 snapshot／command 的觀察面，避免用假規則或一路抓瞎              |
+| 14  | Debug tooling 的 shared extraction 不阻擋 V1                            | 先以第二個 Web consumer 驗證 hub 與多種 viewer，再由 game-devkit 的獨立工作抽出通用契約      |
+| 15  | 最終五層設計獨立於 Rules，並等待 Presentation Port 可用                 | 結構與數字可提前驗證，但第一人稱動線、視線、節奏與環境構圖必須在實際 presentation 中定稿     |
 
 ---
 
