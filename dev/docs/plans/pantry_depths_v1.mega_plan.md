@@ -1,6 +1,6 @@
 # Pantry Depths V1 Mega Plan：一週原型與渲染移植
 
-> **Status**: 執行中。Rules and Content、Presentation Port、Authoring Workbench 與獨立項目 Run Exit 已交付；Feel and Endgame 的 `pantry_feel_01` 已交付，`_02` 由獨立項目 Run Readout 交付；V1 關鍵路徑的下一步是 `pantry_feel_03`。
+> **Status**: 執行中。Rules and Content、Presentation Port、Authoring Workbench、Feel and Endgame 與獨立項目 Run Exit、Run Readout 皆已交付。V1 關鍵路徑只剩 Final Floor Design；世界回饋與離開演出移到 `TODO.md` 的獨立 sketch。
 > **Supersedes**: 無。
 > **本文性質**: 執行時以 §5 為工單；§1–§4 與 §6–§8 是決策依據與背景，供未來重新評估時參考。
 > **權威邊界**: 本文擁有架構、交付範圍與 future work。規則歸 `src/core/`、數字歸 `src/content/`，[報告](../reports/) 是給人看的實作視圖。設計文件已凍結，見 §2.1。
@@ -146,7 +146,7 @@ Codebase 是數值的唯一權威，但一堆沒有註解的常數沒辦法 revi
 | ------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------- | ------ |
 | **A. Rules and Content（已交付）**                                        | `pantry_rules`         | Unit test + debug viewer + 生成的平衡報告                  | 低     |
 | **B. Presentation Port（已交付）**                                        | `pantry_presentation`  | 與 `port-ref/` 在保留能力範圍內並排比對                    | **高** |
-| **[C. Feel and Endgame](pantry_feel.plan.md)**                            | `pantry_feel`          | 手動試玩與鍵盤／無障礙檢查                                 | 中     |
+| **C. Feel and Endgame（已交付）**                                         | `pantry_feel`          | 手動試玩與鍵盤／無障礙檢查                                 | 中     |
 | **[D. Final Floor Design](pantry_floor_design.plan.md)**                  | `pantry_floor_design`  | Presentation 人工實玩 + 結構安全檢查                       | 中     |
 | **T. Debug Surface Shell（已交付）**                                      | `pantry_debug_surface` | Debug routes 的人工視覺、responsive 與鍵盤檢查             | 低     |
 | **P. Authoring Workbench UX（已交付）**                                   | `pantry_authoring`     | 手動編修一張圖後仍通過結構驗證                             | 低     |
@@ -181,20 +181,15 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 圖片載入、距離 tint、動態 hit/death VFX 與 authored feature rendering 都是真正的新工作，不是假裝成 faithful port。特別是**距離 tint**——現行實作只用 `globalAlpha` 淡出，沒有距離變暗，換成正常打光的圖檔後遠處敵人會在紫黑走廊裡發亮。
 
-### Plan C — Feel and Endgame
+### Plan C — Feel and Endgame（已交付）
 
 只能靠玩才知道對不對的部分。
 
-| Child            | 焦點                                                                 | 狀態                          |
-| ---------------- | -------------------------------------------------------------------- | ----------------------------- |
-| `pantry_feel_01` | Runtime 與輸入：離散補間、補間期間鎖輸入、受阻步伐的拒絕回饋         | 已交付                        |
-| `pantry_feel_02` | HUD：DOM overlay，玩家攻防、鑰匙、樓層、樓層地圖、面向敵人的數值面板 | 已交付（Run Readout）         |
-| `pantry_feel_03` | VFX：側面威脅提示、裂痕階段、溫泉暖光、升級演出、開門失敗            | 未開始；已被 Run Readout 縮小 |
-| `pantry_feel_04` | 出口離開演出                                                         | 未開始；死亡畫面與統計已交付  |
+Runtime 與輸入、以及完整的 HUD 與樓層地圖都已交付；後者由獨立項目 Run Readout 完成，因為當時 plan 的操作契約已經過期，掛在它底下的 child 會繼承一份錯的契約。該 plan 已收掉並歸檔。
 
-`pantry_feel_01` 有一條容易漏的規則：**反擊在補間開始時就結算完成，動畫只是表現**。不要讓動畫時間影響遊戲狀態。
+剩下的兩塊——世界回饋（側面威脅、裂痕階段、普通牆回彈、溫泉暖光、升級演出、開門失敗）與出口離開演出——合併成獨立 sketch `pantry_feedback_and_leaving.sketch.md`，由 `TODO.md` 追蹤。
 
-獨立項目 Run Exit（見下）已把結算條件從擊殺改成出口互動，所以 `pantry_feel_04` 只做離開的演出與統計，不擁有結束這一局的規則。
+這一組有一條容易漏的規則：**反擊在補間開始時就結算完成，動畫只是表現**。不要讓動畫時間影響遊戲狀態。獨立項目 Run Exit 已把結算條件從擊殺改成出口互動，所以離開演出不擁有結束這一局的規則。
 
 ### Plan D — Final Floor Design and Balance
 
@@ -279,7 +274,7 @@ pantry_rules_01 → pantry_rules_02 → pantry_rules_03 ─┬─→ pantry_rule
                                                      │                                                                          │
 pantry_presentation_01 ──────────────────────────────┼─────────────────────────────────────────────────────────────────────────┴→ pantry_floor_design_01
                                                      │
-                                                     └─→ pantry_feel_01 → pantry_feel_02 → pantry_feel_03 → pantry_feel_04
+                                                     └─→ pantry_feel_01 → pantry_run_readout（獨立）→ feedback_and_leaving（獨立 sketch）
                                                                                                              ↑
                                                                                               pantry_run_exit ┘
 
@@ -298,7 +293,7 @@ pantry_scene_01 → pantry_scene_02 → pantry_scene_03 → pantry_scene_04 → 
 - `pantry_rules_06` follows the tooling-ownership correction and defines presentation-only floor annotations without waiting for final geometry; it keeps torches, ambient lights, emitters, and wall decorations out of gameplay entities before presentation consumes them.
 - `pantry_floor_design_01` starts only after the Presentation Port is available. It uses the A04 validator and A05 replay/report while judging and tuning the floors through the actual presentation.
 - `pantry_feel_01` 需要 `pantry_rules_03` 與 `pantry_presentation_01`。
-- `pantry_feel_03` 需要完整的 `pantry_presentation_01` 與 `pantry_feel_02`。
+- 世界回饋與離開演出（現為獨立 sketch）需要完整的 `pantry_presentation_01` 與已交付的 HUD，兩者都已滿足。
 - `pantry_run_exit` 已交付，先於 `pantry_feel_04`，所以結局演出不會綁在已消失的擊殺觸發上；`pantry_floor_design_01` 也已知道 B5 要擺出口。
 - `pantry_scene_01` 原本等 `pantry_authoring_04` 落地後才開始，避免 `_04` 的 generator 控制被 `pantry_scene_02` 蓋掉；該依賴已滿足，Plan Q 現在可以開始。
 - `pantry_scene_03` 起的每一個 child 都硬依賴 `pantry_presentation_01`：要預覽授權場景就得渲染它，faithful port 落地前沒有 renderer 可用。`_01` 與 `_02` 不受此限。

@@ -62,3 +62,4 @@ Turned the single-file browser prototype into a governed TypeScript project. No 
 ### Governance
 
 - 2026-07-27 — [design_document_freeze] `dev/docs/design/` is frozen: not read, not cited, not edited, and extended only by adding a new document. A design document exists to seed the plans derived from it once and is spent when they exist; keeping a spent one synchronised buys nothing, and a partly-refreshed document is worse than an evidently old one because no reader can tell which paragraphs still hold. Authority moved to `src/core/`, `src/content/`, the plans, and the tracker, and the local checker now fails when a durable governance file regains a reference to the tree.
+- 2026-07-27 — [pantry_feel] Feel and Endgame closed. Its runtime, input, HUD, and floor map shipped; the remaining world feedback and the leaving sequence became a single standalone sketch, because what was left of each child was too small to stand alone and too coupled to separate.
