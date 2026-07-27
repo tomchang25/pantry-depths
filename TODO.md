@@ -8,7 +8,7 @@ The single forward-work tracker for Pantry Depths. It tracks only work that no p
 
 Actionable line format: `[scope] one sentence - [ref plans/<name>.md if any]`
 
-The V1 prototype milestone lives in [`pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md), which owns every stream's scope, state, and landing order; this tracker does not restate them. The critical-path next action is `pantry_floor_design_01`. Scene Authoring and Live Preview runs in parallel and its preview children are now unblocked.
+This tracker is the forward-work authority. The V1 milestone plan that used to own stream ordering has been frozen into `dev/docs/design/`; what still pointed forward from it lives under `## Draft` below. The critical-path next action is `pantry_floor_design_01`, and Scene Authoring and Live Preview runs in parallel with its preview children unblocked.
 
 ---
 
@@ -33,7 +33,7 @@ Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line 
 
 One line, no rationale, no backing document.
 
-- [mega_plan_standard] Promote the mega-plan shape into game-devkit as `mega_plan_standard.md` once this project's trial run has an answer - [ref mega plan §8 items 5 and 6]
+- [mega_plan_standard] Promote the mega-plan shape into game-devkit as `mega_plan_standard.md` once this project's trial run has an answer: whether three layers were too heavy for a one-week project, and whether keeping the top layer out of every child's reading path actually held
 
 ---
 
@@ -71,8 +71,29 @@ A jsdom component layer — `jsdom` plus `@testing-library/dom`, no React — be
 
 ### V2 Direction
 
-The [post-V1 product direction](dev/docs/design/pantry_depths_v2_direction.md): extraction runs, exit unlock conditions, spawn conditions, map difficulty tiers, inventory and items, blessings and curses, and fog. It is a direction document, not forward work: no requirements, no children, and nothing in it loosens V1's frozen-extension contract. Two of its open questions — fog versus the explored map, and the persistence debt that carried items imply — need answers before any of it becomes a plan.
+The post-V1 product direction: extraction runs, exit unlock conditions, spawn conditions, map difficulty tiers, inventory and items, blessings and curses, and fog. It is a direction document, not forward work: no requirements, no children, and nothing in it loosens V1's frozen-extension contract. Two of its open questions — fog versus the explored map, and the persistence debt that carried items imply — need answers before any of it becomes a plan.
 
----
+### V1 Definition Of Done
 
-Playtest-driven balance questions live in mega plan §8, not here — they are product decisions against `src/content/`, not forward work.
+Lifted from the milestone plan before it was frozen, because it is the only statement of when V1 is finished. All of these must hold:
+
+1. A player walks from B1 to B5, leaves through the exit, and sees the departure and completion statistics.
+2. Five floors, three key colours, six doors, four stat upgrades, the hidden wall, and the hot spring are all reachable and usable.
+3. Combat stays fully deterministic: the same input sequence always produces the same result.
+4. Every number lives in `src/content/` rather than scattered through rendering or input code.
+5. `npm run verify` is green.
+6. The balance report regenerates from a command and matches current content.
+7. The architecture report exists and answers what a reader must change to add an enemy.
+
+### Playtest Questions
+
+Only playing answers these; none of them blocks work, and all of them are product decisions against `src/content/` rather than forward work. Lifted from the milestone plan for the same reason as above.
+
+- Whether the forced route offers the right pressure, room to misjudge, and recovery rhythm. Adjustment is always authored content, never the combat formula.
+- Whether the final encounter before the exit lands as an ending without dragging, and whether simply reaching the exit feels like enough of a close. If it does not, the answer is a stronger departure and statistics, not moving the terminal outcome back onto a kill.
+- Whether restarting the whole run on death is too punishing. The one sanctioned fallback is returning to the floor's stair with opened doors and collected keys intact at 30% health; still no save.
+- Whether a player reads "cannot penetrate" as a rule rather than a bug. If not, a one-time teaching cue.
+
+### Architecture Report Contents
+
+The report at `dev/docs/reports/pantry_depths_architecture.html` is hand-written and still a skeleton. Its requirements were held only by the milestone plan, so they are recorded here: a self-contained page, light and dark themes, anchored sections, ending in an entry point to the source. It must at least answer how one Action travels from key press to screen, why the layer boundaries fall where they do and how they are machine-enforced, which files change to add an enemy, and which change to add a floor.

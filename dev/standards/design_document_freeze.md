@@ -1,6 +1,8 @@
 # Design Document Freeze
 
-This file is a project-local standard for Pantry Depths. It governs `dev/docs/design/` and supersedes every earlier statement that named a document in that directory as a live authority, including the lifetime table inside `pantry-depths_v1.md` itself.
+This file is a project-local standard for Pantry Depths. It governs `dev/docs/design/` and supersedes every earlier statement that named a document in that directory as a live authority, including the lifetime table inside `pantry-depths_v1.md` and the authority model inside `pantry_depths_v1.mega_plan.md`.
+
+The directory holds source documents, not only game design. A milestone plan lands here once its streams have shipped, for the same reason a design document does: it existed to produce the layer below it, and that has happened.
 
 ## The Rule
 
@@ -11,9 +13,9 @@ This file is a project-local standard for Pantry Depths. It governs `dev/docs/de
 - **Do not cite it to justify or block a change.** It is not evidence for or against anything being built now.
 - **The only permitted change to the directory is adding a new design document.** Adding one is a product event, not an edit: it produces new plans and updates the existing sketches, and the superseded document stays in place untouched.
 
-## What A Design Document Is For
+## What A Frozen Source Document Is For
 
-A design document exists to be the origin of the plans that were derived from it, once. That is its entire function, and it is spent the moment those plans exist.
+Such a document exists to be the origin of the layer derived from it, once. That is its entire function, and it is spent the moment that layer exists: a design document is spent when the plans exist, and a milestone plan is spent when its streams have landed.
 
 Every subsequent decision — a retuned number, a changed control scheme, a rule that resolved differently in practice — invalidates the document a little further. That is expected and is not a defect to be repaired. A design document is a photograph of the intent at the moment work started, and it is useful precisely because it does not move.
 
@@ -49,4 +51,10 @@ When the product direction shifts far enough to need one:
 
 1. Add a new file; never edit an existing one.
 2. Derive the plans and sketch updates from it in the same change, because that derivation is the only reason it exists.
-3. Leave every earlier design document exactly where it is. They are not superseded content to be cleaned up; they are the record of what each generation of plans was derived from.
+3. Leave every earlier document exactly where it is. They are not superseded content to be cleaned up; they are the record of what each generation of plans was derived from.
+
+## Freezing A Spent Plan
+
+Moving a plan in here is the same operation run late, and it carries one obligation the plans-to-archive path does not: **lift anything still pointing forward before the move.** A frozen document is unreadable by default, so a forward-looking statement left inside it is lost rather than parked. Definitions of done, unanswered product questions, and requirements for artifacts not yet built all belong in `TODO.md` under `## Draft` before the file moves.
+
+Backward-looking content stays and is the reason the file is kept: decision records with their rationale, risk history, and the measurements planning was based on. Nothing else records why a decision went the way it did.
