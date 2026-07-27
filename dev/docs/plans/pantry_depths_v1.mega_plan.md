@@ -1,6 +1,6 @@
 # Pantry Depths V1 Mega Plan：一週原型與渲染移植
 
-> **Status**: 執行中。Rules and Content、Presentation Port 與 Authoring Workbench 已交付；V1 關鍵路徑的下一步是 `pantry_feel_01`。
+> **Status**: 執行中。Rules and Content、Presentation Port 與 Authoring Workbench 已交付；V1 關鍵路徑的下一步是 `pantry_feel_01`，獨立項目 `pantry_run_exit` 可平行開工且必須先於 `pantry_feel_04`。
 > **Supersedes**: 無。
 > **本文性質**: 執行時以 §5 為工單；§1–§4 與 §6–§8 是決策依據與背景，供未來重新評估時參考。
 > **權威邊界**: 本文擁有架構、交付範圍與 future work。實作前的公式與數字由[設計文件](../design/pantry-depths_v1.md) 擁有；對應規則與 content 落地後由 codebase 接手。設計意圖與 Frozen extensions 不會過期，[報告](../reports/) 是給人看的實作視圖。
@@ -15,7 +15,7 @@
 
 出貨條件（全部必須成立）：
 
-1. 玩家能從 B1 起點走到 B5，打倒公主，看到結局演出。
+1. 玩家能從 B1 起點走到 B5，從出口離開地牢，看到離開演出與通關統計。
 2. 五層地圖、三色鑰匙、六扇門、四次數值升級、隱藏牆與溫泉全部可用。
 3. 戰鬥完全確定性：相同輸入序列永遠產生相同結果。
 4. 所有數值住在 `src/content/`，不是散在渲染或輸入程式碼裡。
@@ -191,9 +191,11 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 | `pantry_feel_01` | Runtime 與輸入：離散補間、補間期間鎖輸入、`S` 的拒絕回饋                     |
 | `pantry_feel_02` | HUD：DOM overlay，玩家攻防、鑰匙、樓層、探索 minimap、面向敵人的數值面板     |
 | `pantry_feel_03` | VFX 與兩個下限狀況：Block 藍框、`無法穿透`、側面威脅提示、裂痕階段、溫泉暖光 |
-| `pantry_feel_04` | 公主、結局演出、死亡畫面與統計                                               |
+| `pantry_feel_04` | 出口離開演出、死亡畫面與統計                                                 |
 
 `pantry_feel_01` 有一條容易漏的規則：**反擊在補間開始時就結算完成，動畫只是表現**。不要讓動畫時間影響遊戲狀態。
+
+`pantry_feel_04` 依賴獨立項目 Run Exit（見下）先把結算條件從擊殺改成出口互動。它只做離開的演出與統計，不擁有結束這一局的規則。
 
 ### Plan D — Final Floor Design and Balance
 
@@ -204,6 +206,16 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 | `pantry_floor_design_01` | 最終五層 layout、entity 與環境標註 placement、required route、presentation 實玩與 balance tuning |
 
 這個 child 的內容就是反覆編修、驗證、重播、重產報告與實玩五層，直到 provisional content 變成最終 V1 content；它不是 Rules plan 裡的一段尾工，也不再另留一個「最後才定稿」的 child。
+
+### 獨立項目 — Run Exit（V1 關鍵路徑）
+
+**在 V1 關鍵路徑上，排在 `pantry_feel_04` 之前。** 結算條件從「打倒公主」改成「從出口離開」，公主這個 type 一併砍掉，數值以紫史萊姆的身分留在敵人表。方向由[設計文件](../design/pantry-depths_v1.md)第十三節擁有，實作探索見 [`pantry_run_exit.sketch.md`](pantry_run_exit.sketch.md)。
+
+它沒有自己的 Plan，因為它是一次邊界清楚的規則替換：`goalEntityId` 這個必須指向敵人的魔法欄位、`defeatOutcome` 這個只有一個使用者的欄位、以及三處保護它們的守衛一起消失，換成一個互動即結束這一局的 entity。淨複雜度大致打平。
+
+現在做的理由是它現在免費。`pantry_feel_04`、`pantry_floor_design_01` 與 `pantry_scene_06` 都還沒開工；等 feel plan 把結局寫成「敵人血量歸零觸發」之後再改，同一件事會貴得多。
+
+出口的**解鎖條件不在 V1**。V1 的出口永遠是開的，最終遭遇是否必經由 B5 的地形保證，那是 `pantry_floor_design_01` 的佈局責任。
 
 ### Sprite assets folded into Plan B
 
@@ -269,6 +281,8 @@ pantry_rules_01 → pantry_rules_02 → pantry_rules_03 ─┬─→ pantry_rule
 pantry_presentation_01 ──────────────────────────────┼─────────────────────────────────────────────────────────────────────────┴→ pantry_floor_design_01
                                                      │
                                                      └─→ pantry_feel_01 → pantry_feel_02 → pantry_feel_03 → pantry_feel_04
+                                                                                                             ↑
+                                                                                              pantry_run_exit ┘
 
 pantry_authoring_01 → pantry_debug_surface_shell → pantry_authoring_02 → pantry_authoring_03 → pantry_authoring_04（P 全部已交付）
 
@@ -286,6 +300,7 @@ pantry_scene_01 → pantry_scene_02 → pantry_scene_03 → pantry_scene_04 → 
 - `pantry_floor_design_01` starts only after the Presentation Port is available. It uses the A04 validator and A05 replay/report while judging and tuning the floors through the actual presentation.
 - `pantry_feel_01` 需要 `pantry_rules_03` 與 `pantry_presentation_01`。
 - `pantry_feel_03` 需要完整的 `pantry_presentation_01` 與 `pantry_feel_02`。
+- `pantry_run_exit` 只依賴已交付的 rules 與 content，隨時可以開工；它必須先於 `pantry_feel_04`，否則結局演出會綁在即將消失的擊殺觸發上。`pantry_floor_design_01` 也需要它，才知道 B5 要擺出口。
 - `pantry_scene_01` 原本等 `pantry_authoring_04` 落地後才開始，避免 `_04` 的 generator 控制被 `pantry_scene_02` 蓋掉；該依賴已滿足，Plan Q 現在可以開始。
 - `pantry_scene_03` 起的每一個 child 都硬依賴 `pantry_presentation_01`：要預覽授權場景就得渲染它，faithful port 落地前沒有 renderer 可用。`_01` 與 `_02` 不受此限。
 - `pantry_presentation_01` 消費 flat 或 composite 契約的先後由 Plan B 自行決定，Plan Q 只定義 composite 契約與 authoring surface，不排 presentation 的採用時程。
@@ -295,7 +310,8 @@ pantry_scene_01 → pantry_scene_02 → pantry_scene_03 → pantry_scene_04 → 
 - 不做遊戲本體的瀏覽器自動化測試。手動試玩就是 gameplay 的 e2e。`test/e2e/` 只覆蓋 development console 裡 unit 層觀察不到的部分（debug 路由開機、workbench 與 authoring endpoint 的往返、覆寫 canonical 前的驗證閂），範圍由 `dev/agent_rules/test_operations.md` 界定。
 - 不做 `src/platform/` 與 `src/shared/`。V1 沒有持久化、桌面殼或跨 feature 共用需求。
 - 不做設定選單（音量除外）。
-- 不做第六層、真魔王戰、二週目。
+- 不做第六層、boss 戰、二週目。
+- 不做出口的解鎖條件（開關、擊殺 gate）與任何 spawn 條件。方向記在 `dev/docs/design/pantry_depths_v2_direction.md`，V1 靠 B5 地形保證最終遭遇必經。
 - 不把合併後的 `pantry_presentation_01` 擴成 renderer redesign；只允許 spec 已列出的固定圖片與 authored-feature 能力。
 
 ---
@@ -338,24 +354,25 @@ pantry_scene_01 → pantry_scene_02 → pantry_scene_03 → pantry_scene_04 → 
 
 ## 7. 決策記錄
 
-| #   | 決策                                                                    | 理由                                                                                         |
-| --- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 1   | 採用 game-devkit，`platform: web-react`，無 profile                     | `/implement` 是實際工作方式，不是額外開銷。web-react 是唯一 Web 軸                           |
-| 2   | 宣告 no-React 偏離                                                      | 專案是 TypeScript + Canvas 2D。九份平台標準中三份的 trigger 永不觸發                         |
-| 3   | 不用 React／Pixi／GSAP                                                  | HUD 是八個數字沒有樹；raycaster 不經過 scene graph；補間必須與回合結算同步，不能交給外部時鐘 |
-| 4   | 渲染用 Canvas，HUD 用 DOM                                               | 回合制 HUD 一秒只變兩次；Canvas 文字沒有排版且對輔助技術不存在                               |
-| 5   | 地圖離線烘焙，生成器不進 build                                          | Runtime 生成會逼出一整套連通性與可通關性驗證框架，成本遠高於遊戲本身且對玩家不可見           |
-| 6   | 敵人改固定 512×512 sprite，環境維持程序化                               | 角色需要剪影辨識度；牆地天花需要可平鋪與透視取樣                                             |
-| 7   | 溫泉無限次補滿                                                          | 定位是彩蛋兼 debug 工具；它對路線體驗的影響由 presentation 實玩判斷，不綁定預設生命預算      |
-| 8   | 無存檔，死亡整局重來                                                    | 單局 12–18 分鐘，所有數字對玩家可見，死亡永遠是規劃錯誤                                      |
-| 9   | 三層文件 + 兩份報告                                                     | 見 §2                                                                                        |
-| 10  | 每個 Plan 的 child 從 `01` 重新編號                                     | 見 §4.1                                                                                      |
-| 11  | Presentation 移植與必要改進合併交付，但在內部落地順序與證據中保持分層   | 見 §4.2；避免先交付刻意不完整的 gameplay render                                              |
-| 12  | 最小 sprite manifest 併入 Presentation Port，runtime 不產生顏色 variant | 見 §4.3 與 §5                                                                                |
-| 13  | Rules 第一個 child 先建 dev-only debug hub，後續 viewer 隨規則落地      | 在最終 renderer 之前提供真實 snapshot／command 的觀察面，避免用假規則或一路抓瞎              |
-| 14  | Debug tooling 的 shared extraction 不阻擋 V1                            | 先以第二個 Web consumer 驗證 hub 與多種 viewer，再由 game-devkit 的獨立工作抽出通用契約      |
-| 15  | 最終五層設計獨立於 Rules，並等待 Presentation Port 可用                 | 結構與數字可提前驗證，但第一人稱動線、視線、節奏與環境構圖必須在實際 presentation 中定稿     |
-| 16  | Debug Surface Shell 使用獨立 spec，先於直接 authoring editing 落地      | 共用視覺 template 橫跨所有 debug scenes，不應由 floor authoring 擁有，也不應改變各工具 state |
+| #   | 決策                                                                    | 理由                                                                                                                                                             |
+| --- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 採用 game-devkit，`platform: web-react`，無 profile                     | `/implement` 是實際工作方式，不是額外開銷。web-react 是唯一 Web 軸                                                                                               |
+| 2   | 宣告 no-React 偏離                                                      | 專案是 TypeScript + Canvas 2D。九份平台標準中三份的 trigger 永不觸發                                                                                             |
+| 3   | 不用 React／Pixi／GSAP                                                  | HUD 是八個數字沒有樹；raycaster 不經過 scene graph；補間必須與回合結算同步，不能交給外部時鐘                                                                     |
+| 4   | 渲染用 Canvas，HUD 用 DOM                                               | 回合制 HUD 一秒只變兩次；Canvas 文字沒有排版且對輔助技術不存在                                                                                                   |
+| 5   | 地圖離線烘焙，生成器不進 build                                          | Runtime 生成會逼出一整套連通性與可通關性驗證框架，成本遠高於遊戲本身且對玩家不可見                                                                               |
+| 6   | 敵人改固定 512×512 sprite，環境維持程序化                               | 角色需要剪影辨識度；牆地天花需要可平鋪與透視取樣                                                                                                                 |
+| 7   | 溫泉無限次補滿                                                          | 定位是彩蛋兼 debug 工具；它對路線體驗的影響由 presentation 實玩判斷，不綁定預設生命預算                                                                          |
+| 8   | 無存檔，死亡整局重來                                                    | 單局 12–18 分鐘，所有數字對玩家可見，死亡永遠是規劃錯誤                                                                                                          |
+| 9   | 三層文件 + 兩份報告                                                     | 見 §2                                                                                                                                                            |
+| 10  | 每個 Plan 的 child 從 `01` 重新編號                                     | 見 §4.1                                                                                                                                                          |
+| 11  | Presentation 移植與必要改進合併交付，但在內部落地順序與證據中保持分層   | 見 §4.2；避免先交付刻意不完整的 gameplay render                                                                                                                  |
+| 12  | 最小 sprite manifest 併入 Presentation Port，runtime 不產生顏色 variant | 見 §4.3 與 §5                                                                                                                                                    |
+| 13  | Rules 第一個 child 先建 dev-only debug hub，後續 viewer 隨規則落地      | 在最終 renderer 之前提供真實 snapshot／command 的觀察面，避免用假規則或一路抓瞎                                                                                  |
+| 14  | Debug tooling 的 shared extraction 不阻擋 V1                            | 先以第二個 Web consumer 驗證 hub 與多種 viewer，再由 game-devkit 的獨立工作抽出通用契約                                                                          |
+| 15  | 最終五層設計獨立於 Rules，並等待 Presentation Port 可用                 | 結構與數字可提前驗證，但第一人稱動線、視線、節奏與環境構圖必須在實際 presentation 中定稿                                                                         |
+| 16  | Debug Surface Shell 使用獨立 spec，先於直接 authoring editing 落地      | 共用視覺 template 橫跨所有 debug scenes，不應由 floor authoring 擁有，也不應改變各工具 state                                                                     |
+| 17  | 結算改成離開出口，公主 type 砍掉                                        | 出口把「終點」與「最硬的怪」拆成兩件可分開擺放的東西，也刪掉 `goalEntityId` 與 `defeatOutcome` 兩個各只有一個使用者的特例。受影響的 child 全部未開工，現在改免費 |
 
 ---
 
@@ -364,7 +381,7 @@ pantry_scene_01 → pantry_scene_02 → pantry_scene_03 → pantry_scene_04 → 
 不阻擋開工。前四項只有 playtest 能回答，最後兩項是流程本身的實驗結果。
 
 1. **必經路線是否提供合適的壓力、犯錯空間與恢復節奏。** 由 `pantry_floor_design_01` 透過 presentation 人工實玩判斷，不設定路線成本或剩餘生命門檻；調整一律改 authored content，不改 gameplay formula。
-2. **公主遭遇是否有終局壓迫感但不顯得拖沓。** 由完整路線實玩中的節奏與主觀體感決定，不要求她佔固定傷害比例或成本。
+2. **出口前的最終遭遇是否有終局壓迫感但不顯得拖沓，以及走到出口就結束是否少了收尾感。** 由完整路線實玩中的節奏與主觀體感決定，不要求最後一隻敵人佔固定傷害比例或成本。若收尾感不足，做法是加強離開演出與統計呈現，不是把結算改回擊殺條件。
 3. **死亡直接重來整局是否過於挫折。** 唯一允許的備案是「回到當層樓梯口，保留已開的門與已拾取鑰匙，生命補到 30%」，仍然不加存檔。採用與否是產品決策。
 4. **玩家是否看得懂「無法穿透」而不是以為遊戲壞了。** 若不夠明顯，加一次性教學提示。
 5. **三層結構（Mega → Plan → Spec）在一週專案上是否過重。** 本專案是這個結構的試跑；結束後把實際體感寫成 `mega_plan_standard.md` 餵回 game-devkit。

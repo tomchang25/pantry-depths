@@ -15,7 +15,7 @@ Give authored presentation content one identity per placement, and give the surf
 5. The floor content contract increases its schema version and canonical content migrates to it. The flat form is not retained in parallel — two readable shapes for the same data would reintroduce the ambiguity this plan exists to remove.
 6. The authoring surface renders the authored floor the way the game renders it, from a camera the author places and moves on the grid being edited, and reflects each edit without a rebuild. An eye judgement needs an eye, and a flat map cannot supply one.
 7. Every authored placement number is editable against that live view and persists as authored content: component offsets, and the display size and floor anchor of each world sprite. A number that can only be changed by editing source is a number that never gets tuned.
-8. A floor set's start position and its completion condition are authored markers, so the surface that builds a level can also start a run inside it.
+8. A floor set's start position and its exit are placed and moved from the authoring surface, so the surface that builds a level can also start a run inside it. What makes the exit terminal is a settled gameplay rule owned by the standalone Run Exit work; this plan places the markers and does not decide how a run ends.
 
 ## Design
 
@@ -58,7 +58,7 @@ Variation is expressed as separate named composites — a warm torch and a cold 
 
 ### Ownership
 
-Authored content owns the composite catalog, the placement numbers, and the start and end markers. Presentation reads them and owns rendering, animation, timing, and decorative behavior. Floor content references composites by identity only. The authoring surface resolves an identity to a human-readable label, previews the result, and writes authored values, but never redefines what a composite means to the renderer.
+Authored content owns the composite catalog, the placement numbers, and the start and exit markers. Presentation reads them and owns rendering, animation, timing, and decorative behavior. Floor content references composites by identity only. The authoring surface resolves an identity to a human-readable label, previews the result, and writes authored values, but never redefines what a composite means to the renderer.
 
 ### Child overview
 
@@ -69,7 +69,7 @@ Authored content owns the composite catalog, the placement numbers, and the star
 | `pantry_scene_03` | Live rendered preview of the authored floor inside the authoring surface                               | Not started                                                                                          |
 | `pantry_scene_04` | Author-placed camera on the editing grid, with edits reflected as they are made                        | Not started                                                                                          |
 | `pantry_scene_05` | Component offset and world-sprite placement editing against the live preview                           | Not started                                                                                          |
-| `pantry_scene_06` | Authored start and end markers closing the build-and-run loop                                          | [`pantry_scene_06_start_and_end_markers.sketch.md`](pantry_scene_06_start_and_end_markers.sketch.md) |
+| `pantry_scene_06` | Start and exit marker placement, closing the build-and-run loop                                        | [`pantry_scene_06_start_and_end_markers.sketch.md`](pantry_scene_06_start_and_end_markers.sketch.md) |
 
 Recommended landing order: `pantry_scene_01` -> `pantry_scene_02` -> `pantry_scene_03` -> `pantry_scene_04` -> `pantry_scene_05` -> `pantry_scene_06`.
 
@@ -79,7 +79,7 @@ Recommended landing order: `pantry_scene_01` -> `pantry_scene_02` -> `pantry_sce
 
 `pantry_scene_05` follows the camera child rather than preceding it because an offset is judged by moving around it. Tuning against a fixed viewpoint would produce values that only look correct from one angle.
 
-`pantry_scene_06` lands last because starting a run from the editor needs both the authored markers and the placed camera to exist.
+`pantry_scene_06` lands last because starting a run from the editor needs both the authored markers and the placed camera to exist. Its gameplay half is gone: the completion model was settled outside this plan and the exit rule lands as standalone work before the milestone, so what remains here is placement and the run-from-editor loop.
 
 ### Relationship to other plans
 
@@ -110,6 +110,6 @@ The renderer this plan embeds is the one the presentation port already delivered
 6. The authoring surface shows the authored floor rendered as the game renders it, and an edit to terrain, placement, or a placement number is visible there without a rebuild.
 7. An author places and moves the preview camera on the same grid being edited, and the rendered view matches what a player standing in that cell and facing that direction would see.
 8. Component offsets and world-sprite display size and floor anchor are edited against the live view and persist as authored content, with no such value left reachable only by editing source.
-9. A floor set's start position and completion condition are authored markers, and a run can be started from the authoring surface using them.
+9. A floor set's start position and its exit are placed and moved from the authoring surface, the start is visible while editing and hidden in play, and a run can be started from the authoring surface using them.
 10. Existing anchor rules continue to hold: wall-anchored composites need a solid anchor with a passable observation face, and cell-anchored composites need a passable base tile.
 11. Authoring, preview, and the authored numbers remain presentation-only, leaving gameplay outcomes and deterministic replay unchanged.

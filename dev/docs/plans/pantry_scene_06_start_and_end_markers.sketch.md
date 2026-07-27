@@ -1,60 +1,57 @@
-# Start and End Markers
+# Start and Exit Markers
 
 Parent Plan: `pantry_scene_authoring.plan.md`
 
 ## Goal
 
-Explore making a floor set's start position and its completion condition both explicit, authorable markers, so level building stops depending on a fixed spawn corner and on "defeat the goal enemy" being the only way a run can end. This is the child that closes the parent plan's build-and-run loop: without authored markers, a run cannot be started from the surface that built the level.
+Explore making a floor set's start position and its exit both placeable from the authoring surface, so level building stops depending on a fixed spawn corner and on hand-editing JSON to say where a run ends. This is the child that closes the parent plan's build-and-run loop: without placeable markers, a run cannot be started from the surface that built the level.
 
 ## Summary
 
-This sketch was written while it stood alone, before any plan owned run boundaries. It is now the last child of the scene authoring plan, which owns the editing surface and the live preview that a started run would appear in. The parent plan owns its requirements; what follows is the implementation-facing exploration only.
+This sketch was written while it stood alone, before any plan owned run boundaries, and it originally carried two halves of very different cost. That is no longer true — **the expensive half has been removed from this child.**
 
-The two halves cost very different amounts and the spec author should expect to treat them separately even though they are explored together here.
+The completion model is settled: a run ends by interacting with an authored exit, not by defeating a goal enemy. The design document owns that decision, and the rule that implements it — the exit entity kind, the terminal interaction effect, the validator's terminal condition, and the deletion of the princess archetype — lands as standalone work well before this child, because `pantry_feel_04` and `pantry_floor_design_01` both need it first. See `pantry_run_exit.sketch.md`.
 
-The **start** half is close to free. The floor-set contract already carries an explicit initial floor, cell, and facing; nothing about the start is hardcoded in content. What is hardcoded is the generator's fixed entry corner and the absence of any Workbench control for editing the initial position. Making the start authorable is therefore ordinary authoring work with no rule change and no schema change.
-
-The **end** half is a gameplay rule change. Completion is currently reachable only by reducing a combat entity to zero health, and the content contract enforces that the goal must name an enemy. Letting an authored end marker complete a run means changing how a run terminates, which the design document owns as a product decision and which overlaps the ending presentation owned by the feel plan. The spec author must settle that ownership question before writing a spec; it cannot be resolved inside this child's implementation.
-
-The favored direction is to keep both halves in one child so the authoring surface gains a matched pair of markers at once, but to land the start half first if the end half's product decision is still open when implementation begins.
+What remains here is authoring. Both halves are now the same kind of work: expose an existing content field through the map and the Cell Editor. Neither changes a gameplay rule, and neither changes the content schema beyond what the exit rule already introduced.
 
 ## Sketch
 
-### Start half — likely shape
+### Start marker — likely shape
 
 - The floor-set contract's initial floor, cell, and facing already exist and are already validated against a passable base tile, so the authoring work is exposing them, not inventing them. Verify that the validator's initial-position check is the only rule guarding this.
 - The Workbench has no control for the initial position today. A candidate shape is a start marker rendered as a map overlay plus a control in the Cell Editor to make the selected cell the start, mirroring how gameplay entities are placed. Verify against how the current selection and direct-edit path applies mutations.
-- The generator uses one fixed interior corner for both the initial cell and every floor's up-stair. Making the start authorable does not require the generator to randomize it, but the spec should decide whether the generator picks a start or keeps a deterministic corner.
+- The start marker is an authoring-only overlay: visible on the map and in the live preview while editing, absent from a real run. Verify where that distinction can live without teaching the renderer about authoring state.
+- The generator uses one fixed interior corner for both the initial cell and every floor's up-stair. Making the start placeable does not require the generator to randomize it, but the spec should decide whether the generator picks a start or keeps a deterministic corner.
 - Facing is part of the start and has no control today. Likely reuses the four-cardinal control pattern already used for stair arrival facing and wall-decoration faces.
 
-### End half — likely shape and the hard part
+### Exit marker — likely shape
 
-- Completion is currently expressed as a defeat outcome on a combat entity, and the run state's terminal resolution only fires from a combat result. An end marker that completes on entry is a different trigger path, not a new entity field on the existing one. Verify where terminal outcome resolution actually sits before assuming it can be reached from an interaction effect.
-- The content contract names a single goal entity and the validator requires it to be an enemy; the authoring layer separately refuses to let the goal stop being an enemy. All three of those guards assume the enemy-defeat model and would need to change together.
-- The structural validator's topology search treats reaching the goal as its terminal condition. An end marker changes what the search is searching for, so the validator and the generator's solvability check are both affected, not just the runtime.
-- Whether an end marker replaces the goal enemy or coexists with it is a product decision, not an implementation choice. Coexistence implies a run can end two ways, which the design document's ending section does not currently contemplate.
-- The design document defines the ending as the princess reaching zero health, and the feel plan owns the ending sequence. Reconcile both before the spec, and record the outcome in whichever of those documents owns it.
+- By the time this child runs, the exit is an ordinary gameplay entity with a cell, so placing it should follow the same path as placing a key, a door, or a stair. Verify that assumption against whatever shape the exit rule actually landed; if the exit ended up as a floor-set field rather than an entity, the control looks more like the start marker than like entity placement.
+- Unlike the start, the exit is visible in play. It needs no authoring-only rendering path, but it does need a map legend entry.
+- A set with no exit, or with an unreachable one, is already a validation error by then. The authoring surface should surface that the same way it surfaces other structural violations rather than inventing its own guard.
 
 ### Candidate files to inspect
 
-- The floor content schema and its validator, for the initial position, the goal entity rule, and the topology search's terminal condition.
-- The core run state, for how a terminal outcome is currently produced and whether a non-combat trigger can reach it.
-- The authoring mutation module and Cell Editor, for how a marker control would apply and what guards currently protect the goal.
+- The floor content schema and its validator, for the initial position and the exit's structural rules.
+- The authoring mutation module and Cell Editor, for how a marker control applies and what guards exist around structural entities.
+- The map overlay layer, for how a non-gameplay authoring marker is drawn beside real entities.
 - The offline generator, for the fixed entry corner and its per-floor stair placement.
-- The design document's ending section and the feel plan's ending child, for ownership of what completes a run.
+- The live preview and placed camera from earlier children, for starting a run from the editor.
 
 ## Non-Goals
 
-1. Do not design the ending presentation, statistics, or death screen; the feel plan owns those.
-2. Do not add multiple simultaneous start positions or per-floor spawn points.
-3. Do not change enemy behavior, combat, or the damage formula in order to remove the goal enemy.
-4. Do not fold generator totals or dimensions into this work; `pantry_authoring_04` owns them. Cross-floor locks belong to `pantry_cross_floor_locks.sketch.md`.
-5. Do not build the preview surface or the placed camera a started run would use; earlier children of the parent plan own both.
-6. Do not treat this sketch's codebase claims as verified; the spec author re-checks each one.
+1. Do not implement, revisit, or extend the exit rule itself; `pantry_run_exit` owns the entity, the terminal interaction, and the validator change.
+2. Do not add unlock conditions to the exit. Those are recorded in `dev/docs/design/pantry_depths_v2_direction.md` and are not V1 scope.
+3. Do not design the leaving presentation, statistics, or death screen; the feel plan owns those.
+4. Do not add multiple simultaneous start positions or per-floor spawn points.
+5. Do not fold generator totals or dimensions into this work; `pantry_authoring_04` owns them. Cross-floor locks belong to `pantry_cross_floor_locks.sketch.md`.
+6. Do not build the preview surface or the placed camera a started run would use; earlier children of the parent plan own both.
+7. Do not treat this sketch's codebase claims as verified; the spec author re-checks each one.
 
 ## Acceptance Criteria
 
-1. A floor set's start position and facing are authorable without editing JSON by hand, and the authoring map shows where the start is.
-2. A run's completion condition is authorable as an explicit marker rather than being implied by one enemy's identity.
-3. Structural validation continues to prove that a generated or hand-authored candidate can be completed, under whichever completion model is chosen.
-4. Whatever completion model is chosen is recorded in the document that owns it before implementation begins.
+1. A floor set's start position and facing are placeable without editing JSON by hand, and the authoring map shows where the start is.
+2. The start marker is visible while editing and absent from a real run.
+3. The exit is placeable and movable from the same surface, with a legend entry that distinguishes it from a stair.
+4. Structural validation continues to prove that a generated or hand-authored candidate can be completed, and the authoring surface reports a missing or unreachable exit through its existing violation path.
+5. A run can be started from the authoring surface using the placed start.
