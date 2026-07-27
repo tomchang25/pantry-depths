@@ -1,6 +1,8 @@
 # Composite Environment Presets
 
-> **Status**: Queued. Recorded ahead of execution; no child has started. Its blocking dependency on the shipped generator work has been satisfied, so `pantry_preset_01` is now available to start.
+> **Status**: Superseded and archived before any child started. Replaced by `pantry_scene_authoring.plan.md`, which carries `pantry_preset_01` and `pantry_preset_01a` over unchanged as its first two children and withdraws `pantry_preset_02` in favor of a live preview built into the authoring surface.
+>
+> This plan's Non-Goal 2 excluded a rendered preview from the floor authoring map. That exclusion is withdrawn by the successor plan, which records why.
 
 ## Goal
 

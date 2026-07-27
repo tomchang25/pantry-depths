@@ -40,7 +40,7 @@ The expected outcome if this holds up is small: the pending-move state carries a
 - Entity IDs appear to be unique across the whole floor set, not per floor — the validator raises `entity.duplicateId` while walking every floor with one shared ID set. If that holds, a cross-floor move needs no rename and no ID collision handling, which removes the largest source of complexity this feature could have had. Verify before relying on it.
 - A stair carries `destinationStairId`, so moving a stair to another floor keeps its outbound link and every inbound link intact by ID. What changes is the topology: a stair can end up on the same floor as its destination, which the reference validator does not obviously forbid — it only requires the destination to be a different stair. Whether the move gesture should refuse that, or leave it to structural validation, is a seam to inspect rather than an established rule.
 - `goalEntityId` lives on the floor set, not on a floor, so moving the goal enemy to another floor should need no special handling — but it changes which floor terminates a run, and the removal path already carries a hard guard against touching the goal entity. Check whether that guard's reasoning extends to moves.
-- The floor set's `initial` position is not an entity and should be unaffected. `pantry_start_and_end_markers.sketch.md` owns making it authorable.
+- The floor set's `initial` position is not an entity and should be unaffected. `pantry_scene_06_start_and_end_markers.sketch.md` owns making it authorable.
 
 ### Interaction and feedback
 
@@ -63,7 +63,7 @@ The expected outcome if this holds up is small: the pending-move state carries a
 1. Do not add cross-floor movement for environment features. They have no move gesture at all today, and giving them one is separate work with its own anchor rules.
 2. Do not add multi-entity selection, cut and paste, or a whole-floor content transfer. This is one entity, one destination.
 3. Do not change the pointer-drag gesture into something that can leave its floor.
-4. Do not change structural validation, stair topology rules, or what completes a run. Start and end markers belong to `pantry_start_and_end_markers.sketch.md`; generator allocation belongs to `pantry_authoring_04` and `pantry_cross_floor_locks.sketch.md`.
+4. Do not change structural validation, stair topology rules, or what completes a run. Start and end markers belong to `pantry_scene_06_start_and_end_markers.sketch.md`; generator allocation belongs to `pantry_authoring_04` and `pantry_cross_floor_locks.sketch.md`.
 5. Do not add undo for a move. The authoring plan already excludes undo history.
 6. Do not treat this sketch's codebase claims as verified; the spec author re-checks each one against the current code.
 

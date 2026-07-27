@@ -18,23 +18,23 @@ Nothing currently in progress.
 
 [`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in four critical-path delivery plans and two optional tooling and content plans.
 
-| Stream | Scope                                                                 |   Children | State                                                |
-| ------ | --------------------------------------------------------------------- | ---------: | ---------------------------------------------------- |
-| A      | Rules and Content                                                     |          7 | Shipped                                              |
-| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)       |          1 | Active — combined renderer spec ready                |
-| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)                |          4 | Queued                                               |
-| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)      |          1 | Queued after Presentation Port                       |
-| T      | Debug Surface Shell                                                   | standalone | Shipped; shared debug presentation foundation        |
-| P      | Authoring Workbench UX                                                |          4 | Shipped; direct floor authoring and generator totals |
-| Q      | [Composite Environment Presets](dev/docs/plans/pantry_preset.plan.md) |          3 | Queued; its blocking dependency has landed           |
+| Stream | Scope                                                                             |   Children | State                                                |
+| ------ | --------------------------------------------------------------------------------- | ---------: | ---------------------------------------------------- |
+| A      | Rules and Content                                                                 |          7 | Shipped                                              |
+| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)                   |          1 | Active — combined renderer spec ready                |
+| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)                            |          4 | Queued                                               |
+| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)                  |          1 | Queued after Presentation Port                       |
+| T      | Debug Surface Shell                                                               | standalone | Shipped; shared debug presentation foundation        |
+| P      | Authoring Workbench UX                                                            |          4 | Shipped; direct floor authoring and generator totals |
+| Q      | [Scene Authoring and Live Preview](dev/docs/plans/pantry_scene_authoring.plan.md) |          6 | Queued; preview children need the renderer           |
 
-The Authoring Workbench is shipped, so Composite Environment Presets is the next available optional-tooling work. The V1 critical-path next action remains `pantry_presentation_01`, now carried by the combined 2.5D renderer spec.
+The Authoring Workbench is shipped, so Scene Authoring and Live Preview is the next available optional-tooling work; its first two children can start now, and everything from its preview child onward waits for the renderer. The V1 critical-path next action remains `pantry_presentation_01`, now carried by the combined 2.5D renderer spec.
 
 ### Standalone sketches
 
 Direction chosen, no plan owns the area. Each becomes actionable through `/implement`, which rewrites it into a standalone implementation spec.
 
-- [Start and end markers](dev/docs/plans/pantry_start_and_end_markers.sketch.md) — make the spawn position and the run-completion condition authored markers instead of a fixed corner and one enemy's identity. The completion half is a product decision the design document owns and overlaps the feel plan's ending sequence; settle that before writing a spec.
+- [Player screen layer](dev/docs/plans/pantry_player_screen_layer.sketch.md) — make the held torch and sword, the attack slash, the torch flame, and the damage flash authored values instead of constants inside the renderer. Screen-space only, so it stays out of the scene authoring plan's placed-camera preview; the open shape question is what each value should be a fraction of.
 - [Cross-floor locks](dev/docs/plans/pantry_cross_floor_locks.sketch.md) — let the generator place a key on one floor and the door it opens on a later one. Runtime and the validator already support it; the generator's per-floor construction guarantee does not. The generator allocation layer it builds on has now shipped, so nothing blocks it.
 - [Cross-floor entity move](dev/docs/plans/pantry_cross_floor_entity_move.sketch.md) — let the Workbench move a gameplay entity to another floor instead of forcing delete-and-recreate. The two-click move mode already survives a floor switch; the authoring mutation resolves the entity against the destination floor and refuses.
 

@@ -46,6 +46,6 @@ design draft
 -> child closeout
 ```
 
-Optional tooling and content plans may run alongside that route without changing the presentation-first V1 dependency order. The Authoring Workbench has shipped; Composite Environment Presets is the queued successor, and `TODO.md` tracks the standalone sketches that no plan owns.
+Optional tooling and content plans may run alongside that route without changing the presentation-first V1 dependency order. The Authoring Workbench has shipped; Scene Authoring and Live Preview is the queued successor, and `TODO.md` tracks the standalone sketches that no plan owns.
 
 Child sketches remain optional and are opened only when an implementation boundary needs exploration. Every child still requires an implementation spec before source mutation and verification against `dev/agent_rules/test_operations.md` before it is called delivered. The approved minimal slime and gameplay sprite manifest is part of the Presentation Port rather than a separate delivery stream.

@@ -1,21 +1,14 @@
 # Start and End Markers
 
-Parent Plan: none (standalone sketch)
+Parent Plan: `pantry_scene_authoring.plan.md`
 
 ## Goal
 
-Explore making a floor set's start position and its completion condition both explicit, authorable markers, so level building stops depending on a fixed spawn corner and on "defeat the goal enemy" being the only way a run can end.
-
-## Requirements
-
-1. A floor set's start position and facing are authored data that the author can place and move without editing JSON, because a fixed spawn corner forces every layout to be built around it.
-2. What completes a run is authored data rather than an implied property of one enemy's identity, so a level can end at a place instead of at a fight.
-3. Structural validation continues to prove a candidate is completable under whichever completion model is chosen — the generator and validator both currently treat reaching the goal enemy as the terminal condition, so neither can be left behind.
-4. The completion model is recorded in the document that owns it before implementation begins. The design document owns what ends a run and the feel plan owns the ending sequence; this sketch cannot decide either on its own.
+Explore making a floor set's start position and its completion condition both explicit, authorable markers, so level building stops depending on a fixed spawn corner and on "defeat the goal enemy" being the only way a run can end. This is the child that closes the parent plan's build-and-run loop: without authored markers, a run cannot be started from the surface that built the level.
 
 ## Summary
 
-This is a standalone sketch: no plan owns run boundaries today. The authoring plan owns the editing surface, the design document owns what ends a run, and the feel plan owns the ending sequence, so filing this as a child of any one of them would have stretched that plan's boundary rather than clarifying ownership. If a plan later adopts this work, the sketch moves into it as a child.
+This sketch was written while it stood alone, before any plan owned run boundaries. It is now the last child of the scene authoring plan, which owns the editing surface and the live preview that a started run would appear in. The parent plan owns its requirements; what follows is the implementation-facing exploration only.
 
 The two halves cost very different amounts and the spec author should expect to treat them separately even though they are explored together here.
 
@@ -56,7 +49,8 @@ The favored direction is to keep both halves in one child so the authoring surfa
 2. Do not add multiple simultaneous start positions or per-floor spawn points.
 3. Do not change enemy behavior, combat, or the damage formula in order to remove the goal enemy.
 4. Do not fold generator totals or dimensions into this work; `pantry_authoring_04` owns them. Cross-floor locks belong to `pantry_cross_floor_locks.sketch.md`.
-5. Do not treat this sketch's codebase claims as verified; the spec author re-checks each one.
+5. Do not build the preview surface or the placed camera a started run would use; earlier children of the parent plan own both.
+6. Do not treat this sketch's codebase claims as verified; the spec author re-checks each one.
 
 ## Acceptance Criteria
 

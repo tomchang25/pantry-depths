@@ -31,7 +31,7 @@
 | Child 數量                   | 18 個 + 1 個平行項目                         |
 | 單一 child 上限              | **1 天**                                     |
 | 前置文件（本文 + 三份 plan） | 半天                                         |
-| 週預算外                     | Plan Q 的 3 個 child，排在 V1 milestone 之後 |
+| 週預算外                     | Plan Q 的 6 個 child，排在 V1 milestone 之後 |
 
 **單一 child 超過一天沒收就是估錯了。** 這是本專案唯一的早期警報訊號，不要忽略它。
 
@@ -143,15 +143,15 @@ Codebase 是數值的唯一權威，但一堆沒有註解的常數沒辦法 revi
 
 分組判準是**一個 Plan 只有一種驗證方式**。不是按 child 數量分堆，是按「怎麼證明它對」分堆——因為 Acceptance Criteria 必須能用同一種語言寫完。
 
-| Plan                                                          | Scope                  | 驗證方式                                             | 風險   |
-| ------------------------------------------------------------- | ---------------------- | ---------------------------------------------------- | ------ |
-| **A. Rules and Content（已交付）**                            | `pantry_rules`         | Unit test + debug viewer + 生成的平衡報告            | 低     |
-| **[B. Presentation Port](pantry_presentation.plan.md)**       | `pantry_presentation`  | 與 `port-ref/` 在保留能力範圍內並排比對              | **高** |
-| **[C. Feel and Endgame](pantry_feel.plan.md)**                | `pantry_feel`          | 手動試玩與鍵盤／無障礙檢查                           | 中     |
-| **[D. Final Floor Design](pantry_floor_design.plan.md)**      | `pantry_floor_design`  | Presentation 人工實玩 + 結構安全檢查                 | 中     |
-| **T. Debug Surface Shell（已交付）**                          | `pantry_debug_surface` | Debug routes 的人工視覺、responsive 與鍵盤檢查       | 低     |
-| **P. Authoring Workbench UX（已交付）**                       | `pantry_authoring`     | 手動編修一張圖後仍通過結構驗證                       | 低     |
-| **[Q. Composite Environment Presets](pantry_preset.plan.md)** | `pantry_preset`        | 遷移後 canonical content 呈現意圖不變 + 組裝預覽目視 | 中     |
+| Plan                                                                      | Scope                  | 驗證方式                                                   | 風險   |
+| ------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------- | ------ |
+| **A. Rules and Content（已交付）**                                        | `pantry_rules`         | Unit test + debug viewer + 生成的平衡報告                  | 低     |
+| **[B. Presentation Port](pantry_presentation.plan.md)**                   | `pantry_presentation`  | 與 `port-ref/` 在保留能力範圍內並排比對                    | **高** |
+| **[C. Feel and Endgame](pantry_feel.plan.md)**                            | `pantry_feel`          | 手動試玩與鍵盤／無障礙檢查                                 | 中     |
+| **[D. Final Floor Design](pantry_floor_design.plan.md)**                  | `pantry_floor_design`  | Presentation 人工實玩 + 結構安全檢查                       | 中     |
+| **T. Debug Surface Shell（已交付）**                                      | `pantry_debug_surface` | Debug routes 的人工視覺、responsive 與鍵盤檢查             | 低     |
+| **P. Authoring Workbench UX（已交付）**                                   | `pantry_authoring`     | 手動編修一張圖後仍通過結構驗證                             | 低     |
+| **[Q. Scene Authoring and Live Preview](pantry_scene_authoring.plan.md)** | `pantry_scene`         | 遷移後 canonical content 呈現意圖不變 + 預覽與實際畫面一致 | 中     |
 
 ### Plan A — Rules and Content（已交付）
 
@@ -236,21 +236,30 @@ Enemy runtime assets 是綠、黃、藍、紅、紫五色史萊姆各自的 norm
 
 白、黑或其他新鑰匙顏色不在本 Plan。它們仍留在 Draft，直到 gameplay 意義先由產品決策確定。
 
-起點／終點標記與跨層鎖都刻意留在本 Plan 之外,各自是獨立 sketch,見 `TODO.md`。
+跨層鎖刻意留在本 Plan 之外,是獨立 sketch,見 `TODO.md`。起點／終點標記已被 Plan Q 吸收為 `pantry_scene_06`。
 
-### Plan Q — Composite Environment Presets（Queued，非關鍵路徑）
+### Plan Q — Scene Authoring and Live Preview（Queued，非關鍵路徑）
 
 **不在 V1 關鍵路徑上。** `pantry_rules_06` 當初刻意讓 decoration、light、effect preset 維持三個各自獨立的自由字串，並且不比對任何 renderer catalog——因為那時 renderer 還不存在。代價是：哪三個 preset 該湊在一起，變成每次放置都要重新手動回答一次，沒有任何東西會擋錯；而各元件之間的相對 offset 在契約裡根本無處可放。
 
 Plan Q 把它收斂成 composite preset：一個 composite 擁有一個原點與若干 decoration／light／effect component，每個 component 帶自己相對原點的 offset。四種 environment feature kind 全部改為引用同一種 composite——獨立的 ambient light 就是只含一個 light component 的 composite。Placement 只能移動原點，不能單獨動 component，這條界線正是「預覽過的組合就是實際會渲染的組合」的保證。視覺變化走具名變體（`wallTorchWarm` / `wallTorchCold`），不做 per-placement override。
 
-| Child               | 焦點                                                                         |
-| ------------------- | ---------------------------------------------------------------------------- |
-| `pantry_preset_01`  | Composite 契約、catalog 所有權、schema version 提升與 canonical content 遷移 |
-| `pantry_preset_01a` | Floor Set Workbench 對齊 composite 契約                                      |
-| `pantry_preset_02`  | Composite 組裝編輯器與 component／offset 的實際渲染預覽                      |
+本 Plan 原名 Composite Environment Presets，明文排除「不在 floor authoring map 上加渲染預覽」。該排除已被撤銷:renderer 落地後畫出的第一張授權地圖，就出現一把約兩倍大、浮在視線高度的鑰匙——那個數值通過了審閱、型別檢查與所有自動化關卡，只在唯一能顯示它的媒介裡是錯的。擺放判斷跟組合判斷會用同一種方式失敗，所以兩者在同一個介面裡做，Plan 也隨之改名並吸收預覽相關的 child。
 
-`01` 與 `01a` 之間 Workbench 會短暫不可用，這是已接受的取捨：它是 development-only surface，沒有 gameplay 依賴，而把兩者併成一次變更會讓本來就很大的遷移無法審閱。
+| Child             | 焦點                                                                         |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `pantry_scene_01` | Composite 契約、catalog 所有權、schema version 提升與 canonical content 遷移 |
+| `pantry_scene_02` | Floor Set Workbench 對齊 composite 契約                                      |
+| `pantry_scene_03` | 授權樓層的即時渲染預覽嵌進 authoring surface                                 |
+| `pantry_scene_04` | 在編輯中的格子上放置與移動鏡頭，編輯即時反映                                 |
+| `pantry_scene_05` | 對著即時預覽調整 component offset 與 world sprite 的尺寸／錨點               |
+| `pantry_scene_06` | 授權起點與終點標記，收束「編輯即試玩」的迴圈                                 |
+
+`01` 與 `02` 之間 Workbench 會短暫不可用，這是已接受的取捨：它是 development-only surface，沒有 gameplay 依賴，而把兩者併成一次變更會讓本來就很大的遷移無法審閱。
+
+`03` 是本 Plan 唯一真正的技術風險：現行 renderer 假設自己獨佔整個 viewport、自己管 frame loop、resize 與素材生命週期，塞進面板（甚至同時存在兩份）會把那些假設全部重新打開。
+
+第一人稱手部圖層（火把、長劍、劍光、火光、受傷紅閃）**不屬於本 Plan**。它畫在螢幕座標、不進世界投影，判斷基準是 viewport 而不是站在哪一格，由獨立 sketch `pantry_player_screen_layer.sketch.md` 處理。
 
 ### 落地順序
 
@@ -263,9 +272,9 @@ pantry_presentation_01 ───────────────────
 
 pantry_authoring_01 → pantry_debug_surface_shell → pantry_authoring_02 → pantry_authoring_03 → pantry_authoring_04（P 全部已交付）
 
-pantry_preset_01 → pantry_preset_01a → pantry_preset_02（optional，與 V1 關鍵路徑平行）
-                                             ↑
-                     pantry_presentation_01 ─┘
+pantry_scene_01 → pantry_scene_02 → pantry_scene_03 → pantry_scene_04 → pantry_scene_05 → pantry_scene_06（optional，與 V1 關鍵路徑平行）
+                                     ↑
+               pantry_presentation_01 ─┘
 ```
 
 - `pantry_presentation_01` 需要已交付的 `pantry_rules_06` authored environment-feature contract；faithful core 本身沒有 gameplay 依賴。
@@ -277,9 +286,9 @@ pantry_preset_01 → pantry_preset_01a → pantry_preset_02（optional，與 V1 
 - `pantry_floor_design_01` starts only after the Presentation Port is available. It uses the A04 validator and A05 replay/report while judging and tuning the floors through the actual presentation.
 - `pantry_feel_01` 需要 `pantry_rules_03` 與 `pantry_presentation_01`。
 - `pantry_feel_03` 需要完整的 `pantry_presentation_01` 與 `pantry_feel_02`。
-- `pantry_preset_01` 原本等 `pantry_authoring_04` 落地後才開始，避免 `_04` 的 generator 控制被 `pantry_preset_01a` 蓋掉；該依賴已滿足，Plan Q 現在可以開始。
-- `pantry_preset_02` 硬依賴 `pantry_presentation_01`：要預覽組裝結果就得渲染它，faithful port 落地前沒有 renderer 可用。
-- `pantry_presentation_01` 消費 flat 或 composite 契約的先後由 Plan B 自行決定，Plan Q 只定義 composite 契約，不排 presentation 的採用時程。
+- `pantry_scene_01` 原本等 `pantry_authoring_04` 落地後才開始，避免 `_04` 的 generator 控制被 `pantry_scene_02` 蓋掉；該依賴已滿足，Plan Q 現在可以開始。
+- `pantry_scene_03` 起的每一個 child 都硬依賴 `pantry_presentation_01`：要預覽授權場景就得渲染它，faithful port 落地前沒有 renderer 可用。`_01` 與 `_02` 不受此限。
+- `pantry_presentation_01` 消費 flat 或 composite 契約的先後由 Plan B 自行決定，Plan Q 只定義 composite 契約與 authoring surface，不排 presentation 的採用時程。
 
 ### 明確不做的事
 

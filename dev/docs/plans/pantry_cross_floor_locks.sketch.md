@@ -54,7 +54,7 @@ This is a standalone sketch. The work is generator construction rather than auth
 
 1. Do not change the runtime key or door rules; this is generator construction only.
 2. Do not add new key colors or change what a color means.
-3. Do not fold generator dimensions or totals into this work; `pantry_authoring_04` owns them. Start and end markers belong to `pantry_start_and_end_markers.sketch.md`.
+3. Do not fold generator dimensions or totals into this work; `pantry_authoring_04` owns them. Start and end markers belong to `pantry_scene_06_start_and_end_markers.sketch.md`.
 4. Do not weaken the requirement that a generated candidate is structurally solvable before it is handed to an author.
 5. Do not treat this sketch's codebase claims or candidate approaches as decided; the spec author verifies and chooses.
 
