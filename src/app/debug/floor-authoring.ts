@@ -340,11 +340,6 @@ export function updateGameplayEntity(
     return failure(issue);
   }
 
-  if (floorSet.goalEntityId === originalId && entity.kind !== "enemy") {
-    return failure("The goal entity must remain an enemy.");
-  }
-
-  const goalEntityId = floorSet.goalEntityId === originalId ? entity.id : floorSet.goalEntityId;
   const renamedStair = current.kind === "stair" && entity.id !== originalId;
   const floors = floorSet.floors.map((candidateFloor, candidateIndex) => ({
     ...candidateFloor,
@@ -361,19 +356,15 @@ export function updateGameplayEntity(
     }),
   }));
 
-  return success({ ...floorSet, floors, goalEntityId });
+  return success({ ...floorSet, floors });
 }
 
-/** Removes a non-goal gameplay entity from the selected floor. */
+/** Removes a gameplay entity from the selected floor. */
 export function removeGameplayEntity(
   floorSet: FloorSetSource,
   floorId: string,
   entityId: string,
 ): FloorAuthoringResult {
-  if (floorSet.goalEntityId === entityId) {
-    return failure("The goal entity cannot be removed while this workbench does not edit goal selection.");
-  }
-
   const index = floorIndex(floorSet, floorId);
   const floor = floorSet.floors[index];
   const entity = floor?.gameplayEntities.find((candidate) => candidate.id === entityId);

@@ -6,13 +6,13 @@ import type { RoutePlan } from "@/harness/route-replay";
  * A frozen two-floor map built for the balance model, not for play.
  *
  * The corridor forces every upgrade door open in sequence, so the route walks the full stage
- * progression and the only combat is the goal. Authored play content may change freely without
- * moving these numbers; that separation is the whole point of this fixture.
+ * progression and the only combat is the purple slime standing between the stairs and the exit.
+ * Authored play content may change freely without moving these numbers; that separation is the whole
+ * point of this fixture.
  */
 const BALANCE_TEST_FLOOR_SET = parseFloorSet({
-  schemaVersion: 3,
+  schemaVersion: 4,
   initial: { floorId: "T1", cell: { x: 1, y: 1 }, facing: "east" },
-  goalEntityId: "t2-goal",
   floors: [
     {
       id: "T1",
@@ -57,10 +57,11 @@ const BALANCE_TEST_FLOOR_SET = parseFloorSet({
     {
       id: "T2",
       theme: "test-vault",
-      tiles: ["#####", "#...#", "#####"],
+      tiles: ["######", "#....#", "######"],
       gameplayEntities: [
         { kind: "stair", id: "t2-up", cell: { x: 1, y: 1 }, destinationStairId: "t1-down", arrivalFacing: "east" },
-        { kind: "enemy", id: "t2-goal", cell: { x: 3, y: 1 }, archetypeId: "princess" },
+        { kind: "enemy", id: "t2-hardest", cell: { x: 3, y: 1 }, archetypeId: "purpleSlime" },
+        { kind: "exit", id: "t2-exit", cell: { x: 4, y: 1 } },
       ],
       environmentFeatures: [],
     },
@@ -95,6 +96,8 @@ const BALANCE_TEST_ROUTE: RoutePlan = {
     "forward",
     "forward",
     "forward",
+    "forward",
+    "interact",
   ],
   checkpoints: [
     { id: "start", label: "Run start", commandIndex: 0 },
@@ -106,7 +109,7 @@ const BALANCE_TEST_ROUTE: RoutePlan = {
     { id: "t1-blue-door-2", label: "Large blue door", commandIndex: 12, entityId: "t1-blue-door-2" },
     { id: "t1-yellow-door-2", label: "Large yellow door", commandIndex: 15, entityId: "t1-yellow-door-2" },
     { id: "t2-entry", label: "T2 entry", commandIndex: 17, entityId: "t1-down" },
-    { id: "victory", label: "Princess defeated", commandIndex: 24, entityId: "t2-goal" },
+    { id: "exit", label: "Left through the exit", commandIndex: 26, entityId: "t2-exit" },
   ],
 };
 

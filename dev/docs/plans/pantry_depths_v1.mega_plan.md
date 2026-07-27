@@ -209,7 +209,7 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 ### 獨立項目 — Run Exit（V1 關鍵路徑）
 
-**在 V1 關鍵路徑上，排在 `pantry_feel_04` 之前。** 結算條件從「打倒公主」改成「從出口離開」，公主這個 type 一併砍掉，數值以紫史萊姆的身分留在敵人表。方向由[設計文件](../design/pantry-depths_v1.md)第十三節擁有，實作探索見 [`pantry_run_exit.sketch.md`](pantry_run_exit.sketch.md)。
+**在 V1 關鍵路徑上，排在 `pantry_feel_04` 之前。** 結算條件從「打倒公主」改成「從出口離開」，公主這個 type 一併砍掉，數值以紫史萊姆的身分留在敵人表。方向由[設計文件](../design/pantry-depths_v1.md)第十三節擁有，執行 handoff 見 [`pantry_run_exit.implementation_spec.md`](pantry_run_exit.implementation_spec.md)。
 
 它沒有自己的 Plan，因為它是一次邊界清楚的規則替換：`goalEntityId` 這個必須指向敵人的魔法欄位、`defeatOutcome` 這個只有一個使用者的欄位、以及三處保護它們的守衛一起消失，換成一個互動即結束這一局的 entity。淨複雜度大致打平。
 

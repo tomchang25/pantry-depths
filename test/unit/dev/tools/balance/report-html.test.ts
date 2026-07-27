@@ -8,12 +8,12 @@ describe("renderBalanceReportHtml", () => {
     const report = renderBalanceReportHtml(createBalanceAnalysis(BALANCE_TEST_SCENARIO));
 
     expect(report).toContain("Pantry Depths — Balance Report");
-    expect(report).toContain("Princess");
+    expect(report).toContain("Purple Slime");
     expect(report).toContain("Stage 4");
     expect(report).toContain("Provisional 強制路線 HP 預算");
-    expect(report).toContain("Princess defeated");
+    expect(report).toContain("Left through the exit");
     expect(report).toContain("40 / 120 HP");
-    expect(report).toContain("t2-goal");
+    expect(report).toContain("t2-hardest");
     expect(report).not.toContain("待生成");
     expect(report).not.toContain("框架範本");
   });

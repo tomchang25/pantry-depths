@@ -43,11 +43,11 @@ describe("generateFloorSet", () => {
     const validation = validateParsedFloorSet(first);
 
     expect(first).toEqual(second);
-    expect(first.schemaVersion).toBe(3);
+    expect(first.schemaVersion).toBe(4);
     expect(first.floors).toHaveLength(3);
     expect(first.floors.every((floor) => floor.environmentFeatures.length === 0)).toBe(true);
     expect(validation.findings.filter((finding) => finding.severity === "error")).toEqual([]);
-    expect(validation.solution?.at(-1)).toMatchObject({ type: "defeatEnemy", entityId: "B3-goal" });
+    expect(validation.solution?.at(-1)).toMatchObject({ type: "leaveExit", entityId: "B3-exit" });
   });
 
   it("produces a different layout for a different seed", () => {
@@ -71,7 +71,8 @@ describe("generateFloorSet", () => {
 
     expect(countKind(generated, "key")).toBe(3);
     expect(countKind(generated, "door")).toBe(3);
-    expect(countKind(generated, "enemy")).toBe(1 + 1);
+    expect(countKind(generated, "enemy")).toBe(1);
+    expect(countKind(generated, "exit")).toBe(1);
     expect(validation.findings.filter((finding) => finding.severity === "error")).toEqual([]);
     expect(validation.solution).toBeDefined();
   });
@@ -117,7 +118,8 @@ describe("generateFloorSet", () => {
     expect(countColorKind(generated, "door", "blue")).toBe(1);
     expect(countColorKind(generated, "key", "yellow")).toBe(0);
     expect(countColorKind(generated, "door", "yellow")).toBe(0);
-    expect(countKind(generated, "enemy")).toBe(4 + 1);
+    expect(countKind(generated, "enemy")).toBe(4);
+    expect(countKind(generated, "exit")).toBe(1);
     expect(validation.findings.filter((finding) => finding.severity === "error")).toEqual([]);
     expect(validation.solution).toBeDefined();
   });

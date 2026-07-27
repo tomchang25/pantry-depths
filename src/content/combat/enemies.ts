@@ -1,10 +1,10 @@
 import type { CombatTarget } from "@/core/combat";
 
 export type EnemyId =
-  "bat" | "goblin" | "skeleton" | "guard" | "princess" | "greenSlime" | "yellowSlime" | "blueSlime" | "redSlime";
+  "bat" | "goblin" | "skeleton" | "guard" | "purpleSlime" | "greenSlime" | "yellowSlime" | "blueSlime" | "redSlime";
 
 /** The archetypes that own baked artwork. Retained creature archetypes borrow the matching slime. */
-export type EnemyAppearanceId = "greenSlime" | "yellowSlime" | "blueSlime" | "redSlime" | "princess" | "placeholder";
+export type EnemyAppearanceId = "greenSlime" | "yellowSlime" | "blueSlime" | "redSlime" | "purpleSlime" | "placeholder";
 
 export type EnemyArchetype = Readonly<
   CombatTarget & {
@@ -58,12 +58,12 @@ export const ENEMY_ARCHETYPES = [
     verticalAnchor: 0,
   },
   {
-    id: "princess",
-    name: "Princess",
+    id: "purpleSlime",
+    name: "Purple Slime",
     health: 30,
     attack: 14,
     defense: 5,
-    appearanceId: "princess",
+    appearanceId: "purpleSlime",
     displayScale: 1.3,
     verticalAnchor: 0,
   },

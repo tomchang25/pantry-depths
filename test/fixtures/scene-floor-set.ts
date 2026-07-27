@@ -7,9 +7,8 @@ import { parseFloorSet } from "@/content/floor/floor-schema";
  * be shipped, so these tests own their map instead of borrowing authored play content.
  */
 export const SCENE_FLOOR_SET = parseFloorSet({
-  schemaVersion: 3,
+  schemaVersion: 4,
   initial: { floorId: "S1", cell: { x: 1, y: 1 }, facing: "east" },
-  goalEntityId: "s1-goal",
   floors: [
     {
       id: "S1",
@@ -27,7 +26,8 @@ export const SCENE_FLOOR_SET = parseFloorSet({
           defense: 0,
           hintFaces: ["east", "west"],
         },
-        { kind: "enemy", id: "s1-goal", cell: { x: 1, y: 3 }, archetypeId: "princess" },
+        { kind: "enemy", id: "s1-hardest", cell: { x: 1, y: 3 }, archetypeId: "purpleSlime" },
+        { kind: "exit", id: "s1-exit", cell: { x: 5, y: 3 } },
       ],
       environmentFeatures: [
         {

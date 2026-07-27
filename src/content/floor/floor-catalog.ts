@@ -9,7 +9,7 @@ import {
 } from "@/content/floor/floor-schema";
 import { validateParsedFloorSet, type FloorValidationResult } from "@/content/floor/floor-validation";
 import type { Cell } from "@/core/grid";
-import type { RunWorld, WorldEntity } from "@/core/run-state";
+import { assertNever, type RunWorld, type WorldEntity } from "@/core/run-state";
 
 type LocatedStair = Readonly<{
   floorId: string;
@@ -19,7 +19,6 @@ type LocatedStair = Readonly<{
 function assembleEntity(
   floorId: string,
   entity: GameplayEntitySource,
-  goalEntityId: string,
   stairsById: ReadonlyMap<string, LocatedStair>,
 ): WorldEntity {
   if (entity.kind === "enemy") {
@@ -41,7 +40,6 @@ function assembleEntity(
         attack: archetype.attack,
         defense: archetype.defense,
         retaliates: true,
-        ...(entity.id === goalEntityId ? { defeatOutcome: "victory" as const } : {}),
       },
     };
   }
@@ -112,14 +110,30 @@ function assembleEntity(
     };
   }
 
-  return {
-    kind: "hotSpring",
-    id: entity.id,
-    floorId,
-    cell: entity.cell,
-    movement: { blocksEntry: true },
-    interaction: { effects: [{ type: "restoreHealth" }] },
-  };
+  if (entity.kind === "hotSpring") {
+    return {
+      kind: "hotSpring",
+      id: entity.id,
+      floorId,
+      cell: entity.cell,
+      movement: { blocksEntry: true },
+      interaction: { effects: [{ type: "restoreHealth" }] },
+    };
+  }
+
+  if (entity.kind === "exit") {
+    return {
+      kind: "exit",
+      id: entity.id,
+      floorId,
+      cell: entity.cell,
+      movement: { blocksEntry: true },
+      interaction: { effects: [{ type: "completeRun" }] },
+    };
+  }
+
+  // A new gameplay entity kind must declare its own capabilities rather than inherit the last branch's.
+  return assertNever(entity);
 }
 
 function collectSolidCells(tiles: readonly string[]): readonly Cell[] {
@@ -175,7 +189,7 @@ export function createRunWorldFromFloorSet(floorSet: FloorSetSource): RunWorld {
     initialCell: floorSet.initial.cell,
     initialFacing: floorSet.initial.facing,
     entities: floorSet.floors.flatMap((floor) =>
-      floor.gameplayEntities.map((entity) => assembleEntity(floor.id, entity, floorSet.goalEntityId, stairsById)),
+      floor.gameplayEntities.map((entity) => assembleEntity(floor.id, entity, stairsById)),
     ),
     upgradeEffects: PLAYER_UPGRADES,
   };

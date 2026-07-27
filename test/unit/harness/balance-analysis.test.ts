@@ -48,20 +48,20 @@ describe("createBalanceAnalysis", () => {
 
   it("marks route membership from the fixture checkpoints and leaves the rest bypassable", () => {
     const analysis = createBalanceAnalysis(BALANCE_TEST_SCENARIO);
-    const princess = analysis.placements.find((placement) => placement.entityId === "t2-goal");
+    const exitPlacement = analysis.placements.find((placement) => placement.entityId === "t2-exit");
 
-    expect(princess?.onForcedRoute).toBe(true);
+    expect(exitPlacement?.onForcedRoute).toBe(true);
     expect(analysis.bypassableEnemies.every((placement) => placement.kind === "enemy")).toBe(true);
     expect(analysis.bypassableEnemies.every((placement) => !placement.onForcedRoute)).toBe(true);
   });
 
   it("keeps impassable combat results instead of substituting a placeholder", () => {
     const analysis = createBalanceAnalysis(BALANCE_TEST_SCENARIO);
-    const princess = analysis.enemies.find((row) => row.enemy.id === "princess");
+    const purpleSlime = analysis.enemies.find((row) => row.enemy.id === "purpleSlime");
 
-    expect(princess?.projections).toHaveLength(analysis.stages.length);
-    expect(princess?.projections[0]).toMatchObject({ canDefeat: false, totalCost: null });
-    expect(princess?.projections.at(-1)).toMatchObject({ canDefeat: true, totalCost: 40 });
+    expect(purpleSlime?.projections).toHaveLength(analysis.stages.length);
+    expect(purpleSlime?.projections[0]).toMatchObject({ canDefeat: false, totalCost: null });
+    expect(purpleSlime?.projections.at(-1)).toMatchObject({ canDefeat: true, totalCost: 40 });
   });
 
   it("separates structural topology status from route evidence", () => {

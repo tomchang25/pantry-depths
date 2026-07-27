@@ -19,7 +19,7 @@ export type TopologyFinding = Readonly<{
 }>;
 
 export type TopologyStep = Readonly<{
-  type: "move" | "openDoor" | "useStair" | "breakWall" | "defeatEnemy";
+  type: "move" | "openDoor" | "useStair" | "breakWall" | "defeatEnemy" | "leaveExit";
   floorId: string;
   cell: Cell;
   entityId?: string;
@@ -279,11 +279,17 @@ function validateReferences(floorSet: FloorSetSource): readonly TopologyFinding[
   }
 
   const allEntities = collectEntities(floorSet);
-  const goal = allEntities.find((entry) => entry.entity.id === floorSet.goalEntityId);
+  const exits = allEntities.filter((entry) => entry.entity.kind === "exit");
 
-  if (!goal || goal.entity.kind !== "enemy") {
+  const firstExit = exits[0];
+
+  if (exits.length !== 1) {
     findings.push(
-      error("goal.invalid", "goalEntityId must name an authored enemy entity.", { entityId: floorSet.goalEntityId }),
+      error(
+        "exit.invalidCount",
+        `A floor set must contain exactly one exit; found ${exits.length}.`,
+        firstExit ? { floorId: firstExit.floorId, entityId: firstExit.entity.id } : {},
+      ),
     );
   }
 
@@ -553,13 +559,21 @@ function routeSteps(reached: ReadonlyMap<string, ReachNode>, targetKey: string):
  */
 function solveGreedy(floorSet: FloorSetSource): readonly TopologyStep[] | undefined {
   const index = indexFloorSet(floorSet);
-  const goal = collectEntities(floorSet).find((entry) => entry.entity.id === floorSet.goalEntityId);
+  const exit = collectEntities(floorSet).find((entry) => entry.entity.kind === "exit");
 
-  if (!goal) {
+  if (!exit) {
     return undefined;
   }
 
-  const goalKey = entityKey(goal.floorId, goal.entity.cell);
+  // The exit blocks entry, so a route reaches it by standing on one of its four neighbours and
+  // interacting; its own cell never appears in the reach map.
+  const exitApproachKeys = FACINGS.map((facing) => entityKey(exit.floorId, moveForward(exit.entity.cell, facing)));
+  const leaveStep: TopologyStep = {
+    type: "leaveExit",
+    floorId: exit.floorId,
+    cell: exit.entity.cell,
+    entityId: exit.entity.id,
+  };
   const keys: KeyCounts = { ...EMPTY_KEYS };
   const collected = new Set<string>();
   const opened = new Set<string>();
@@ -571,16 +585,12 @@ function solveGreedy(floorSet: FloorSetSource): readonly TopologyStep[] | undefi
     rounds -= 1;
 
     const reached = exploreReachable(index, position, opened);
+    const approachKey = exitApproachKeys.find((candidate) => reached.has(candidate));
 
-    // A goal standing on the origin has not been entered, so it is not yet defeated; requiring a
-    // non-empty route keeps that case walking off and back rather than reporting a zero-step win.
-    if ((reached.get(goalKey)?.steps.length ?? 0) > 0) {
-      groups.push(...routeSteps(reached, goalKey));
-
-      // Entering the goal cell emits a defeat step and a move; defeating the goal ends the route, so the
-      // trailing move is dropped to match the terminal shape the exhaustive search returns.
-      const solution = flattenSteps(groups);
-      return solution.at(-1)?.type === "move" ? solution.slice(0, -1) : solution;
+    if (approachKey !== undefined) {
+      groups.push(...routeSteps(reached, approachKey));
+      groups.push([leaveStep]);
+      return flattenSteps(groups);
     }
 
     let advanced = false;
@@ -729,6 +739,18 @@ function solveTopology(floorSet: FloorSetSource): SolveOutcome {
         continue;
       }
 
+      // The exit blocks entry and ends the route where the player stands, so it terminates the search
+      // without a move step.
+      if (entity.kind === "exit") {
+        const leaveStep: TopologyStep = {
+          type: "leaveExit",
+          floorId: current.floorId,
+          cell: targetCell,
+          entityId: entity.id,
+        };
+        return { solution: buildSolution(states, currentIndex, [leaveStep]), exhausted: false };
+      }
+
       // An enemy or a breakable wall is always defeatable and never recovers, so contact clears it and
       // the move completes in the same transition. Neither needs to enter the visited key.
       if (entity.kind === "enemy") {
@@ -738,11 +760,6 @@ function solveTopology(floorSet: FloorSetSource): SolveOutcome {
           cell: targetCell,
           entityId: entity.id,
         };
-
-        if (entity.id === floorSet.goalEntityId) {
-          return { solution: buildSolution(states, currentIndex, [defeatStep]), exhausted: false };
-        }
-
         enqueue({ ...current, cell: targetCell, parentIndex: currentIndex, steps: [defeatStep, moveStep] });
         continue;
       }
@@ -824,11 +841,11 @@ export function validateParsedFloorSet(floorSet: FloorSetSource): FloorValidatio
     findings.push(
       error(
         "topology.searchExhausted",
-        `Structural search passed ${MAX_SEARCH_STATES} states without deciding whether the goal is reachable. Reduce the number of independent keys and doors.`,
+        `Structural search passed ${MAX_SEARCH_STATES} states without deciding whether the exit is reachable. Reduce the number of independent keys and doors.`,
       ),
     );
   } else if (!outcome.solution) {
-    findings.push(error("topology.noSolution", "No legal structural route reaches the configured goal entity."));
+    findings.push(error("topology.noSolution", "No legal structural route reaches the authored exit."));
   }
 
   return { findings, solution: outcome.solution };

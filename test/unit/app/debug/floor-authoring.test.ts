@@ -17,9 +17,8 @@ import type { FloorSetSource } from "@/content/floor/floor-schema";
 import { describe, expect, it } from "vitest";
 
 const FLOOR_SET: FloorSetSource = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "north" },
-  goalEntityId: "goal",
   floors: [
     {
       id: "F1",

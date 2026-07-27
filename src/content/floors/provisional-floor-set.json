@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "initial": {
     "floorId": "B1",
     "cell": {
@@ -8,7 +8,6 @@
     },
     "facing": "east"
   },
-  "goalEntityId": "B5-goal",
   "floors": [
     {
       "id": "B1",
@@ -489,7 +488,7 @@
     {
       "id": "B5",
       "theme": "deep-store",
-      "tiles": ["=====", "=...=", "=...=", "=...=", "====="],
+      "tiles": ["=====", "=...=", "=...=", "==.==", "==.==", "====="],
       "gameplayEntities": [
         {
           "kind": "stair",
@@ -503,21 +502,29 @@
         },
         {
           "kind": "enemy",
-          "id": "B5-goal",
+          "id": "B5-purple-slime",
           "cell": {
             "x": 2,
             "y": 3
           },
-          "archetypeId": "princess"
+          "archetypeId": "purpleSlime"
+        },
+        {
+          "kind": "exit",
+          "id": "B5-exit",
+          "cell": {
+            "x": 2,
+            "y": 4
+          }
         }
       ],
       "environmentFeatures": [
         {
           "kind": "wallDecoration",
-          "id": "b5-torch-0-3-east",
+          "id": "b5-torch-0-2-east",
           "wallCell": {
             "x": 0,
-            "y": 3
+            "y": 2
           },
           "face": "east",
           "decorationPresetId": "wallTorch",
@@ -526,10 +533,10 @@
         },
         {
           "kind": "wallDecoration",
-          "id": "b5-torch-4-3-west",
+          "id": "b5-torch-4-2-west",
           "wallCell": {
             "x": 4,
-            "y": 3
+            "y": 2
           },
           "face": "west",
           "decorationPresetId": "wallTorch",
@@ -538,10 +545,10 @@
         },
         {
           "kind": "ambientLight",
-          "id": "b5-throne-glow",
+          "id": "b5-exit-glow",
           "cell": {
             "x": 2,
-            "y": 3
+            "y": 4
           },
           "lightPresetId": "warmSpring"
         },

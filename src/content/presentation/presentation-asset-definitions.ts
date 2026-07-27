@@ -15,6 +15,7 @@ import slimeYellowAttack from "@/content/enemies/assets/slime-yellow-attack.png"
 import slimeYellowHurt from "@/content/enemies/assets/slime-yellow-hurt.png";
 import slimeYellowNormal from "@/content/enemies/assets/slime-yellow-normal.png";
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import blockPlaceholder from "@/content/presentation/assets/block-placeholder.png";
 import bones from "@/content/presentation/assets/bones.png";
 import hotSpring from "@/content/presentation/assets/hot-spring.png";
 import keyBlue from "@/content/presentation/assets/key-blue.png";
@@ -34,7 +35,7 @@ export const ENEMY_SPRITE_URLS = {
   yellowSlime: { normal: slimeYellowNormal, attack: slimeYellowAttack, hurt: slimeYellowHurt },
   blueSlime: { normal: slimeBlueNormal, attack: slimeBlueAttack, hurt: slimeBlueHurt },
   redSlime: { normal: slimeRedNormal, attack: slimeRedAttack, hurt: slimeRedHurt },
-  princess: { normal: slimePurpleNormal, attack: slimePurpleAttack, hurt: slimePurpleHurt },
+  purpleSlime: { normal: slimePurpleNormal, attack: slimePurpleAttack, hurt: slimePurpleHurt },
   // Stands in for the retained creature archetypes until their own artwork is authored.
   placeholder: { normal: entityPlaceholder, attack: entityPlaceholder, hurt: entityPlaceholder },
 } as const satisfies Readonly<Record<EnemyAppearanceId, Readonly<Record<EnemySpriteState, string>>>>;
@@ -47,6 +48,8 @@ export const KEY_SPRITE_URLS = {
 
 export const PRESENTATION_SPRITE_URLS = {
   stair,
+  // Stands in for authored exit artwork; deliberately not the stair sprite so the two never read alike.
+  exit: blockPlaceholder,
   hotSpring,
   bones,
   wallTorch,

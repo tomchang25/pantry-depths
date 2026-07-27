@@ -13,6 +13,7 @@ export type SpritePlacement = Readonly<{
 export const WORLD_SPRITE_PLACEMENTS = {
   key: { scale: 0.22, verticalAnchor: -0.35 },
   stair: { scale: 1.15, verticalAnchor: 0 },
+  exit: { scale: 1.2, verticalAnchor: 0 },
   hotSpring: { scale: 1.05, verticalAnchor: 0 },
   bones: { scale: 0.72, verticalAnchor: 0 },
   wallTorch: { scale: 0.58, verticalAnchor: -0.08 },

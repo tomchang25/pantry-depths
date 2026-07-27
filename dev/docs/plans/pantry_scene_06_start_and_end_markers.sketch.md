@@ -10,7 +10,7 @@ Explore making a floor set's start position and its exit both placeable from the
 
 This sketch was written while it stood alone, before any plan owned run boundaries, and it originally carried two halves of very different cost. That is no longer true — **the expensive half has been removed from this child.**
 
-The completion model is settled: a run ends by interacting with an authored exit, not by defeating a goal enemy. The design document owns that decision, and the rule that implements it — the exit entity kind, the terminal interaction effect, the validator's terminal condition, and the deletion of the princess archetype — lands as standalone work well before this child, because `pantry_feel_04` and `pantry_floor_design_01` both need it first. See `pantry_run_exit.sketch.md`.
+The completion model is settled: a run ends by interacting with an authored exit, not by defeating a goal enemy. The design document owns that decision, and the rule that implements it — the exit entity kind, the terminal interaction effect, the validator's terminal condition, and the deletion of the princess archetype — lands as standalone work well before this child, because `pantry_feel_04` and `pantry_floor_design_01` both need it first. See `pantry_run_exit.implementation_spec.md`.
 
 What remains here is authoring. Both halves are now the same kind of work: expose an existing content field through the map and the Cell Editor. Neither changes a gameplay rule, and neither changes the content schema beyond what the exit rule already introduced.
 

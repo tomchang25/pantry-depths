@@ -8,7 +8,7 @@ Plan children get no lines here. They live in their plan's child overview table,
 
 ## Active
 
-Nothing currently in progress.
+- [Run exit and completion](dev/docs/plans/pantry_run_exit.implementation_spec.md) — a run ends by interacting with an authored exit instead of by defeating a goal enemy, and the princess stops being a distinct type. Ahead of `pantry_feel_04` and `pantry_floor_design_01` on the V1 critical path.
 
 ---
 
@@ -30,13 +30,12 @@ Nothing currently in progress.
 
 The Presentation Port has shipped, so the V1 critical-path next action is `pantry_feel_01`; it also inherits the first chance to exercise the renderer's semantic-event feedback, which no caller has driven yet. Scene Authoring and Live Preview is available in parallel, and its preview children are now unblocked.
 
-The Run Exit sketch below is also on the V1 critical path and can start immediately. It must land before `pantry_feel_04` and before `pantry_floor_design_01`.
+Run Exit is active above and is also on the V1 critical path. It must land before `pantry_feel_04` and before `pantry_floor_design_01`.
 
 ### Standalone sketches
 
 Direction chosen, no plan owns the area. Each becomes actionable through `/implement`, which rewrites it into a standalone implementation spec.
 
-- [Run exit and completion](dev/docs/plans/pantry_run_exit.sketch.md) — a run ends by interacting with an authored exit instead of by defeating a goal enemy, and the princess stops being a distinct type. Deletes `goalEntityId`, `defeatOutcome`, and the three guards protecting them. **On the V1 critical path**, ahead of `pantry_feel_04` and `pantry_floor_design_01`; cheap now because every affected child is unstarted.
 - [Player screen layer](dev/docs/plans/pantry_player_screen_layer.sketch.md) — make the held torch and sword, the attack slash, the torch flame, and the damage flash authored values instead of constants inside the renderer. Screen-space only, so it stays out of the scene authoring plan's placed-camera preview; the open shape question is what each value should be a fraction of.
 - [Cross-floor locks](dev/docs/plans/pantry_cross_floor_locks.sketch.md) — let the generator place a key on one floor and the door it opens on a later one. Runtime and the validator already support it; the generator's per-floor construction guarantee does not. The generator allocation layer it builds on has now shipped, so nothing blocks it.
 - [Cross-floor entity move](dev/docs/plans/pantry_cross_floor_entity_move.sketch.md) — let the Workbench move a gameplay entity to another floor instead of forcing delete-and-recreate. The two-click move mode already survives a floor switch; the authoring mutation resolves the entity against the destination floor and refuses.

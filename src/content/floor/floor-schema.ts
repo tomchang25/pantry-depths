@@ -1,5 +1,5 @@
 import type { Cell, Facing } from "@/core/grid";
-import type { EntityKind, KeyColor } from "@/core/run-state";
+import { assertNever, type EntityKind, type KeyColor } from "@/core/run-state";
 
 export const FLOOR_TILE_DEFINITIONS = {
   ".": { material: "floor", label: "Passable floor", blocksEntry: false },
@@ -31,7 +31,8 @@ export type GameplayEntitySource =
       defense: number;
       hintFaces: readonly Facing[];
     }>
-  | Readonly<{ kind: "hotSpring"; id: string; cell: Cell }>;
+  | Readonly<{ kind: "hotSpring"; id: string; cell: Cell }>
+  | Readonly<{ kind: "exit"; id: string; cell: Cell }>;
 
 export type WallFaceAnchor = Readonly<{
   wallCell: Cell;
@@ -61,9 +62,8 @@ export type FloorSource = Readonly<{
 }>;
 
 export type FloorSetSource = Readonly<{
-  schemaVersion: 3;
+  schemaVersion: 4;
   initial: Readonly<{ floorId: string; cell: Cell; facing: Facing }>;
-  goalEntityId: string;
   floors: readonly FloorSource[];
 }>;
 
@@ -76,7 +76,15 @@ export class FloorSchemaError extends Error {
 
 const FACINGS = new Set<Facing>(["north", "east", "south", "west"]);
 const KEY_COLORS = new Set<KeyColor>(["red", "blue", "yellow"]);
-const GAMEPLAY_ENTITY_KINDS = new Set<EntityKind>(["enemy", "key", "door", "stair", "breakableWall", "hotSpring"]);
+const GAMEPLAY_ENTITY_KINDS = new Set<EntityKind>([
+  "enemy",
+  "key",
+  "door",
+  "stair",
+  "breakableWall",
+  "hotSpring",
+  "exit",
+]);
 const ENVIRONMENT_FEATURE_KINDS = new Set<EnvironmentFeatureSource["kind"]>([
   "tileDecoration",
   "wallDecoration",
@@ -144,11 +152,16 @@ function parseKeyColor(value: unknown, label: string): KeyColor {
   return value as KeyColor;
 }
 
+/** Closes the open string keyspace into the entity enumeration so the parser's branches can be proved complete. */
+function isGameplayEntityKind(value: unknown): value is EntityKind {
+  return typeof value === "string" && GAMEPLAY_ENTITY_KINDS.has(value as EntityKind);
+}
+
 function parseGameplayEntity(value: unknown, label: string): GameplayEntitySource {
   const record = asRecord(value, label);
   const kind = record.kind;
 
-  if (typeof kind !== "string" || !GAMEPLAY_ENTITY_KINDS.has(kind as EntityKind)) {
+  if (!isGameplayEntityKind(kind)) {
     throw new FloorSchemaError(`${label}.kind must be a supported gameplay entity kind`);
   }
 
@@ -207,14 +220,28 @@ function parseGameplayEntity(value: unknown, label: string): GameplayEntitySourc
     };
   }
 
-  return { kind: "hotSpring", id, cell };
+  if (kind === "hotSpring") {
+    return { kind, id, cell };
+  }
+
+  if (kind === "exit") {
+    return { kind, id, cell };
+  }
+
+  // Adding a kind to GAMEPLAY_ENTITY_KINDS without parsing it here must fail to compile, not fall
+  // through into the previous kind's shape.
+  return assertNever(kind);
+}
+
+function isEnvironmentFeatureKind(value: unknown): value is EnvironmentFeatureSource["kind"] {
+  return typeof value === "string" && ENVIRONMENT_FEATURE_KINDS.has(value as EnvironmentFeatureSource["kind"]);
 }
 
 function parseEnvironmentFeature(value: unknown, label: string): EnvironmentFeatureSource {
   const record = asRecord(value, label);
   const kind = record.kind;
 
-  if (typeof kind !== "string" || !ENVIRONMENT_FEATURE_KINDS.has(kind as EnvironmentFeatureSource["kind"])) {
+  if (!isEnvironmentFeatureKind(kind)) {
     throw new FloorSchemaError(`${label}.kind must be a supported environment feature kind`);
   }
 
@@ -253,12 +280,16 @@ function parseEnvironmentFeature(value: unknown, label: string): EnvironmentFeat
     };
   }
 
-  return {
-    kind: "effectEmitter",
-    id,
-    cell: parseCell(record.cell, `${label}.cell`),
-    effectPresetId: asString(record.effectPresetId, `${label}.effectPresetId`),
-  };
+  if (kind === "effectEmitter") {
+    return {
+      kind,
+      id,
+      cell: parseCell(record.cell, `${label}.cell`),
+      effectPresetId: asString(record.effectPresetId, `${label}.effectPresetId`),
+    };
+  }
+
+  return assertNever(kind);
 }
 
 function parseFloor(value: unknown, index: number): FloorSource {
@@ -297,20 +328,19 @@ function parseFloor(value: unknown, index: number): FloorSource {
 export function parseFloorSet(value: unknown): FloorSetSource {
   const record = asRecord(value, "floor set");
 
-  if (record.schemaVersion !== 3) {
-    throw new FloorSchemaError("floor set.schemaVersion must be 3");
+  if (record.schemaVersion !== 4) {
+    throw new FloorSchemaError("floor set.schemaVersion must be 4");
   }
 
   const initial = asRecord(record.initial, "floor set.initial");
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     initial: {
       floorId: asString(initial.floorId, "floor set.initial.floorId"),
       cell: parseCell(initial.cell, "floor set.initial.cell"),
       facing: parseFacing(initial.facing, "floor set.initial.facing"),
     },
-    goalEntityId: asString(record.goalEntityId, "floor set.goalEntityId"),
     floors: asArray(record.floors, "floor set.floors").map(parseFloor),
   };
 }

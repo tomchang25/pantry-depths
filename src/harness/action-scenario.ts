@@ -80,12 +80,20 @@ const ACTION_SCENARIO_WORLD: RunWorld = {
     },
     {
       kind: "enemy",
-      id: "princess",
+      id: "purpleSlime",
       floorId: "B2",
       cell: { x: 3, y: 1 },
-      appearanceId: getEnemyArchetype("princess").appearanceId,
+      appearanceId: getEnemyArchetype("purpleSlime").appearanceId,
       movement: { blocksEntry: true },
-      combat: { ...getEnemyArchetype("princess"), retaliates: true, defeatOutcome: "victory" },
+      combat: { ...getEnemyArchetype("purpleSlime"), retaliates: true },
+    },
+    {
+      kind: "exit",
+      id: "exit",
+      floorId: "B2",
+      cell: { x: 3, y: 3 },
+      movement: { blocksEntry: true },
+      interaction: { effects: [{ type: "completeRun" }] },
     },
     {
       kind: "key",

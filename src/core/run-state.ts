@@ -24,7 +24,7 @@ export type UpgradeEffect = Readonly<{
   defenseDelta: number;
 }>;
 
-export type EntityKind = "enemy" | "key" | "door" | "stair" | "breakableWall" | "hotSpring";
+export type EntityKind = "enemy" | "key" | "door" | "stair" | "breakableWall" | "hotSpring" | "exit";
 
 export type MovementCapability = Readonly<{
   blocksEntry: true;
@@ -47,7 +47,8 @@ export type EntityEffect =
       cell: Cell;
       facing: Facing;
     }>
-  | Readonly<{ type: "restoreHealth" }>;
+  | Readonly<{ type: "restoreHealth" }>
+  | Readonly<{ type: "completeRun" }>;
 
 export type PickupCapability = Readonly<{
   effects: readonly EntityEffect[];
@@ -62,7 +63,6 @@ export type CombatCapability = Readonly<
   CombatStats & {
     health: number;
     retaliates: boolean;
-    defeatOutcome?: "victory";
   }
 >;
 
@@ -135,7 +135,7 @@ export type SemanticEvent =
   | Readonly<{ type: "playerHealthRestored"; entityId: string; health: number }>
   | Readonly<{ type: "entityRetaliated"; entityId: string; damage: number; remainingHealth: number }>
   | Readonly<{ type: "playerDied" }>
-  | Readonly<{ type: "victoryReached"; entityId: string }>;
+  | Readonly<{ type: "runCompleted"; entityId: string }>;
 
 export type RejectedCommandResult = Readonly<{
   accepted: false;
@@ -204,7 +204,13 @@ function rejected(snapshot: RunSnapshot, reason: CommandRejectionReason): Reject
   return { accepted: false, reason, snapshot, events: [] };
 }
 
-function assertNever(value: never): never {
+/**
+ * Closes a branch chain over an enumeration.
+ *
+ * Every call site is a compile-time proof that its chain handled every member; the throw only runs if
+ * an untyped caller smuggles an unknown value past the parser that closed the enumeration.
+ */
+export function assertNever(value: never): never {
   throw new Error(`unsupported value: ${String(value)}`);
 }
 
@@ -265,7 +271,7 @@ function applyPostTickRetaliation(
 
 function resolveTerminalOutcome(
   snapshot: RunSnapshot,
-  victoryEntityId: string | undefined,
+  completionEntityId: string | undefined,
   events: SemanticEvent[],
 ): RunSnapshot {
   if (snapshot.player.health === 0) {
@@ -273,8 +279,8 @@ function resolveTerminalOutcome(
     return updateSnapshot(snapshot, { outcome: "dead" });
   }
 
-  if (victoryEntityId) {
-    events.push({ type: "victoryReached", entityId: victoryEntityId });
+  if (completionEntityId) {
+    events.push({ type: "runCompleted", entityId: completionEntityId });
     return updateSnapshot(snapshot, { outcome: "victory" });
   }
 
@@ -286,10 +292,10 @@ function completeAcceptedTick(
   snapshot: RunSnapshot,
   capturedEntityIds: readonly string[],
   events: SemanticEvent[],
-  victoryEntityId?: string,
+  completionEntityId?: string,
 ): AcceptedCommandResult {
   const retaliatedSnapshot = applyPostTickRetaliation(world, snapshot, capturedEntityIds, events);
-  const completedSnapshot = resolveTerminalOutcome(retaliatedSnapshot, victoryEntityId, events);
+  const completedSnapshot = resolveTerminalOutcome(retaliatedSnapshot, completionEntityId, events);
   return { accepted: true, snapshot: completedSnapshot, events };
 }
 
@@ -384,6 +390,12 @@ function applyEntityEffects(
       continue;
     }
 
+    // Completion carries no snapshot change of its own. The terminal outcome is resolved after
+    // post-tick retaliation so a fatal counterattack still ends the run in death, not completion.
+    if (effect.type === "completeRun") {
+      continue;
+    }
+
     assertNever(effect);
   }
 
@@ -454,13 +466,7 @@ function resolveForward(world: RunWorld, snapshot: RunSnapshot, capturedEntityId
       events.push({ type: "entityDefeated", entityId: target.entity.id });
     }
 
-    return completeAcceptedTick(
-      world,
-      nextSnapshot,
-      capturedEntityIds,
-      events,
-      health === 0 && target.entity.combat.defeatOutcome === "victory" ? target.entity.id : undefined,
-    );
+    return completeAcceptedTick(world, nextSnapshot, capturedEntityIds, events);
   }
 
   const movedSnapshot = updatePlayer(snapshot, { cell: target.cell });
@@ -484,7 +490,8 @@ function resolveInteract(world: RunWorld, snapshot: RunSnapshot, capturedEntityI
   }
 
   const nextSnapshot = applyEntityEffects(world, snapshot, entity.id, entity.interaction.effects, events);
-  return completeAcceptedTick(world, nextSnapshot, capturedEntityIds, events);
+  const completesRun = entity.interaction.effects.some((effect) => effect.type === "completeRun");
+  return completeAcceptedTick(world, nextSnapshot, capturedEntityIds, events, completesRun ? entity.id : undefined);
 }
 
 /** Creates a fresh mutable-progress snapshot from immutable authored world input. */

@@ -56,13 +56,13 @@ describe("render scene projection", () => {
     expect(scene).not.toHaveProperty("minimap");
   });
 
-  it("selects the authored purple princess sprite from its archetype placement", () => {
+  it("selects the authored purple slime sprite from its archetype placement", () => {
     expect(sceneAt().sprites).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "s1-goal",
-          enemyId: "princess",
-          assetId: "enemy.princess.normal",
+          id: "s1-hardest",
+          enemyId: "purpleSlime",
+          assetId: "enemy.purpleSlime.normal",
           scale: 1.3,
         }),
       ]),

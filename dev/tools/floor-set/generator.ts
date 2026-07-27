@@ -47,7 +47,6 @@ const ENTRY_CELL: Cell = { x: 1, y: 1 };
 const ARRIVAL_FACING: Facing = "east";
 const KEY_COLORS: readonly KeyColor[] = ["red", "blue", "yellow"];
 const ENEMY_ARCHETYPE_IDS: readonly string[] = ["bat", "goblin", "skeleton", "guard"];
-const GOAL_ARCHETYPE_ID = "princess";
 const THEMES: readonly string[] = ["cellar", "icehouse", "meat-locker", "guard-post", "deep-store"];
 const MAZE_STEPS: readonly Cell[] = [
   { x: 0, y: -1 },
@@ -584,10 +583,9 @@ function buildFloorSet(resolved: ResolvedOptions, attempt: number): FloorSetSour
 
     if (isDeepest) {
       entities.push({
-        kind: "enemy",
-        id: `${floorId}-goal`,
+        kind: "exit",
+        id: `${floorId}-exit`,
         cell: toCell(plan.exitIndex, resolved.width),
-        archetypeId: GOAL_ARCHETYPE_ID,
       });
     } else {
       entities.push({
@@ -622,9 +620,8 @@ function buildFloorSet(resolved: ResolvedOptions, attempt: number): FloorSetSour
   }
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     initial: { floorId: "B1", cell: ENTRY_CELL, facing: ARRIVAL_FACING },
-    goalEntityId: `B${resolved.floorCount}-goal`,
     floors,
   };
 }

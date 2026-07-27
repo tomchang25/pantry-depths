@@ -338,13 +338,17 @@ describe("resolveCommand", () => {
     }
   });
 
-  it("records death over victory when another surviving attacker retaliates lethally", () => {
+  it("records death over completion when a surviving attacker retaliates lethally at the exit", () => {
     const world = createWorld({
       entities: [
-        enemy({
-          id: "princess",
-          combat: { health: 3, attack: 4, defense: 0, retaliates: true, defeatOutcome: "victory" },
-        }),
+        {
+          kind: "exit",
+          id: "exit",
+          floorId: "B1",
+          cell: { x: 2, y: 1 },
+          movement: { blocksEntry: true },
+          interaction: { effects: [{ type: "completeRun" }] },
+        },
         enemy({
           id: "guard",
           cell: { x: 1, y: 2 },
@@ -352,13 +356,13 @@ describe("resolveCommand", () => {
         }),
       ],
     });
-    const result = resolveCommand(world, createInitialRunSnapshot(world), "forward");
+    const result = resolveCommand(world, createInitialRunSnapshot(world), "interact");
 
     expect(result.accepted).toBe(true);
 
     if (result.accepted) {
       expect(result.snapshot.outcome).toBe("dead");
-      expect(result.events.some((event) => event.type === "victoryReached")).toBe(false);
+      expect(result.events.some((event) => event.type === "runCompleted")).toBe(false);
       expect(result.events.some((event) => event.type === "playerDied")).toBe(true);
 
       const terminal = resolveCommand(world, result.snapshot, "turnLeft");

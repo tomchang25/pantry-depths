@@ -96,7 +96,7 @@ export const PROVISIONAL_ROUTE: RoutePlan = {
     { id: "b4-red-door", label: "B4 red route door", commandIndex: 41, entityId: "b4-red-door" },
     { id: "b4-yellow-door", label: "B4 large yellow door", commandIndex: 44, entityId: "b4-yellow-door" },
     { id: "b4-down", label: "B5 entry", commandIndex: 51, entityId: "b4-down" },
-    { id: "victory", label: "Princess defeated", commandIndex: 71, entityId: "b5-princess" },
+    { id: "exit", label: "Left through the B5 exit", commandIndex: 71, entityId: "B5-exit" },
   ],
 };
 

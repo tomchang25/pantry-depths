@@ -8,22 +8,21 @@ import { parseFloorSet, type FloorSetSource } from "@/content/floor/floor-schema
 import { describe, expect, it } from "vitest";
 
 describe("provisional floor catalog", () => {
-  it("assembles five authored floors with a topology-validated path to the goal", () => {
+  it("assembles five authored floors with a topology-validated path to the exit", () => {
     const errors = PROVISIONAL_FLOOR_VALIDATION.findings.filter((finding) => finding.severity === "error");
 
     expect(PROVISIONAL_FLOOR_SET.floors).toHaveLength(5);
     expect(errors).toEqual([]);
     expect(PROVISIONAL_FLOOR_VALIDATION.solution?.at(-1)).toMatchObject({
-      type: "defeatEnemy",
-      entityId: "B5-goal",
+      type: "leaveExit",
+      entityId: "B5-exit",
     });
   });
 
   it("keeps directional hidden-wall hints as entity metadata rather than a command rule", () => {
     const floorSet = parseFloorSet({
-      schemaVersion: 3,
+      schemaVersion: 4,
       initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "east" },
-      goalEntityId: "goal",
       floors: [
         {
           id: "F1",
@@ -38,7 +37,7 @@ describe("provisional floor catalog", () => {
               defense: 0,
               hintFaces: ["east", "west"],
             },
-            { kind: "enemy", id: "goal", cell: { x: 3, y: 1 }, archetypeId: "princess" },
+            { kind: "exit", id: "exit", cell: { x: 3, y: 1 } },
           ],
           environmentFeatures: [],
         },

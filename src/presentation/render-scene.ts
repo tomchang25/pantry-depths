@@ -193,6 +193,11 @@ function projectGameplay(
       continue;
     }
 
+    if (source.kind === "exit") {
+      sprites.push(groundSprite(source.id, source.cell, "presentation.exit", WORLD_SPRITE_PLACEMENTS.exit));
+      continue;
+    }
+
     // A new gameplay entity kind must choose its own presentation form rather than inherit one.
     source satisfies never;
   }

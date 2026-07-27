@@ -39,7 +39,7 @@ const CREATURE_MATRIX = {
     { playerDamage: 7, retaliationDamage: 8, hitsToKill: 3, totalCost: 16 },
     { playerDamage: 7, retaliationDamage: 4, hitsToKill: 3, totalCost: 8 },
   ],
-  princess: [
+  purpleSlime: [
     { playerDamage: 0, retaliationDamage: 14, hitsToKill: null, totalCost: null },
     { playerDamage: 0, retaliationDamage: 14, hitsToKill: null, totalCost: null },
     { playerDamage: 0, retaliationDamage: 12, hitsToKill: null, totalCost: null },

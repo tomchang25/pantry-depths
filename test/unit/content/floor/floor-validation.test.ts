@@ -31,9 +31,8 @@ describe("floor validation", () => {
 
   it("returns a no-solution error when a required key is isolated behind its matching door", () => {
     const lockedHallway = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "east" },
-      goalEntityId: "goal",
       floors: [
         {
           id: "F1",
@@ -42,7 +41,7 @@ describe("floor validation", () => {
           gameplayEntities: [
             { kind: "door", id: "red-door", cell: { x: 2, y: 1 }, color: "red" },
             { kind: "key", id: "red-key", cell: { x: 3, y: 1 }, color: "red" },
-            { kind: "enemy", id: "goal", cell: { x: 5, y: 1 }, archetypeId: "princess" },
+            { kind: "exit", id: "exit", cell: { x: 5, y: 1 } },
           ],
           environmentFeatures: [],
         },
@@ -54,26 +53,57 @@ describe("floor validation", () => {
     );
   });
 
-  it("still requires defeating a goal that stands on the initial cell", () => {
-    const goalUnderfoot = {
-      schemaVersion: 3,
-      initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "east" },
-      goalEntityId: "goal",
+  it.each([
+    { label: "no exit", exits: [] },
+    {
+      label: "two exits",
+      exits: [
+        { kind: "exit", id: "exit-a", cell: { x: 1, y: 1 } },
+        { kind: "exit", id: "exit-b", cell: { x: 3, y: 1 } },
+      ],
+    },
+  ])("rejects a floor set with $label", ({ exits }) => {
+    const candidate = {
+      schemaVersion: 4,
+      initial: { floorId: "F1", cell: { x: 2, y: 1 }, facing: "east" },
       floors: [
         {
           id: "F1",
           theme: "test",
           tiles: ["#####", "#...#", "#####"],
-          gameplayEntities: [{ kind: "enemy", id: "goal", cell: { x: 1, y: 1 }, archetypeId: "princess" }],
+          gameplayEntities: exits,
           environmentFeatures: [],
         },
       ],
     };
-    const validation = validateFloorSet(goalUnderfoot);
+
+    expect(validateFloorSet(candidate).findings).toContainEqual(
+      expect.objectContaining({ severity: "error", code: "exit.invalidCount" }),
+    );
+  });
+
+  it("completes a route by leaving through the exit rather than by defeating an enemy", () => {
+    const guardedExit = {
+      schemaVersion: 4,
+      initial: { floorId: "F1", cell: { x: 1, y: 1 }, facing: "east" },
+      floors: [
+        {
+          id: "F1",
+          theme: "test",
+          tiles: ["#####", "#...#", "#####"],
+          gameplayEntities: [
+            { kind: "enemy", id: "blocker", cell: { x: 2, y: 1 }, archetypeId: "purpleSlime" },
+            { kind: "exit", id: "exit", cell: { x: 3, y: 1 } },
+          ],
+          environmentFeatures: [],
+        },
+      ],
+    };
+    const validation = validateFloorSet(guardedExit);
 
     expect(validation.findings.filter((finding) => finding.severity === "error")).toEqual([]);
-    expect(validation.solution?.at(-1)).toMatchObject({ type: "defeatEnemy", entityId: "goal" });
-    expect(validation.solution?.length).toBeGreaterThan(0);
+    expect(validation.solution?.at(-1)).toMatchObject({ type: "leaveExit", entityId: "exit" });
+    expect(validation.solution?.some((step) => step.type === "defeatEnemy" && step.entityId === "blocker")).toBe(true);
   });
 
   it("returns a solution that clears each enemy and breakable wall at most once", () => {
