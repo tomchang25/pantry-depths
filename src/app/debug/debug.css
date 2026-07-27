@@ -232,6 +232,73 @@ textarea {
   text-transform: uppercase;
 }
 
+.debug-generator-controls {
+  display: grid;
+  gap: 1rem;
+}
+
+.debug-generator-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+
+/* The finish row holds one field plus the action, so it hugs them instead of stretching both wide. */
+.debug-generator-row--finish {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), max-content));
+}
+
+.debug-generator-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+  /* Start-align so a group that wraps its link label does not stretch its siblings. */
+  align-items: start;
+}
+
+.debug-color-count-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  /* Fieldsets default to min-inline-size: min-content, which stops them shrinking inside a grid track. */
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--debug-border-soft);
+  border-radius: 0.55rem;
+}
+
+.debug-color-count-group legend {
+  padding: 0 0.3rem;
+  color: var(--debug-text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.debug-color-count-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
+  gap: 0.6rem;
+}
+
+.debug-color-link-field {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--debug-text-muted);
+  font-size: 0.78rem;
+  text-transform: none;
+}
+
+.debug-color-link-field input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+
 .debug-page :where(input, select, textarea) {
   box-sizing: border-box;
   width: 100%;

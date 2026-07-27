@@ -75,6 +75,69 @@ function fieldValue(field: HTMLLabelElement): number {
   return Number(field.querySelector("input")?.value ?? "0");
 }
 
+type ColorCountGroup = Readonly<{
+  container: HTMLElement;
+  doorInput: HTMLInputElement;
+  keyInput: HTMLInputElement;
+}>;
+
+/** Creates one color's linked key/door total controls; unlinking remembers the last independent pair. */
+function createColorCountGroup(colorId: string, colorLabel: string): ColorCountGroup {
+  const container = document.createElement("fieldset");
+  const legend = document.createElement("legend");
+  const fields = document.createElement("div");
+  const keyField = createCountField(`floor-workbench-${colorId}-keys`, "Keys", 1, 0);
+  const doorField = createCountField(`floor-workbench-${colorId}-doors`, "Doors", 1, 0);
+  const linkLabel = document.createElement("label");
+  const linkInput = document.createElement("input");
+  const keyInput = keyField.querySelector("input");
+  const doorInput = doorField.querySelector("input");
+
+  if (!keyInput || !doorInput) {
+    throw new Error("A generator count field is missing its input element.");
+  }
+
+  container.className = "debug-color-count-group";
+  // The unit lives in the legend so each group states it once instead of repeating it on both inputs.
+  legend.textContent = `${colorLabel} — candidate totals`;
+  fields.className = "debug-color-count-fields";
+  fields.append(keyField, doorField);
+  linkInput.type = "checkbox";
+  linkInput.checked = true;
+  linkLabel.className = "debug-color-link-field";
+  linkLabel.append(linkInput, ` Link ${colorLabel.toLowerCase()} keys and doors`);
+  container.append(legend, fields, linkLabel);
+
+  let rememberedPair: Readonly<{ door: string; key: string }> | undefined;
+
+  linkInput.addEventListener("change", () => {
+    if (linkInput.checked) {
+      rememberedPair = { key: keyInput.value, door: doorInput.value };
+      doorInput.value = keyInput.value;
+      return;
+    }
+
+    if (rememberedPair) {
+      keyInput.value = rememberedPair.key;
+      doorInput.value = rememberedPair.door;
+    }
+  });
+
+  keyInput.addEventListener("input", () => {
+    if (linkInput.checked) {
+      doorInput.value = keyInput.value;
+    }
+  });
+
+  doorInput.addEventListener("input", () => {
+    if (linkInput.checked) {
+      keyInput.value = doorInput.value;
+    }
+  });
+
+  return { container, keyInput, doorInput };
+}
+
 /** Hands the validated draft to the browser as a downloaded file without touching canonical content. */
 function downloadJson(filename: string, text: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
@@ -99,14 +162,20 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   });
   const generatorPanel = createDebugPanel(
     "Generator",
-    "Create a solvable candidate from deterministic seed and aggregate content counts.",
+    "Create a solvable candidate from a deterministic seed, an odd width and height, and candidate-wide red, blue, and yellow key/door totals.",
   );
   const generatorControls = document.createElement("div");
+  const generatorShapeRow = document.createElement("div");
+  const generatorColorRow = document.createElement("div");
+  const generatorFinishRow = document.createElement("div");
   const seedField = createCountField("floor-workbench-seed", "Seed", 1, Number.MIN_SAFE_INTEGER);
   const floorField = createCountField("floor-workbench-floors", "Floors", 5, 1);
-  const keyField = createCountField("floor-workbench-keys", "Keys per floor", 1, 0);
-  const doorField = createCountField("floor-workbench-doors", "Doors per floor", 1, 0);
-  const enemyField = createCountField("floor-workbench-enemies", "Enemies per floor", 1, 0);
+  const widthField = createCountField("floor-workbench-width", "Width (odd, ≥5)", 13, 5);
+  const heightField = createCountField("floor-workbench-height", "Height (odd, ≥5)", 13, 5);
+  const redGroup = createColorCountGroup("red", "Red");
+  const blueGroup = createColorCountGroup("blue", "Blue");
+  const yellowGroup = createColorCountGroup("yellow", "Yellow");
+  const enemyField = createCountField("floor-workbench-enemies", "Enemies (candidate total)", 1, 0);
   const mapPanel = createDebugPanel(
     "Draft Map",
     "Select, paint terrain, move gameplay entities, and edit the schema-valid draft before full structural validation.",
@@ -145,7 +214,10 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   validationExplanation.textContent =
     "Structural validation reports invalid placements, stair destinations, and topology that cannot yield a legal solution.\nNo findings means this validation run reported no issues;\nExport and Save still require the exact current draft to have a structural solution.";
   status.setAttribute("role", "status");
-  generatorControls.className = "debug-form-grid";
+  generatorControls.className = "debug-generator-controls";
+  generatorShapeRow.className = "debug-generator-row";
+  generatorColorRow.className = "debug-generator-colors";
+  generatorFinishRow.className = "debug-generator-row debug-generator-row--finish";
   actions.className = "debug-button-row";
   map.className = "debug-workbench-map";
 
@@ -456,7 +528,7 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
   };
 
   const generate = async (): Promise<void> => {
-    reportStatus("Generating a solvable candidate. Dense key and door counts take longer to validate.", "info");
+    reportStatus("Generating a solvable candidate. Dense key and door totals take longer to validate.", "info");
 
     const payload = await requestJson("generate", {
       method: "POST",
@@ -464,9 +536,15 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
       body: JSON.stringify({
         seed: fieldValue(seedField),
         floorCount: fieldValue(floorField),
-        keysPerFloor: fieldValue(keyField),
-        doorsPerFloor: fieldValue(doorField),
-        enemiesPerFloor: fieldValue(enemyField),
+        width: fieldValue(widthField),
+        height: fieldValue(heightField),
+        redKeys: Number(redGroup.keyInput.value),
+        redDoors: Number(redGroup.doorInput.value),
+        blueKeys: Number(blueGroup.keyInput.value),
+        blueDoors: Number(blueGroup.doorInput.value),
+        yellowKeys: Number(yellowGroup.keyInput.value),
+        yellowDoors: Number(yellowGroup.doorInput.value),
+        enemies: fieldValue(enemyField),
       }),
     });
     applySource(payload.source, "Generated candidate");
@@ -479,14 +557,10 @@ export function renderFloorWorkbench(mount: HTMLElement): void {
     reportStatus("Draft changed. Validate again before downloading or overwriting canonical content.", "warning");
   });
 
-  generatorControls.append(
-    seedField,
-    floorField,
-    keyField,
-    doorField,
-    enemyField,
-    createButton("Generate Draft", generate, reportError),
-  );
+  generatorShapeRow.append(seedField, floorField, widthField, heightField);
+  generatorColorRow.append(redGroup.container, blueGroup.container, yellowGroup.container);
+  generatorFinishRow.append(enemyField, createButton("Generate Draft", generate, reportError));
+  generatorControls.append(generatorShapeRow, generatorColorRow, generatorFinishRow);
   actions.append(
     createButton("Load Canonical JSON", loadCanonical, reportError),
     createButton("Validate Draft", validateDraft, reportError),

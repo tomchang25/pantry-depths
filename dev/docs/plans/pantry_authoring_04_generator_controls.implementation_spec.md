@@ -54,14 +54,14 @@ The flat `keysPerFloor`, `doorsPerFloor`, and `enemiesPerFloor` inputs are remov
 
 ## Files to Change
 
-| File                                              | Change Size | Purpose                                                                                  |
-| ------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
-| `dev/tools/floor-set/generator.ts`                | Large       | Thread geometry through placement, and gate per color instead of once overall.           |
-| `dev/tools/floor-set/authoring-api.ts`            | Small       | Accept and validate geometry and per-color counts in the generate request.               |
-| `dev/tools/generate-floor-set.ts`                 | Medium      | Replace the flat count flags with geometry and per-color flags.                          |
-| `src/app/debug/floor-workbench.ts`                | Medium      | Own dimension fields, per-color fields, link-toggle state, and the request it sends.     |
-| `src/app/debug/debug.css`                         | Small       | Group the enlarged generator control set so it stays readable at narrow widths.          |
-| `test/unit/dev/tools/floor-set/generator.test.ts` | Medium      | Prove geometry validation, per-color counts, per-color gating, and retained solvability. |
+| File                                              | Change Size | Purpose                                                                                    |
+| ------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `dev/tools/floor-set/generator.ts`                | Large       | Thread geometry through carving and placement, and add the allocation layer above them.    |
+| `dev/tools/floor-set/authoring-api.ts`            | Small       | Accept and validate geometry and per-color totals in the generate request.                 |
+| `dev/tools/generate-floor-set.ts`                 | Medium      | Replace the per-floor count flags with geometry and per-color total flags.                 |
+| `src/app/debug/floor-workbench.ts`                | Medium      | Own dimension fields, per-color total fields, link-toggle state, and the request it sends. |
+| `src/app/debug/debug.css`                         | Small       | Group the enlarged generator control set so it stays readable at narrow widths.            |
+| `test/unit/dev/tools/floor-set/generator.test.ts` | Medium      | Prove geometry validation, exact totals, allocation spread, and retained solvability.      |
 
 ## Execution Outline
 
@@ -78,21 +78,22 @@ The flat `keysPerFloor`, `doorsPerFloor`, and `enemiesPerFloor` inputs are remov
 - **Per-floor gating.** Unchanged beneath allocation: each color's gate count on a floor is the smaller of its allocated door and key counts there, all colors' gates draw from the same route so gates stay ordered along it, and the floor's total gate count still cannot exceed the route's interior length.
 - **Defaults.** Omitted totals resolve to one key and one door of each color plus one enemy for the whole candidate. This lowers default density compared with today's per-floor behavior, which is intended.
 - **Link toggles.** Each color owns three pieces of state: its key total, its door total, and the independent pair remembered from before the current link engagement. Engaging a link does not discard that pair.
+- **Exact totals.** A requested total is honored exactly or generation fails; it is never quietly under-filled. The current spare-door loop stops early when it runs out of dead ends, which silently places fewer doors than asked. That is tolerable for a per-floor count but defeats the purpose of a total, so it must become an exhaustion signal that feeds the existing reseed path.
 - **Command line.** Per-color total flags replace `--keys` and `--doors`, and the enemy flag changes meaning from per-floor to total. Update the usage text in the same change; a stale usage string is the only documentation this tool has.
 
 ## Edge Cases
 
-| Case                                                         | Expected Handling                                                                       |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| An even, fractional, or below-minimum dimension is requested | Reject before generating, naming the odd-and-at-least-five rule.                        |
-| A color has more doors than keys                             | Allocate matched pairs first; each leftover door becomes a dead-end spare.              |
-| A color has more keys than doors                             | Allocate matched pairs first; each leftover key is placed in reachable space.           |
-| A total is smaller than the floor count                      | Some floors receive nothing; which ones is seed-determined, not always the first.       |
-| A total exceeds what the floors can hold                     | Place what fits and let the existing exhaustion and reseed path handle the remainder.   |
-| Every total is zero                                          | Generate a floor set with stairs and the goal but no locks and no non-goal enemies.     |
-| Requested density or size exceeds the validator's budget     | Surface the existing search-budget error naming the counts to lower.                    |
-| A link toggle is disengaged after being driven to one value  | Restore that color's remembered independent pair rather than leaving both values equal. |
-| A generated candidate is later resized per floor             | Manual resizing continues to apply, unaffected by the generated dimensions.             |
+| Case                                                         | Expected Handling                                                                                                                                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An even, fractional, or below-minimum dimension is requested | Reject before generating, naming the odd-and-at-least-five rule.                                                                                        |
+| A color has more doors than keys                             | Allocate matched pairs first; each leftover door becomes a dead-end spare.                                                                              |
+| A color has more keys than doors                             | Allocate matched pairs first; each leftover key is placed in reachable space.                                                                           |
+| A total is smaller than the floor count                      | Some floors receive nothing; which ones is seed-determined, not always the first.                                                                       |
+| A total exceeds what the floors can hold                     | Signal exhaustion so the existing reseed runs, then fail with the existing error naming the totals to lower. Never silently place fewer than requested. |
+| Every total is zero                                          | Generate a floor set with stairs and the goal but no locks and no non-goal enemies.                                                                     |
+| Requested density or size exceeds the validator's budget     | Surface the existing search-budget error naming the counts to lower.                                                                                    |
+| A link toggle is disengaged after being driven to one value  | Restore that color's remembered independent pair rather than leaving both values equal.                                                                 |
+| A generated candidate is later resized per floor             | Manual resizing continues to apply, unaffected by the generated dimensions.                                                                             |
 
 ## Acceptance Criteria
 

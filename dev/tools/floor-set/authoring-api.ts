@@ -40,9 +40,13 @@ function asInteger(value: unknown, label: string): number {
   return value;
 }
 
-function asCount(value: unknown, label: string, fallback: number): number {
+function asOptionalInteger(value: unknown, label: string): number | undefined {
+  return value === undefined ? undefined : asInteger(value, label);
+}
+
+function asOptionalCount(value: unknown, label: string): number | undefined {
   if (value === undefined) {
-    return fallback;
+    return undefined;
   }
 
   const count = asInteger(value, label);
@@ -83,12 +87,28 @@ export async function handleFloorAuthoringRequest(
         throw new FloorAuthoringRequestError("floorCount must be at least 1.");
       }
 
+      const width = asOptionalInteger(body.width, "width");
+      const height = asOptionalInteger(body.height, "height");
+      const redKeys = asOptionalCount(body.redKeys, "redKeys");
+      const redDoors = asOptionalCount(body.redDoors, "redDoors");
+      const blueKeys = asOptionalCount(body.blueKeys, "blueKeys");
+      const blueDoors = asOptionalCount(body.blueDoors, "blueDoors");
+      const yellowKeys = asOptionalCount(body.yellowKeys, "yellowKeys");
+      const yellowDoors = asOptionalCount(body.yellowDoors, "yellowDoors");
+      const enemies = asOptionalCount(body.enemies, "enemies");
+
       const source = generateFloorSet({
         seed,
         floorCount,
-        keysPerFloor: asCount(body.keysPerFloor, "keysPerFloor", 1),
-        doorsPerFloor: asCount(body.doorsPerFloor, "doorsPerFloor", 1),
-        enemiesPerFloor: asCount(body.enemiesPerFloor, "enemiesPerFloor", 1),
+        ...(width !== undefined ? { width } : {}),
+        ...(height !== undefined ? { height } : {}),
+        ...(redKeys !== undefined ? { redKeys } : {}),
+        ...(redDoors !== undefined ? { redDoors } : {}),
+        ...(blueKeys !== undefined ? { blueKeys } : {}),
+        ...(blueDoors !== undefined ? { blueDoors } : {}),
+        ...(yellowKeys !== undefined ? { yellowKeys } : {}),
+        ...(yellowDoors !== undefined ? { yellowDoors } : {}),
+        ...(enemies !== undefined ? { enemies } : {}),
       });
       return { status: 200, body: { source } };
     }
