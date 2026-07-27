@@ -1,5 +1,6 @@
-import { createFloorScenario } from "@/harness/floor-scenario";
-import { replayRoute, type RoutePlan, type RouteReplay } from "@/harness/route-replay";
+import { PROVISIONAL_FLOOR_SET } from "@/content/floor/floor-catalog";
+import type { RoutePlan, RouteReplay } from "@/harness/route-replay";
+import { createRouteScenario, replayScenarioRoute, type RouteScenario } from "@/harness/route-scenario";
 
 export const PROVISIONAL_ROUTE: RoutePlan = {
   id: "provisional-main-route",
@@ -99,8 +100,10 @@ export const PROVISIONAL_ROUTE: RoutePlan = {
   ],
 };
 
+/** The canonical play content bound to the route authored against it. */
+export const PROVISIONAL_SCENARIO: RouteScenario = createRouteScenario(PROVISIONAL_FLOOR_SET, PROVISIONAL_ROUTE);
+
 /** Replays the provisional main route from a new canonical floor scenario. */
 export function replayProvisionalRoute(): RouteReplay {
-  const scenario = createFloorScenario();
-  return replayRoute(scenario.session, PROVISIONAL_ROUTE);
+  return replayScenarioRoute(PROVISIONAL_SCENARIO);
 }

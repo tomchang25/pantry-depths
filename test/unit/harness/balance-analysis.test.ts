@@ -1,13 +1,14 @@
+import { BALANCE_TEST_SCENARIO } from "../../fixtures/balance-scenario";
 import { createBalanceAnalysis } from "@/harness/balance-analysis";
 import { describe, expect, it } from "vitest";
 
 describe("createBalanceAnalysis", () => {
   it("derives the same model from every fresh replay", () => {
-    expect(createBalanceAnalysis()).toEqual(createBalanceAnalysis());
+    expect(createBalanceAnalysis(BALANCE_TEST_SCENARIO)).toEqual(createBalanceAnalysis(BALANCE_TEST_SCENARIO));
   });
 
   it("reports the provisional route reaching victory with its full command count", () => {
-    const { route } = createBalanceAnalysis();
+    const { route } = createBalanceAnalysis(BALANCE_TEST_SCENARIO);
 
     expect(route.completed).toBe(true);
     expect(route.succeeded).toBe(true);
@@ -19,12 +20,12 @@ describe("createBalanceAnalysis", () => {
   });
 
   it("resolves stage identity and accumulated cost at each reached checkpoint", () => {
-    const { route } = createBalanceAnalysis();
+    const { route } = createBalanceAnalysis(BALANCE_TEST_SCENARIO);
 
     expect(route.checkpoints.every((checkpoint) => checkpoint.reached)).toBe(true);
 
     const start = route.checkpoints.find((checkpoint) => checkpoint.id === "start");
-    const attackDoor = route.checkpoints.find((checkpoint) => checkpoint.id === "b2-blue-door");
+    const attackDoor = route.checkpoints.find((checkpoint) => checkpoint.id === "t1-blue-door-1");
     const victory = route.checkpoints.at(-1);
 
     expect(start?.stage?.label).toBe("Stage 0");
@@ -36,18 +37,18 @@ describe("createBalanceAnalysis", () => {
   });
 
   it("derives opened doors from entity activity rather than checkpoint labels", () => {
-    const { route } = createBalanceAnalysis();
-    const redDoor = route.checkpoints.find((checkpoint) => checkpoint.id === "b1-red-door");
-    const blueKey = route.checkpoints.find((checkpoint) => checkpoint.id === "b2-blue-key");
+    const { route } = createBalanceAnalysis(BALANCE_TEST_SCENARIO);
+    const redDoor = route.checkpoints.find((checkpoint) => checkpoint.id === "t1-red-door");
+    const beforeLargeBlue = route.checkpoints.find((checkpoint) => checkpoint.id === "t1-red-key");
 
-    expect(redDoor?.openedDoorIds).toContain("b1-red-door");
-    expect(blueKey?.openedDoorIds).not.toContain("b2-blue-door");
-    expect(route.checkpoints.at(-1)?.openedDoorIds).toContain("b4-yellow-door");
+    expect(redDoor?.openedDoorIds).toContain("t1-red-door");
+    expect(beforeLargeBlue?.openedDoorIds).not.toContain("t1-blue-door-2");
+    expect(route.checkpoints.at(-1)?.openedDoorIds).toContain("t1-yellow-door-2");
   });
 
   it("marks route membership from the fixture checkpoints and leaves the rest bypassable", () => {
-    const analysis = createBalanceAnalysis();
-    const princess = analysis.placements.find((placement) => placement.entityId === "b5-princess");
+    const analysis = createBalanceAnalysis(BALANCE_TEST_SCENARIO);
+    const princess = analysis.placements.find((placement) => placement.entityId === "t2-goal");
 
     expect(princess?.onForcedRoute).toBe(true);
     expect(analysis.bypassableEnemies.every((placement) => placement.kind === "enemy")).toBe(true);
@@ -55,7 +56,7 @@ describe("createBalanceAnalysis", () => {
   });
 
   it("keeps impassable combat results instead of substituting a placeholder", () => {
-    const analysis = createBalanceAnalysis();
+    const analysis = createBalanceAnalysis(BALANCE_TEST_SCENARIO);
     const princess = analysis.enemies.find((row) => row.enemy.id === "princess");
 
     expect(princess?.projections).toHaveLength(analysis.stages.length);
@@ -64,7 +65,7 @@ describe("createBalanceAnalysis", () => {
   });
 
   it("separates structural topology status from route evidence", () => {
-    const { topology } = createBalanceAnalysis();
+    const { topology } = createBalanceAnalysis(BALANCE_TEST_SCENARIO);
 
     expect(topology.passed).toBe(true);
     expect(topology.solutionSteps).toBeGreaterThan(0);

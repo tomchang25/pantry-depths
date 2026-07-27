@@ -1,11 +1,11 @@
 import { ENEMY_ARCHETYPES, type EnemyArchetype } from "@/content/combat/enemies";
 import { PLAYER_STAGES, type PlayerStage } from "@/content/combat/player-stages";
-import { PROVISIONAL_FLOOR_SET, PROVISIONAL_FLOOR_VALIDATION } from "@/content/floor/floor-catalog";
 import type { TopologyFinding } from "@/content/floor/floor-validation";
 import { calculateCombatProjection, type CombatProjection } from "@/core/combat";
 import type { Cell } from "@/core/grid";
 import type { EntityKind, KeyInventory, RunOutcome, RunSnapshot } from "@/core/run-state";
-import { PROVISIONAL_ROUTE, replayProvisionalRoute } from "@/harness/provisional-route";
+import { PROVISIONAL_SCENARIO } from "@/harness/provisional-route";
+import { replayScenarioRoute, type RouteScenario } from "@/harness/route-scenario";
 import { getRouteCheckpoint, routeCompleted } from "@/harness/route-replay";
 
 export type BalanceEnemyRow = Readonly<{
@@ -82,12 +82,12 @@ function findStage(snapshot: RunSnapshot): PlayerStage | undefined {
  * This is the single owner of stage identity, accumulated health cost, opened-door state, and route
  * membership. Consumers render this model; none of them recompute a field from a snapshot.
  */
-export function createBalanceAnalysis(): BalanceAnalysis {
-  const replay = replayProvisionalRoute();
+export function createBalanceAnalysis(scenario: RouteScenario = PROVISIONAL_SCENARIO): BalanceAnalysis {
+  const replay = replayScenarioRoute(scenario);
   const initialSnapshot = replay.initialSnapshot;
   const finalSnapshot = replay.steps.at(-1)?.after ?? initialSnapshot;
-  const routeEntityIds = new Set(PROVISIONAL_ROUTE.checkpoints.flatMap((checkpoint) => checkpoint.entityId ?? []));
-  const placedEntities = PROVISIONAL_FLOOR_SET.floors.flatMap((floor) =>
+  const routeEntityIds = new Set(scenario.route.checkpoints.flatMap((checkpoint) => checkpoint.entityId ?? []));
+  const placedEntities = scenario.floorSet.floors.flatMap((floor) =>
     floor.gameplayEntities.map((entity) => ({ floorId: floor.id, entity })),
   );
   const doorIds = placedEntities.filter((entry) => entry.entity.kind === "door").map((entry) => entry.entity.id);
@@ -100,7 +100,7 @@ export function createBalanceAnalysis(): BalanceAnalysis {
     projections: PLAYER_STAGES.map((stage) => calculateCombatProjection(stage.stats, enemy)),
   }));
 
-  const checkpoints = PROVISIONAL_ROUTE.checkpoints.map((checkpoint) => {
+  const checkpoints = scenario.route.checkpoints.map((checkpoint) => {
     const observed = getRouteCheckpoint(replay, checkpoint);
     const snapshot = observed.snapshot;
 
@@ -135,12 +135,12 @@ export function createBalanceAnalysis(): BalanceAnalysis {
     stages: PLAYER_STAGES,
     enemies,
     route: {
-      id: PROVISIONAL_ROUTE.id,
-      label: PROVISIONAL_ROUTE.label,
+      id: scenario.route.id,
+      label: scenario.route.label,
       completed,
       succeeded: completed && finalSnapshot.outcome === "victory",
       outcome: finalSnapshot.outcome,
-      commandCount: PROVISIONAL_ROUTE.commands.length,
+      commandCount: scenario.route.commands.length,
       executedCommandCount: replay.steps.length,
       maxHealth: initialSnapshot.player.maxHealth,
       finalHealth: finalSnapshot.player.health,
@@ -149,10 +149,10 @@ export function createBalanceAnalysis(): BalanceAnalysis {
     },
     topology: {
       passed:
-        !PROVISIONAL_FLOOR_VALIDATION.findings.some((finding) => finding.severity === "error") &&
-        Boolean(PROVISIONAL_FLOOR_VALIDATION.solution),
-      findings: PROVISIONAL_FLOOR_VALIDATION.findings,
-      solutionSteps: PROVISIONAL_FLOOR_VALIDATION.solution?.length ?? 0,
+        !scenario.validation.findings.some((finding) => finding.severity === "error") &&
+        Boolean(scenario.validation.solution),
+      findings: scenario.validation.findings,
+      solutionSteps: scenario.validation.solution?.length ?? 0,
     },
     placements,
     bypassableEnemies: placements.filter((placement) => placement.kind === "enemy" && !placement.onForcedRoute),

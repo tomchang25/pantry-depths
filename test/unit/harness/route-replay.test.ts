@@ -1,21 +1,22 @@
-import { replayProvisionalRoute, PROVISIONAL_ROUTE } from "@/harness/provisional-route";
+import { BALANCE_TEST_SCENARIO } from "../../fixtures/balance-scenario";
 import { getRouteCheckpoint, replayRoute, routeCompleted } from "@/harness/route-replay";
 import { createFloorScenario } from "@/harness/floor-scenario";
+import { replayScenarioRoute } from "@/harness/route-scenario";
 import { describe, expect, it } from "vitest";
 
-describe("provisional route replay", () => {
+describe("route scenario replay", () => {
   it("reaches victory deterministically through canonical commands and checkpoints", () => {
-    const first = replayProvisionalRoute();
-    const second = replayProvisionalRoute();
+    const first = replayScenarioRoute(BALANCE_TEST_SCENARIO);
+    const second = replayScenarioRoute(BALANCE_TEST_SCENARIO);
     const blueDoor = getRouteCheckpoint(
       first,
-      PROVISIONAL_ROUTE.checkpoints.find((checkpoint) => checkpoint.id === "b2-blue-door")!,
+      BALANCE_TEST_SCENARIO.route.checkpoints.find((checkpoint) => checkpoint.id === "t1-blue-door-1")!,
     );
-    const finalCheckpoint = getRouteCheckpoint(first, PROVISIONAL_ROUTE.checkpoints.at(-1)!);
+    const finalCheckpoint = getRouteCheckpoint(first, BALANCE_TEST_SCENARIO.route.checkpoints.at(-1)!);
 
     expect(first).toEqual(second);
     expect(routeCompleted(first)).toBe(true);
-    expect(first.steps).toHaveLength(PROVISIONAL_ROUTE.commands.length);
+    expect(first.steps).toHaveLength(BALANCE_TEST_SCENARIO.route.commands.length);
     expect(first.steps.every((step) => step.accepted)).toBe(true);
     expect(blueDoor.snapshot.player).toMatchObject({ attack: 5, defense: 0, keys: { red: 0, blue: 0, yellow: 0 } });
     expect(finalCheckpoint).toMatchObject({ reached: true, snapshot: { outcome: "victory" } });
@@ -23,7 +24,7 @@ describe("provisional route replay", () => {
   });
 
   it("stops at a rejected command instead of creating a replacement route", () => {
-    const scenario = createFloorScenario();
+    const scenario = createFloorScenario(BALANCE_TEST_SCENARIO.world);
     const replay = replayRoute(scenario.session, {
       id: "invalid-route",
       label: "Invalid route",
