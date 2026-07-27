@@ -23,14 +23,14 @@ The foundation owns document placement, core workflows, shared agent behavior, a
 
 Route each kind of work to its required reading before starting.
 
-| Work                                                                   | Required reading                                                                                           |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Add, move, or reorganize governance or documentation files             | `foundation/core/standards/governance_structure_standard.md`                                               |
-| Create or update a plan, sketch, spec, review, or closeout             | `foundation/core/workflows/work_lifecycle.md` and the matching workflow under `foundation/core/workflows/` |
-| Change a runtime state owner, command, selector, or persisted contract | `foundation/core/standards/runtime_ownership.md`                                                           |
-| Run validation or deliver a change                                     | `dev/agent_rules/test_operations.md`                                                                       |
-| Any Git mutation                                                       | `dev/agent_rules/git_operations.md`                                                                        |
-| Change local governance or its checker                                 | `dev/standards/` local governance policy and this project's checker                                        |
+| Work                                                                   | Required reading                                                                                                                                        |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add, move, or reorganize governance or documentation files             | `foundation/core/standards/governance_structure_standard.md`                                                                                            |
+| Create or update a plan, sketch, spec, review, or closeout             | `foundation/core/workflows/work_lifecycle.md`, the matching workflow under `foundation/core/workflows/`, and `dev/standards/work_lifecycle.addendum.md` |
+| Change a runtime state owner, command, selector, or persisted contract | `foundation/core/standards/runtime_ownership.md`                                                                                                        |
+| Run validation or deliver a change                                     | `dev/agent_rules/test_operations.md`                                                                                                                    |
+| Any Git mutation                                                       | `dev/agent_rules/git_operations.md`                                                                                                                     |
+| Change local governance or its checker                                 | `dev/standards/` local governance policy and this project's checker                                                                                     |
 
 Platform rows, from `foundation/platforms/web-react/platform_startup.md`:
 

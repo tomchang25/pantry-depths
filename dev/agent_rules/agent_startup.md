@@ -34,6 +34,7 @@ Determinism is the project's load-bearing property. Combat contains no random nu
 | Work                                                                  | Required reading                                                                                     |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Run `/implement`                                                      | `dev/agent_rules/implement_operations.md` plus the canonical `/implement` workflow                   |
+| Choose a probe, sketch, plan, or spec for new forward work            | `dev/standards/work_lifecycle.addendum.md` after the foundation work lifecycle                       |
 | Add or move a source file, create a layer, change an import direction | `dev/standards/project_structure.addendum.md` and the platform project-structure standard            |
 | Change any gameplay rule, stat, enemy, door, key, or floor layout     | `dev/docs/design/pantry-depths_v1.md`; a number that contradicts it is a product decision, not a fix |
 | Add or rename an npm script, or change a verification stage           | `dev/foundation/platforms/web-react/standards/command_surface_standard.md`                           |
