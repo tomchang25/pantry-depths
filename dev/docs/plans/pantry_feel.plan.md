@@ -35,7 +35,7 @@ Mouse look, pointer lock, mouse attack, strafing, free rotation, and running do 
 
 Retaliation, enemy removal, health loss, death, and victory are already settled at animation start. Presentation may interpolate camera position or angle between snapshots, but no midpoint can be observed as an authoritative gameplay cell or facing.
 
-Backward rejection nudges the view backward by about 6 pixels, contracts torch light, plays a low chain sound, and displays the authored localized rejection line. The text appears at most three times per run; motion and sound continue afterward. Reduced-motion mode replaces the nudge with a stable outline or opacity cue.
+Backward rejection recoils the view backward a short distance, contracts torch light, plays a low chain sound, and displays the authored rejection line. All player-facing text in V1 is English. The line accompanies every refusal rather than being rationed: a per-run appearance limit was tried and removed, because consecutive refusals share one on-screen message, so the limit was spent invisibly within seconds and the line then never returned. Repeated refusals must hold and extend that single message instead of replaying its entrance, so a held or mashed key never flickers or stacks popups. Reduced-motion mode replaces the recoil with a stable outline or opacity cue.
 
 ### HUD and information transparency
 

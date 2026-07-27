@@ -78,8 +78,33 @@ body,
   outline-offset: 0.2rem;
 }
 
+.game-surface__message {
+  position: absolute;
+  inset: auto auto 6% 50%;
+  max-width: min(28rem, calc(100% - 2rem));
+  margin: 0;
+  padding: 0.5rem 1rem;
+  color: #f4dfc7;
+  text-align: center;
+  border: 1px solid rgb(203 151 105 / 35%);
+  border-radius: 0.2rem;
+  background: rgb(19 10 25 / 85%);
+  opacity: 0;
+  transform: translate(-50%, 0);
+  transition: opacity 320ms ease-out;
+  pointer-events: none;
+}
+
+.game-surface__message--visible {
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .game-surface__canvas {
+    transition: none;
+  }
+
+  .game-surface__message {
     transition: none;
   }
 }
