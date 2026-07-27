@@ -1,6 +1,6 @@
 # Composite Environment Presets
 
-> **Status**: Queued. Recorded ahead of execution; no child has started. Landing waits for `pantry_authoring_04`.
+> **Status**: Queued. Recorded ahead of execution; no child has started. Its blocking dependency on the shipped generator work has been satisfied, so `pantry_preset_01` is now available to start.
 
 ## Goal
 
@@ -62,7 +62,7 @@ Recommended landing order: `pantry_preset_01` -> `pantry_preset_01a` -> `pantry_
 
 ### Relationship to other plans
 
-`pantry_authoring_04` must land before `pantry_preset_01a`. Both change the Floor Set Workbench, and reversing the order would rewrite the generator controls underneath the child that just added them.
+The shipped `pantry_authoring_04` had to land before `pantry_preset_01a`, because both change the Floor Set Workbench and reversing the order would have rewritten the generator controls underneath the child that just added them. That ordering is now satisfied: the Workbench's generator panel exposes per-color candidate totals plus an odd width and height, and `pantry_preset_01a` must preserve those controls rather than reintroduce per-floor counts.
 
 The presentation plan keeps its own decision about whether it consumes the flat contract or the composite one first, and in which order it implements them. This plan defines the composite contract; it does not schedule presentation's adoption of it.
 

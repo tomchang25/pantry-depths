@@ -151,7 +151,7 @@ Codebase 是數值的唯一權威，但一堆沒有註解的常數沒辦法 revi
 | **[D. Final Floor Design](pantry_floor_design.plan.md)**      | `pantry_floor_design`  | Presentation 人工實玩 + 結構安全檢查                 | 中     |
 | **S. Enemy Sprite Art（平行項目）**                           | `pantry_sprite_art`    | 目視 + 風格一致性                                    | 中     |
 | **T. Debug Surface Shell（已交付）**                          | `pantry_debug_surface` | Debug routes 的人工視覺、responsive 與鍵盤檢查       | 低     |
-| **[P. Authoring Workbench UX](pantry_authoring.plan.md)**     | `pantry_authoring`     | 手動編修一張圖後仍通過結構驗證                       | 低     |
+| **P. Authoring Workbench UX（已交付）**                       | `pantry_authoring`     | 手動編修一張圖後仍通過結構驗證                       | 低     |
 | **[Q. Composite Environment Presets](pantry_preset.plan.md)** | `pantry_preset`        | 遷移後 canonical content 呈現意圖不變 + 組裝預覽目視 | 中     |
 
 ### Plan A — Rules and Content（已交付）
@@ -226,20 +226,24 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 它不建立新的 gameplay、authoring 或 presentation state owner，也不改 debug tool registry 與 lazy route boundary。它已先於 `pantry_authoring_02` 落地，讓後續 Cell Editor、Floor Settings 及其他 debug scenes 直接使用同一套可閱讀且 responsive 的呈現基礎；它不影響 V1 gameplay 關鍵路徑。
 
-### Plan P — Authoring Workbench UX（執行中，非關鍵路徑）
+### Plan P — Authoring Workbench UX（已交付，非關鍵路徑）
 
-**不在 V1 關鍵路徑上，不擋任何 child。** A04 已經把生成、驗證、預覽、匯出、存檔的管線接通，Plan P 處理的是那個介面本身難用 —— 純 JSON textarea 加唯讀圖，手鋪一張圖要靠心算座標。
+**不在 V1 關鍵路徑上，不擋任何 child。** A04 已經把生成、驗證、預覽、匯出、存檔的管線接通,Plan P 處理的是那個介面本身難用 —— 純 JSON textarea 加唯讀圖,手鋪一張圖要靠心算座標。
 
-這個 optional stream 已由作者主動提升為 active。它以 layered map 加右側 Cell Editor 編輯 terrain、gameplay entity 與 presentation-only environment metadata；map 負責空間概覽與選取，詳細參數、face anchor 與 preset identity 留在 Cell Editor，避免把所有資料擠進格子。
+四個 child 全部落地。Floor Set Workbench 現在以 layered map 加右側 Cell Editor 編輯 terrain、gameplay entity 與 presentation-only environment metadata;map 負責空間概覽與選取,詳細參數、face anchor 與 preset identity 留在 Cell Editor。放置內容不再需要手打座標,當下就能判定的違規在觸發的控制項當場拒絕,而 Export 與 Save 在草稿通過結構驗證前維持停用。
 
 | Child                 | 焦點                                                                                                |
 | --------------------- | --------------------------------------------------------------------------------------------------- |
 | `pantry_authoring_01` | Layered read-only map、cell selection/inspector、floor controls、legend 與 departure labels         |
 | `pantry_authoring_02` | Per-floor resize、terrain painting、gameplay entity placement/dragging 與雙向 draft synchronization |
 | `pantry_authoring_03` | Environment feature placement、wall faces、decoration/light/effect presets                          |
-| `pantry_authoring_04` | Generated width/height、紅藍黃各自的 key/door counts 與預設連動控制                                 |
+| `pantry_authoring_04` | Generated width/height、紅藍黃各自的 key/door **candidate totals** 與預設連動控制                   |
+
+`pantry_authoring_04` 交付時把 generator 的計數語意從「每層」改成「整個 candidate 的總數」,並移除 `keysPerFloor`／`doorsPerFloor`／`enemiesPerFloor`。這是刻意的破壞性契約變更:每層計數會隨樓層數放大,讓「三扇紅門」在十層候選裡變成三十扇。
 
 白、黑或其他新鑰匙顏色不在本 Plan。它們仍留在 Draft，直到 gameplay 意義先由產品決策確定。
+
+起點／終點標記與跨層鎖都刻意留在本 Plan 之外,各自是獨立 sketch,見 `TODO.md`。
 
 ### Plan Q — Composite Environment Presets（Queued，非關鍵路徑）
 
@@ -266,16 +270,16 @@ pantry_presentation_01 ───────────────────
 
 S 全程平行，隨時可以插入
 
-pantry_authoring_01 → pantry_debug_surface_shell（已交付） → pantry_authoring_02 → pantry_authoring_03 → pantry_authoring_04（optional，與 V1 關鍵路徑平行）
+pantry_authoring_01 → pantry_debug_surface_shell → pantry_authoring_02 → pantry_authoring_03 → pantry_authoring_04（P 全部已交付）
 
-pantry_authoring_04 ──→ pantry_preset_01 → pantry_preset_01a → pantry_preset_02（optional，與 V1 關鍵路徑平行）
-                                                                     ↑
-                                             pantry_presentation_01 ─┘
+pantry_preset_01 → pantry_preset_01a → pantry_preset_02（optional，與 V1 關鍵路徑平行）
+                                             ↑
+                     pantry_presentation_01 ─┘
 ```
 
 - `pantry_presentation_01` 沒有任何依賴，它是純移植，可以與早期 Rules children 同時進行。
 - `pantry_debug_surface_shell` 已交付共用 debug page template；它統一既有 debug pages，讓 authoring 的直接編輯 children 從同一呈現基礎開始，且不改變任何 gameplay 關鍵路徑。
-- `pantry_authoring` 是已啟用的 optional tooling stream；`01` 已建立功能性 map foundation，後續沿 `02` 到 `04` 落地，不改變 presentation、feel 與 final-floor 的依賴關係。
+- `pantry_authoring` 四個 child 全部已交付，未改變 presentation、feel 與 final-floor 的依賴關係。
 - `pantry_rules_04` needs the grid semantics from `pantry_rules_03` before it can validate topology.
 - `pantry_rules_05` needs A04's provisional content and topology findings before it can build replay and report tooling.
 - `pantry_rules_06` follows the tooling-ownership correction and defines presentation-only floor annotations without waiting for final geometry; it keeps torches, ambient lights, emitters, and wall decorations out of gameplay entities before presentation consumes them.
@@ -283,7 +287,7 @@ pantry_authoring_04 ──→ pantry_preset_01 → pantry_preset_01a → pantry_
 - `pantry_floor_design_01` starts only after the Presentation Port is available. It uses the A04 validator and A05 replay/report while judging and tuning the floors through the actual presentation.
 - `pantry_feel_01` 需要 `pantry_rules_03` 與 `pantry_presentation_01`。
 - `pantry_feel_03` 需要 `pantry_presentation_02` 與 `pantry_feel_02`。
-- `pantry_preset_01` 等 `pantry_authoring_04` 落地後才開始；兩者都改 Floor Set Workbench，順序反過來會讓 `_04` 剛加的 generator 控制被 `pantry_preset_01a` 蓋掉。
+- `pantry_preset_01` 原本等 `pantry_authoring_04` 落地後才開始，避免 `_04` 的 generator 控制被 `pantry_preset_01a` 蓋掉；該依賴已滿足，Plan Q 現在可以開始。
 - `pantry_preset_02` 硬依賴 `pantry_presentation_01`：要預覽組裝結果就得渲染它，faithful port 落地前沒有 renderer 可用。
 - `pantry_presentation_02` 消費 flat 或 composite 契約的先後由 Plan B 自行決定，Plan Q 只定義 composite 契約，不排 presentation 的採用時程。
 

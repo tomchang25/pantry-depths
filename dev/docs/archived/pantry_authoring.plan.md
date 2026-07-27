@@ -1,6 +1,6 @@
 # Floor Authoring Workbench Experience
 
-> **Status**: Active. `pantry_authoring_01`, the independent Debug Surface Shell, `pantry_authoring_02`, and `pantry_authoring_03` have landed; `pantry_authoring_04` is the current handoff. Closeout for every shipped child is deferred until the whole plan is complete.
+> **Status**: Shipped and archived. All four children and the independent Debug Surface Shell landed; every acceptance criterion below is satisfied by the delivered Floor Set Workbench.
 
 ## Goal
 
@@ -86,12 +86,12 @@ Both require a draft that validated exactly as it currently reads. Save addition
 
 ### Child overview
 
-| Child                 | Focus                                                                                                                                 | Current document form                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `pantry_authoring_01` | Layered read-only map, cell selection and inspector, floor controls, legend, and departure-path labelling                             | [Implementation spec](pantry_authoring_01_layered_map_foundation.implementation_spec.md) |
-| `pantry_authoring_02` | Per-floor resizing, terrain painting, gameplay-entity placement and dragging, editable Cell Editor, and two-way draft synchronization | [Implementation spec](pantry_authoring_02_direct_floor_editing.implementation_spec.md)   |
-| `pantry_authoring_03` | Environment-feature placement plus wall-face, light, effect, decoration, and preset editing through the Cell Editor                   | [Implementation spec](pantry_authoring_03_environment_features.implementation_spec.md)   |
-| `pantry_authoring_04` | Generated width and height plus per-color red, blue, and yellow generator totals with the default-linked door/key controls            | [Implementation spec](pantry_authoring_04_generator_controls.implementation_spec.md)     |
+| Child                 | Focus                                                                                                                                 | Current document form                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `pantry_authoring_01` | Layered read-only map, cell selection and inspector, floor controls, legend, and departure-path labelling                             | Shipped — pantry_authoring_01_layered_map_foundation.implementation_spec.md |
+| `pantry_authoring_02` | Per-floor resizing, terrain painting, gameplay-entity placement and dragging, editable Cell Editor, and two-way draft synchronization | Shipped — pantry_authoring_02_direct_floor_editing.implementation_spec.md   |
+| `pantry_authoring_03` | Environment-feature placement plus wall-face, light, effect, decoration, and preset editing through the Cell Editor                   | Shipped — pantry_authoring_03_environment_features.implementation_spec.md   |
+| `pantry_authoring_04` | Generated width and height plus per-color red, blue, and yellow generator totals with the default-linked door/key controls            | Shipped — pantry_authoring_04_generator_controls.implementation_spec.md     |
 
 Recommended landing order: `pantry_authoring_01` -> independent Debug Surface Shell (shipped) -> `pantry_authoring_02` -> `pantry_authoring_03` -> `pantry_authoring_04`.
 

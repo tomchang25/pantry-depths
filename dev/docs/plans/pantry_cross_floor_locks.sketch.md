@@ -21,7 +21,7 @@ What does not support it is the **generator's construction guarantee**. Today th
 
 The favored direction is to keep the existing per-floor guarantee as the base case and add cross-floor pairs as a bounded extension on top of the allocation layer that `pantry_authoring_04` introduces — rather than replacing the local argument with a global search. Whether that extension can stay a constructive argument or has to fall back on the validator as an oracle is exactly what this sketch cannot yet settle, and is the first thing the spec author must resolve.
 
-This is a standalone sketch. The work is generator construction rather than authoring interface, so no current plan owns it; the authoring plan owns the editing surface and only configures the generator. It does carry one hard dependency: `pantry_authoring_04` must land first, because the allocation seam this builds on does not exist until then.
+This is a standalone sketch. The work is generator construction rather than authoring interface, so no current plan owns it. Its one hard dependency is already satisfied: the shipped generator work introduced the allocation layer this builds on, so nothing blocks a spec.
 
 ## Sketch
 
@@ -29,7 +29,7 @@ This is a standalone sketch. The work is generator construction rather than auth
 
 - Keys are inventory in run state, not floor-scoped, so carrying a key downward already works at runtime. Verify there is no per-floor key reset anywhere in the run state.
 - The validator's topology search already tracks collected keys and opened doors across floors and is the existing oracle for whether a candidate is solvable. The generator already calls it per attempt and reseeds on failure.
-- `pantry_authoring_04` introduces an allocation layer above per-floor placement. That seam is the natural place for a cross-floor pair to be expressed, because allocation is already the step that decides which floor gets which lock.
+- The shipped generator now has an allocation layer above per-floor placement, which converts candidate-wide per-color totals into per-floor counts as matched same-color pairs. That seam is the natural place for a cross-floor pair to be expressed, because allocation is already the step that decides which floor gets which lock. Verify its current shape before designing on top of it.
 
 ### Candidate approaches
 
