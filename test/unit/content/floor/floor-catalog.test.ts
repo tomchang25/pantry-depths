@@ -2,8 +2,8 @@ import {
   createRunWorldFromFloorSet,
   PROVISIONAL_FLOOR_SET,
   PROVISIONAL_FLOOR_VALIDATION,
-  PROVISIONAL_RUN_WORLD,
 } from "@/content/floor/floor-catalog";
+import { SCENE_FLOOR_SET } from "../../../fixtures/scene-floor-set";
 import { parseFloorSet, type FloorSetSource } from "@/content/floor/floor-schema";
 import { describe, expect, it } from "vitest";
 
@@ -55,25 +55,17 @@ describe("provisional floor catalog", () => {
 
   it("keeps presentation-only environment features out of the gameplay world", () => {
     const withoutEnvironment = {
-      ...PROVISIONAL_FLOOR_SET,
-      floors: PROVISIONAL_FLOOR_SET.floors.map((floor) => ({ ...floor, environmentFeatures: [] })),
+      ...SCENE_FLOOR_SET,
+      floors: SCENE_FLOOR_SET.floors.map((floor) => ({ ...floor, environmentFeatures: [] })),
     };
-
-    expect(PROVISIONAL_FLOOR_SET.floors[0]?.environmentFeatures).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: "tileDecoration", decorationPresetId: "bones" }),
-        expect.objectContaining({
-          kind: "wallDecoration",
-          decorationPresetId: "wallTorch",
-          lightPresetId: "warmTorch",
-        }),
-        expect.objectContaining({ kind: "wallDecoration", decorationPresetId: "wallSpikes" }),
-        expect.objectContaining({ kind: "ambientLight", lightPresetId: "warmSpring" }),
-        expect.objectContaining({ kind: "effectEmitter", effectPresetId: "steam" }),
-      ]),
+    const featureIds = SCENE_FLOOR_SET.floors.flatMap((floor) =>
+      floor.environmentFeatures.map((feature) => feature.id),
     );
-    expect(createRunWorldFromFloorSet(withoutEnvironment)).toEqual(PROVISIONAL_RUN_WORLD);
-    expect(PROVISIONAL_RUN_WORLD.entities.map((entity) => entity.id)).not.toContain("b1-spikes-8-1-west");
+    const worldEntityIds = createRunWorldFromFloorSet(SCENE_FLOOR_SET).entities.map((entity) => entity.id);
+
+    expect(featureIds.length).toBeGreaterThan(0);
+    expect(worldEntityIds).not.toEqual(expect.arrayContaining(featureIds));
+    expect(createRunWorldFromFloorSet(withoutEnvironment)).toEqual(createRunWorldFromFloorSet(SCENE_FLOOR_SET));
   });
 
   it("resolves location and arrival facing from a shared destination stair", () => {
