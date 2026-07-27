@@ -71,7 +71,7 @@ No spec may press **Save Canonical JSON** in the Floor Set Workbench, or otherwi
 
 Presentation, input feel, audio, and VFX have no automated coverage in V1 and are not expected to gain any. Verify them by running `npm run dev` and playing.
 
-A manual playtest report states: which floor was reached, the player's attack and defense at that point, remaining HP, and which of the design document's numbered expectations (`dev/docs/design/pantry-depths_v1.md`, section 十) the run confirmed or contradicted.
+A manual playtest report states: which floor was reached, the player's attack and defense at that point, remaining HP, and which of the owning plan's acceptance criteria the run confirmed or contradicted. It does not measure the run against `dev/docs/design/`; that directory is frozen and `dev/standards/design_document_freeze.md` forbids citing it.
 
 ## Result Reporting
 

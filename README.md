@@ -10,7 +10,7 @@ Every action — stepping, turning, attacking, opening a door — lets each enem
 
 Red keys open the way. Blue keys buy attack. Yellow keys buy defense. You spend HP to reach a key, and the stat it unlocks makes the rest of the route cheaper. Attack decides whether you can hurt something at all; defense decides how much it costs.
 
-The design document is the authority for every rule and number: [`dev/docs/design/pantry-depths_v1.md`](dev/docs/design/pantry-depths_v1.md).
+Rules live in `src/core/` and numbers in `src/content/`; those are the authority. The design documents under `dev/docs/design/` are frozen records of what the plans were derived from and are not read for current truth — see [`dev/standards/design_document_freeze.md`](dev/standards/design_document_freeze.md).
 
 ## Status
 
