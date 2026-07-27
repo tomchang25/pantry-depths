@@ -25,7 +25,6 @@ function enemy(overrides: Partial<WorldEntity> = {}): WorldEntity {
     id: "enemy",
     floorId: "B1",
     cell: { x: 2, y: 1 },
-    appearanceId: "greenSlime",
     archetypeId: "greenSlime",
     movement: { blocksEntry: true },
     combat: { health: 3, attack: 2, defense: 0, retaliates: true },

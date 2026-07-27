@@ -27,6 +27,8 @@ export const SCENE_FLOOR_SET = parseFloorSet({
           hintFaces: ["east", "west"],
         },
         { kind: "enemy", id: "s1-hardest", cell: { x: 1, y: 3 }, archetypeId: "purpleSlime" },
+        // A creature archetype, which owns no artwork of its own and borrows the shared placeholder.
+        { kind: "enemy", id: "s1-borrowed-art", cell: { x: 4, y: 1 }, archetypeId: "goblin" },
         { kind: "exit", id: "s1-exit", cell: { x: 5, y: 3 } },
       ],
       environmentFeatures: [

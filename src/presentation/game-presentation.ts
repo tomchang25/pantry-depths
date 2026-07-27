@@ -1,4 +1,3 @@
-import type { EnemyId } from "@/content/combat/enemies";
 import { ACTION_TIMINGS } from "@/content/presentation/action-timings";
 import type { FloorSetSource } from "@/content/floor/floor-schema";
 import {
@@ -170,12 +169,14 @@ export class GamePresentation {
         });
         this.#playerHitStartedAt = now;
       } else if (event.type === "entityDefeated") {
-        const sprite = this.#scene.sprites.find((candidate) => candidate.id === event.entityId && candidate.enemyId);
+        const sprite = this.#scene.sprites.find(
+          (candidate) => candidate.id === event.entityId && candidate.appearanceId,
+        );
 
-        if (sprite?.enemyId) {
+        if (sprite?.appearanceId) {
           this.#deaths.push({
             entityId: sprite.id,
-            enemyId: sprite.enemyId,
+            appearanceId: sprite.appearanceId,
             x: sprite.x,
             y: sprite.y,
             scale: sprite.scale,
@@ -410,7 +411,7 @@ export class GamePresentation {
     }));
     const deaths: DeathRenderEffect[] = this.#deaths.map((effect) => ({
       entityId: effect.entityId,
-      enemyId: effect.enemyId as EnemyId,
+      appearanceId: effect.appearanceId,
       x: effect.x,
       y: effect.y,
       scale: effect.scale,

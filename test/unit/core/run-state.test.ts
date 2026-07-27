@@ -30,7 +30,7 @@ function enemy(overrides: Partial<WorldEntity> = {}): WorldEntity {
     id: "enemy",
     floorId: "B1",
     cell: { x: 2, y: 1 },
-    appearanceId: "goblin",
+    archetypeId: "goblin",
     movement: { blocksEntry: true },
     combat: { health: 6, attack: 4, defense: 0, retaliates: true },
     ...overrides,

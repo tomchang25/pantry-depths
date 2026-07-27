@@ -1,4 +1,4 @@
-import { getEnemyArchetype, type EnemyId } from "@/content/combat/enemies";
+import { findEnemyArchetype, type EnemyAppearanceId } from "@/content/combat/enemies";
 import type { FloorSetSource, FloorSource, FloorTile } from "@/content/floor/floor-schema";
 import { WORLD_SPRITE_PLACEMENTS, type SpritePlacement } from "@/content/presentation/sprite-placements";
 import { DECORATION_PRESETS, EFFECT_PRESETS, LIGHT_PRESETS } from "@/presentation/environment-presets";
@@ -24,7 +24,8 @@ export type RenderSprite = Readonly<{
   assetId: string;
   scale: number;
   verticalAnchor: number;
-  enemyId?: EnemyId;
+  /** Which baked artwork this sprite draws. Archetypes share appearances, so this is not an identity. */
+  appearanceId?: EnemyAppearanceId;
   wallFace?: Facing;
 }>;
 
@@ -151,20 +152,21 @@ function projectGameplay(
 
     if (source.kind === "enemy") {
       const entity = world.entities.find((candidate) => candidate.id === source.id);
-      const enemyId = entity?.appearanceId as EnemyId | undefined;
+      // Artwork is keyed by appearance, which several archetypes share, so the archetype is what
+      // the world carries and the appearance is derived here rather than duplicated onto entities.
+      const archetype = findEnemyArchetype(entity?.archetypeId);
 
-      if (!enemyId) {
+      if (!archetype) {
         continue;
       }
 
-      const archetype = getEnemyArchetype(enemyId);
       sprites.push({
         id: source.id,
         x: source.cell.x + 0.5,
         y: source.cell.y + 0.5,
         placement: "billboard",
-        assetId: `enemy.${enemyId}.normal`,
-        enemyId,
+        assetId: `enemy.${archetype.appearanceId}.normal`,
+        appearanceId: archetype.appearanceId,
         scale: archetype.displayScale,
         verticalAnchor: archetype.verticalAnchor,
       });

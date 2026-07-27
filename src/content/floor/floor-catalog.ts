@@ -33,7 +33,6 @@ function assembleEntity(
       id: entity.id,
       floorId,
       cell: entity.cell,
-      appearanceId: archetype.appearanceId,
       archetypeId: archetype.id,
       movement: { blocksEntry: true },
       combat: {

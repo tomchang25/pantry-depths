@@ -61,9 +61,21 @@ describe("render scene projection", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: "s1-hardest",
-          enemyId: "purpleSlime",
+          appearanceId: "purpleSlime",
           assetId: "enemy.purpleSlime.normal",
           scale: 1.3,
+        }),
+      ]),
+    );
+  });
+
+  it("draws an archetype that owns no artwork with the shared placeholder", () => {
+    expect(sceneAt().sprites).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "s1-borrowed-art",
+          appearanceId: "placeholder",
+          assetId: "enemy.placeholder.normal",
         }),
       ]),
     );

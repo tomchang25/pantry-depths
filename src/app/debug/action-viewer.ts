@@ -1,4 +1,5 @@
 import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
+import { findEnemyArchetype } from "@/content/combat/enemies";
 import { createActionScenario, type ActionScenario } from "@/harness/action-scenario";
 import { createFloorScenario } from "@/harness/floor-scenario";
 import type { Cell, Facing } from "@/core/grid";
@@ -97,7 +98,7 @@ function mapCellPresentation(world: RunWorld, snapshot: RunSnapshot, cell: Cell)
     const health = snapshot.entities.find((entity) => entity.id === enemy.id)?.health;
     return {
       symbol: "☠",
-      label: `${enemy.appearanceId ?? "Enemy"}, ${health ?? "unknown"} health`,
+      label: `${findEnemyArchetype(enemy.archetypeId)?.name ?? "Enemy"}, ${health ?? "unknown"} health`,
       background: "#6d1f2e",
       color: "#fff0f2",
     };

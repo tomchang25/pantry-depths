@@ -1,4 +1,4 @@
-import type { EnemyId } from "@/content/combat/enemies";
+import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import type { EnemySpriteState } from "@/content/presentation/presentation-asset-definitions";
 import type { Facing } from "@/core/grid";
 import { createProceduralTextures, type TextureSet } from "@/presentation/procedural-textures";
@@ -35,7 +35,7 @@ export type EnemyRenderEffect = Readonly<{
 
 export type DeathRenderEffect = Readonly<{
   entityId: string;
-  enemyId: EnemyId;
+  appearanceId: EnemyAppearanceId;
   x: number;
   y: number;
   scale: number;
@@ -458,8 +458,8 @@ export class CanvasGameplayRenderer {
 
     for (const projected of sprites) {
       const enemyEffect = enemyEffects.get(projected.sprite.id);
-      const assetId = projected.sprite.enemyId
-        ? `enemy.${projected.sprite.enemyId}.${enemyEffect?.state ?? "normal"}`
+      const assetId = projected.sprite.appearanceId
+        ? `enemy.${projected.sprite.appearanceId}.${enemyEffect?.state ?? "normal"}`
         : projected.sprite.assetId;
       const source = this.#litImage(assetId, projected.depth, scene, projected.sprite.x, projected.sprite.y);
       this.#drawProjectedImage(projected, source, 1);
@@ -579,8 +579,8 @@ export class CanvasGameplayRenderer {
   #drawDeath(scene: RenderScene, death: DeathRenderEffect, _elapsedSeconds: number): void {
     const sprite: RenderSprite = {
       id: death.entityId,
-      enemyId: death.enemyId,
-      assetId: `enemy.${death.enemyId}.hurt`,
+      appearanceId: death.appearanceId,
+      assetId: `enemy.${death.appearanceId}.hurt`,
       x: death.x,
       y: death.y,
       placement: "billboard",

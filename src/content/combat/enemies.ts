@@ -109,8 +109,17 @@ export const ENEMY_ARCHETYPES = [
   },
 ] as const satisfies readonly EnemyArchetype[];
 
+/**
+ * Lookup for an identifier arriving untyped from world data, where a miss is an ordinary answer
+ * rather than a fault: `WorldEntity` stores the archetype as a plain string because the rules layer
+ * cannot depend on this table.
+ */
+export function findEnemyArchetype(id: string | undefined): EnemyArchetype | undefined {
+  return ENEMY_ARCHETYPES.find((candidate) => candidate.id === id);
+}
+
 export function getEnemyArchetype(id: EnemyId): EnemyArchetype {
-  const enemy = ENEMY_ARCHETYPES.find((candidate) => candidate.id === id);
+  const enemy = findEnemyArchetype(id);
 
   if (!enemy) {
     throw new Error(`unknown enemy archetype: ${id}`);

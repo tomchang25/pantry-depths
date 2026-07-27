@@ -85,8 +85,12 @@ export type WorldEntity = Readonly<{
   kind: EntityKind;
   floorId: string;
   cell: Cell;
-  appearanceId?: string;
-  /** Which archetype this entity was assembled from. Appearance is shared between archetypes, so it cannot identify one. */
+  /**
+   * Which archetype this entity was assembled from. Kept as a plain string because the rules layer
+   * cannot depend on the content table; presentation and the readout resolve it there. Artwork is
+   * deliberately not stored alongside it — several archetypes share one appearance, so an entity
+   * carrying its appearance could no longer say what it is.
+   */
   archetypeId?: string;
   directionalHint?: DirectionalHintCapability;
   movement?: MovementCapability;
