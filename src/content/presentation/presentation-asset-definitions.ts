@@ -1,3 +1,4 @@
+import entityPlaceholder from "@/content/enemies/assets/entity-placeholder.png";
 import slimeBlueAttack from "@/content/enemies/assets/slime-blue-attack.png";
 import slimeBlueHurt from "@/content/enemies/assets/slime-blue-hurt.png";
 import slimeBlueNormal from "@/content/enemies/assets/slime-blue-normal.png";
@@ -13,7 +14,7 @@ import slimeRedNormal from "@/content/enemies/assets/slime-red-normal.png";
 import slimeYellowAttack from "@/content/enemies/assets/slime-yellow-attack.png";
 import slimeYellowHurt from "@/content/enemies/assets/slime-yellow-hurt.png";
 import slimeYellowNormal from "@/content/enemies/assets/slime-yellow-normal.png";
-import type { EnemyId } from "@/content/combat/enemies";
+import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import bones from "@/content/presentation/assets/bones.png";
 import hotSpring from "@/content/presentation/assets/hot-spring.png";
 import keyBlue from "@/content/presentation/assets/key-blue.png";
@@ -29,12 +30,14 @@ import type { KeyColor } from "@/core/run-state";
 export type EnemySpriteState = "normal" | "attack" | "hurt";
 
 export const ENEMY_SPRITE_URLS = {
-  bat: { normal: slimeGreenNormal, attack: slimeGreenAttack, hurt: slimeGreenHurt },
-  goblin: { normal: slimeYellowNormal, attack: slimeYellowAttack, hurt: slimeYellowHurt },
-  skeleton: { normal: slimeBlueNormal, attack: slimeBlueAttack, hurt: slimeBlueHurt },
-  guard: { normal: slimeRedNormal, attack: slimeRedAttack, hurt: slimeRedHurt },
+  greenSlime: { normal: slimeGreenNormal, attack: slimeGreenAttack, hurt: slimeGreenHurt },
+  yellowSlime: { normal: slimeYellowNormal, attack: slimeYellowAttack, hurt: slimeYellowHurt },
+  blueSlime: { normal: slimeBlueNormal, attack: slimeBlueAttack, hurt: slimeBlueHurt },
+  redSlime: { normal: slimeRedNormal, attack: slimeRedAttack, hurt: slimeRedHurt },
   princess: { normal: slimePurpleNormal, attack: slimePurpleAttack, hurt: slimePurpleHurt },
-} as const satisfies Readonly<Record<EnemyId, Readonly<Record<EnemySpriteState, string>>>>;
+  // Stands in for the retained creature archetypes until their own artwork is authored.
+  placeholder: { normal: entityPlaceholder, attack: entityPlaceholder, hurt: entityPlaceholder },
+} as const satisfies Readonly<Record<EnemyAppearanceId, Readonly<Record<EnemySpriteState, string>>>>;
 
 export const KEY_SPRITE_URLS = {
   red: keyRed,

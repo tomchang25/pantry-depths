@@ -74,7 +74,7 @@ describe("floor authoring mutations", () => {
   it("creates unique complete entities and rejects duplicate IDs or invalid destinations", () => {
     const entity = createDefaultGameplayEntity(FLOOR_SET, "F1", { x: 3, y: 2 }, "enemy");
 
-    expect(entity).toMatchObject({ kind: "enemy", id: "f1-enemy-3-2", archetypeId: "bat" });
+    expect(entity).toMatchObject({ kind: "enemy", id: "f1-enemy-3-2", archetypeId: "greenSlime" });
     expect(entity).toBeDefined();
 
     if (!entity) {

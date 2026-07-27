@@ -10,7 +10,7 @@ type ExpectedProjection = Readonly<{
   totalCost: number | null;
 }>;
 
-const EXPECTED_MATRIX: Readonly<Record<EnemyId, readonly ExpectedProjection[]>> = {
+const CREATURE_MATRIX = {
   bat: [
     { playerDamage: 3, retaliationDamage: 2, hitsToKill: 1, totalCost: 0 },
     { playerDamage: 5, retaliationDamage: 2, hitsToKill: 1, totalCost: 0 },
@@ -46,6 +46,15 @@ const EXPECTED_MATRIX: Readonly<Record<EnemyId, readonly ExpectedProjection[]>> 
     { playerDamage: 5, retaliationDamage: 12, hitsToKill: 6, totalCost: 60 },
     { playerDamage: 5, retaliationDamage: 8, hitsToKill: 6, totalCost: 40 },
   ],
+} as const satisfies Readonly<Record<string, readonly ExpectedProjection[]>>;
+
+// Each slime archetype carries the stat block of the creature archetype it replaced on the floors.
+const EXPECTED_MATRIX: Readonly<Record<EnemyId, readonly ExpectedProjection[]>> = {
+  ...CREATURE_MATRIX,
+  greenSlime: CREATURE_MATRIX.bat,
+  yellowSlime: CREATURE_MATRIX.goblin,
+  blueSlime: CREATURE_MATRIX.skeleton,
+  redSlime: CREATURE_MATRIX.guard,
 };
 
 describe("calculateDamage", () => {
