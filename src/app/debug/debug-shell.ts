@@ -62,6 +62,9 @@ export function createDebugPanel(
   const body = document.createElement("div");
 
   panel.className = "debug-panel";
+  // A named section is a landmark region, so a debug page with several panels stays navigable and
+  // each panel's own status text is attributable to the panel that owns it.
+  panel.setAttribute("aria-label", title);
   heading.className = "debug-panel__title";
   heading.textContent = title;
   body.className = "debug-panel__body";
