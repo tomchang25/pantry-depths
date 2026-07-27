@@ -64,7 +64,7 @@
             "x": 6,
             "y": 1
           },
-          "archetypeId": "bat"
+          "archetypeId": "yellowSlime"
         },
         {
           "kind": "enemy",
@@ -73,7 +73,7 @@
             "x": 5,
             "y": 6
           },
-          "archetypeId": "bat"
+          "archetypeId": "greenSlime"
         },
         {
           "kind": "enemy",
@@ -82,7 +82,7 @@
             "x": 1,
             "y": 10
           },
-          "archetypeId": "bat"
+          "archetypeId": "blueSlime"
         },
         {
           "kind": "enemy",
@@ -91,7 +91,7 @@
             "x": 2,
             "y": 11
           },
-          "archetypeId": "bat"
+          "archetypeId": "redSlime"
         },
         {
           "kind": "key",
@@ -103,7 +103,78 @@
           "color": "red"
         }
       ],
-      "environmentFeatures": []
+      "environmentFeatures": [
+        {
+          "kind": "wallDecoration",
+          "id": "b1-torch-3-2-north",
+          "wallCell": {
+            "x": 3,
+            "y": 2
+          },
+          "face": "north",
+          "decorationPresetId": "wallTorch",
+          "lightPresetId": "warmTorch",
+          "effectPresetId": "torchEmbers"
+        },
+        {
+          "kind": "wallDecoration",
+          "id": "b1-torch-5-2-north",
+          "wallCell": {
+            "x": 5,
+            "y": 2
+          },
+          "face": "north",
+          "decorationPresetId": "wallTorch",
+          "lightPresetId": "warmTorch",
+          "effectPresetId": "torchEmbers"
+        },
+        {
+          "kind": "wallDecoration",
+          "id": "b1-spikes-8-1-west",
+          "wallCell": {
+            "x": 8,
+            "y": 1
+          },
+          "face": "west",
+          "decorationPresetId": "wallSpikes"
+        },
+        {
+          "kind": "tileDecoration",
+          "id": "b1-bones-4-3",
+          "cell": {
+            "x": 4,
+            "y": 3
+          },
+          "decorationPresetId": "bones"
+        },
+        {
+          "kind": "ambientLight",
+          "id": "b1-stair-glow",
+          "cell": {
+            "x": 1,
+            "y": 11
+          },
+          "lightPresetId": "warmTorch"
+        },
+        {
+          "kind": "ambientLight",
+          "id": "b1-vent-glow",
+          "cell": {
+            "x": 7,
+            "y": 1
+          },
+          "lightPresetId": "warmSpring"
+        },
+        {
+          "kind": "effectEmitter",
+          "id": "b1-vent-steam",
+          "cell": {
+            "x": 7,
+            "y": 1
+          },
+          "effectPresetId": "steam"
+        }
+      ]
     },
     {
       "id": "B2",
@@ -143,9 +214,57 @@
           },
           "destinationStairId": "B3-up",
           "arrivalFacing": "east"
+        },
+        {
+          "kind": "hotSpring",
+          "id": "b2-spring",
+          "cell": {
+            "x": 5,
+            "y": 3
+          }
         }
       ],
-      "environmentFeatures": []
+      "environmentFeatures": [
+        {
+          "kind": "wallDecoration",
+          "id": "b2-torch-4-2-north",
+          "wallCell": {
+            "x": 4,
+            "y": 2
+          },
+          "face": "north",
+          "decorationPresetId": "wallTorch",
+          "lightPresetId": "warmTorch",
+          "effectPresetId": "torchEmbers"
+        },
+        {
+          "kind": "effectEmitter",
+          "id": "b2-mist-3-7",
+          "cell": {
+            "x": 3,
+            "y": 7
+          },
+          "effectPresetId": "steam"
+        },
+        {
+          "kind": "ambientLight",
+          "id": "b2-spring-glow",
+          "cell": {
+            "x": 5,
+            "y": 3
+          },
+          "lightPresetId": "warmSpring"
+        },
+        {
+          "kind": "effectEmitter",
+          "id": "b2-spring-steam",
+          "cell": {
+            "x": 5,
+            "y": 3
+          },
+          "effectPresetId": "steam"
+        }
+      ]
     },
     {
       "id": "B3",
@@ -187,20 +306,44 @@
           "arrivalFacing": "east"
         }
       ],
-      "environmentFeatures": []
+      "environmentFeatures": [
+        {
+          "kind": "tileDecoration",
+          "id": "b3-bones-2-1",
+          "cell": {
+            "x": 2,
+            "y": 1
+          },
+          "decorationPresetId": "bones"
+        },
+        {
+          "kind": "wallDecoration",
+          "id": "b3-torch-4-2-west",
+          "wallCell": {
+            "x": 4,
+            "y": 2
+          },
+          "face": "west",
+          "decorationPresetId": "wallTorch",
+          "lightPresetId": "warmTorch",
+          "effectPresetId": "torchEmbers"
+        },
+        {
+          "kind": "wallDecoration",
+          "id": "b3-spikes-6-2-east",
+          "wallCell": {
+            "x": 6,
+            "y": 2
+          },
+          "face": "east",
+          "decorationPresetId": "wallSpikes"
+        }
+      ]
     },
     {
       "id": "B4",
       "theme": "guard-post",
-      "tiles": [
-        "=======",
-        "=.=.=.=",
-        "=.=.=.=",
-        "=.....=",
-        "=.=.=.=",
-        "=.=.=.=",
-        "======="
-      ],
+      "tiles": ["=======", "=.=.=.=", "=.=.=.=", "=.....=", "=.=.=.=", "=.=.=.=", "======="],
       "gameplayEntities": [
         {
           "kind": "stair",
@@ -229,7 +372,7 @@
             "x": 1,
             "y": 2
           },
-          "archetypeId": "guard"
+          "archetypeId": "redSlime"
         },
         {
           "kind": "enemy",
@@ -238,7 +381,7 @@
             "x": 5,
             "y": 2
           },
-          "archetypeId": "guard"
+          "archetypeId": "blueSlime"
         },
         {
           "kind": "enemy",
@@ -247,7 +390,7 @@
             "x": 5,
             "y": 4
           },
-          "archetypeId": "guard"
+          "archetypeId": "redSlime"
         },
         {
           "kind": "enemy",
@@ -256,7 +399,7 @@
             "x": 1,
             "y": 4
           },
-          "archetypeId": "guard"
+          "archetypeId": "blueSlime"
         },
         {
           "kind": "door",
@@ -286,18 +429,46 @@
           "color": "red"
         }
       ],
-      "environmentFeatures": []
+      "environmentFeatures": [
+        {
+          "kind": "wallDecoration",
+          "id": "b4-torch-2-2-south",
+          "wallCell": {
+            "x": 2,
+            "y": 2
+          },
+          "face": "south",
+          "decorationPresetId": "wallTorch",
+          "lightPresetId": "warmTorch",
+          "effectPresetId": "torchEmbers"
+        },
+        {
+          "kind": "wallDecoration",
+          "id": "b4-torch-4-2-south",
+          "wallCell": {
+            "x": 4,
+            "y": 2
+          },
+          "face": "south",
+          "decorationPresetId": "wallTorch",
+          "lightPresetId": "warmTorch",
+          "effectPresetId": "torchEmbers"
+        },
+        {
+          "kind": "ambientLight",
+          "id": "b4-hall-glow",
+          "cell": {
+            "x": 3,
+            "y": 3
+          },
+          "lightPresetId": "warmTorch"
+        }
+      ]
     },
     {
       "id": "B5",
       "theme": "deep-store",
-      "tiles": [
-        "=====",
-        "=...=",
-        "=...=",
-        "=...=",
-        "====="
-      ],
+      "tiles": ["=====", "=...=", "=...=", "=...=", "====="],
       "gameplayEntities": [
         {
           "kind": "stair",
@@ -319,7 +490,50 @@
           "archetypeId": "princess"
         }
       ],
-      "environmentFeatures": []
+      "environmentFeatures": [
+        {
+          "kind": "wallDecoration",
+          "id": "b5-torch-0-3-east",
+          "wallCell": {
+            "x": 0,
+            "y": 3
+          },
+          "face": "east",
+          "decorationPresetId": "wallTorch",
+          "lightPresetId": "warmTorch",
+          "effectPresetId": "torchEmbers"
+        },
+        {
+          "kind": "wallDecoration",
+          "id": "b5-torch-4-3-west",
+          "wallCell": {
+            "x": 4,
+            "y": 3
+          },
+          "face": "west",
+          "decorationPresetId": "wallTorch",
+          "lightPresetId": "warmTorch",
+          "effectPresetId": "torchEmbers"
+        },
+        {
+          "kind": "ambientLight",
+          "id": "b5-throne-glow",
+          "cell": {
+            "x": 2,
+            "y": 3
+          },
+          "lightPresetId": "warmSpring"
+        },
+        {
+          "kind": "tileDecoration",
+          "id": "b5-bones-1-2",
+          "cell": {
+            "x": 1,
+            "y": 2
+          },
+          "decorationPresetId": "bones"
+        }
+      ]
     }
   ]
 }
