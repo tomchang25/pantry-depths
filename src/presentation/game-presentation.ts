@@ -58,7 +58,8 @@ export class GamePresentation {
           });
     this.#resizeObserver?.observe(canvas);
     window.addEventListener("resize", this.#resize);
-    canvas.addEventListener("pointerdown", this.#activateAudio, { once: true });
+    window.addEventListener("keydown", this.#activateAudio);
+    window.addEventListener("pointerdown", this.#activateAudio);
     this.#resize();
     this.#animationFrame = requestAnimationFrame(this.#renderFrame);
   }
@@ -134,7 +135,7 @@ export class GamePresentation {
     cancelAnimationFrame(this.#animationFrame);
     this.#resizeObserver?.disconnect();
     window.removeEventListener("resize", this.#resize);
-    this.canvas.removeEventListener("pointerdown", this.#activateAudio);
+    this.#removeActivationListeners();
     void this.#audio.dispose();
   }
 
@@ -143,9 +144,16 @@ export class GamePresentation {
     this.#renderer.resize(bounds.width, bounds.height, window.devicePixelRatio || 1);
   };
 
+  /** Browser audio needs a gesture, and this game is played on the keyboard, so any input counts. */
   readonly #activateAudio = (): void => {
+    this.#removeActivationListeners();
     void this.#audio.activate();
   };
+
+  #removeActivationListeners(): void {
+    window.removeEventListener("keydown", this.#activateAudio);
+    window.removeEventListener("pointerdown", this.#activateAudio);
+  }
 
   readonly #renderFrame = (now: number): void => {
     if (this.#disposed) {
