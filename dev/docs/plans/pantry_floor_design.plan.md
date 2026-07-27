@@ -19,7 +19,7 @@ Turn the provisional five-floor set into the final V1 world after the playable p
 
 This plan starts after the Presentation Port is complete enough to render the authored geometry, entities, lighting, effects, and wall-mounted details used for evaluation. The Rules and Content plan supplies the deterministic runtime, provisional floors, environment-feature contract, validators, replay, and report; this plan consumes those capabilities without adding a new gameplay rule or presentation system.
 
-It also needs the standalone Run Exit change to have landed, because B5's final shape depends on where the exit sits and on the final encounter blocking the way to it.
+The standalone Run Exit change has landed, so B5's final shape is now judged against a placed exit and against the final encounter blocking the way to it.
 
 The final content pass owns:
 

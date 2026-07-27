@@ -8,7 +8,7 @@ Plan children get no lines here. They live in their plan's child overview table,
 
 ## Active
 
-- [Run exit and completion](dev/docs/plans/pantry_run_exit.implementation_spec.md) — a run ends by interacting with an authored exit instead of by defeating a goal enemy, and the princess stops being a distinct type. Ahead of `pantry_feel_04` and `pantry_floor_design_01` on the V1 critical path.
+Nothing currently in progress.
 
 ---
 
@@ -30,7 +30,7 @@ Plan children get no lines here. They live in their plan's child overview table,
 
 The Presentation Port has shipped, so the V1 critical-path next action is `pantry_feel_01`; it also inherits the first chance to exercise the renderer's semantic-event feedback, which no caller has driven yet. Scene Authoring and Live Preview is available in parallel, and its preview children are now unblocked.
 
-Run Exit is active above and is also on the V1 critical path. It must land before `pantry_feel_04` and before `pantry_floor_design_01`.
+A run now ends by leaving through the authored B5 exit, so `pantry_feel_04` inherits a settled terminal rule and only owns the leaving presentation.
 
 ### Standalone sketches
 

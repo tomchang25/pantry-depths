@@ -15,6 +15,7 @@ Turned the single-file browser prototype into a governed TypeScript project. No 
 - Scaffolded the three required operation contracts, then replaced the placeholder text in `dev/agent_rules/test_operations.md` with the real environment, layers, commands, and pass criteria.
 - Declared `port-ref/` as a project-owned root tree holding the original prototype as read-only reference material.
 - Recorded the V1 lifecycle reduction in `dev/docs/README.md`: the design document is the draft, and work goes straight to standalone implementation specs.
+- 2026-07-27 — [code_style] Added `dev/standards/code_style.addendum.md`: a branch chain over a closed enumeration ends in a compiler-proved exception branch, never an unguarded fallthrough yielding one of the members. TypeScript is the only enforcement, because the linter runs without type information.
 
 ### Toolchain
 
@@ -34,6 +35,9 @@ Turned the single-file browser prototype into a governed TypeScript project. No 
 
 - 2026-07-26 — [pantry_rules] Shipped deterministic combat and action rules, provisional five-floor content, development inspection surfaces, replayable balance evidence, enforced offline-tool ownership, and presentation-only environment annotations.
 - 2026-07-26 — [pantry_rules] Final floor quality is judged through playable presentation and manual play; generated balance evidence remains descriptive and carries no numeric pass threshold.
+- 2026-07-27 — [pantry_run_exit] A run now ends by interacting with an authored exit, and no enemy defeat produces a terminal outcome. The princess is gone as a type: its stats stay unchanged as an ordinary purple slime, the hardest row of the enemy table with no boss identity. This separates where a run ends from which enemy is hardest, so both can be placed independently and every map closes the same way.
+- 2026-07-27 — [pantry_run_exit] Floor content moved to schema version 4. `goalEntityId` and `defeatOutcome` are deleted rather than renamed; a floor set now carries exactly one `exit` entity, which the validator checks by kind. Structural validation proves the exit reachable under the unchanged key-and-door rules and reports a missing, duplicated, or unreachable exit as a distinct finding.
+- 2026-07-27 — [pantry_run_exit] The exit renders through a baked block placeholder rather than authored artwork, and B5's provisional tail became a one-wide corridor so the last encounter is unavoidable by geometry. The exit carries no unlock condition in V1; switches and kill gates are recorded in `dev/docs/design/pantry_depths_v2_direction.md`.
 
 ### Development Tooling
 

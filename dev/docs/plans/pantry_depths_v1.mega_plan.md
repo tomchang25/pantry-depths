@@ -1,6 +1,6 @@
 # Pantry Depths V1 Mega Plan：一週原型與渲染移植
 
-> **Status**: 執行中。Rules and Content、Presentation Port 與 Authoring Workbench 已交付；V1 關鍵路徑的下一步是 `pantry_feel_01`，獨立項目 `pantry_run_exit` 可平行開工且必須先於 `pantry_feel_04`。
+> **Status**: 執行中。Rules and Content、Presentation Port、Authoring Workbench 與獨立項目 Run Exit 已交付；V1 關鍵路徑的下一步是 `pantry_feel_01`。
 > **Supersedes**: 無。
 > **本文性質**: 執行時以 §5 為工單；§1–§4 與 §6–§8 是決策依據與背景，供未來重新評估時參考。
 > **權威邊界**: 本文擁有架構、交付範圍與 future work。實作前的公式與數字由[設計文件](../design/pantry-depths_v1.md) 擁有；對應規則與 content 落地後由 codebase 接手。設計意圖與 Frozen extensions 不會過期，[報告](../reports/) 是給人看的實作視圖。
@@ -195,7 +195,7 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 `pantry_feel_01` 有一條容易漏的規則：**反擊在補間開始時就結算完成，動畫只是表現**。不要讓動畫時間影響遊戲狀態。
 
-`pantry_feel_04` 依賴獨立項目 Run Exit（見下）先把結算條件從擊殺改成出口互動。它只做離開的演出與統計，不擁有結束這一局的規則。
+獨立項目 Run Exit（見下）已把結算條件從擊殺改成出口互動，所以 `pantry_feel_04` 只做離開的演出與統計，不擁有結束這一局的規則。
 
 ### Plan D — Final Floor Design and Balance
 
@@ -207,13 +207,13 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 這個 child 的內容就是反覆編修、驗證、重播、重產報告與實玩五層，直到 provisional content 變成最終 V1 content；它不是 Rules plan 裡的一段尾工，也不再另留一個「最後才定稿」的 child。
 
-### 獨立項目 — Run Exit（V1 關鍵路徑）
+### 獨立項目 — Run Exit（已交付）
 
-**在 V1 關鍵路徑上，排在 `pantry_feel_04` 之前。** 結算條件從「打倒公主」改成「從出口離開」，公主這個 type 一併砍掉，數值以紫史萊姆的身分留在敵人表。方向由[設計文件](../design/pantry-depths_v1.md)第十三節擁有，執行 handoff 見 [`pantry_run_exit.implementation_spec.md`](pantry_run_exit.implementation_spec.md)。
+結算條件從「打倒公主」改成「從出口離開」，公主這個 type 一併砍掉，數值以紫史萊姆的身分留在敵人表。方向由[設計文件](../design/pantry-depths_v1.md)第十三節擁有。Shipped — `pantry_run_exit.implementation_spec.md`。
 
-它沒有自己的 Plan，因為它是一次邊界清楚的規則替換：`goalEntityId` 這個必須指向敵人的魔法欄位、`defeatOutcome` 這個只有一個使用者的欄位、以及三處保護它們的守衛一起消失，換成一個互動即結束這一局的 entity。淨複雜度大致打平。
+它沒有自己的 Plan，因為它是一次邊界清楚的規則替換：`goalEntityId` 這個必須指向敵人的魔法欄位、`defeatOutcome` 這個只有一個使用者的欄位、以及三處保護它們的守衛一起消失，換成一個互動即結束這一局的 entity。Floor content schema 隨之升到版本 4：一份 floor set 必須恰好有一個 `exit` entity，驗證器按 kind 檢查，沒有任何指標欄位可以指錯。
 
-現在做的理由是它現在免費。`pantry_feel_04`、`pantry_floor_design_01` 與 `pantry_scene_06` 都還沒開工；等 feel plan 把結局寫成「敵人血量歸零觸發」之後再改，同一件事會貴得多。
+先於 `pantry_feel_04` 落地的理由是成本：受影響的 child 當時全部未開工，等 feel plan 把結局寫成「敵人血量歸零觸發」之後再改，同一件事會貴得多。
 
 出口的**解鎖條件不在 V1**。V1 的出口永遠是開的，最終遭遇是否必經由 B5 的地形保證，那是 `pantry_floor_design_01` 的佈局責任。
 
@@ -300,7 +300,7 @@ pantry_scene_01 → pantry_scene_02 → pantry_scene_03 → pantry_scene_04 → 
 - `pantry_floor_design_01` starts only after the Presentation Port is available. It uses the A04 validator and A05 replay/report while judging and tuning the floors through the actual presentation.
 - `pantry_feel_01` 需要 `pantry_rules_03` 與 `pantry_presentation_01`。
 - `pantry_feel_03` 需要完整的 `pantry_presentation_01` 與 `pantry_feel_02`。
-- `pantry_run_exit` 只依賴已交付的 rules 與 content，隨時可以開工；它必須先於 `pantry_feel_04`，否則結局演出會綁在即將消失的擊殺觸發上。`pantry_floor_design_01` 也需要它，才知道 B5 要擺出口。
+- `pantry_run_exit` 已交付，先於 `pantry_feel_04`，所以結局演出不會綁在已消失的擊殺觸發上；`pantry_floor_design_01` 也已知道 B5 要擺出口。
 - `pantry_scene_01` 原本等 `pantry_authoring_04` 落地後才開始，避免 `_04` 的 generator 控制被 `pantry_scene_02` 蓋掉；該依賴已滿足，Plan Q 現在可以開始。
 - `pantry_scene_03` 起的每一個 child 都硬依賴 `pantry_presentation_01`：要預覽授權場景就得渲染它，faithful port 落地前沒有 renderer 可用。`_01` 與 `_02` 不受此限。
 - `pantry_presentation_01` 消費 flat 或 composite 契約的先後由 Plan B 自行決定，Plan Q 只定義 composite 契約與 authoring surface，不排 presentation 的採用時程。

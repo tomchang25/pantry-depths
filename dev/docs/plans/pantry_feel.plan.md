@@ -72,7 +72,7 @@ When health reaches zero, control stops and the death surface shows the deepest 
 
 ### Leaving
 
-Interacting with the B5 exit is the only way to complete a run. No enemy defeat produces a terminal outcome; the purple slime guarding the final stretch is the hardest row of the enemy table and nothing more. The rule that makes the exit terminal is owned by the standalone Run Exit work and lands before this child; this plan owns only what leaving looks like.
+Interacting with the B5 exit is the only way to complete a run. No enemy defeat produces a terminal outcome; the purple slime guarding the final stretch is the hardest row of the enemy table and nothing more. That rule has already shipped as standalone work, so this plan owns only what leaving looks like.
 
 On a completing interaction the runtime enters a leaving state:
 
@@ -97,7 +97,7 @@ Text, icons, shape, and layout accompany color-coded state. Core actions and inf
 | `pantry_feel_01` | Application composition, keyboard command flow, interpolation, input lock and buffering, backward rejection, and presentation-event routing | Not started; depends on grid rules and faithful presentation port |
 | `pantry_feel_02` | DOM HUD, player and enemy information, three-key display, floor label, and explored minimap integration                                     | Not started                                                       |
 | `pantry_feel_03` | Combat, side-threat, door, wall, hot-spring, upgrade, reduced-motion, and capability feedback                                               | Not started; depends on fixed-image presentation and HUD          |
-| `pantry_feel_04` | Leaving sequence, death surface, restart, and run statistics                                                                                | Not started; depends on the standalone Run Exit rule change       |
+| `pantry_feel_04` | Leaving sequence, death surface, restart, and run statistics                                                                                | Not started; the exit rule it presents has shipped                |
 
 Recommended landing order: `pantry_feel_01` -> `pantry_feel_02` -> `pantry_feel_03` -> `pantry_feel_04`.
 
@@ -106,7 +106,7 @@ Recommended landing order: `pantry_feel_01` -> `pantry_feel_02` -> `pantry_feel_
 1. Do not add save/load, checkpoint recovery, level selection, difficulty selection, a settings surface beyond mute, or progress retained after death.
 2. Do not add mouse controls, pointer lock, free look, strafing, backward movement, running, configurable key bindings, or touch controls.
 3. Do not show computed expected combat loss, auto-play routes, hints for optimal progression, or a permanent tutorial system.
-4. Do not add new gameplay rules, stat sources, enemy abilities, ending branches, or renderer improvements while integrating feel. What makes the exit terminal is a rule owned by the standalone Run Exit work, not by this plan.
+4. Do not add new gameplay rules, stat sources, enemy abilities, ending branches, or renderer improvements while integrating feel. What makes the exit terminal is a shipped rule this plan presents, not one it may change.
 5. Do not introduce browser acceptance automation for gameplay; visual, motion, audio, and interaction feel remain explicit manual-playtest boundaries. The browser layer in `test/e2e/` covers the development console only.
 
 ## Acceptance Criteria

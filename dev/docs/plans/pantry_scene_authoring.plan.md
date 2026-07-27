@@ -15,7 +15,7 @@ Give authored presentation content one identity per placement, and give the surf
 5. The floor content contract increases its schema version and canonical content migrates to it. The flat form is not retained in parallel — two readable shapes for the same data would reintroduce the ambiguity this plan exists to remove.
 6. The authoring surface renders the authored floor the way the game renders it, from a camera the author places and moves on the grid being edited, and reflects each edit without a rebuild. An eye judgement needs an eye, and a flat map cannot supply one.
 7. Every authored placement number is editable against that live view and persists as authored content: component offsets, and the display size and floor anchor of each world sprite. A number that can only be changed by editing source is a number that never gets tuned.
-8. A floor set's start position and its exit are placed and moved from the authoring surface, so the surface that builds a level can also start a run inside it. What makes the exit terminal is a settled gameplay rule owned by the standalone Run Exit work; this plan places the markers and does not decide how a run ends.
+8. A floor set's start position and its exit are placed and moved from the authoring surface, so the surface that builds a level can also start a run inside it. What makes the exit terminal is a shipped gameplay rule; this plan places the markers and does not decide how a run ends.
 
 ## Design
 
