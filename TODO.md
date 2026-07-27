@@ -8,7 +8,7 @@ Plan children get no lines here. They live in their plan's child overview table,
 
 ## Active
 
-[Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) — active parent plan; `pantry_authoring_01`, the shared Debug Surface Shell, and `pantry_authoring_02` have landed, and `pantry_authoring_03` is next.
+[Authoring Workbench UX](dev/docs/plans/pantry_authoring.plan.md) — active parent plan; `pantry_authoring_01`, the shared Debug Surface Shell, `pantry_authoring_02`, and `pantry_authoring_03` have landed, and `pantry_authoring_04` is next.
 
 ---
 
@@ -30,6 +30,13 @@ Plan children get no lines here. They live in their plan's child overview table,
 | Q      | [Composite Environment Presets](dev/docs/plans/pantry_preset.plan.md) |          3 | Queued after `pantry_authoring_04`                 |
 
 Current optional-tooling work is the remaining Authoring Workbench child. The V1 critical-path next action remains `/implement pantry_presentation_01`.
+
+### Standalone sketches
+
+Direction chosen, no plan owns the area. Each becomes actionable through `/implement`, which rewrites it into a standalone implementation spec.
+
+- [Start and end markers](dev/docs/plans/pantry_start_and_end_markers.sketch.md) — make the spawn position and the run-completion condition authored markers instead of a fixed corner and one enemy's identity. The completion half is a product decision the design document owns and overlaps the feel plan's ending sequence; settle that before writing a spec.
+- [Cross-floor locks](dev/docs/plans/pantry_cross_floor_locks.sketch.md) — let the generator place a key on one floor and the door it opens on a later one. Runtime and the validator already support it; the generator's per-floor construction guarantee does not. Depends on the allocation layer `pantry_authoring_04` introduces.
 
 ---
 

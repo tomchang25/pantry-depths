@@ -1,6 +1,6 @@
 # Floor Authoring Workbench Experience
 
-> **Status**: Active. `pantry_authoring_01`, the independent Debug Surface Shell, `pantry_authoring_02`, and `pantry_authoring_03` have landed; `pantry_authoring_04` is the next handoff. Closeout for every shipped child is deferred until the whole plan is complete.
+> **Status**: Active. `pantry_authoring_01`, the independent Debug Surface Shell, `pantry_authoring_02`, and `pantry_authoring_03` have landed; `pantry_authoring_04` is the current handoff. Closeout for every shipped child is deferred until the whole plan is complete.
 
 ## Goal
 
@@ -14,7 +14,7 @@ Turn the floor authoring surface from a JSON textarea with a read-only picture b
 4. The selected cell exposes a side editor for its base tile, optional gameplay entity, and environment-feature collection. Detailed parameters, faces, identifiers, destinations, colors, combat values, and preset identities belong in that editor rather than being crowded into every map cell.
 5. Tile decorations, wall-face decorations, ambient lights, and effect emitters are authorable. The workbench edits their semantic placement, outward face, and named presets without attempting to preview final three-dimensional lighting, particles, animation, or decorative appearance.
 6. Every overview symbol, badge, border, and selected-cell face indicator is explained next to the map. The overview must reveal that authored layers exist even when a gameplay entity and one or more environment features share a cell.
-7. Generator counts are configured independently for red, blue, and yellow. Each color has separate door and key counts plus a link control, enabled by default, that drives both from one number while preserving the independent values when unlinked.
+7. Generator counts are configured independently for red, blue, and yellow, and every generator count is a total for the whole generated candidate rather than a per-floor figure — a per-floor count silently scales with floor count, so asking for "three red doors" produced thirty of them on a ten-floor candidate. Each color has separate door and key counts plus a link control, enabled by default, that drives both from one number while preserving the independent values when unlinked. The enemy count is likewise a candidate total, distributed across floors.
 8. The two ways content leaves the page are labelled so the destructive one cannot be mistaken for the safe one. Export downloads a file without changing the repository; Save names and overwrites the canonical floor content.
 9. Floors are selected from a wrapping row of numbered controls, one per floor. Switching floors takes one click, the floor count remains visible, and no interaction depends on a function key.
 10. Each authored floor has independently editable width and height. Growth preserves existing coordinates and adds solid stone cells on the right or bottom; shrink keeps the top-left origin and is refused when it would remove authored content or invalidate the initial coordinate.
@@ -59,7 +59,9 @@ Edits that violate an immediately knowable structural rule are rejected at the g
 
 ### Generator controls
 
-For each existing key color, the generator exposes separate door and key counts. A per-color link toggle is on by default and mirrors one count into the other. Unlinking restores independent control without losing either remembered value. The generator continues to operate per floor.
+For each existing key color, the generator exposes separate door and key counts. A per-color link toggle is on by default and mirrors one count into the other. Unlinking restores independent control without losing either remembered value.
+
+Every count is a total for the generated candidate. The generator distributes those totals across the candidate's floors and then places each floor's allocation, so a count means what it says regardless of how many floors were requested. Distribution is deterministic for a given seed. Keys and doors are allocated as matching same-color pairs so each floor stays solvable on its own; a key that opens a door on a different floor is deliberately out of scope for this plan and is explored by a standalone sketch.
 
 Variable palette sizing and additional key colors are outside this plan. White, black, or any other new color requires gameplay meaning and a separate product decision before it can enter the content contract or generator.
 
@@ -89,11 +91,13 @@ Both require a draft that validated exactly as it currently reads. Save addition
 | `pantry_authoring_01` | Layered read-only map, cell selection and inspector, floor controls, legend, and departure-path labelling                             | [Implementation spec](pantry_authoring_01_layered_map_foundation.implementation_spec.md) |
 | `pantry_authoring_02` | Per-floor resizing, terrain painting, gameplay-entity placement and dragging, editable Cell Editor, and two-way draft synchronization | [Implementation spec](pantry_authoring_02_direct_floor_editing.implementation_spec.md)   |
 | `pantry_authoring_03` | Environment-feature placement plus wall-face, light, effect, decoration, and preset editing through the Cell Editor                   | [Implementation spec](pantry_authoring_03_environment_features.implementation_spec.md)   |
-| `pantry_authoring_04` | Generated width and height plus per-color red, blue, and yellow generator counts with the default-linked door/key controls            | Not started                                                                              |
+| `pantry_authoring_04` | Generated width and height plus per-color red, blue, and yellow generator totals with the default-linked door/key controls            | [Implementation spec](pantry_authoring_04_generator_controls.implementation_spec.md)     |
 
 Recommended landing order: `pantry_authoring_01` -> independent Debug Surface Shell (shipped) -> `pantry_authoring_02` -> `pantry_authoring_03` -> `pantry_authoring_04`.
 
-The first child establishes a readable projection and selection model before any surface can mutate the draft. The shipped independent shell gives it and every other debug scene a shared visual page template without moving authoring ownership out of this plan. The second child adds conservative per-floor resizing before terrain and gameplay editing, and the third adds the multi-record environment family. Generator dimension and color-count controls remain last because they are independent of direct map editing and must not distract from the hand-authoring bottleneck.
+The first child establishes a readable projection and selection model before any surface can mutate the draft. The shipped independent shell gives it and every other debug scene a shared visual page template without moving authoring ownership out of this plan. The second child adds conservative per-floor resizing before terrain and gameplay editing, and the third adds the multi-record environment family. Generator dimension and count controls come last because they are independent of direct map editing and must not distract from the hand-authoring bottleneck.
+
+Two adjacent ideas were deliberately kept out of this plan rather than added as further children, because each would have stretched its boundary past the authoring surface. Authorable start and end markers change what completes a run, which the design document owns as a product decision and which overlaps the ending presentation owned by the feel plan. Cross-floor locks change the generator's construction guarantee from per-floor solvability to whole-sequence solvability. Both are recorded as standalone sketches tracked in `TODO.md`; cross-floor locks additionally depend on the allocation layer `pantry_authoring_04` introduces.
 
 ## Non-Goals
 
