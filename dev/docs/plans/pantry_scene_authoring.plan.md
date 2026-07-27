@@ -85,9 +85,9 @@ Recommended landing order: `pantry_scene_01` -> `pantry_scene_02` -> `pantry_sce
 
 This plan supersedes Composite Environment Presets and carries its first two children over unchanged. Its third child, a dedicated composite assembly editor with its own preview surface, is withdrawn: once the authoring surface renders the authored floor from a placed camera, a second preview surface built only for assemblies would duplicate the harder half of the work.
 
-The presentation plan keeps its own decision about whether it consumes the flat contract or the composite one first, and in which order. This plan defines the composite contract and the authoring surface; it does not schedule presentation's adoption.
+The shipped presentation port adopted the flat per-placement form, so the composite contract arrives as a substitution the renderer has to follow rather than as a choice it still gets to make. Migrating canonical content is therefore this plan's work, and updating the rendering path to read composites travels with it.
 
-The renderer this plan embeds is the one the presentation port delivers, so every child from the preview onward hard-depends on it. Nothing before the preview child does.
+The renderer this plan embeds is the one the presentation port already delivered, so nothing here is blocked on it. The preview children are the first work to host it outside a full-viewport surface.
 
 ## Non-Goals
 

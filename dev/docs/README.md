@@ -32,14 +32,14 @@ When the design document and the codebase disagree about a number, the codebase 
 
 ## Lifecycle Scope For V1
 
-V1 is a one-week prototype delivered by a single author, but its rules, presentation port, feel/endgame work, and final floor design use different evidence and landing sequences. The design document therefore serves as the product draft, the mega plan owns milestone ordering, and four critical-path main plans own the durable requirements and child overviews for those execution streams. Rules and Content is shipped and archived, as is the optional Authoring Workbench; the remaining three critical-path plans stay active below the milestone.
+V1 is a one-week prototype delivered by a single author, but its rules, presentation port, feel/endgame work, and final floor design use different evidence and landing sequences. The design document therefore serves as the product draft, the mega plan owns milestone ordering, and four critical-path main plans own the durable requirements and child overviews for those execution streams. Rules and Content and the Presentation Port are shipped and archived, as is the optional Authoring Workbench; the remaining two critical-path plans stay active below the milestone.
 
 The critical-path route is:
 
 ```text
 design draft
 -> V1 mega plan
--> active presentation, feel, or final-floor main plan
+-> active feel or final-floor main plan
 -> focused child implementation spec
 -> implementation
 -> verification

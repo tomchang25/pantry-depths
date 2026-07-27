@@ -18,17 +18,17 @@ Nothing currently in progress.
 
 [`dev/docs/plans/pantry_depths_v1.mega_plan.md`](dev/docs/plans/pantry_depths_v1.mega_plan.md) — the whole game, in four critical-path delivery plans and two optional tooling and content plans.
 
-| Stream | Scope                                                                             |   Children | State                                                |
-| ------ | --------------------------------------------------------------------------------- | ---------: | ---------------------------------------------------- |
-| A      | Rules and Content                                                                 |          7 | Shipped                                              |
-| B      | [Presentation Port](dev/docs/plans/pantry_presentation.plan.md)                   |          1 | Active — combined renderer spec ready                |
-| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)                            |          4 | Queued                                               |
-| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)                  |          1 | Queued after Presentation Port                       |
-| T      | Debug Surface Shell                                                               | standalone | Shipped; shared debug presentation foundation        |
-| P      | Authoring Workbench UX                                                            |          4 | Shipped; direct floor authoring and generator totals |
-| Q      | [Scene Authoring and Live Preview](dev/docs/plans/pantry_scene_authoring.plan.md) |          6 | Queued; preview children need the renderer           |
+| Stream | Scope                                                                             |   Children | State                                                         |
+| ------ | --------------------------------------------------------------------------------- | ---------: | ------------------------------------------------------------- |
+| A      | Rules and Content                                                                 |          7 | Shipped                                                       |
+| B      | Presentation Port                                                                 |          1 | Shipped; renderer parity and reduced-motion evidence deferred |
+| C      | [Feel and Endgame](dev/docs/plans/pantry_feel.plan.md)                            |          4 | Queued                                                        |
+| D      | [Final Floor Design](dev/docs/plans/pantry_floor_design.plan.md)                  |          1 | Queued after Presentation Port                                |
+| T      | Debug Surface Shell                                                               | standalone | Shipped; shared debug presentation foundation                 |
+| P      | Authoring Workbench UX                                                            |          4 | Shipped; direct floor authoring and generator totals          |
+| Q      | [Scene Authoring and Live Preview](dev/docs/plans/pantry_scene_authoring.plan.md) |          6 | Queued; preview children need the renderer                    |
 
-The Authoring Workbench is shipped, so Scene Authoring and Live Preview is the next available optional-tooling work; its first two children can start now, and everything from its preview child onward waits for the renderer. The V1 critical-path next action remains `pantry_presentation_01`, now carried by the combined 2.5D renderer spec.
+The Presentation Port has shipped, so the V1 critical-path next action is `pantry_feel_01`; it also inherits the first chance to exercise the renderer's semantic-event feedback, which no caller has driven yet. Scene Authoring and Live Preview is available in parallel, and its preview children are now unblocked.
 
 ### Standalone sketches
 

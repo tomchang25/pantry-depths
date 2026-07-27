@@ -1,5 +1,9 @@
 # Pantry Depths Presentation Port
 
+> **Status**: Shipped and archived. `pantry_presentation_01` delivered the complete 2.5D gameplay renderer.
+>
+> Three acceptance gaps were explicitly accepted at closeout rather than met. Criterion 1 (side-by-side parity against the retained prototype) and criterion 7 (reduced-motion and silent-audio behaviour) were never exercised in a browser; the project has no automated coverage for either and both need a manual session. The event half of criteria 3 and 5 — hurt and attack poses, the white hit flash, the two-piece death, and impact audio — is implemented but has never executed, because command input is a Non-Goal of this plan and no caller yet delivers semantic events. That gap is structural and cannot be closed inside this plan; `pantry_feel` is the first work that can exercise it, and it inherits the obligation.
+
 ## Goal
 
 Preserve the original prototype's distinctive first-person dungeon rendering and procedural audio while moving presentation behind a read-only snapshot and semantic-event boundary. Deliver the faithful renderer, fixed-image enemy pipeline, and authored environment features together as one complete 2.5D gameplay-rendering slice without allowing the port to become a renderer rewrite or a gameplay owner.
@@ -79,11 +83,11 @@ The renderer lands as one complete child so the first reviewable product surface
 
 ### Child overview
 
-| Child                    | Focus                                                                                                                                                                   | Current document form                                                                                                                |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `pantry_presentation_01` | Complete 2.5D gameplay renderer: faithful raycasting and atmosphere, offline-baked state sprites, authored environment features, hands, audio, and capability fallbacks | [`pantry_presentation_01_complete_renderer.implementation_spec.md`](pantry_presentation_01_complete_renderer.implementation_spec.md) |
+| Child                    | Focus                                                                                                                                                                   | Current document form                                                       |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `pantry_presentation_01` | Complete 2.5D gameplay renderer: faithful raycasting and atmosphere, offline-baked state sprites, authored environment features, hands, audio, and capability fallbacks | Shipped — `pantry_presentation_01_complete_renderer.implementation_spec.md` |
 
-The combined child depends on the authored environment-feature contract from the last Rules child, which is already available. It includes the deliberately minimal slime and gameplay sprite set but does not depend on final floor placement.
+The combined child depended on the authored environment-feature contract from the last Rules child. It shipped the deliberately minimal slime and gameplay sprite set and adopted the flat per-placement preset form; the composite form defined by `pantry_scene` remains a later substitution.
 
 ## Non-Goals
 

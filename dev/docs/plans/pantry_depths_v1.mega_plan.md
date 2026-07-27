@@ -1,6 +1,6 @@
 # Pantry Depths V1 Mega Plan：一週原型與渲染移植
 
-> **Status**: 執行中。Rules and Content 與 Authoring Workbench 已交付；V1 關鍵路徑的下一步是合併後的 Presentation renderer implementation spec（`pantry_presentation_01`）。
+> **Status**: 執行中。Rules and Content、Presentation Port 與 Authoring Workbench 已交付；V1 關鍵路徑的下一步是 `pantry_feel_01`。
 > **Supersedes**: 無。
 > **本文性質**: 執行時以 §5 為工單；§1–§4 與 §6–§8 是決策依據與背景，供未來重新評估時參考。
 > **權威邊界**: 本文擁有架構、交付範圍與 future work。實作前的公式與數字由[設計文件](../design/pantry-depths_v1.md) 擁有；對應規則與 content 落地後由 codebase 接手。設計意圖與 Frozen extensions 不會過期，[報告](../reports/) 是給人看的實作視圖。
@@ -146,7 +146,7 @@ Codebase 是數值的唯一權威，但一堆沒有註解的常數沒辦法 revi
 | Plan                                                                      | Scope                  | 驗證方式                                                   | 風險   |
 | ------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------- | ------ |
 | **A. Rules and Content（已交付）**                                        | `pantry_rules`         | Unit test + debug viewer + 生成的平衡報告                  | 低     |
-| **[B. Presentation Port](pantry_presentation.plan.md)**                   | `pantry_presentation`  | 與 `port-ref/` 在保留能力範圍內並排比對                    | **高** |
+| **B. Presentation Port（已交付）**                                        | `pantry_presentation`  | 與 `port-ref/` 在保留能力範圍內並排比對                    | **高** |
 | **[C. Feel and Endgame](pantry_feel.plan.md)**                            | `pantry_feel`          | 手動試玩與鍵盤／無障礙檢查                                 | 中     |
 | **[D. Final Floor Design](pantry_floor_design.plan.md)**                  | `pantry_floor_design`  | Presentation 人工實玩 + 結構安全檢查                       | 中     |
 | **T. Debug Surface Shell（已交付）**                                      | `pantry_debug_surface` | Debug routes 的人工視覺、responsive 與鍵盤檢查             | 低     |
@@ -170,7 +170,7 @@ Gameplay rules、provisional gameplay content、驗證工具與 presentation-onl
 
 `pantry_rules_02` 的驗收特別明確：**設計文件的成本矩陣逐格變成 test case**，包含 `—` 那幾格穿不透的狀況。同一個 change 拿掉 `--passWithNoTests`。
 
-### Plan B — Presentation Port
+### Plan B — Presentation Port（已交付）
 
 從 `port-ref/` 把渲染搬過來。
 
