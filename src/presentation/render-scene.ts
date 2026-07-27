@@ -1,5 +1,6 @@
 import { getEnemyArchetype, type EnemyId } from "@/content/combat/enemies";
 import type { FloorSetSource, FloorSource, FloorTile } from "@/content/floor/floor-schema";
+import { WORLD_SPRITE_PLACEMENTS, type SpritePlacement } from "@/content/presentation/sprite-placements";
 import { DECORATION_PRESETS, EFFECT_PRESETS, LIGHT_PRESETS } from "@/presentation/environment-presets";
 import type { Cell, Facing } from "@/core/grid";
 import type { KeyColor, RunSnapshot, RunWorld } from "@/core/run-state";
@@ -121,6 +122,10 @@ function terrainSurfaces(floor: FloorSource): RenderSurface[] {
   return surfaces;
 }
 
+function groundSprite(id: string, cell: Cell, assetId: string, size: SpritePlacement): RenderSprite {
+  return { id, x: cell.x + 0.5, y: cell.y + 0.5, placement: "ground", assetId, ...size };
+}
+
 function projectGameplay(
   floor: FloorSource,
   world: RunWorld,
@@ -173,21 +178,23 @@ function projectGameplay(
         y: source.cell.y + 0.5,
         placement: "billboard",
         assetId: `key.${source.color satisfies KeyColor}`,
-        scale: 0.42,
-        verticalAnchor: -0.22,
+        ...WORLD_SPRITE_PLACEMENTS.key,
       });
       continue;
     }
 
-    sprites.push({
-      id: source.id,
-      x: source.cell.x + 0.5,
-      y: source.cell.y + 0.5,
-      placement: "ground",
-      assetId: source.kind === "stair" ? "presentation.stair" : "presentation.hotSpring",
-      scale: source.kind === "stair" ? 1.15 : 1.05,
-      verticalAnchor: -0.42,
-    });
+    if (source.kind === "stair") {
+      sprites.push(groundSprite(source.id, source.cell, "presentation.stair", WORLD_SPRITE_PLACEMENTS.stair));
+      continue;
+    }
+
+    if (source.kind === "hotSpring") {
+      sprites.push(groundSprite(source.id, source.cell, "presentation.hotSpring", WORLD_SPRITE_PLACEMENTS.hotSpring));
+      continue;
+    }
+
+    // A new gameplay entity kind must choose its own presentation form rather than inherit one.
+    source satisfies never;
   }
 }
 

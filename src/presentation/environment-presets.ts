@@ -1,8 +1,9 @@
-export type DecorationPreset = Readonly<{
-  assetId: "presentation.bones" | "presentation.wallTorch" | "presentation.wallSpikes";
-  scale: number;
-  verticalAnchor: number;
-}>;
+import { WORLD_SPRITE_PLACEMENTS, type SpritePlacement } from "@/content/presentation/sprite-placements";
+
+export type DecorationPreset = SpritePlacement &
+  Readonly<{
+    assetId: "presentation.bones" | "presentation.wallTorch" | "presentation.wallSpikes";
+  }>;
 
 export type LightPreset = Readonly<{
   radius: number;
@@ -16,9 +17,9 @@ export type EffectPreset = Readonly<{
 }>;
 
 export const DECORATION_PRESETS: Readonly<Record<string, DecorationPreset>> = {
-  bones: { assetId: "presentation.bones", scale: 0.72, verticalAnchor: -0.42 },
-  wallTorch: { assetId: "presentation.wallTorch", scale: 0.58, verticalAnchor: -0.08 },
-  wallSpikes: { assetId: "presentation.wallSpikes", scale: 0.82, verticalAnchor: 0.08 },
+  bones: { assetId: "presentation.bones", ...WORLD_SPRITE_PLACEMENTS.bones },
+  wallTorch: { assetId: "presentation.wallTorch", ...WORLD_SPRITE_PLACEMENTS.wallTorch },
+  wallSpikes: { assetId: "presentation.wallSpikes", ...WORLD_SPRITE_PLACEMENTS.wallSpikes },
 };
 
 export const LIGHT_PRESETS: Readonly<Record<string, LightPreset>> = {
