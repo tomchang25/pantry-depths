@@ -148,10 +148,14 @@ export type DemoVfx = DemoVfxSpec & { id: string };
  * How an enemy died, which is what its body does next.
  *
  * The corpse animation is picked by cause, not by damage source bookkeeping: a cleave splits the
- * body, a pinning leaves it slumped on the shaft, a blast leaves nothing at all. Everything without
- * a signature of its own — rocks, falls, spikes, lightning — deflates as "slain".
+ * body, a blast leaves pieces of it across the floor, and the spikes empty it where it fell.
+ * Everything without a signature of its own — rocks, falls, lightning — deflates as "slain".
+ *
+ * `splattered` is the wall: a javelin that nailed it there and a throw that slammed it in are the
+ * same statement about the body, and it is not a statement about a corpse — what is left is a mark
+ * on the masonry, so both come through one cause rather than two that render alike.
  */
-export type DemoDeathCause = "slain" | "cleaved" | "drowned" | "pinned" | "blasted";
+export type DemoDeathCause = "slain" | "cleaved" | "drowned" | "splattered" | "blasted" | "impaled";
 
 export type DemoDeath = {
   id: string;
@@ -698,7 +702,13 @@ export function killEnemy(
   }
 }
 
-export function damageEnemy(world: DemoWorld, enemy: DemoEnemy, amount: number, cause: DemoDeathCause = "slain"): void {
+export function damageEnemy(
+  world: DemoWorld,
+  enemy: DemoEnemy,
+  amount: number,
+  cause: DemoDeathCause = "slain",
+  direction?: DemoCellLike,
+): void {
   if (enemy.drowningSeconds > 0) {
     return;
   }
@@ -707,7 +717,7 @@ export function damageEnemy(world: DemoWorld, enemy: DemoEnemy, amount: number, 
   enemy.hurtSeconds = 0.28;
 
   if (enemy.hp <= 0) {
-    killEnemy(world, enemy, cause);
+    killEnemy(world, enemy, cause, direction);
   }
 }
 

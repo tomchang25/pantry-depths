@@ -38,6 +38,7 @@ export const DEMO_ASSET_IDS = {
   warnCharge: "demo.warnCharge",
   laneMarker: "demo.laneMarker",
   bubble: "demo.bubble",
+  wallSplat: "demo.wallSplat",
 } as const;
 
 function surface(): readonly [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -333,6 +334,79 @@ function blob(red: number, green: number, blue: number, hardness: number, alpha 
   };
 }
 
+/**
+ * What a body pinned to a wall turns into: a mark on the masonry, thickest at the centre, with
+ * runs starting down from it.
+ *
+ * A wall decal rather than another blob. The blob is a stack of horizontal rings, so it can be
+ * flattened into a puddle on the *floor* and cannot be flattened onto anything vertical — a body
+ * spread across a wall is exactly the shape that vocabulary cannot say. The renderer already knows
+ * how to hang an image on a wall face and foreshorten it as the view goes oblique, so this is drawn
+ * once and hung there.
+ */
+function wallSplat(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const core = context.createRadialGradient(256, 236, 10, 256, 236, 210);
+  core.addColorStop(0, "rgb(168 26 34 / 94%)");
+  core.addColorStop(0.42, "rgb(126 18 28 / 82%)");
+  core.addColorStop(0.78, "rgb(86 12 22 / 44%)");
+  core.addColorStop(1, "rgb(70 10 18 / 0%)");
+  context.fillStyle = core;
+
+  // An irregular rim rather than a circle: the radius is pushed in and out around the turn, so the
+  // edge reads as something that hit and spread rather than as a stamped disc.
+  context.beginPath();
+
+  for (let step = 0; step <= 48; step += 1) {
+    const angle = (step / 48) * Math.PI * 2;
+    const wobble = 0.72 + Math.sin(angle * 3 + 0.7) * 0.14 + Math.sin(angle * 7 + 2.1) * 0.09;
+    const radius = 210 * wobble;
+    const x = 256 + Math.cos(angle) * radius;
+    const y = 236 + Math.sin(angle) * radius * 0.86;
+
+    if (step === 0) {
+      context.moveTo(x, y);
+      continue;
+    }
+
+    context.lineTo(x, y);
+  }
+
+  context.fill();
+
+  // Runs, and the drop at the end of each. Gravity is the one thing that tells a viewer this is on
+  // a wall and not on the ground.
+  context.fillStyle = "rgb(120 16 26 / 76%)";
+
+  for (const run of [
+    { x: 176, width: 15, length: 172 },
+    { x: 232, width: 21, length: 232 },
+    { x: 296, width: 13, length: 138 },
+    { x: 336, width: 17, length: 196 },
+  ]) {
+    context.fillRect(run.x, 236, run.width, run.length);
+    context.beginPath();
+    context.arc(run.x + run.width / 2, 236 + run.length, run.width * 0.8, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  // A few flecks thrown clear of the main mark, which is what stops the outline reading as drawn.
+  context.fillStyle = "rgb(150 22 32 / 68%)";
+
+  for (const fleck of [
+    { x: 96, y: 150, radius: 15 },
+    { x: 402, y: 188, radius: 12 },
+    { x: 350, y: 96, radius: 9 },
+    { x: 140, y: 320, radius: 11 },
+  ]) {
+    context.beginPath();
+    context.arc(fleck.x, fleck.y, fleck.radius, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  return canvas;
+}
+
 /** The rune that hangs over an unspent altar; the part of it worth seeing through a wall. */
 function rune(): HTMLCanvasElement {
   const [canvas, context] = surface();
@@ -554,6 +628,7 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.dustPuff, blob(176, 158, 176, 0.1, 0.5)());
   merged.set(DEMO_ASSET_IDS.hazardOrb, hazardOrb());
   merged.set(DEMO_ASSET_IDS.bubble, bubble());
+  merged.set(DEMO_ASSET_IDS.wallSplat, wallSplat());
   merged.set(DEMO_ASSET_IDS.warnShoot, warning("#5aa8e0", "!"));
   merged.set(DEMO_ASSET_IDS.warnCharge, warning("#e2585f", "!"));
   merged.set(DEMO_ASSET_IDS.laneMarker, laneMarker());

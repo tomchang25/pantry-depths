@@ -95,7 +95,7 @@ export function checkHazards(world: DemoWorld, enemy: DemoEnemy): void {
   });
 }
 
-/** Anything shoved onto the spikes dies there and then. The spray is the whole record of it. */
+/** Anything shoved onto the spikes dies there and then, run through where it landed. */
 function impale(world: DemoWorld, enemy: DemoEnemy): void {
   burst(world.particles, "blood", enemy.x, enemy.y, 0.4, 16, {
     speed: 2.4,
@@ -104,7 +104,7 @@ function impale(world: DemoWorld, enemy: DemoEnemy): void {
     life: 1.2,
   });
   burst(world.particles, "ember", enemy.x, enemy.y, 0.45, 6, { speed: 2, spreadZ: 1.8, size: 0.04, life: 0.5 });
-  killEnemy(world, enemy);
+  killEnemy(world, enemy, "impaled");
 }
 
 function enemiesWithin(world: DemoWorld, x: number, y: number, radius: number): DemoEnemy[] {
@@ -274,6 +274,14 @@ function arrival(world: DemoWorld, x: number, y: number, thud: number): void {
   world.shake = Math.max(world.shake, thud * nearness);
 }
 
+/** How a throw ended: what stopped it, how heavy it was, and which way it was going when it did. */
+export type BodyLanding = Readonly<{
+  hitWall: boolean;
+  thud: number;
+  directionX: number;
+  directionY: number;
+}>;
+
 /**
  * What a thrown body suffers on arrival.
  *
@@ -281,12 +289,17 @@ function arrival(world: DemoWorld, x: number, y: number, thud: number): void {
  * for the fall, doubled if a wall stopped it. Throwing an enemy is therefore a way to spend that
  * enemy — hardest into a wall — rather than a way to damage the ones it flew past.
  *
+ * A wall is also the one landing that decides how the body ends: at that speed there is nothing left
+ * to fall over, so the death is the mark it leaves rather than a corpse on the floor. That is the
+ * same end a javelin gives, and it comes through the same cause.
+ *
  * The blessed version keeps its detonation, which is the whole reason that blessing exists.
  */
-export function bodyLanding(world: DemoWorld, thrown: DemoEnemy, hitWall: boolean, thud = 1): void {
+export function bodyLanding(world: DemoWorld, thrown: DemoEnemy, landing: BodyLanding): void {
   const explosive = hasBless(world.bless, "explosiveBody");
+  const hitWall = landing.hitWall;
   thrown.stunSeconds = Math.max(thrown.stunSeconds, BODY_STUN_SECONDS);
-  arrival(world, thrown.x, thrown.y, thud * (hitWall ? 1.3 : 1));
+  arrival(world, thrown.x, thrown.y, landing.thud * (hitWall ? 1.3 : 1));
 
   if (explosive) {
     const radius = EXPLOSIVE_BODY_RADIUS;
@@ -302,7 +315,10 @@ export function bodyLanding(world: DemoWorld, thrown: DemoEnemy, hitWall: boolea
     }
   }
 
-  damageEnemy(world, thrown, thrownImpactDamage(world) * (hitWall ? 2 : 1));
+  damageEnemy(world, thrown, thrownImpactDamage(world) * (hitWall ? 2 : 1), hitWall ? "splattered" : "slain", {
+    x: landing.directionX,
+    y: landing.directionY,
+  });
 }
 
 /** Sinks anything already drowning, and finishes it when the water closes over. */

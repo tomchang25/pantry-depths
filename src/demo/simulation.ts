@@ -8,7 +8,7 @@
 import { AXE_CAPACITY, damageWall, heldWeight, JAVELIN_CAPACITY, thrownWallDamage } from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
 import { bargeInto, bodyLanding, checkHazards, detonate, rockImpact, stepDrowning } from "@/demo/impacts";
-import { blocksProjectile, blocksProjectileAt, generateDemoMaze } from "@/demo/maze";
+import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
 import {
@@ -143,7 +143,12 @@ function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: 
   checkHazards(world, enemy);
 
   if (world.enemies.includes(enemy)) {
-    bodyLanding(world, enemy, hitWall, projectile.thud);
+    bodyLanding(world, enemy, {
+      hitWall,
+      thud: projectile.thud,
+      directionX: projectile.directionX,
+      directionY: projectile.directionY,
+    });
   }
 }
 
@@ -243,26 +248,35 @@ function cleaveWithAxe(world: DemoWorld, projectile: DemoProjectile): boolean {
   return false;
 }
 
-/** Nails everything the javelin was carrying to whatever stopped it, and leaves them there dead. */
+/** How far apart bodies are spread across the face they hit, so three marks are not one mark. */
+const WALL_MARK_SPREAD = 0.24;
+
+/**
+ * Nails everything the javelin was carrying to whatever stopped it, and leaves them there dead.
+ *
+ * The bodies are spread sideways across the face rather than strung out back along the shaft. They
+ * used to be a row of corpses slumped around it, which was the best a standing body could do — and a
+ * body driven into masonry at that speed is not standing. What is left of each is a mark on the wall,
+ * and three of those in a line into the wall would be three in the same place. The scene puts each
+ * one onto the plane itself; what is decided here is only which part of the face it took.
+ */
 function pinToWall(world: DemoWorld, projectile: DemoProjectile): void {
   if (projectile.skewered.length === 0) {
     return;
   }
 
-  // Backed off the surface along the shaft, so three bodies read as a row on the wall rather than as
-  // one corpse standing where the other two are.
   projectile.skewered.forEach((enemy, index) => {
-    const back = 0.28 + index * 0.34;
-    const settled = unstick(
-      world.maze,
-      { x: projectile.x - projectile.directionX * back, y: projectile.y - projectile.directionY * back },
-      0.24,
-      FLUNG,
-    );
-    enemy.x = settled.x;
-    enemy.y = settled.y;
+    // Alternating either side of where the shaft went in: the middle, then one across, then one back.
+    const across = (index % 2 === 0 ? 1 : -1) * Math.ceil(index / 2) * WALL_MARK_SPREAD;
+    const markX = projectile.x - projectile.directionY * across;
+    const markY = projectile.y + projectile.directionX * across;
+    // A corner can put the spread into the wall beside it, where a mark would hang off nothing. The
+    // middle of the face is always sound, so that is where a crowded one goes.
+    const clear = !blocksProjectile(world.maze, Math.floor(markX), Math.floor(markY));
+    enemy.x = clear ? markX : projectile.x;
+    enemy.y = clear ? markY : projectile.y;
     world.enemies.push(enemy);
-    killEnemy(world, enemy, "pinned", { x: projectile.directionX, y: projectile.directionY });
+    killEnemy(world, enemy, "splattered", { x: projectile.directionX, y: projectile.directionY });
   });
   announce(world, `${projectile.skewered.length} pinned to the wall!`);
 }
@@ -319,6 +333,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
 
     let finished = false;
     let struckCell: DemoCellLike | undefined;
+    let stoppedByWall = false;
 
     for (let step = 0; step < steps && !finished; step += 1) {
       const advance = distance / steps;
@@ -338,8 +353,19 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
         )
       ) {
         struckCell = { x: Math.floor(projectile.x), y: Math.floor(projectile.y) };
-        projectile.x -= projectile.directionX * advance;
-        projectile.y -= projectile.directionY * advance;
+        // A barricade is not a wall to a body. It is the thing bodies are meant to be shoved onto,
+        // and stepping this one back out of the cell put it on the floor in front of the iron — so
+        // a slime thrown at the spikes died of the fall, never touched them, and never once played
+        // the death the hazard exists for. A thrown body is left standing in the cell instead, and
+        // the landing finds the spikes it came down on.
+        const spikes = projectile.kind === "enemy" && isBarricadeCell(world.maze, struckCell.x, struckCell.y);
+        stoppedByWall = !spikes;
+
+        if (stoppedByWall) {
+          projectile.x -= projectile.directionX * advance;
+          projectile.y -= projectile.directionY * advance;
+        }
+
         finished = true;
         break;
       }
@@ -375,7 +401,9 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
       damageWall(world, struckCell, thrownWallDamage(projectile.kind));
     }
 
-    finishProjectile(world, projectile, struckCell !== undefined);
+    // Only masonry counts as a wall here: what it decides is whether the landing is doubled and
+    // whether the body ends as a mark on it, and the spikes answer both of those themselves.
+    finishProjectile(world, projectile, stoppedByWall);
   }
 }
 

@@ -340,8 +340,69 @@ function sprites(world: DemoWorld): RenderSprite[] {
     });
   }
 
+  for (const death of world.deaths) {
+    if (death.cause === "splattered") {
+      built.push(wallMark(death));
+    }
+  }
+
   vfxSprites(world, built);
   return built;
+}
+
+/**
+ * What a body driven into a wall leaves on it.
+ *
+ * A decal on the face rather than a blob in front of it: the blob is a stack of horizontal rings, so
+ * it can be flattened into a puddle on the floor and can never be laid against something vertical.
+ * The renderer culls a wall sprite seen from behind its own face and narrows it as the view goes
+ * oblique, so a mark drawn this way belongs to the wall rather than hovering near it.
+ *
+ * The face is read back from the throw: the mark is on the side the javelin came from, which is the
+ * only side it can be seen from.
+ */
+function wallMark(death: DemoDeath): RenderSprite {
+  const spread = Math.min(1, death.progress / 0.3);
+  // Onto the plane. The body comes to rest inside the open cell in front of the wall, so the cell
+  // boundary it was travelling towards is the face — pulled back a hair so the mark draws in front
+  // of the masonry rather than inside it. Only the axis of travel is snapped; the other one keeps
+  // the body's own position, which is what spreads a row of marks along the wall.
+  const acrossX = Math.abs(death.directionX) >= Math.abs(death.directionY);
+  const face = acrossX ? snapToFace(death.x, death.directionX) : snapToFace(death.y, death.directionY);
+  return {
+    id: `${death.id}-mark`,
+    x: acrossX ? face : death.x,
+    y: acrossX ? death.y : face,
+    placement: "wall",
+    assetId: DEMO_ASSET_IDS.wallSplat,
+    wallFace: wallMarkFace(death),
+    // Hits at speed and spreads, then holds. Nothing about a stain moves after the first moment.
+    scale: 0.58 + spread * 0.34,
+    // Hung low enough on the face that even a mark this size stays on the masonry where the walls
+    // are a single storey and everything above them is sky.
+    verticalAnchor: -0.12,
+  };
+}
+
+/** How far off a wall a mark sits, so it draws in front of the masonry rather than inside it. */
+const WALL_MARK_CLEARANCE = 0.04;
+
+function snapToFace(along: number, direction: number): number {
+  return direction > 0 ? Math.ceil(along) - WALL_MARK_CLEARANCE : Math.floor(along) + WALL_MARK_CLEARANCE;
+}
+
+/**
+ * Which face of the wall the mark is on, from the direction the throw was travelling.
+ *
+ * Typed off the sprite rather than from the grid's own vocabulary, because the demo owns no facings
+ * of its own and has no other reason to import the game's.
+ */
+function wallMarkFace(death: DemoDeath): NonNullable<RenderSprite["wallFace"]> {
+  if (Math.abs(death.directionX) >= Math.abs(death.directionY)) {
+    return death.directionX > 0 ? "west" : "east";
+  }
+
+  return death.directionY > 0 ? "north" : "south";
 }
 
 /**
@@ -350,26 +411,22 @@ function sprites(world: DemoWorld): RenderSprite[] {
  * The walker is the reference shape, the shooter is slimmer and taller, the charger is a wider,
  * lower wedge; the silhouettes have to differ because the blobs no longer carry distinct artwork.
  */
-const SLIME_BODIES: Readonly<
-  Partial<
-    Record<EnemyAppearanceId, Readonly<{ radius: number; height: number; color: readonly [number, number, number] }>>
-  >
-> = {
+type SlimeBody = Readonly<{ radius: number; height: number; color: readonly [number, number, number] }>;
+
+const SLIME_BODIES: Readonly<Partial<Record<EnemyAppearanceId, SlimeBody>>> = {
   greenSlime: { radius: 0.3, height: 0.46, color: [118, 198, 92] },
   blueSlime: { radius: 0.26, height: 0.54, color: [96, 152, 218] },
   redSlime: { radius: 0.35, height: 0.4, color: [216, 92, 86] },
 };
 
-const FALLBACK_BODY: Readonly<{ radius: number; height: number; color: readonly [number, number, number] }> = {
+const FALLBACK_BODY: SlimeBody = {
   radius: 0.3,
   height: 0.46,
   color: [160, 160, 160],
 };
 
 /** Body dimensions and colour for an appearance, shared with the viewmodel's held display. */
-export function slimeBody(
-  appearance: EnemyAppearanceId,
-): Readonly<{ radius: number; height: number; color: readonly [number, number, number] }> {
+export function slimeBody(appearance: EnemyAppearanceId): SlimeBody {
   return SLIME_BODIES[appearance] ?? FALLBACK_BODY;
 }
 
@@ -487,8 +544,51 @@ function easeOut(t: number): number {
   return t * (2 - t);
 }
 
-/** The corpse, one animation per way of dying. Returns nothing once there is nothing left to show. */
-function deathBlob(death: DemoDeath): RenderBlob | undefined {
+/** How many pieces a body comes apart into when a blast takes it. */
+const SHATTER_PIECES = 7;
+
+/**
+ * A body blown apart: pieces thrown outward, each landing and settling where it comes down.
+ *
+ * The old blast death was a single flash of overinflation and then nothing at all, which left the
+ * particle spray to carry the whole thing and read as the body vanishing. Pieces read as a body
+ * being taken apart, and they stay where they land for as long as any other corpse does.
+ *
+ * Every piece is placed from the death's own id, so the same body always breaks the same way.
+ */
+function shatteredBlobs(death: DemoDeath, corpse: RenderBlob, body: SlimeBody, t: number): RenderBlob[] {
+  const seed = enemyPhase(death.id);
+  const flight = Math.min(1, t / 0.45);
+  const settle = easeOut(flight);
+  const built: RenderBlob[] = [];
+
+  for (let piece = 0; piece < SHATTER_PIECES; piece += 1) {
+    const angle = seed + (piece / SHATTER_PIECES) * Math.PI * 2;
+    // Alternating near and far, so the pieces do not land on one neat ring around the crater.
+    const reach = (0.4 + (piece % 3) * 0.26) * settle;
+    const size = body.radius * (0.24 + ((piece * 7) % 5) * 0.05);
+    built.push({
+      ...corpse,
+      id: `${death.id}-piece-${piece}`,
+      x: death.x + Math.cos(angle) * reach,
+      y: death.y + Math.sin(angle) * reach,
+      radius: size,
+      height: body.height * 0.4,
+      // Up and over: thrown clear, then flat on the floor where it stops.
+      sink: Math.max(0, Math.sin(flight * Math.PI) * 0.55),
+      squash: 1 - 0.55 * settle,
+      wobbleAmp: 0.12 * (1 - settle),
+      wobblePhase: t * 30 + piece,
+      flash: 0.5 * (1 - flight),
+      alpha: t < 0.66 ? 1 : 1 - (t - 0.66) / 0.34,
+    });
+  }
+
+  return built;
+}
+
+/** The corpse, one animation per way of dying. Empty once there is nothing left of it to show. */
+function deathBlobs(death: DemoDeath): RenderBlob[] {
   const body = SLIME_BODIES[death.appearance] ?? FALLBACK_BODY;
   const t = Math.min(1, Math.max(0, death.progress));
   const corpse: RenderBlob = {
@@ -510,65 +610,82 @@ function deathBlob(death: DemoDeath): RenderBlob | undefined {
   };
 
   if (death.cause === "blasted") {
-    // A flash of overinflation, then nothing — the particle burst is the rest of this body.
-    if (t > 0.22) {
-      return undefined;
-    }
-
-    const k = t / 0.22;
-    return {
-      ...corpse,
-      radius: body.radius * (1 + k * 1.3),
-      squash: 1 + k * 1.6,
-      flash: 0.5 + k * 0.5,
-      alpha: 1 - k * 0.7,
-    };
+    return shatteredBlobs(death, corpse, body, t);
   }
 
   if (death.cause === "cleaved") {
     const k = easeOut(t);
-    return {
-      ...corpse,
-      squash: 0.92,
-      alpha: t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4,
-      split: { separation: 0.06 + k * 0.3, tilt: k * 0.6, drop: k * k * 0.1 },
-    };
+    return [
+      {
+        ...corpse,
+        squash: 0.92,
+        alpha: t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4,
+        split: { separation: 0.06 + k * 0.3, tilt: k * 0.6, drop: k * k * 0.1 },
+      },
+    ];
   }
 
-  if (death.cause === "pinned") {
-    // Slumped on the shaft: pushed along the throw and sagging around it.
-    return {
-      ...corpse,
-      leanX: death.directionX * (0.28 + t * 0.06),
-      leanY: death.directionY * (0.28 + t * 0.06),
-      droop: 0.12 + t * 0.22,
-      squash: 0.85,
-      wobbleAmp: 0.05 * (1 - t),
-      wobblePhase: t * 26,
-      alpha: t < 0.55 ? 1 : 1 - (t - 0.55) / 0.45,
-    };
+  if (death.cause === "splattered") {
+    // Nothing here. What is left of a body that ended against a wall is the mark it made, which is a
+    // decal drawn by `sprites` — a ring stack cannot be laid flat against anything vertical.
+    return [];
+  }
+
+  if (death.cause === "impaled") {
+    // Run through, and held there. The first pass at this deflated the body onto the floor, which is
+    // what every other death already does — so it read as an ordinary one that happened faster.
+    //
+    // What makes spikes spikes is that the body never reaches the ground: it is stopped partway
+    // down, punched through, and hangs on the iron with its top folded over. So this one keeps its
+    // volume and its height and gives up its posture instead.
+    const punch = Math.min(1, t / 0.18);
+    const hang = easeOut(t);
+    return [
+      {
+        ...corpse,
+        // Dropped onto the points and stopped there, well clear of the floor.
+        sink: 0.26 - 0.05 * hang,
+        squash: 1 - 0.34 * punch - 0.08 * hang,
+        // Folding over the tops of the spikes, which is the whole silhouette of this death.
+        droop: 0.08 + hang * 0.44,
+        // Sagging off to one side as it settles onto the iron rather than staying upright on it.
+        // The side is taken from the body's own id: nothing about being shoved onto spikes has a
+        // direction worth recording, but two bodies folding the same way reads as a copy.
+        leanX: Math.cos(enemyPhase(death.id)) * hang * 0.14,
+        leanY: Math.sin(enemyPhase(death.id)) * hang * 0.14,
+        radius: body.radius * (1 - 0.16 * hang),
+        wobbleAmp: 0.22 * (1 - punch),
+        wobblePhase: t * 34,
+        flash: 0.6 * (1 - punch),
+        alpha: t < 0.76 ? 1 : 1 - (t - 0.76) / 0.24,
+      },
+    ];
   }
 
   if (death.cause === "drowned") {
     // Already under; what remains is the water closing over it.
-    return {
-      ...corpse,
-      sink: -(body.height * (0.75 + 0.25 * t)),
-      wobbleAmp: 0.14 * (1 - t),
-      wobblePhase: t * 18,
-      alpha: 1 - t,
-    };
+    return [
+      {
+        ...corpse,
+        sink: -(body.height * (0.75 + 0.25 * t)),
+        wobbleAmp: 0.14 * (1 - t),
+        wobblePhase: t * 18,
+        alpha: 1 - t,
+      },
+    ];
   }
 
   // Slain, no signature: deflating into a puddle, edges rippling as it settles.
   const k = easeOut(t);
-  return {
-    ...corpse,
-    squash: 1 - 0.88 * k,
-    wobbleAmp: 0.1 * (1 - k),
-    wobblePhase: t * 14,
-    alpha: t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3,
-  };
+  return [
+    {
+      ...corpse,
+      squash: 1 - 0.88 * k,
+      wobbleAmp: 0.1 * (1 - k),
+      wobblePhase: t * 14,
+      alpha: t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3,
+    },
+  ];
 }
 
 /** A body carried through the air: skewered on the javelin, or thrown whole and flailing. */
@@ -609,11 +726,7 @@ function blobs(world: DemoWorld): RenderBlob[] {
   const built: RenderBlob[] = world.enemies.map((enemy) => enemyBlob(world, enemy));
 
   for (const death of world.deaths) {
-    const corpse = deathBlob(death);
-
-    if (corpse) {
-      built.push(corpse);
-    }
+    built.push(...deathBlobs(death));
   }
 
   for (const projectile of world.projectiles) {
