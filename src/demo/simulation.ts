@@ -431,14 +431,19 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
   }
 
   stepPlayer(world, input, step);
-  stepEnemies(world, step);
-  world.spawnSeconds -= step;
 
-  if (world.spawnSeconds <= 0) {
-    world.spawnSeconds += SPAWN_INTERVAL_SECONDS;
+  // The debug pause freezes thinking, movement, and reinforcement together, so what remains on
+  // screen while it is held is exactly the frame's non-enemy cost.
+  if (!world.enemiesPaused) {
+    stepEnemies(world, step);
+    world.spawnSeconds -= step;
 
-    if (spawnReinforcement(world)) {
-      announce(world, `又爬出來一隻（${world.enemies.length}/${MAX_ENEMIES}）`, 1.4);
+    if (world.spawnSeconds <= 0) {
+      world.spawnSeconds += SPAWN_INTERVAL_SECONDS;
+
+      if (spawnReinforcement(world)) {
+        announce(world, `又爬出來一隻（${world.enemies.length}/${MAX_ENEMIES}）`, 1.4);
+      }
     }
   }
 

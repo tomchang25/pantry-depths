@@ -16,7 +16,7 @@ import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { DEMO_GRID_SIZE, tileAt, tileIndex } from "@/demo/maze";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
-import { createDemoWorld, flattenFloorForTesting, type DemoWorld } from "@/demo/world";
+import { announce, createDemoWorld, flattenFloorForTesting, type DemoWorld } from "@/demo/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
 
 export type MountedDemo = Readonly<{ dispose: () => void }>;
@@ -347,6 +347,14 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     if (key === "t") {
       event.preventDefault();
       flattenFloorForTesting(world);
+      return;
+    }
+
+    // Freezes the enemies to split a frame-rate dip into its enemy and non-enemy halves.
+    if (key === "p") {
+      event.preventDefault();
+      world.enemiesPaused = !world.enemiesPaused;
+      announce(world, world.enemiesPaused ? "敵人已暫停（再按 P 恢復）" : "敵人恢復行動", 2.5);
       return;
     }
 

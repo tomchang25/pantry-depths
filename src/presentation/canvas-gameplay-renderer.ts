@@ -62,6 +62,20 @@ const LIGHTMAP_SCALE = 3;
 /** How far into a pool, in cells, the shoreline foam reaches. */
 const FOAM_WIDTH = 0.11;
 /**
+ * Quantisation and budget for the fog-and-torch-tinted wall textures.
+ *
+ * The unlit wall pass painted each column three times: the texture slice, a fog rectangle, and a
+ * torch rectangle — with a freshly built `rgba(...)` string between them. Per column, per hit, that
+ * is thousands of one-pixel canvas operations a frame whose interleaved state changes defeat any
+ * batching, and a view full of separate walls through gaps was pinned to half its frame rate by
+ * them. Baking the two tints into a cached texture keyed by quantised fog and torch makes a wall
+ * column one `drawImage` again. The fog ladder matches `SHADOW_STEPS`; the torch ladder is fine
+ * enough that the flicker still reads as movement rather than as stepping.
+ */
+const WALL_FOG_STEPS = 48;
+const WALL_TORCH_STEPS = 24;
+const TINTED_WALL_CACHE_LIMIT = 384;
+/**
  * Stain strength levels a floor overlay is quantised to.
  *
  * Overlay blending was three multiply-adds per stained pixel, every frame, forever — a floor soaked
@@ -288,6 +302,10 @@ export class CanvasGameplayRenderer {
   #solidGrid = new Uint8Array(0);
   readonly #tintStyles = new Map<number, string>();
   readonly #storeyTextures = new Map<string, HTMLCanvasElement>();
+  /** Wall textures with fog and torch baked in, keyed by material, storeys and quantised tints. */
+  readonly #tintedWallCache = new Map<number, HTMLCanvasElement>();
+  /** Stable small integers for materials, so the tinted-wall key needs no string. */
+  readonly #materialIds = new Map<RenderSurfaceMaterial, number>();
   /** Reused by every column so a per-frame walk of the maze allocates nothing. */
   readonly #rayColumn: RayHit[] = [];
   #planeBuffer: ImageData | undefined;
@@ -516,6 +534,69 @@ export class CanvasGameplayRenderer {
     }
 
     this.#storeyTextures.set(key, surface);
+    return surface;
+  }
+
+  /**
+   * The storey texture with the unlit pass's fog and torch rectangles already applied.
+   *
+   * Same two fills the per-column path used to make, performed once onto a 64-wide canvas instead of
+   * once per screen column. Steady state is a pure cache hit: the flicker only wanders between two
+   * adjacent torch buckets, and both stay resident.
+   */
+  #tintedWallTexture(
+    material: RenderSurfaceMaterial,
+    storeys: number,
+    fogAlpha: number,
+    torch: number,
+  ): CanvasImageSource {
+    const fogStep = Math.round(clamp(fogAlpha, 0, 1) * WALL_FOG_STEPS);
+    const torchStep = Math.round(clamp(torch, 0, 1) * WALL_TORCH_STEPS);
+    let materialId = this.#materialIds.get(material);
+
+    if (materialId === undefined) {
+      materialId = this.#materialIds.size;
+      this.#materialIds.set(material, materialId);
+    }
+
+    const key = ((materialId * 16 + storeys) * (WALL_FOG_STEPS + 1) + fogStep) * (WALL_TORCH_STEPS + 1) + torchStep;
+    const cached = this.#tintedWallCache.get(key);
+
+    if (cached) {
+      this.#tintedWallCache.delete(key);
+      this.#tintedWallCache.set(key, cached);
+      return cached;
+    }
+
+    const base = this.#storeyTexture(material, storeys);
+    const surface = this.canvas.ownerDocument.createElement("canvas");
+    surface.width = TEXTURE_SIZE;
+    surface.height = TEXTURE_SIZE * storeys;
+    const context = surface.getContext("2d");
+
+    if (!context) {
+      return base;
+    }
+
+    context.drawImage(base, 0, 0);
+    context.fillStyle = `rgba(13, 5, 24, ${fogStep / WALL_FOG_STEPS})`;
+    context.fillRect(0, 0, surface.width, surface.height);
+
+    if (torchStep > 0) {
+      context.fillStyle = `rgba(255, 112, 35, ${(torchStep / WALL_TORCH_STEPS) * 0.16})`;
+      context.fillRect(0, 0, surface.width, surface.height);
+    }
+
+    this.#tintedWallCache.set(key, surface);
+
+    for (const staleKey of this.#tintedWallCache.keys()) {
+      if (this.#tintedWallCache.size <= TINTED_WALL_CACHE_LIMIT) {
+        break;
+      }
+
+      this.#tintedWallCache.delete(staleKey);
+    }
+
     return surface;
   }
 
@@ -1524,15 +1605,6 @@ export class CanvasGameplayRenderer {
       hit.surface.material === "breakableWall" && !hit.surface.hintFaces?.includes(hit.face)
         ? "stoneWall"
         : hit.surface.material;
-    // Resolved from a table built once per frame. Looking it up by a key composed here instead
-    // allocated a string per screen column, which measured as most of the wall pass.
-    const textureKey = storeys === 1 ? material : `${material}:${storeys}`;
-    let texture = frameTextures.get(textureKey);
-
-    if (texture === undefined) {
-      texture = this.#storeyTexture(material, storeys);
-      frameTextures.set(textureKey, texture);
-    }
 
     // Clipped against the screen in *source* space, not by shortening the destination.
     //
@@ -1552,22 +1624,29 @@ export class CanvasGameplayRenderer {
 
     const sourceTop = (above / wallHeight) * sourceHeight;
     const sourceSpan = (visible / wallHeight) * sourceHeight;
-    this.#context.drawImage(texture, hit.textureX, sourceTop, 1, sourceSpan, x, start + above, 1, visible);
-
     const fog = clamp(hit.distance / MAX_DEPTH, 0, 0.88);
 
     if (!this.#lit) {
+      // One draw from a texture with the tints already in it. The former texture-then-two-fills
+      // form cost three interleaved canvas operations per column, which is what a view of many
+      // separate walls multiplied into a frame-rate cliff.
       const torch = clamp(1.15 - hit.distance / 7.5, 0, 1) * flicker * torchContraction;
-      this.#context.fillStyle = `rgba(13, 5, 24, ${fog + (1 - hit.shade) * 0.15})`;
-      this.#context.fillRect(x, start, 1, wallHeight);
-
-      if (torch > 0) {
-        this.#context.fillStyle = `rgba(255, 112, 35, ${torch * 0.16})`;
-        this.#context.fillRect(x, start, 1, wallHeight);
-      }
-
+      const tinted = this.#tintedWallTexture(material, storeys, fog + (1 - hit.shade) * 0.15, torch);
+      this.#context.drawImage(tinted, hit.textureX, sourceTop, 1, sourceSpan, x, start + above, 1, visible);
       return;
     }
+
+    // Resolved from a table built once per frame. Looking it up by a key composed here instead
+    // allocated a string per screen column, which measured as most of the wall pass.
+    const textureKey = storeys === 1 ? material : `${material}:${storeys}`;
+    let texture = frameTextures.get(textureKey);
+
+    if (texture === undefined) {
+      texture = this.#storeyTexture(material, storeys);
+      frameTextures.set(textureKey, texture);
+    }
+
+    this.#context.drawImage(texture, hit.textureX, sourceTop, 1, sourceSpan, x, start + above, 1, visible);
 
     // Sampled a little in front of the face rather than inside the block, which is solid and
     // therefore always unlit.

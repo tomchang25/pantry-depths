@@ -197,6 +197,8 @@ export type DemoWorld = {
    */
   terrainVersion: number;
   held: DemoHeld;
+  /** Debug: freezes enemy thinking, movement, and reinforcement while true. Toggled by the P key. */
+  enemiesPaused: boolean;
   status: DemoStatus;
   elapsedSeconds: number;
   swing: number;
@@ -404,6 +406,7 @@ export function createDemoWorld(): DemoWorld {
     wallHeight: 1.6,
     terrainVersion: 0,
     held: undefined,
+    enemiesPaused: false,
     status: "playing",
     elapsedSeconds: 0,
     swing: 0,
@@ -427,18 +430,18 @@ export function createDemoWorld(): DemoWorld {
 }
 
 /**
- * Levels the current floor into one open arena, for the T key on the demo surface.
+ * Knocks every wall out of the current floor, for the T key on the demo surface.
  *
- * Every interior tile becomes open floor — walls, pools and barricades included — and the enemy
- * count is topped up to the cap. That is the renderer's worst case on purpose: nothing occludes
- * anything, every sprite is visible at once, and every ray runs to the border unobstructed.
+ * Walls only: pools and barricades stay, deliberately — they are what `blocksWalk` still refuses to
+ * cross, so the pathfinding worst case (a player nothing can reach) stays reproducible on the
+ * flattened floor. Enemy count is topped up to the cap so every sprite is on screen at once.
  */
 export function flattenFloorForTesting(world: DemoWorld): void {
   for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
     for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
       const tile = world.maze.tiles[tileIndex(x, y)];
 
-      if (tile && tile.kind !== "open") {
+      if (tile && (tile.kind === "stone" || tile.kind === "wood")) {
         tile.kind = "open";
         tile.hp = 0;
         tile.maxHp = 0;
@@ -454,7 +457,7 @@ export function flattenFloorForTesting(world: DemoWorld): void {
     }
   }
 
-  announce(world, "測試場：牆已清空，敵人補滿", 3);
+  announce(world, "測試場：牆已拆除（水池、拒馬保留），敵人補滿", 3);
 }
 
 /**
