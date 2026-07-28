@@ -229,8 +229,6 @@ export type DemoWorld = {
   /** Bumped whenever `stains` changes, so the scene's overlay list can be reused between kills. */
   stainsVersion: number;
   deaths: DemoDeath[];
-  /** Room height in cells for this floor. Presentation only; nothing collides vertically. */
-  wallHeight: number;
   /**
    * Bumped whenever the terrain or the altar changes.
    *
@@ -384,11 +382,6 @@ export function populateFloor(world: DemoWorld): void {
   world.stains = new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE);
   world.stainsVersion += 1;
   world.deaths = [];
-  // A whole number of storeys, never a fraction. The wall texture is tiled once per cell of height,
-  // so a room 1.7 cells tall stretched the last course and made the masonry read as low-resolution
-  // rather than as high — which is exactly the distortion a fractional height causes. Deeper floors
-  // are likelier to be the tall kind.
-  world.wallHeight = Math.random() < Math.min(0.75, 0.25 + world.depth * 0.12) ? 2 : 1;
   world.terrainVersion += 1;
   world.altar = { hp: ALTAR_HITS, maxHp: ALTAR_HITS, x: maze.altar.x + 0.5, y: maze.altar.y + 0.5 };
   world.spawnSeconds = SPAWN_INTERVAL_SECONDS;
@@ -453,7 +446,6 @@ export function createDemoWorld(): DemoWorld {
     stains: new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE),
     stainsVersion: 0,
     deaths: [],
-    wallHeight: 1.6,
     terrainVersion: 0,
     held: undefined,
     enemiesPaused: false,

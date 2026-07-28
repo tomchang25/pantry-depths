@@ -9,7 +9,7 @@
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
-import { blocksWalk, DEMO_GRID_SIZE, holdsStains, tileIndex } from "@/demo/maze";
+import { blocksWalk, DEMO_GRID_SIZE, DEMO_WALL_HEIGHT, holdsStains, tileIndex } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
 import type { DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
@@ -113,7 +113,7 @@ function surfaces(world: DemoWorld): RenderSurface[] {
         // The boundary stands well above everything inside it. Under an open sky the interior walls
         // are low enough to see over from anywhere, and without a taller rim the whole floor reads
         // as a hedge maze rather than as somewhere with an outside.
-        built.push({ cell: { x, y }, material: "demoFoundation", height: world.wallHeight + BORDER_STOREYS });
+        built.push({ cell: { x, y }, material: "demoFoundation", height: DEMO_WALL_HEIGHT + BORDER_STOREYS });
         continue;
       }
 
@@ -1411,7 +1411,7 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     // Just enough ambient that an unlit corridor is a silhouette rather than a black rectangle.
     ambient: [0.16, 0.14, 0.24],
     sky: NIGHT_SKY,
-    wallHeight: world.wallHeight,
+    wallHeight: DEMO_WALL_HEIGHT,
     eyeHeight: 0.5,
     surfaces: terrain.surfaces,
     floorPatches: terrain.floorPatches,

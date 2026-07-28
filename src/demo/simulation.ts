@@ -344,13 +344,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
       // Height-aware: the arc is simulation truth, so a lob sailing above a wall's top crosses it
       // and comes down on the far side. Flat weapons fly at hand height and stop as they always did.
       if (
-        blocksProjectileAt(
-          world.maze,
-          Math.floor(projectile.x),
-          Math.floor(projectile.y),
-          projectileHeight(projectile),
-          world.wallHeight,
-        )
+        blocksProjectileAt(world.maze, Math.floor(projectile.x), Math.floor(projectile.y), projectileHeight(projectile))
       ) {
         struckCell = { x: Math.floor(projectile.x), y: Math.floor(projectile.y) };
         // A barricade is not a wall to a body. It is the thing bodies are meant to be shoved onto,

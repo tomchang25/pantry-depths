@@ -330,14 +330,28 @@ export function blocksWalk(maze: DemoMaze, x: number, y: number): boolean {
 const BARRICADE_CLEAR_HEIGHT = 0.7;
 
 /**
+ * How tall an interior wall stands, in cells.
+ *
+ * One storey, everywhere, on every floor. It used to be rolled per floor — one storey or two, with
+ * the tall kind growing likelier as you descended — and the roll decided in silence whether a lob
+ * could clear an interior wall at all: the same upward throw crossed a wall on one floor and buried
+ * itself in it on the next, with nothing on screen to say why. Height also stopped being the thing
+ * that gave the place any scale once the roof came off; the open sky and a boundary standing well
+ * above everything inside it do that now.
+ *
+ * Whole storeys only, whatever the number: the wall texture tiles once per cell of height, so a
+ * fractional room stretches its last course and reads as low-resolution masonry rather than as tall.
+ */
+export const DEMO_WALL_HEIGHT = 1;
+
+/**
  * Whether a projectile flying at this height is stopped by the cell.
  *
  * The height-aware form of `blocksProjectile`, for flights that really have a height: walls stop
  * what flies below their top, the boundary stops everything so the arena stays sealed however hard
- * the throw, and pools stop nothing. `wallHeight` is the floor's interior wall height, owned by
- * the world rather than the maze.
+ * the throw, and pools stop nothing.
  */
-export function blocksProjectileAt(maze: DemoMaze, x: number, y: number, z: number, wallHeight: number): boolean {
+export function blocksProjectileAt(maze: DemoMaze, x: number, y: number, z: number): boolean {
   const tile = tileAt(maze, x, y);
 
   if (tile === undefined || tile.kind === "border") {
@@ -345,7 +359,7 @@ export function blocksProjectileAt(maze: DemoMaze, x: number, y: number, z: numb
   }
 
   if (tile.kind === "stone" || tile.kind === "wood") {
-    return z < wallHeight;
+    return z < DEMO_WALL_HEIGHT;
   }
 
   if (tile.kind === "barricade") {
