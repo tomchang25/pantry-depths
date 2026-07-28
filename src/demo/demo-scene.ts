@@ -9,9 +9,9 @@
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
-import { DEMO_GRID_SIZE, tileIndex } from "@/demo/maze";
+import { blocksWalk, DEMO_GRID_SIZE, holdsStains, tileIndex } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
-import type { DemoMaze } from "@/demo/maze";
+import type { DemoMaze, DemoTile } from "@/demo/maze";
 import {
   projectileHeight,
   SWING_SECONDS,
@@ -27,6 +27,7 @@ import type {
   RenderBlobFace,
   RenderBox,
   RenderEmitter,
+  RenderFloorMaterial,
   RenderFloorOverlay,
   RenderFloorPatch,
   RenderLight,
@@ -104,7 +105,13 @@ function surfaces(world: DemoWorld): RenderSurface[] {
       // A barricade is boxes, not a wall face. Leaving it in here is what made a broken wood wall
       // render as a cracked stone one: the cell was still emitting a surface, and with its hit
       // points spent the damage ladder picked its most ruined texture.
-      if (!tile || tile.kind === "open" || tile.kind === "water" || tile.kind === "barricade") {
+      if (
+        !tile ||
+        tile.kind === "open" ||
+        tile.kind === "water" ||
+        tile.kind === "filled" ||
+        tile.kind === "barricade"
+      ) {
         continue;
       }
 
@@ -784,6 +791,15 @@ function boxes(world: DemoWorld): RenderBox[] {
 }
 
 /**
+ * How much of a pool cell is taken up by what has drowned in it, one material per body.
+ *
+ * The bodies are in the floor texture rather than in the world as corpses: a drowned body is under
+ * the surface, and a sprite under a floor is a sprite the renderer has no way to cut off at the
+ * waterline for anything but the sinking animation itself.
+ */
+const POOL_FILL: readonly RenderFloorMaterial[] = ["water", "waterFouled", "waterChoked"];
+
+/**
  * Every walkable cell names its floor.
  *
  * Pools are floor, not scenery — the renderer swaps the texture rather than laying a sprite on top.
@@ -795,12 +811,24 @@ function floorPatches(world: DemoWorld): RenderFloorPatch[] {
 
   for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
     for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
-      const water = world.maze.tiles[tileIndex(x, y)]?.kind === "water";
-      built.push({ cell: { x, y }, material: water ? "water" : "demoFlagstone" });
+      const tile = world.maze.tiles[tileIndex(x, y)];
+      built.push({ cell: { x, y }, material: floorMaterial(tile) });
     }
   }
 
   return built;
+}
+
+function floorMaterial(tile: DemoTile | undefined): RenderFloorMaterial {
+  if (tile?.kind === "filled") {
+    return "demoCarrion";
+  }
+
+  if (tile?.kind !== "water") {
+    return "demoFlagstone";
+  }
+
+  return POOL_FILL[Math.min(tile.bodies, POOL_FILL.length - 1)] ?? "water";
 }
 
 /** One rod in the air, given the angle its own weapon flies at. */
@@ -887,8 +915,9 @@ function floorOverlays(world: DemoWorld): RenderFloorOverlay[] {
     for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
       const amount = world.stains[y * DEMO_GRID_SIZE + x] ?? 0;
 
-      // Water washes it away — a red pool reads as a rendering mistake rather than as carnage.
-      if (amount > 0.01 && world.maze.tiles[tileIndex(x, y)]?.kind !== "water") {
+      // Water washes it away — a red pool reads as a rendering mistake rather than as carnage — and
+      // a pool the bodies have filled in carries its own colour already.
+      if (amount > 0.01 && holdsStains(world.maze, x, y)) {
         built.push({ cell: { x, y }, material: "demoBlood", amount });
       }
     }
@@ -1131,7 +1160,9 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     let row = "";
 
     for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
-      row += world.maze.tiles[tileIndex(x, y)]?.kind === "open" ? "." : "#";
+      // Asked as the walk question rather than by kind, so a pool the bodies have filled in reads
+      // as the floor it now is. Every other kind answers exactly as it did before.
+      row += blocksWalk(world.maze, x, y) ? "#" : ".";
     }
 
     rows.push(row);

@@ -224,7 +224,7 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
 export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): void {
   const tile = tileAt(world.maze, cell.x, cell.y);
 
-  if (!tile || tile.kind === "open" || tile.kind === "water") {
+  if (!tile || tile.kind === "open" || tile.kind === "water" || tile.kind === "filled") {
     return;
   }
 

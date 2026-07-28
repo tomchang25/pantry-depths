@@ -9,7 +9,7 @@
 
 export const DEMO_GRID_SIZE = 21;
 
-export type DemoTileKind = "open" | "border" | "stone" | "wood" | "water" | "barricade";
+export type DemoTileKind = "open" | "border" | "stone" | "wood" | "water" | "barricade" | "filled";
 
 export type DemoCell = Readonly<{ x: number; y: number }>;
 
@@ -18,6 +18,11 @@ export type DemoTile = {
   /** Remaining hits. Stone starts at 4, wood at 2, border is unbreakable and stays at Infinity. */
   hp: number;
   maxHp: number;
+  /**
+   * Bodies that have gone under in this cell. Water only, and the reason a pool is spendable: three
+   * of them close it over into `filled`, which is ground again.
+   */
+  bodies: number;
 };
 
 export type DemoMaze = Readonly<{
@@ -51,6 +56,13 @@ const PERFORATION_CHANCE = 0.16;
 const WOOD_SHARE = 0.42;
 const POOL_COUNT = { minimum: 3, maximum: 6 };
 const POOL_SIZE = { minimum: 1, maximum: 4 };
+/**
+ * Bodies one water cell swallows before it is ground again.
+ *
+ * Per cell rather than per pool, which is what makes a wide pool a decision: three bodies buy one
+ * square of crossing, and where you put that square is the whole of it.
+ */
+export const POOL_FILL_BODIES = 3;
 
 export function tileIndex(x: number, y: number): number {
   return y * DEMO_GRID_SIZE + x;
@@ -233,20 +245,20 @@ export function generateDemoMaze(): DemoMaze {
       const onBorder = x === 0 || y === 0 || x === DEMO_GRID_SIZE - 1 || y === DEMO_GRID_SIZE - 1;
 
       if (onBorder) {
-        tiles.push({ kind: "border", hp: Number.POSITIVE_INFINITY, maxHp: Number.POSITIVE_INFINITY });
+        tiles.push({ kind: "border", hp: Number.POSITIVE_INFINITY, maxHp: Number.POSITIVE_INFINITY, bodies: 0 });
         continue;
       }
 
       if (!solid[tileIndex(x, y)]) {
-        tiles.push({ kind: "open", hp: 0, maxHp: 0 });
+        tiles.push({ kind: "open", hp: 0, maxHp: 0, bodies: 0 });
         continue;
       }
 
       const wood = Math.random() < WOOD_SHARE;
       tiles.push(
         wood
-          ? { kind: "wood", hp: WOOD_WALL_HP, maxHp: WOOD_WALL_HP }
-          : { kind: "stone", hp: STONE_WALL_HP, maxHp: STONE_WALL_HP },
+          ? { kind: "wood", hp: WOOD_WALL_HP, maxHp: WOOD_WALL_HP, bodies: 0 }
+          : { kind: "stone", hp: STONE_WALL_HP, maxHp: STONE_WALL_HP, bodies: 0 },
       );
     }
   }
@@ -274,10 +286,21 @@ export function tileAt(maze: DemoMaze, x: number, y: number): DemoTile | undefin
  * land on top of it, which is what kills.
  */
 
+/**
+ * Ground you can stand on: bare floor, and a pool the bodies have closed over.
+ *
+ * A filled pool answers every one of the four questions below exactly as open floor does, so it is
+ * named once here rather than added to each of them — the whole point of filling one in is that it
+ * stops being a hazard and becomes somewhere to walk.
+ */
+function isFloorKind(kind: DemoTileKind): boolean {
+  return kind === "open" || kind === "filled";
+}
+
 /** Line of sight only. You can see over both a pool and a barricade. */
 export function blocksVision(maze: DemoMaze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
-  return tile === undefined || (tile.kind !== "open" && tile.kind !== "water" && tile.kind !== "barricade");
+  return tile === undefined || (!isFloorKind(tile.kind) && tile.kind !== "water" && tile.kind !== "barricade");
 }
 
 /**
@@ -288,13 +311,13 @@ export function blocksVision(maze: DemoMaze, x: number, y: number): boolean {
  */
 export function blocksProjectile(maze: DemoMaze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
-  return tile === undefined || (tile.kind !== "open" && tile.kind !== "water");
+  return tile === undefined || (!isFloorKind(tile.kind) && tile.kind !== "water");
 }
 
 /** What stops a body moving under its own power. Nothing walks into a pool or onto the spikes. */
 export function blocksWalk(maze: DemoMaze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
-  return tile === undefined || tile.kind !== "open";
+  return tile === undefined || !isFloorKind(tile.kind);
 }
 
 /**
@@ -344,6 +367,42 @@ export function blocksFlung(maze: DemoMaze, x: number, y: number): boolean {
 
 export function isWaterCell(maze: DemoMaze, x: number, y: number): boolean {
   return tileAt(maze, x, y)?.kind === "water";
+}
+
+/**
+ * Whether spilled blood settles on a cell.
+ *
+ * Open water washes it away, and a filled pool is already made of what would have spilled — a stain
+ * laid over the heap reads as red mud rather than as carnage. Asked at both ends, where a stain is
+ * recorded and where it is drawn, so the two can never disagree about a cell.
+ */
+export function holdsStains(maze: DemoMaze, x: number, y: number): boolean {
+  const kind = tileAt(maze, x, y)?.kind;
+  return kind !== "water" && kind !== "filled";
+}
+
+/**
+ * A body going under in a pool cell, and the count that closes it.
+ *
+ * Returns true only for the body that fills the cell, so the caller can say so once rather than
+ * every time something drowns. Anything that dies somewhere that is not open water — dry land, a
+ * pool already filled in — is not a body the pool swallows and changes nothing.
+ */
+export function sinkBody(maze: DemoMaze, x: number, y: number): boolean {
+  const tile = tileAt(maze, x, y);
+
+  if (tile?.kind !== "water") {
+    return false;
+  }
+
+  tile.bodies += 1;
+
+  if (tile.bodies < POOL_FILL_BODIES) {
+    return false;
+  }
+
+  tile.kind = "filled";
+  return true;
 }
 
 /**

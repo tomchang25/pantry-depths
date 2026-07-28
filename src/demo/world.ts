@@ -13,6 +13,9 @@ import {
   blocksWalk,
   DEMO_GRID_SIZE,
   generateDemoMaze,
+  holdsStains,
+  isWaterCell,
+  sinkBody,
   tileIndex,
   type DemoCell,
   type DemoMaze,
@@ -544,9 +547,9 @@ export function stainFloor(world: DemoWorld, x: number, y: number, amount: numbe
     return;
   }
 
-  // Nothing settles on water. Recorded here as well as skipped at draw time, so a pool that is
-  // later drained by some future change does not reveal blood that was never visible.
-  if (world.maze.tiles[cellY * DEMO_GRID_SIZE + cellX]?.kind === "water") {
+  // Nothing settles on a pool, filled or not. Recorded here as well as skipped at draw time, so a
+  // cell that some future change opens up does not reveal blood that was never visible on it.
+  if (!holdsStains(world.maze, cellX, cellY)) {
     return;
   }
 
@@ -585,6 +588,32 @@ const DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: n
   { kind: "bomb", count: 3, upTo: 0.3 },
 ];
 export const LIFESTEAL_HEAL = 12;
+
+/**
+ * A body ending its flight in open water, and what the pool does with it.
+ *
+ * Hung off the single kill exit rather than off drowning, because how the body got into the water is
+ * not the pool's business: one shoved in and left to sink, one that died of the landing, and one a
+ * bomb dropped in are all the same body in the same water. Every one of them shows on the surface,
+ * and the third fills the cell in.
+ */
+function swallowIntoPool(world: DemoWorld, enemy: DemoEnemy): void {
+  const cellX = Math.floor(enemy.x);
+  const cellY = Math.floor(enemy.y);
+
+  if (!isWaterCell(world.maze, cellX, cellY)) {
+    return;
+  }
+
+  const closed = sinkBody(world.maze, cellX, cellY);
+  // Every body changes the surface, not only the one that fills it, so the terrain the scene is
+  // built from is stale after each of them.
+  world.terrainVersion += 1;
+
+  if (closed) {
+    announce(world, "The bodies close the pool over - it can be crossed now", 2.6);
+  }
+}
 
 /**
  * The single exit every enemy leaves the world through.
@@ -626,6 +655,7 @@ export function killEnemy(
   // A pool directly under the body as well as the spray, so a kill always marks the spot even when
   // every droplet happens to fly off somewhere else.
   stainFloor(world, enemy.x, enemy.y, 0.5);
+  swallowIntoPool(world, enemy);
 
   if (hasBless(world.bless, "lifesteal")) {
     world.player.hp = Math.min(world.player.maxHp, world.player.hp + LIFESTEAL_HEAL);

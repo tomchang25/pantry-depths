@@ -78,7 +78,17 @@ export type RenderSky = Readonly<{
  * has to be named here rather than covered with a sprite: a sprite laid flat is a squashed billboard
  * that floats, tiles against its neighbours with a visible seam, and cannot be walked over correctly.
  */
-export type RenderFloorMaterial = "water" | "demoFlagstone" | "demoVault" | "demoBlood";
+export type RenderFloorMaterial =
+  | "water"
+  // A pool with bodies in it, one material per body it has swallowed, and the ground left when it
+  // has taken as many as it can hold. They are floor materials rather than corpses laid over water
+  // because what is under a surface cannot be drawn as something standing on it.
+  | "waterFouled"
+  | "waterChoked"
+  | "demoCarrion"
+  | "demoFlagstone"
+  | "demoVault"
+  | "demoBlood";
 
 export type RenderFloorPatch = Readonly<{ cell: Cell; material: RenderFloorMaterial }>;
 

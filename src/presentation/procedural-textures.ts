@@ -385,17 +385,69 @@ function vault(documentOwner: Document): HTMLCanvasElement {
 }
 
 /**
- * Still water, built to tile in both axes.
+ * Where a drowned body lies in a pool tile, in texels, taken in order: one body in the cell uses the
+ * first entry, two use both.
+ *
+ * Each sits well inside the tile. A shape reaching the border appears twice over in a pool made of
+ * several cells, and a body that repeats reads as wallpaper rather than as something that drowned.
+ */
+const SUNKEN_BODIES: readonly Readonly<{ x: number; y: number; radius: number }>[] = [
+  { x: 25, y: 36, radius: 18 },
+  { x: 44, y: 19, radius: 16 },
+];
+
+/** Distance to a point on a tiling texture, taking whichever way round the tile is shorter. */
+function wrappedDistance(x: number, y: number, toX: number, toY: number): number {
+  const dx = Math.abs(x - toX);
+  const dy = Math.abs(y - toY);
+  return Math.hypot(Math.min(dx, TEXTURE_SIZE - dx), Math.min(dy, TEXTURE_SIZE - dy));
+}
+
+/**
+ * How much of a pixel the bodies under the surface take, and how far the blood off them has spread.
+ *
+ * Both fall off smoothly and both are the nearest body's rather than a sum: overlapping falloffs
+ * brighten where two bodies happen to be close, which is the opposite of what a body in dark water
+ * does to the light.
+ */
+function sunkenAt(x: number, y: number, bodies: number): readonly [number, number] {
+  let mass = 0;
+  let bleed = 0;
+
+  for (let index = 0; index < bodies; index += 1) {
+    const body = SUNKEN_BODIES[index];
+
+    if (!body) {
+      continue;
+    }
+
+    // The outline is pushed in and out by noise, because a circle under water reads as a coin.
+    const distance = wrappedDistance(x, y, body.x, body.y) * (0.86 + smoothNoise(x, y, 11, 97) * 0.3);
+    mass = Math.max(mass, Math.max(0, 1 - distance / body.radius) ** 0.7);
+    bleed = Math.max(bleed, Math.max(0, 1 - distance / (body.radius * 1.7)) ** 2);
+  }
+
+  return [mass, bleed];
+}
+
+/**
+ * Still water, built to tile in both axes, holding however many bodies have gone under in it.
  *
  * Every wave term is a whole number of periods across the tile, so a pool spanning several cells has
  * no seam where one cell meets the next — which a pool has to survive, being made of cells. It also
  * deliberately carries no bright cell-boundary edge, unlike the walkable floor: counting squares is
  * how the player judges distance on ground they can cross, and this is ground they cannot.
+ *
+ * The bodies belong in here rather than in the world for the same reason the pool does: what is
+ * under a surface cannot be drawn as a sprite standing on it.
  */
-function stillWater(documentOwner: Document): HTMLCanvasElement {
+function stillWater(documentOwner: Document, bodies: number): HTMLCanvasElement {
   const [surface, context] = canvas(documentOwner);
   const image = context.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
   const turn = (Math.PI * 2) / TEXTURE_SIZE;
+  // Each body clouds the whole cell, so a fouled pool reads as dirtier water from further off than
+  // the shape in it can be made out from.
+  const murk = 1 - bodies * 0.13;
 
   for (let y = 0; y < TEXTURE_SIZE; y += 1) {
     for (let x = 0; x < TEXTURE_SIZE; x += 1) {
@@ -403,16 +455,88 @@ function stillWater(documentOwner: Document): HTMLCanvasElement {
         Math.sin(x * turn * 2 + Math.sin(y * turn) * 1.6) * 0.5 +
         Math.sin(y * turn * 3 - Math.cos(x * turn) * 1.1) * 0.5;
       const sheen = Math.max(0, ripple) ** 2;
+      let red = (14 + sheen * 46) * murk;
+      let green = (38 + sheen * 74) * murk;
+      let blue = (58 + sheen * 92) * murk;
+      const [mass, bleed] = sunkenAt(x, y, bodies);
+
+      if (bleed > 0) {
+        red += (86 - red) * bleed * 0.45;
+        green += (18 - green) * bleed * 0.45;
+        blue += (26 - blue) * bleed * 0.45;
+      }
+
+      if (mass > 0) {
+        // Never brighter than the surface it is seen through: the body is lit by how close to the
+        // top of the water it floats, which is what makes a shape read as submerged rather than
+        // painted on.
+        const lit = 0.36 + mass * 0.52;
+        const claim = mass * 0.82;
+        red += (94 * lit - red) * claim;
+        green += (116 * lit - green) * claim;
+        blue += (76 * lit - blue) * claim;
+      }
+
       const index = (y * TEXTURE_SIZE + x) * 4;
-      image.data[index] = 14 + sheen * 46;
-      image.data[index + 1] = 38 + sheen * 74;
-      image.data[index + 2] = 58 + sheen * 92;
+      image.data[index] = red;
+      image.data[index + 1] = green;
+      image.data[index + 2] = blue;
       image.data[index + 3] = 255;
     }
   }
 
   context.putImageData(image, 0, 0);
   return surface;
+}
+
+/** The bodies of a pool that has taken all it can hold, packed edge to edge and crossing the seam. */
+const PACKED_BODIES: readonly Readonly<{ x: number; y: number; radius: number }>[] = [
+  { x: 17, y: 20, radius: 21 },
+  { x: 46, y: 14, radius: 19 },
+  { x: 33, y: 45, radius: 22 },
+  { x: 58, y: 44, radius: 17 },
+  { x: 4, y: 50, radius: 18 },
+];
+
+/**
+ * A filled pool: bodies heaped to the surface, and the ground the player now walks over them.
+ *
+ * Carries the bright cell edge the flagstones have and the water deliberately does not. That edge is
+ * how distance is counted on ground you can cross, and the whole point of a filled pool is that it
+ * has become ground you can cross. These bodies do reach the tile border, unlike the sunken ones:
+ * the heap is meant to run continuously across every cell of a pool that has closed over.
+ */
+function carrion(documentOwner: Document): HTMLCanvasElement {
+  return paint(documentOwner, (x, y) => {
+    const cellEdge = Math.min(x, TEXTURE_SIZE - 1 - x, y, TEXTURE_SIZE - 1 - y);
+
+    if (cellEdge < 1) {
+      return [72, 56, 92];
+    }
+
+    // The body nearest the surface is the one that takes the pixel, so the heap reads as a pile
+    // with things behind it rather than as one flat silhouette.
+    let crown = 0;
+
+    for (const body of PACKED_BODIES) {
+      const distance = wrappedDistance(x, y, body.x, body.y) * (0.86 + smoothNoise(x, y, 9, 113) * 0.28);
+
+      if (distance >= body.radius) {
+        continue;
+      }
+
+      crown = Math.max(crown, Math.sqrt(1 - (distance / body.radius) ** 2));
+    }
+
+    if (crown <= 0) {
+      // Between them: what is left of the water, thick with everything that has come off the pile.
+      const grime = 0.7 + smoothNoise(x, y, 3, 131) * 0.5;
+      return [30 * grime, 24 * grime, 32 * grime];
+    }
+
+    const light = (0.46 + crown * 0.66) * (0.9 + smoothNoise(x, y, 2.5, 137) * 0.22);
+    return [76 * light, 94 * light, 60 * light];
+  });
 }
 
 /** Builds deterministic small procedural textures once per renderer. */
@@ -440,7 +564,10 @@ export function createProceduralTextures(documentOwner: Document): TextureSet {
     floor: plane(documentOwner, "#281e31", "#54406a", "#33253e"),
     ceiling: plane(documentOwner, "#191321", "#2f2440", "#211a2b"),
     floors: {
-      water: stillWater(documentOwner),
+      water: stillWater(documentOwner, 0),
+      waterFouled: stillWater(documentOwner, 1),
+      waterChoked: stillWater(documentOwner, 2),
+      demoCarrion: carrion(documentOwner),
       demoFlagstone: flagstone(documentOwner),
       demoVault: vault(documentOwner),
       demoBlood: bloodstain(documentOwner),

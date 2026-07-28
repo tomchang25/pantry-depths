@@ -53,7 +53,28 @@ const LIT_WARMTH_STEPS = 3;
  * Every member of `RenderFloorMaterial` must appear, or a scene naming the missing one silently
  * falls back to the default floor instead of failing.
  */
-const FLOOR_MATERIALS: readonly RenderFloorMaterial[] = ["water", "demoFlagstone", "demoVault", "demoBlood"];
+const FLOOR_MATERIALS: readonly RenderFloorMaterial[] = [
+  "water",
+  "waterFouled",
+  "waterChoked",
+  "demoCarrion",
+  "demoFlagstone",
+  "demoVault",
+  "demoBlood",
+];
+/**
+ * Which patch values are open water: they slide, they wobble, and they foam where they meet dry
+ * ground. Indexed by patch value — the material's index plus one, matching the patch grid.
+ *
+ * A pool with bodies in it is still water and belongs here; a pool the bodies have filled in is not,
+ * and must not be, or the ground the player has just earned would ripple underfoot. Written as a
+ * lookup rather than a comparison so the answer stays one array read on the floor's hottest loop.
+ */
+const WATERY_PATCH = new Uint8Array(FLOOR_MATERIALS.length + 1);
+
+for (const material of ["water", "waterFouled", "waterChoked"] as const) {
+  WATERY_PATCH[FLOOR_MATERIALS.indexOf(material) + 1] = 1;
+}
 /** Rods are cut off closer than this, so a rod leaving the player's own hand cannot fill the screen. */
 const BEAM_NEAR_PLANE = 0.5;
 /** Quads swept along a rod. Enough that the taper is smooth without paying for a real mesh. */
@@ -662,32 +683,33 @@ export class CanvasGameplayRenderer {
 
     // Which sides of each water cell face dry floor, resolved here once instead of once per water
     // pixel. Out of bounds counts as dry, matching how the per-pixel version treated the map edge.
-    const water = FLOOR_MATERIALS.indexOf("water") + 1;
+    // A filled-in pool cell counts as dry too, so the waterline closes around it the moment the
+    // bodies make it ground.
     const mask = new Uint8Array(scene.width * scene.height);
 
     for (let y = 0; y < scene.height; y += 1) {
       for (let x = 0; x < scene.width; x += 1) {
         const cell = y * scene.width + x;
 
-        if (grid[cell] !== water) {
+        if (WATERY_PATCH[grid[cell] ?? 0] !== 1) {
           continue;
         }
 
         let sides = 0;
 
-        if (x === 0 || grid[cell - 1] !== water) {
+        if (x === 0 || WATERY_PATCH[grid[cell - 1] ?? 0] !== 1) {
           sides |= 1;
         }
 
-        if (x === scene.width - 1 || grid[cell + 1] !== water) {
+        if (x === scene.width - 1 || WATERY_PATCH[grid[cell + 1] ?? 0] !== 1) {
           sides |= 2;
         }
 
-        if (y === 0 || grid[cell - scene.width] !== water) {
+        if (y === 0 || WATERY_PATCH[grid[cell - scene.width] ?? 0] !== 1) {
           sides |= 4;
         }
 
-        if (y === scene.height - 1 || grid[cell + scene.width] !== water) {
+        if (y === scene.height - 1 || WATERY_PATCH[grid[cell + scene.width] ?? 0] !== 1) {
           sides |= 8;
         }
 
@@ -1046,7 +1068,6 @@ export class CanvasGameplayRenderer {
     const shoreMask = this.#shoreMask;
     const overlays = this.#floorOverlayGrids(scene);
     const cellTextures = this.#cellFloorTextures(scene, patchGrid, overlays);
-    const waterPatch = FLOOR_MATERIALS.indexOf("water") + 1;
     const sky = scene.sky;
     const ceilingIndex = scene.ceilingMaterial ? FLOOR_MATERIALS.indexOf(scene.ceilingMaterial) : -1;
     const ceilingMaterial = ceilingIndex >= 0 ? ceilingIndex : undefined;
@@ -1184,7 +1205,7 @@ export class CanvasGameplayRenderer {
               const cell = cellY * scene.width + cellX;
               // Patch, stain and strength were already resolved into one texture per cell.
               runPixels = cellTextures[cell] ?? defaultPixels;
-              runWater = patchGrid !== undefined && patchGrid[cell] === waterPatch;
+              runWater = patchGrid !== undefined && WATERY_PATCH[patchGrid[cell] ?? 0] === 1;
               runMask = runWater && shoreMask ? (shoreMask[cell] ?? 0) : 0;
             } else {
               runPixels = defaultPixels;
