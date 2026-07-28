@@ -9,7 +9,7 @@
 
 export const DEMO_GRID_SIZE = 21;
 
-export type DemoTileKind = "open" | "border" | "stone" | "wood";
+export type DemoTileKind = "open" | "border" | "stone" | "wood" | "water";
 
 export type DemoCell = Readonly<{ x: number; y: number }>;
 
@@ -25,14 +25,15 @@ export type DemoMaze = Readonly<{
   tiles: DemoTile[];
   entrance: DemoCell;
   exit: DemoCell;
+  altar: DemoCell;
 }>;
 
 /**
  * Wall hit points, in the same unit every attack spends.
  *
  * One bare swing costs 1, so a stone wall is still four swings and a wood wall still two. A thrown
- * object costs 2, which breaks wood outright and stone in a pair; a thrown boulder costs 4, which
- * breaks either in one. The numbers are chosen so those three statements are all true at once.
+ * stick costs 2, which breaks wood outright and stone in a pair; a thrown rock costs 4, which breaks
+ * either in one. The numbers are chosen so those statements are all true at once.
  */
 export const STONE_WALL_HP = 4;
 export const WOOD_WALL_HP = 2;
@@ -40,6 +41,8 @@ export const WOOD_WALL_HP = 2;
 /** Fraction of surviving interior walls knocked out after carving, to make loops and small rooms. */
 const PERFORATION_CHANCE = 0.16;
 const WOOD_SHARE = 0.42;
+const POOL_COUNT = { minimum: 3, maximum: 6 };
+const POOL_SIZE = { minimum: 1, maximum: 4 };
 
 export function tileIndex(x: number, y: number): number {
   return y * DEMO_GRID_SIZE + x;
@@ -47,6 +50,10 @@ export function tileIndex(x: number, y: number): number {
 
 export function isInsideGrid(x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < DEMO_GRID_SIZE && y < DEMO_GRID_SIZE;
+}
+
+function between(minimum: number, maximum: number): number {
+  return minimum + Math.floor(Math.random() * (maximum - minimum + 1));
 }
 
 function pick<T>(values: readonly T[]): T | undefined {
@@ -107,6 +114,62 @@ function carve(solid: boolean[]): void {
   }
 }
 
+/** Floods a few small pools into already-open floor. Pools grow by random adjacency, so none is a
+ * neat rectangle and most end up hugging a corridor edge where something can be knocked into them. */
+function floodPools(tiles: DemoTile[], open: DemoCell[]): void {
+  const pools = between(POOL_COUNT.minimum, POOL_COUNT.maximum);
+
+  for (let pool = 0; pool < pools; pool += 1) {
+    const seed = pick(open);
+
+    if (!seed || tiles[tileIndex(seed.x, seed.y)]?.kind !== "open") {
+      continue;
+    }
+
+    const frontier: DemoCell[] = [seed];
+    const size = between(POOL_SIZE.minimum, POOL_SIZE.maximum);
+
+    for (let filled = 0; filled < size && frontier.length > 0; filled += 1) {
+      const cell = frontier.splice(Math.floor(Math.random() * frontier.length), 1)[0] as DemoCell;
+      const tile = tiles[tileIndex(cell.x, cell.y)];
+
+      if (!tile || tile.kind !== "open") {
+        continue;
+      }
+
+      tile.kind = "water";
+
+      for (const step of shuffled([
+        { x: 1, y: 0 },
+        { x: -1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 0, y: -1 },
+      ])) {
+        const nextX = cell.x + step.x;
+        const nextY = cell.y + step.y;
+
+        if (nextX > 0 && nextY > 0 && nextX < DEMO_GRID_SIZE - 1 && nextY < DEMO_GRID_SIZE - 1) {
+          frontier.push({ x: nextX, y: nextY });
+        }
+      }
+    }
+  }
+}
+
+function walkableCells(tiles: readonly DemoTile[]): DemoCell[] {
+  const cells: DemoCell[] = [];
+
+  for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
+    for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
+      if (tiles[tileIndex(x, y)]?.kind === "open") {
+        cells.push({ x, y });
+      }
+    }
+  }
+
+  return cells;
+}
+
 export function generateDemoMaze(): DemoMaze {
   const solid: boolean[] = Array.from({ length: DEMO_GRID_SIZE * DEMO_GRID_SIZE }, () => true);
   carve(solid);
@@ -144,29 +207,48 @@ export function generateDemoMaze(): DemoMaze {
     }
   }
 
-  const open: DemoCell[] = [];
-
-  for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
-    for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
-      if (tiles[tileIndex(x, y)]?.kind === "open") {
-        open.push({ x, y });
-      }
-    }
-  }
-
+  floodPools(tiles, walkableCells(tiles));
+  const open = walkableCells(tiles);
   const entrance = pick(open) ?? { x: 1, y: 1 };
-  const exit = pick(open.filter((cell) => cell.x !== entrance.x || cell.y !== entrance.y)) ?? { x: 19, y: 19 };
-  return { size: DEMO_GRID_SIZE, tiles, entrance, exit };
+  const away = open.filter((cell) => cell.x !== entrance.x || cell.y !== entrance.y);
+  const exit = pick(away) ?? { x: 19, y: 19 };
+  const altar = pick(away.filter((cell) => cell.x !== exit.x || cell.y !== exit.y)) ?? entrance;
+  return { size: DEMO_GRID_SIZE, tiles, entrance, exit, altar };
 }
 
 export function tileAt(maze: DemoMaze, x: number, y: number): DemoTile | undefined {
   return isInsideGrid(x, y) ? maze.tiles[tileIndex(x, y)] : undefined;
 }
 
-/** Whether a grid cell blocks movement and sight. Rubble left behind by a broken wall does not. */
-export function isSolidCell(maze: DemoMaze, x: number, y: number): boolean {
+/**
+ * Whether a cell stops a ray: walls do, water does not.
+ *
+ * This is the predicate the raycaster and every projectile use. Water has to be seen across and
+ * thrown across, which is the whole reason it is a separate question from whether a body can enter.
+ */
+export function blocksSight(maze: DemoMaze, x: number, y: number): boolean {
+  const tile = tileAt(maze, x, y);
+  return tile === undefined || (tile.kind !== "open" && tile.kind !== "water");
+}
+
+/** Whether a cell stops a body under its own power. Water does: nothing walks into a pool. */
+export function blocksWalk(maze: DemoMaze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
   return tile === undefined || tile.kind !== "open";
+}
+
+/**
+ * Whether a cell stops a body that is not in control of itself — knocked back, or thrown.
+ *
+ * Only walls do. A body flung over a pool lands in it, which is exactly what makes knockback lethal
+ * next to water and is the reason this predicate exists apart from the walking one.
+ */
+export function blocksBody(maze: DemoMaze, x: number, y: number): boolean {
+  return blocksSight(maze, x, y);
+}
+
+export function isWaterCell(maze: DemoMaze, x: number, y: number): boolean {
+  return tileAt(maze, x, y)?.kind === "water";
 }
 
 /** Open cells reachable from a start cell, ignoring destructibility. Used only by enemy pathing. */
@@ -195,7 +277,7 @@ export function breadthFirstStep(maze: DemoMaze, from: DemoCell, to: DemoCell): 
       const nextX = currentX + step.x;
       const nextY = currentY + step.y;
 
-      if (!isInsideGrid(nextX, nextY) || isSolidCell(maze, nextX, nextY)) {
+      if (!isInsideGrid(nextX, nextY) || blocksWalk(maze, nextX, nextY)) {
         continue;
       }
 

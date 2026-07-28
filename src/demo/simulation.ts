@@ -1,23 +1,26 @@
 /**
- * One tick of the demo world: player, enemies, projectiles, timers, and the two end conditions.
+ * One tick of the demo world: player, enemies, projectiles, hazards, timers, and the floor change.
  *
  * Fixed-order and mutating. There is no rollback and no determinism guarantee — the demo is played,
  * not replayed.
  */
 
 import { damageWall, projectileSpeed, thrownWallDamage } from "@/demo/actions";
-import { stepEnemies } from "@/demo/enemy-ai";
-import { isSolidCell, type DemoCell } from "@/demo/maze";
-import { slideMove, unstick } from "@/demo/movement";
+import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
+import { bodyLanding, checkDrowning, detonate, rockImpact, shoveAside, stepDrowning } from "@/demo/impacts";
+import { blocksSight, generateDemoMaze } from "@/demo/maze";
+import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import {
   announce,
-  damageEnemy,
+  awardBless,
   killEnemy,
   MAX_ENEMIES,
   PLAYER_RADIUS,
   PLAYER_SPEED,
+  populateFloor,
   SPAWN_INTERVAL_SECONDS,
   spawnReinforcement,
+  type DemoCellLike,
   type DemoProjectile,
   type DemoWorld,
 } from "@/demo/world";
@@ -31,16 +34,11 @@ export type DemoInput = Readonly<{
 
 const DEATH_SECONDS = 0.75;
 const PROJECTILE_HIT_RADIUS = 0.45;
-const THROWN_ENEMY_IMPACT_DAMAGE = 18;
-const THROWN_ENEMY_SELF_DAMAGE = 8;
-const THROWN_ENEMY_STUN = 1.6;
 const EXIT_RADIUS = 0.55;
 
 function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
   const forwardX = Math.cos(world.player.angle);
   const forwardY = Math.sin(world.player.angle);
-  const strafeX = -forwardY;
-  const strafeY = forwardX;
   let moveX = 0;
   let moveY = 0;
 
@@ -55,20 +53,20 @@ function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): v
   }
 
   if (input.strafeRight) {
-    moveX += strafeX;
-    moveY += strafeY;
+    moveX += -forwardY;
+    moveY += forwardX;
   }
 
   if (input.strafeLeft) {
-    moveX -= strafeX;
-    moveY -= strafeY;
+    moveX -= -forwardY;
+    moveY -= forwardX;
   }
 
   const length = Math.hypot(moveX, moveY);
 
   if (length > 0.0001) {
     const step = (PLAYER_SPEED * deltaSeconds) / length;
-    const moved = slideMove(world.maze, world.player, moveX * step, moveY * step, PLAYER_RADIUS);
+    const moved = slideMove(world.maze, world.player, moveX * step, moveY * step, PLAYER_RADIUS, WALKING);
     world.player.x = moved.x;
     world.player.y = moved.y;
     world.walkBob = Math.min(1, world.walkBob + deltaSeconds * 5);
@@ -76,11 +74,39 @@ function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): v
     world.walkBob = Math.max(0, world.walkBob - deltaSeconds * 4);
   }
 
-  const settled = unstick(world.maze, world.player, PLAYER_RADIUS);
+  if (world.player.pushX !== 0 || world.player.pushY !== 0) {
+    const shoved = slideMove(
+      world.maze,
+      world.player,
+      world.player.pushX * deltaSeconds,
+      world.player.pushY * deltaSeconds,
+      PLAYER_RADIUS,
+      WALKING,
+    );
+    world.player.x = shoved.x;
+    world.player.y = shoved.y;
+    const decay = Math.exp(-7 * deltaSeconds);
+    world.player.pushX *= decay;
+    world.player.pushY *= decay;
+
+    if (Math.hypot(world.player.pushX, world.player.pushY) < 0.05) {
+      world.player.pushX = 0;
+      world.player.pushY = 0;
+    }
+  }
+
+  const settled = unstick(world.maze, world.player, PLAYER_RADIUS, WALKING);
   world.player.x = settled.x;
   world.player.y = settled.y;
 }
 
+/**
+ * Puts a thrown body back in the world where it came down, then charges it for the landing.
+ *
+ * It rejoins the enemy list *before* the damage is applied, so a fatal landing goes through the one
+ * ordinary death path — corpse animation in the right place, drop roll, blessing payout — instead of
+ * being a second, quieter way to die.
+ */
 function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: boolean): void {
   const enemy = projectile.payload;
 
@@ -88,41 +114,45 @@ function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: 
     return;
   }
 
-  enemy.x = projectile.x;
-  enemy.y = projectile.y;
-  enemy.stunSeconds = THROWN_ENEMY_STUN;
-  enemy.hp -= hitWall ? THROWN_ENEMY_SELF_DAMAGE : Math.round(THROWN_ENEMY_SELF_DAMAGE / 2);
-  enemy.hurtSeconds = 0.3;
-
-  if (enemy.hp <= 0) {
-    world.deaths.push({ id: enemy.id, appearance: enemy.appearance, x: enemy.x, y: enemy.y, progress: 0 });
-    world.kills += 1;
-    return;
-  }
-
-  const settled = unstick(world.maze, { x: enemy.x, y: enemy.y }, 0.3);
+  const settled = unstick(world.maze, { x: projectile.x, y: projectile.y }, 0.3, FLUNG);
   enemy.x = settled.x;
   enemy.y = settled.y;
   world.enemies.push(enemy);
-}
+  bodyLanding(world, enemy, hitWall);
 
-/**
- * A thrown object is spent.
- *
- * Only a thrown enemy has anything left to resolve — it is a body, and it lands. Sticks and stones
- * are gone the moment they leave the hand, which is what makes deciding to throw one cost something.
- * Putting a held object back down is the separate right-button action and still returns it.
- */
-function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall: boolean): void {
-  if (projectile.kind === "enemy") {
-    landThrownEnemy(world, projectile, hitWall);
+  if (world.enemies.includes(enemy)) {
+    checkDrowning(world, enemy);
   }
 }
 
-function strikeWith(world: DemoWorld, projectile: DemoProjectile): void {
-  // Snapshot: killing an enemy splices the live array out from under the loop.
+/**
+ * Resolves where a throw stopped.
+ *
+ * Sticks are the exception in every direction: they alone pierce, they alone kill outright, and
+ * they alone leave nothing at the end of the flight. Everything else spends itself here.
+ */
+function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall: boolean): void {
+  if (projectile.kind === "stick") {
+    return;
+  }
+
+  if (projectile.kind === "rock") {
+    rockImpact(world, projectile.x, projectile.y);
+    return;
+  }
+
+  if (projectile.kind === "bomb") {
+    detonate(world, projectile.x, projectile.y, (cell, damage) => damageWall(world, cell, damage));
+    return;
+  }
+
+  landThrownEnemy(world, projectile, hitWall);
+}
+
+/** Only the stick still strikes along its flight; everything else resolves where it stops. */
+function pierceWithStick(world: DemoWorld, projectile: DemoProjectile): boolean {
   for (const enemy of world.enemies.slice()) {
-    if (projectile.struck.has(enemy.id)) {
+    if (projectile.struck.has(enemy.id) || enemy.drowningSeconds > 0) {
       continue;
     }
 
@@ -131,34 +161,46 @@ function strikeWith(world: DemoWorld, projectile: DemoProjectile): void {
     }
 
     projectile.struck.add(enemy.id);
-
-    if (projectile.kind === "stick") {
-      killEnemy(world, enemy);
-      announce(world, "木棍把敵人釘在牆上");
-      continue;
-    }
-
-    if (projectile.kind === "bigRock") {
-      killEnemy(world, enemy);
-      announce(world, "大石塊直接輾過去");
-      continue;
-    }
-
-    if (projectile.kind === "enemy") {
-      enemy.stunSeconds = Math.max(enemy.stunSeconds, THROWN_ENEMY_STUN);
-      damageEnemy(world, enemy, THROWN_ENEMY_IMPACT_DAMAGE);
-      announce(world, "撞飛路線上的敵人");
-    }
+    killEnemy(world, enemy);
+    announce(world, "木棍把敵人釘在牆上");
   }
+
+  return false;
+}
+
+/**
+ * A thrown body shoving past whoever it meets. Nobody stops it and nobody is hurt by it — they are
+ * knocked to one side, once each, and the body carries on to the end of its two tiles.
+ */
+function bargeThrough(world: DemoWorld, projectile: DemoProjectile): void {
+  for (const enemy of world.enemies) {
+    if (projectile.struck.has(enemy.id) || enemy.drowningSeconds > 0) {
+      continue;
+    }
+
+    if (Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) > PROJECTILE_HIT_RADIUS) {
+      continue;
+    }
+
+    projectile.struck.add(enemy.id);
+    shoveAside(enemy, projectile.x, projectile.y, projectile.directionX, projectile.directionY);
+  }
+}
+
+/** Whether anything solid enough to stop a throw sits at the projectile's position. */
+function hitsSomeone(world: DemoWorld, projectile: DemoProjectile): boolean {
+  return world.enemies.some(
+    (enemy) =>
+      enemy.drowningSeconds <= 0 && Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) <= PROJECTILE_HIT_RADIUS,
+  );
 }
 
 function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
   for (const projectile of world.projectiles.slice()) {
-    const speed = projectileSpeed(projectile.kind);
-    const distance = speed * deltaSeconds;
+    const distance = projectileSpeed(projectile.kind) * deltaSeconds;
     const steps = Math.max(1, Math.ceil(distance / 0.15));
     let finished = false;
-    let struckCell: DemoCell | undefined;
+    let struckCell: DemoCellLike | undefined;
 
     for (let step = 0; step < steps && !finished; step += 1) {
       const advance = distance / steps;
@@ -166,7 +208,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
       projectile.y += projectile.directionY * advance;
       projectile.travelled += advance;
 
-      if (isSolidCell(world.maze, Math.floor(projectile.x), Math.floor(projectile.y))) {
+      if (blocksSight(world.maze, Math.floor(projectile.x), Math.floor(projectile.y))) {
         struckCell = { x: Math.floor(projectile.x), y: Math.floor(projectile.y) };
         projectile.x -= projectile.directionX * advance;
         projectile.y -= projectile.directionY * advance;
@@ -174,8 +216,13 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
         break;
       }
 
-      if (!projectile.inert) {
-        strikeWith(world, projectile);
+      if (projectile.kind === "stick") {
+        pierceWithStick(world, projectile);
+      } else if (projectile.kind === "enemy") {
+        bargeThrough(world, projectile);
+      } else if (hitsSomeone(world, projectile)) {
+        finished = true;
+        break;
       }
 
       if (projectile.travelled >= projectile.range) {
@@ -199,6 +246,50 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
   }
 }
 
+function stepHazards(world: DemoWorld, deltaSeconds: number): void {
+  for (const hazard of world.hazards.slice()) {
+    const distance = hazard.speed * deltaSeconds;
+    const steps = Math.max(1, Math.ceil(distance / 0.15));
+    let finished = false;
+
+    for (let step = 0; step < steps && !finished; step += 1) {
+      const advance = distance / steps;
+      hazard.x += hazard.directionX * advance;
+      hazard.y += hazard.directionY * advance;
+      hazard.travelled += advance;
+
+      if (blocksSight(world.maze, Math.floor(hazard.x), Math.floor(hazard.y))) {
+        finished = true;
+        break;
+      }
+
+      if (Math.hypot(world.player.x - hazard.x, world.player.y - hazard.y) <= 0.42) {
+        hurtPlayer(world, hazard.damage, hazard.x, hazard.y);
+        finished = true;
+        break;
+      }
+
+      if (hazard.travelled >= hazard.range) {
+        finished = true;
+      }
+    }
+
+    if (finished) {
+      world.hazards.splice(world.hazards.indexOf(hazard), 1);
+    }
+  }
+}
+
+function stepVfx(world: DemoWorld, deltaSeconds: number): void {
+  for (const effect of world.vfx.slice()) {
+    effect.age += deltaSeconds;
+
+    if (effect.age >= effect.life) {
+      world.vfx.splice(world.vfx.indexOf(effect), 1);
+    }
+  }
+}
+
 function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
   for (const death of world.deaths.slice()) {
     death.progress += deltaSeconds / DEATH_SECONDS;
@@ -209,6 +300,21 @@ function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
   }
 }
 
+/**
+ * Takes the stairs.
+ *
+ * Health, hands, and blessings all survive the descent — the floor is what is replaced. Arriving is
+ * itself worth a blessing, which is the reward for the exit being reachable at all on a map that
+ * never promised it would be.
+ */
+export function descend(world: DemoWorld): void {
+  world.depth += 1;
+  world.maze = generateDemoMaze();
+  populateFloor(world);
+  awardBless(world);
+  announce(world, `下到第 ${world.depth} 層`, 3);
+}
+
 export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
   const step = Math.min(deltaSeconds, 0.05);
   world.elapsedSeconds += step;
@@ -216,7 +322,10 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
   world.hitFlash = Math.max(0, world.hitFlash - step * 2.4);
   world.messageSeconds = Math.max(0, world.messageSeconds - step);
   stepDeaths(world, step);
+  stepVfx(world, step);
   stepProjectiles(world, step);
+  stepHazards(world, step);
+  stepDrowning(world, step);
 
   if (world.status !== "playing") {
     return;
@@ -237,7 +346,6 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
   const toExit = Math.hypot(world.player.x - (world.maze.exit.x + 0.5), world.player.y - (world.maze.exit.y + 0.5));
 
   if (toExit < EXIT_RADIUS) {
-    world.status = "escaped";
-    announce(world, "找到出口了", 999);
+    descend(world);
   }
 }

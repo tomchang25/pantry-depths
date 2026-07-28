@@ -1,9 +1,11 @@
-import type { RenderSurfaceMaterial } from "@/presentation/render-scene";
+import type { RenderFloorMaterial, RenderSurfaceMaterial } from "@/presentation/render-scene";
 
 export type TextureSet = Readonly<{
   walls: Readonly<Record<RenderSurfaceMaterial, HTMLCanvasElement>>;
   floor: HTMLCanvasElement;
   ceiling: HTMLCanvasElement;
+  /** Alternate floors, selected per cell. One tile covers exactly one cell, same as `floor`. */
+  floors: Readonly<Record<RenderFloorMaterial, HTMLCanvasElement>>;
 }>;
 
 const TEXTURE_SIZE = 64;
@@ -183,6 +185,37 @@ function plane(documentOwner: Document, base: string, seam: string, joint: strin
   return surface;
 }
 
+/**
+ * Still water, built to tile in both axes.
+ *
+ * Every wave term is a whole number of periods across the tile, so a pool spanning several cells has
+ * no seam where one cell meets the next — which a pool has to survive, being made of cells. It also
+ * deliberately carries no bright cell-boundary edge, unlike the walkable floor: counting squares is
+ * how the player judges distance on ground they can cross, and this is ground they cannot.
+ */
+function stillWater(documentOwner: Document): HTMLCanvasElement {
+  const [surface, context] = canvas(documentOwner);
+  const image = context.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
+  const turn = (Math.PI * 2) / TEXTURE_SIZE;
+
+  for (let y = 0; y < TEXTURE_SIZE; y += 1) {
+    for (let x = 0; x < TEXTURE_SIZE; x += 1) {
+      const ripple =
+        Math.sin(x * turn * 2 + Math.sin(y * turn) * 1.6) * 0.5 +
+        Math.sin(y * turn * 3 - Math.cos(x * turn) * 1.1) * 0.5;
+      const sheen = Math.max(0, ripple) ** 2;
+      const index = (y * TEXTURE_SIZE + x) * 4;
+      image.data[index] = 14 + sheen * 46;
+      image.data[index + 1] = 38 + sheen * 74;
+      image.data[index + 2] = 58 + sheen * 92;
+      image.data[index + 3] = 255;
+    }
+  }
+
+  context.putImageData(image, 0, 0);
+  return surface;
+}
+
 /** Builds deterministic small procedural textures once per renderer. */
 export function createProceduralTextures(documentOwner: Document): TextureSet {
   return {
@@ -201,5 +234,6 @@ export function createProceduralTextures(documentOwner: Document): TextureSet {
     // The ceiling is never counted against and keeps its seam near the base colour to stay quiet.
     floor: plane(documentOwner, "#281e31", "#54406a", "#33253e"),
     ceiling: plane(documentOwner, "#191321", "#2f2440", "#211a2b"),
+    floors: { water: stillWater(documentOwner) },
   };
 }

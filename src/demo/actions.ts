@@ -5,58 +5,72 @@
  * only on whether the hands are full, so neither button ever needs a modifier.
  */
 
-import { isSolidCell, tileAt, type DemoCell } from "@/demo/maze";
+import { hasBless } from "@/demo/bless";
+import { blocksSight, tileAt, type DemoCell } from "@/demo/maze";
 import {
   announce,
+  awardBless,
   damageEnemy,
   nextId,
+  randomAmmo,
   REACH,
   SWING_SECONDS,
   type DemoEnemy,
   type DemoPile,
   type DemoProp,
   type DemoPropKind,
+  type DemoThrowKind,
   type DemoWorld,
 } from "@/demo/world";
 
-const MELEE_DAMAGE = 25;
+const BASE_MELEE_DAMAGE = 25;
+const HEAVY_MELEE_DAMAGE = 45;
+const HEAVY_MELEE_REACH = 2.1;
+const HEAVY_MELEE_KNOCKBACK = 9;
+const MELEE_ARC = Math.cos(0.85);
+const GRAB_ARC = Math.cos(1);
 
 /**
  * What each way of hitting a wall costs it, against the hit points in `@/demo/maze`.
  *
- * A bare swing is the unit, so the swing counts are unchanged: two for wood, four for stone. Any
- * thrown object hits for two, which is one throw through wood and two through stone. A thrown
- * boulder hits for four, which is one throw through either.
+ * A bare swing is the unit, so the swing counts are unchanged: two for wood, four for stone. A
+ * thrown stick hits for two; a thrown rock hits for four, which opens either wall in one throw.
  */
 export const MELEE_WALL_DAMAGE = 1;
 const THROWN_WALL_DAMAGE = 2;
-const BOULDER_WALL_DAMAGE = 4;
-const MELEE_ARC = Math.cos(0.85);
-const GRAB_ARC = Math.cos(1.0);
+const ROCK_WALL_DAMAGE = 4;
+export const BLAST_WALL_DAMAGE = 4;
 
-const THROW_RANGE: Readonly<Record<"enemy" | DemoPropKind, number>> = {
-  enemy: 9,
-  stick: 6,
-  smallRock: 4,
-  bigRock: 8,
-};
-
-const THROW_SPEED: Readonly<Record<"enemy" | DemoPropKind, number>> = {
-  enemy: 11,
-  stick: 18,
-  smallRock: 15,
-  bigRock: 12,
-};
-
-const SMALL_ROCK_CONE = Math.cos(0.55);
-const SMALL_ROCK_DAMAGE = 12;
-const SMALL_ROCK_KNOCKBACK = 7.5;
+// A thrown body always travels the same two tiles: the throw is a placement, not a ranged attack.
+const THROW_RANGE: Readonly<Record<DemoThrowKind, number>> = { enemy: 2, stick: 6, rock: 8, bomb: 9 };
+const THROW_SPEED: Readonly<Record<DemoThrowKind, number>> = { enemy: 11, stick: 18, rock: 14, bomb: 12 };
 
 export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
   stick: "木棍",
-  smallRock: "小石塊",
-  bigRock: "大石塊",
+  rock: "石塊",
+  bomb: "炸彈",
 };
+
+export function meleeReach(world: DemoWorld): number {
+  return hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_REACH : REACH;
+}
+
+export function meleeDamage(world: DemoWorld): number {
+  return hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_DAMAGE : BASE_MELEE_DAMAGE;
+}
+
+/** The damage a thrown object does on contact — the same as a bare swing, blessings aside. */
+export function thrownImpactDamage(world: DemoWorld): number {
+  return meleeDamage(world);
+}
+
+export function thrownWallDamage(kind: DemoThrowKind): number {
+  return kind === "rock" ? ROCK_WALL_DAMAGE : THROWN_WALL_DAMAGE;
+}
+
+export function projectileSpeed(kind: DemoThrowKind): number {
+  return THROW_SPEED[kind];
+}
 
 function facing(world: DemoWorld): Readonly<{ x: number; y: number }> {
   return { x: Math.cos(world.player.angle), y: Math.sin(world.player.angle) };
@@ -82,6 +96,10 @@ function nearestEnemyAhead(world: DemoWorld, reach: number, arc: number): DemoEn
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const enemy of world.enemies) {
+    if (enemy.drowningSeconds > 0) {
+      continue;
+    }
+
     const distance = inFront(world, enemy.x, enemy.y, reach, arc);
 
     if (distance !== undefined && distance < bestDistance) {
@@ -109,11 +127,16 @@ function nearestPropAhead(world: DemoWorld): DemoProp | undefined {
   return best;
 }
 
-function nearestPileAhead(world: DemoWorld): DemoPile | undefined {
+/** Only ammunition piles answer to a grab; the debris a stone wall leaves holds nothing. */
+function nearestAmmoPileAhead(world: DemoWorld): DemoPile | undefined {
   let best: DemoPile | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const pile of world.piles) {
+    if (pile.kind !== "ammo") {
+      continue;
+    }
+
     const distance = inFront(world, pile.x, pile.y, REACH, GRAB_ARC);
 
     if (distance !== undefined && distance < bestDistance) {
@@ -126,14 +149,16 @@ function nearestPileAhead(world: DemoWorld): DemoPile | undefined {
 }
 
 /** The wall cell the player is looking at within arm's length, if any. */
-export function wallAhead(world: DemoWorld): DemoCell | undefined {
+export function wallAhead(world: DemoWorld, reach = REACH): DemoCell | undefined {
   const direction = facing(world);
+  const steps = Math.max(4, Math.round(reach * 4));
 
-  for (const step of [0.5, 0.75, 1.0, 1.25]) {
-    const x = Math.floor(world.player.x + direction.x * step);
-    const y = Math.floor(world.player.y + direction.y * step);
+  for (let step = 1; step <= steps; step += 1) {
+    const along = (step / steps) * reach;
+    const x = Math.floor(world.player.x + direction.x * along);
+    const y = Math.floor(world.player.y + direction.y * along);
 
-    if (isSolidCell(world.maze, x, y)) {
+    if (blocksSight(world.maze, x, y)) {
       return { x, y };
     }
   }
@@ -141,15 +166,10 @@ export function wallAhead(world: DemoWorld): DemoCell | undefined {
   return undefined;
 }
 
-/** What a thrown object of this kind costs a wall. A thrown enemy counts as an ordinary object. */
-export function thrownWallDamage(kind: "enemy" | DemoPropKind): number {
-  return kind === "bigRock" ? BOULDER_WALL_DAMAGE : THROWN_WALL_DAMAGE;
-}
-
 export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): void {
   const tile = tileAt(world.maze, cell.x, cell.y);
 
-  if (!tile || tile.kind === "open") {
+  if (!tile || tile.kind === "open" || tile.kind === "water") {
     return;
   }
 
@@ -169,17 +189,19 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
   tile.kind = "open";
   tile.hp = 0;
   world.wallsBroken += 1;
+  // Only wood is packed with anything worth carrying. Stone leaves rubble you cannot use, which is
+  // what makes a wood wall a decision — break it for the shortcut, or break it for the ammunition.
   world.piles.push({
     id: nextId(world, "pile"),
-    kind: wasWood ? "woodSpikes" : "rocks",
+    kind: wasWood ? "ammo" : "debris",
     x: cell.x + 0.5,
     y: cell.y + 0.5,
-    remaining: 3,
+    remaining: wasWood ? 3 : 0,
   });
-  announce(world, wasWood ? "木牆碎了，留下木刺堆" : "石牆碎了，留下大石頭堆");
+  announce(world, wasWood ? "木牆碎了，掉出一堆彈藥" : "石牆碎了，只剩碎石");
 }
 
-function spawnProjectile(world: DemoWorld, kind: "enemy" | DemoPropKind, payload: DemoEnemy | undefined): void {
+function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
   const direction = facing(world);
   world.projectiles.push({
     id: nextId(world, "shot"),
@@ -192,39 +214,7 @@ function spawnProjectile(world: DemoWorld, kind: "enemy" | DemoPropKind, payload
     range: THROW_RANGE[kind],
     payload,
     struck: new Set<string>(),
-    inert: kind === "smallRock",
   });
-}
-
-export function projectileSpeed(kind: "enemy" | DemoPropKind): number {
-  return THROW_SPEED[kind];
-}
-
-function burstSmallRock(world: DemoWorld): void {
-  const direction = facing(world);
-  let struck = 0;
-
-  // Snapshot: a lethal burst splices the live array out from under the loop.
-  for (const enemy of world.enemies.slice()) {
-    const toX = enemy.x - world.player.x;
-    const toY = enemy.y - world.player.y;
-    const distance = Math.hypot(toX, toY);
-
-    if (distance > THROW_RANGE.smallRock || distance < 0.0001) {
-      continue;
-    }
-
-    if ((toX / distance) * direction.x + (toY / distance) * direction.y < SMALL_ROCK_CONE) {
-      continue;
-    }
-
-    enemy.pushX += (toX / distance) * SMALL_ROCK_KNOCKBACK;
-    enemy.pushY += (toY / distance) * SMALL_ROCK_KNOCKBACK;
-    damageEnemy(world, enemy, SMALL_ROCK_DAMAGE);
-    struck += 1;
-  }
-
-  announce(world, struck > 0 ? `碎石扇形擊退 ${struck} 隻` : "碎石打空了");
 }
 
 function throwHeld(world: DemoWorld): void {
@@ -242,36 +232,50 @@ function throwHeld(world: DemoWorld): void {
     return;
   }
 
-  if (held.prop === "smallRock") {
-    burstSmallRock(world);
-    spawnProjectile(world, "smallRock", undefined);
-    return;
+  spawnProjectile(world, held.prop, undefined);
+  announce(world, held.prop === "stick" ? "木棍飛出去了" : held.prop === "rock" ? "石塊砸出去了" : "炸彈扔出去了");
+}
+
+function strikeAltar(world: DemoWorld): boolean {
+  if (world.altar.hp <= 0) {
+    return false;
   }
 
-  spawnProjectile(world, held.prop, undefined);
-  announce(world, held.prop === "stick" ? "木棍飛出去了" : "大石塊砸出去了");
+  if (inFront(world, world.altar.x, world.altar.y, meleeReach(world), MELEE_ARC) === undefined) {
+    return false;
+  }
+
+  world.altar.hp -= 1;
+
+  if (world.altar.hp > 0) {
+    announce(world, `祭壇裂了，再 ${world.altar.hp} 下`, 1.4);
+    return true;
+  }
+
+  awardBless(world);
+  return true;
 }
 
 function melee(world: DemoWorld): void {
-  const enemy = nearestEnemyAhead(world, REACH, MELEE_ARC);
+  const reach = meleeReach(world);
+  const enemy = nearestEnemyAhead(world, reach, MELEE_ARC);
 
   if (enemy) {
     const direction = facing(world);
-    enemy.pushX += direction.x * 3;
-    enemy.pushY += direction.y * 3;
-    damageEnemy(world, enemy, MELEE_DAMAGE);
+    const knockback = hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_KNOCKBACK : 3;
+    enemy.pushX += direction.x * knockback;
+    enemy.pushY += direction.y * knockback;
+    damageEnemy(world, enemy, meleeDamage(world));
     return;
   }
 
-  const pile = nearestPileAhead(world);
-
-  if (pile) {
-    world.piles.splice(world.piles.indexOf(pile), 1);
-    announce(world, pile.kind === "woodSpikes" ? "木刺堆被打散了" : "石頭堆被打散了");
+  if (strikeAltar(world)) {
     return;
   }
 
-  const cell = wallAhead(world);
+  // A rubble pile is not a target. Swinging through one reaches whatever is behind it, so the only
+  // way a pile leaves the floor is by being carried away three pieces at a time.
+  const cell = wallAhead(world, reach);
 
   if (cell) {
     damageWall(world, cell, MELEE_WALL_DAMAGE);
@@ -321,20 +325,20 @@ function dropHeld(world: DemoWorld): void {
 }
 
 function takeFromPile(world: DemoWorld, pile: DemoPile): void {
-  const kind: DemoPropKind = pile.kind === "woodSpikes" ? "stick" : pile.remaining === 3 ? "bigRock" : "smallRock";
+  const kind = randomAmmo();
   pile.remaining -= 1;
   world.held = { kind: "prop", prop: kind };
 
   if (pile.remaining <= 0) {
     world.piles.splice(world.piles.indexOf(pile), 1);
-    announce(world, `撿走最後一塊，堆消失了（${PROP_LABELS[kind]}）`);
+    announce(world, `撿走最後一件：${PROP_LABELS[kind]}`);
     return;
   }
 
-  announce(world, `從堆裡撿起${PROP_LABELS[kind]}（還剩 ${pile.remaining} 次）`);
+  announce(world, `撿起${PROP_LABELS[kind]}（堆裡還有 ${pile.remaining} 件）`);
 }
 
-/** Right button: grab an enemy, a loose prop, or one piece of a rubble pile — or drop what is held. */
+/** Right button: grab an enemy, a loose prop, or one piece of an ammunition pile — or drop. */
 export function grabAction(world: DemoWorld): void {
   if (world.status !== "playing") {
     return;
@@ -363,7 +367,7 @@ export function grabAction(world: DemoWorld): void {
     return;
   }
 
-  const pile = nearestPileAhead(world);
+  const pile = nearestAmmoPileAhead(world);
 
   if (pile) {
     takeFromPile(world, pile);

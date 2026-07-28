@@ -4,6 +4,7 @@ import type { Facing } from "@/core/grid";
 import { createProceduralTextures, type TextureSet } from "@/presentation/procedural-textures";
 import type {
   RenderEmitter,
+  RenderFloorMaterial,
   RenderScene,
   RenderSprite,
   RenderSurface,
@@ -26,6 +27,8 @@ const MAX_WIDTH = 1050;
 const MAX_HEIGHT = 650;
 const TEXTURE_SIZE = 64;
 const LIT_SPRITE_CACHE_LIMIT = 64;
+/** Index order for the per-cell floor lookup; position here is what the patch grid stores. */
+const FLOOR_MATERIALS: readonly RenderFloorMaterial[] = ["water"];
 
 export type EnemyRenderEffect = Readonly<{
   entityId: string;
@@ -130,6 +133,8 @@ export class CanvasGameplayRenderer {
   readonly #texturePixels: Readonly<{ floor: Uint8ClampedArray; ceiling: Uint8ClampedArray }>;
   readonly #litSpriteCache = new Map<string, HTMLCanvasElement>();
   readonly #whiteSpriteCache = new Map<string, HTMLCanvasElement>();
+  readonly #tintedSpriteCache = new Map<string, HTMLCanvasElement>();
+  readonly #floorPatchPixels: readonly Uint8ClampedArray[];
   #depthBuffer = new Float64Array(1);
 
   public constructor(
@@ -157,6 +162,41 @@ export class CanvasGameplayRenderer {
       floor: floorContext.getImageData(0, 0, TEXTURE_SIZE, TEXTURE_SIZE).data,
       ceiling: ceilingContext.getImageData(0, 0, TEXTURE_SIZE, TEXTURE_SIZE).data,
     };
+    this.#floorPatchPixels = FLOOR_MATERIALS.map((material) => {
+      const patchContext = this.#textures.floors[material].getContext("2d");
+
+      if (!patchContext) {
+        throw new Error(`procedural floor pixels are unavailable for ${material}`);
+      }
+
+      return patchContext.getImageData(0, 0, TEXTURE_SIZE, TEXTURE_SIZE).data;
+    });
+  }
+
+  /**
+   * A per-cell index into `FLOOR_MATERIALS`, offset by one so zero means the default floor.
+   *
+   * A flat typed array rather than a map keyed by coordinate: this is read once per floor pixel, so
+   * roughly a fifth of a million times a frame, and a string key built per read is not affordable.
+   */
+  #floorPatchGrid(scene: RenderScene): Uint8Array | undefined {
+    const patches = scene.floorPatches;
+
+    if (!patches || patches.length === 0) {
+      return undefined;
+    }
+
+    const grid = new Uint8Array(scene.width * scene.height);
+
+    for (const patch of patches) {
+      if (patch.cell.x < 0 || patch.cell.y < 0 || patch.cell.x >= scene.width || patch.cell.y >= scene.height) {
+        continue;
+      }
+
+      grid[patch.cell.y * scene.width + patch.cell.x] = FLOOR_MATERIALS.indexOf(patch.material) + 1;
+    }
+
+    return grid;
   }
 
   public resize(cssWidth: number, cssHeight: number, devicePixelRatio: number): void {
@@ -264,6 +304,7 @@ export class CanvasGameplayRenderer {
     const rayY1 = directionY + planeY;
     const image = this.#context.createImageData(width, height);
     const flicker = reducedMotion ? 1 : 0.96 + Math.sin(elapsedSeconds * 7.1) * 0.025;
+    const patchGrid = this.#floorPatchGrid(scene);
 
     // Every row is walked rather than the floor half being walked and the ceiling mirrored onto it:
     // once the horizon can sit anywhere on the screen, the two halves are no longer the same size
@@ -278,12 +319,29 @@ export class CanvasGameplayRenderer {
       let planeYPosition = camera.y + rowDistance * rayY0;
       const fog = clamp(1 - rowDistance / MAX_DEPTH, 0.12, 1) * (below ? 1 : 0.82);
       const torch = clamp(1.2 - rowDistance / 8, 0, 1) * flicker * torchContraction * (below ? 1 : 0.5);
-      const pixels = below ? this.#texturePixels.floor : this.#texturePixels.ceiling;
+      const defaultPixels = below ? this.#texturePixels.floor : this.#texturePixels.ceiling;
+      // Only the floor half can be patched; a pool has no counterpart on the ceiling.
+      const patchable = below && patchGrid !== undefined;
 
       for (let x = 0; x < width; x += 1) {
         const textureX = ((Math.floor(planeXPosition * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
         const textureY = ((Math.floor(planeYPosition * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
         const source = (textureY * TEXTURE_SIZE + textureX) * 4;
+        let pixels = defaultPixels;
+
+        if (patchable) {
+          const cellX = Math.floor(planeXPosition);
+          const cellY = Math.floor(planeYPosition);
+
+          if (cellX >= 0 && cellY >= 0 && cellX < scene.width && cellY < scene.height) {
+            const patch = patchGrid[cellY * scene.width + cellX] ?? 0;
+
+            if (patch !== 0) {
+              pixels = this.#floorPatchPixels[patch - 1] ?? defaultPixels;
+            }
+          }
+        }
+
         this.#writeLitPixel(image.data, (y * width + x) * 4, pixels, source, fog, torch);
         planeXPosition += stepX;
         planeYPosition += stepY;
@@ -486,9 +544,91 @@ export class CanvasGameplayRenderer {
       }
     }
 
+    // Last, and over everything: the silhouettes that are meant to be seen through the walls they
+    // are behind. Drawn after the depth-tested pass so nothing can paint back over them.
+    for (const projected of sprites) {
+      const xray = projected.sprite.xray;
+
+      if (xray) {
+        this.#drawSilhouette(projected, xray, elapsedSeconds);
+      }
+    }
+
     for (const death of effects.deaths) {
       this.#drawDeath(scene, death, elapsedSeconds);
     }
+  }
+
+  /** Paints a sprite's outline in one colour, ignoring the depth buffer entirely. */
+  #drawSilhouette(projected: ProjectedSprite, xray: NonNullable<RenderSprite["xray"]>, elapsedSeconds: number): void {
+    const assetId = projected.sprite.appearanceId
+      ? `enemy.${projected.sprite.appearanceId}.normal`
+      : projected.sprite.assetId;
+    const source = this.#outlineImage(assetId, xray.color);
+    const dimensions = imageDimensions(source);
+    // A slow pulse, so a marker sitting still behind a wall still reads as a live cue rather than
+    // as a smear baked into the wall texture.
+    const pulse = 0.78 + Math.sin(elapsedSeconds * 2.6) * 0.22;
+    this.#context.save();
+    this.#context.globalAlpha = clamp(xray.alpha * pulse, 0, 1);
+    this.#context.globalCompositeOperation = "lighter";
+    this.#context.drawImage(
+      source,
+      0,
+      0,
+      dimensions.width,
+      dimensions.height,
+      projected.startX,
+      projected.startY,
+      projected.width,
+      projected.height,
+    );
+    this.#context.restore();
+  }
+
+  /**
+   * The rim of a sprite in one colour, built by dilating its alpha and punching the original out.
+   *
+   * An outline rather than a filled silhouette: a solid shape seen through a wall reads as an object
+   * embedded in the masonry, while a rim reads as a thing marked behind it. The margin is enlarged
+   * to hold the stroke, since the dilation would otherwise be clipped at the source's own edge.
+   */
+  #outlineImage(assetId: string, color: readonly [number, number, number]): CanvasImageSource {
+    const key = `${assetId}:${color.join()}`;
+    const cached = this.#tintedSpriteCache.get(key);
+
+    if (cached) {
+      return cached;
+    }
+
+    const source = requireImage(this.images, assetId);
+    const dimensions = imageDimensions(source);
+    const stroke = Math.max(2, Math.round(Math.min(dimensions.width, dimensions.height) / 42));
+    const surface = this.canvas.ownerDocument.createElement("canvas");
+    surface.width = dimensions.width + stroke * 2;
+    surface.height = dimensions.height + stroke * 2;
+    const context = surface.getContext("2d");
+
+    if (!context) {
+      return source;
+    }
+
+    for (let step = 0; step < 8; step += 1) {
+      const angle = (step / 8) * Math.PI * 2;
+      context.drawImage(
+        source,
+        stroke + Math.round(Math.cos(angle) * stroke),
+        stroke + Math.round(Math.sin(angle) * stroke),
+      );
+    }
+
+    context.globalCompositeOperation = "destination-out";
+    context.drawImage(source, stroke, stroke);
+    context.globalCompositeOperation = "source-in";
+    context.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    context.fillRect(0, 0, surface.width, surface.height);
+    this.#tintedSpriteCache.set(key, surface);
+    return surface;
   }
 
   #drawProjectedImage(projected: ProjectedSprite, source: CanvasImageSource, alpha: number): void {

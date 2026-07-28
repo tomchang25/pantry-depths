@@ -8,7 +8,9 @@
 
 import "@/demo/demo.css";
 
-import { grabAction, primaryAction, PROP_LABELS, wallAhead } from "@/demo/actions";
+import { grabAction, meleeReach, primaryAction, PROP_LABELS, wallAhead } from "@/demo/actions";
+import { findBless, type BlessDefinition } from "@/demo/bless";
+import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
@@ -57,6 +59,20 @@ function suppressContextMenu(event: MouseEvent): void {
   event.preventDefault();
 }
 
+const ENEMY_DOT_COLORS: Readonly<Record<DemoArchetypeId, string>> = {
+  walker: "#7fc46a",
+  ranged: "#5aa8e0",
+  charger: "#e2585f",
+};
+
+const MINIMAP_TILE_COLORS: Readonly<Record<string, string>> = {
+  border: "#0b0710",
+  stone: "#59506a",
+  wood: "#7a5029",
+  water: "#1c3f5e",
+  open: "#241a2e",
+};
+
 function drawMinimap(context: CanvasRenderingContext2D, world: DemoWorld): void {
   const size = DEMO_GRID_SIZE * MINIMAP_CELL;
   context.clearRect(0, 0, size, size);
@@ -64,14 +80,7 @@ function drawMinimap(context: CanvasRenderingContext2D, world: DemoWorld): void 
   for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
     for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
       const tile = world.maze.tiles[tileIndex(x, y)];
-      context.fillStyle =
-        tile?.kind === "border"
-          ? "#0b0710"
-          : tile?.kind === "stone"
-            ? "#59506a"
-            : tile?.kind === "wood"
-              ? "#7a5029"
-              : "#241a2e";
+      context.fillStyle = MINIMAP_TILE_COLORS[tile?.kind ?? "open"] ?? "#241a2e";
       context.fillRect(x * MINIMAP_CELL, y * MINIMAP_CELL, MINIMAP_CELL, MINIMAP_CELL);
     }
   }
@@ -86,8 +95,12 @@ function drawMinimap(context: CanvasRenderingContext2D, world: DemoWorld): void 
   dot(world.maze.exit.x + 0.5, world.maze.exit.y + 0.5, 4, "#7fd8a2");
   dot(world.maze.entrance.x + 0.5, world.maze.entrance.y + 0.5, 3, "#a789d4");
 
+  if (world.altar.hp > 0) {
+    dot(world.altar.x, world.altar.y, 3.4, "#f4ca7a");
+  }
+
   for (const pile of world.piles) {
-    dot(pile.x, pile.y, 2.4, pile.kind === "woodSpikes" ? "#d8a25c" : "#9c94ac");
+    dot(pile.x, pile.y, 2.4, pile.kind === "ammo" ? "#d8a25c" : "#5c5566");
   }
 
   for (const prop of world.props) {
@@ -95,7 +108,7 @@ function drawMinimap(context: CanvasRenderingContext2D, world: DemoWorld): void 
   }
 
   for (const enemy of world.enemies) {
-    dot(enemy.x, enemy.y, 2.6, "#e2585f");
+    dot(enemy.x, enemy.y, 2.6, ENEMY_DOT_COLORS[enemy.archetype.id]);
   }
 
   dot(world.player.x, world.player.y, 3, "#ffe6b0");
@@ -123,12 +136,14 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   minimap.height = DEMO_GRID_SIZE * MINIMAP_CELL;
   const crosshair = element("div", "demo__crosshair");
   const message = element("p", "demo__message");
+  const blessBar = element("div", "demo__blessbar");
+  const card = element("aside", "demo__card");
   const overlay = element("section", "demo__overlay");
   const overlayTitle = element("h1", "", "Pantry Depths — Demo");
   const overlayBody = document.createElement("p");
   overlay.append(overlayTitle, overlayBody);
-  panel.append(bar, readout);
-  surface.append(canvas, panel, minimap, crosshair, message, overlay);
+  panel.append(bar, readout, blessBar);
+  surface.append(canvas, panel, minimap, crosshair, message, card, overlay);
   mount.replaceChildren(surface);
 
   const minimapContext = minimap.getContext("2d");
@@ -149,6 +164,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   let disposed = false;
   let frame = 0;
   let lastTime: number | undefined;
+  let cardTimer: number | undefined;
   const input: { forward: boolean; backward: boolean; strafeLeft: boolean; strafeRight: boolean } = {
     forward: false,
     backward: false,
@@ -173,16 +189,9 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   const locked = (): boolean => document.pointerLockElement === canvas;
 
   const refreshOverlay = (): void => {
-    if (world.status === "escaped") {
-      overlayTitle.textContent = "逃出去了";
-      overlayBody.innerHTML = `打破 ${world.wallsBroken} 面牆，殺掉 ${world.kills} 隻。按 <kbd>R</kbd> 換一張新地圖。`;
-      overlay.hidden = false;
-      return;
-    }
-
     if (world.status === "dead") {
       overlayTitle.textContent = "被吃掉了";
-      overlayBody.innerHTML = `撐了 ${world.elapsedSeconds.toFixed(0)} 秒。按 <kbd>R</kbd> 重來。`;
+      overlayBody.innerHTML = `深入到第 ${world.depth} 層，殺掉 ${world.kills} 隻，持有 ${world.bless.owned.length} 個祝福。按 <kbd>R</kbd> 重來。`;
       overlay.hidden = false;
       return;
     }
@@ -190,7 +199,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     if (!locked()) {
       overlayTitle.textContent = "Pantry Depths — Demo";
       overlayBody.innerHTML =
-        "點一下畫面開始。<br><kbd>WASD</kbd> 移動 · 滑鼠轉向 · <kbd>左鍵</kbd> 攻擊／投擲 · <kbd>右鍵</kbd> 抓取／放下 · <kbd>R</kbd> 重生地圖 · <kbd>Esc</kbd> 放開滑鼠";
+        "點一下畫面開始。<br><kbd>WASD</kbd> 移動 · 滑鼠轉向 · <kbd>左鍵</kbd> 攻擊／投擲 · <kbd>右鍵</kbd> 抓取／放下 · <kbd>R</kbd> 重新開始 · <kbd>Esc</kbd> 放開滑鼠<br>綠光是往下的樓梯，金光是祭壇（劈三下拿祝福）。兩者隔著牆也看得到。";
       overlay.hidden = false;
       return;
     }
@@ -198,10 +207,47 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     overlay.hidden = true;
   };
 
+  const refreshBlessBar = (): void => {
+    const icons = world.bless.owned
+      .map((id) => findBless(id))
+      .filter((definition): definition is BlessDefinition => Boolean(definition))
+      .map(
+        (definition) =>
+          `<i class="demo__blessicon" style="--bless: ${definition.color}" title="${definition.name}：${definition.detail}">${definition.glyph}</i>`,
+      );
+
+    if (world.bless.overflowMaxHp > 0) {
+      icons.push(`<i class="demo__blessicon" style="--bless: #f0f0d0" title="額外最大生命">＋</i>`);
+    }
+
+    blessBar.innerHTML = icons.join("");
+  };
+
+  /**
+   * Shows the award card for a few seconds.
+   *
+   * The world only ever raises a flag; the card, its timer, and its removal all live here so the
+   * simulation never has to know how long a piece of user interface stays on screen.
+   */
+  const showCard = (token: string): void => {
+    const definition = token === "overflow" ? undefined : findBless(token as BlessDefinition["id"]);
+    card.innerHTML = definition
+      ? `<i class="demo__cardglyph" style="--bless: ${definition.color}">${definition.glyph}</i><strong>${definition.name}</strong><span>${definition.detail}</span>`
+      : `<i class="demo__cardglyph" style="--bless: #f0f0d0">＋</i><strong>血脈</strong><span>祝福已收集完畢，改為提升最大生命</span>`;
+    card.classList.add("demo__card--visible");
+
+    if (cardTimer !== undefined) {
+      window.clearTimeout(cardTimer);
+    }
+
+    cardTimer = window.setTimeout(() => card.classList.remove("demo__card--visible"), 5000);
+    refreshBlessBar();
+  };
+
   const refreshPanel = (): void => {
     barFill.style.width = `${Math.max(0, (world.player.hp / world.player.maxHp) * 100)}%`;
     const held = world.held ? (world.held.kind === "enemy" ? "敵人" : PROP_LABELS[world.held.prop]) : "空手";
-    const ahead = wallAhead(world);
+    const ahead = wallAhead(world, meleeReach(world));
     const aheadTile = ahead ? tileAt(world.maze, ahead.x, ahead.y) : undefined;
     const aheadText =
       aheadTile === undefined
@@ -210,19 +256,27 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
           ? "外圈磚牆（不可破壞）"
           : `${aheadTile.kind === "wood" ? "木牆" : "石牆"} HP ${aheadTile.hp}/${aheadTile.maxHp}`;
     readout.innerHTML = [
-      `HP ${Math.ceil(world.player.hp)} / ${world.player.maxHp}`,
+      `<b>B${world.depth}</b> · HP ${Math.ceil(world.player.hp)} / ${world.player.maxHp}`,
       `手上：<span class="demo__held">${held}</span>`,
       `面前：${aheadText}`,
-      `敵人 ${world.enemies.length} · 擊殺 ${world.kills} · 破牆 ${world.wallsBroken}`,
+      `祭壇 ${world.altar.hp > 0 ? `${world.altar.hp}/${world.altar.maxHp} 下` : "已用"} · 敵人 ${world.enemies.length}`,
+      `擊殺 ${world.kills} · 破牆 ${world.wallsBroken}`,
     ].join("<br>");
     message.textContent = world.message;
     message.classList.toggle("demo__message--visible", world.messageSeconds > 0);
+
+    if (world.pendingCard !== undefined) {
+      showCard(world.pendingCard);
+      world.pendingCard = undefined;
+    }
   };
 
   const restart = (): void => {
     world = createDemoWorld();
     clearInput();
     publish();
+    card.classList.remove("demo__card--visible");
+    refreshBlessBar();
     refreshOverlay();
   };
 
@@ -354,6 +408,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   overlay.addEventListener("click", handleOverlayClick);
 
   publish();
+  refreshBlessBar();
   refreshOverlay();
   frame = window.requestAnimationFrame(tick);
 
@@ -361,6 +416,11 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     dispose: () => {
       disposed = true;
       window.cancelAnimationFrame(frame);
+
+      if (cardTimer !== undefined) {
+        window.clearTimeout(cardTimer);
+      }
+
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", clearInput);

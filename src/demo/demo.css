@@ -67,6 +67,85 @@ body,
   font-weight: 700;
 }
 
+.demo__blessbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+  pointer-events: auto;
+}
+
+.demo__blessbar:empty {
+  display: none;
+}
+
+.demo__blessicon {
+  display: grid;
+  place-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  color: var(--bless, #f4dfc7);
+  font-size: 0.95rem;
+  font-style: normal;
+  border: 1px solid color-mix(in srgb, var(--bless, #f4dfc7) 55%, transparent);
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--bless, #f4dfc7) 14%, rgb(19 10 25 / 88%));
+  cursor: help;
+}
+
+.demo__card {
+  position: absolute;
+  inset: auto auto 18% 50%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  gap: 0.1rem 0.85rem;
+  width: min(24rem, calc(100% - 3rem));
+  padding: 0.85rem 1.1rem;
+  color: #f7e9d2;
+  border: 1px solid rgb(203 151 105 / 55%);
+  border-radius: 0.35rem;
+  background: rgb(24 14 30 / 94%);
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 60%);
+  opacity: 0;
+  transform: translate(-50%, 1.4rem);
+  transition:
+    opacity 260ms ease-out,
+    transform 260ms ease-out;
+  pointer-events: none;
+}
+
+.demo__card--visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.demo__cardglyph {
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: grid;
+  place-content: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  color: var(--bless, #f4dfc7);
+  font-size: 1.6rem;
+  font-style: normal;
+  border: 1px solid color-mix(in srgb, var(--bless, #f4dfc7) 60%, transparent);
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--bless, #f4dfc7) 16%, transparent);
+}
+
+.demo__card strong {
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.demo__card span {
+  color: #cdb69c;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .demo__minimap {
   position: absolute;
   inset: 0.9rem 0.9rem auto auto;

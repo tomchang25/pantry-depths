@@ -34,6 +34,17 @@ export type RenderSurface = Readonly<{
   hintFaces?: readonly Facing[];
 }>;
 
+/**
+ * A floor material other than the level's default one.
+ *
+ * The floor is drawn per pixel from a single tiling texture, so a cell that should look different
+ * has to be named here rather than covered with a sprite: a sprite laid flat is a squashed billboard
+ * that floats, tiles against its neighbours with a visible seam, and cannot be walked over correctly.
+ */
+export type RenderFloorMaterial = "water";
+
+export type RenderFloorPatch = Readonly<{ cell: Cell; material: RenderFloorMaterial }>;
+
 export type RenderSprite = Readonly<{
   id: string;
   x: number;
@@ -45,6 +56,11 @@ export type RenderSprite = Readonly<{
   /** Which baked artwork this sprite draws. Archetypes share appearances, so this is not an identity. */
   appearanceId?: EnemyAppearanceId;
   wallFace?: Facing;
+  /**
+   * Draws a second, glowing silhouette of this sprite that ignores what is in front of it, so the
+   * thing stays locatable through walls. Only the demo surface marks anything this way.
+   */
+  xray?: Readonly<{ color: readonly [number, number, number]; alpha: number }>;
 }>;
 
 export type RenderLight = Readonly<{
@@ -72,6 +88,8 @@ export type RenderScene = Readonly<{
   tiles: readonly string[];
   camera: CameraPose;
   surfaces: readonly RenderSurface[];
+  /** Cells whose floor is drawn from a different texture. Baked floors author none of these. */
+  floorPatches?: readonly RenderFloorPatch[];
   sprites: readonly RenderSprite[];
   lights: readonly RenderLight[];
   emitters: readonly RenderEmitter[];
