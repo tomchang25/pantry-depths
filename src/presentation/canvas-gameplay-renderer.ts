@@ -29,12 +29,19 @@ const MAX_WIDTH = 1050;
 const MAX_HEIGHT = 650;
 const TEXTURE_SIZE = 64;
 const LIT_SPRITE_CACHE_LIMIT = 64;
-/** Index order for the per-cell floor lookup; position here is what the patch grid stores. */
-const FLOOR_MATERIALS: readonly RenderFloorMaterial[] = ["water"];
+/**
+ * Index order for the per-cell floor lookup; position here is what the patch grid stores.
+ *
+ * Every member of `RenderFloorMaterial` must appear, or a scene naming the missing one silently
+ * falls back to the default floor instead of failing.
+ */
+const FLOOR_MATERIALS: readonly RenderFloorMaterial[] = ["water", "demoFlagstone", "demoVault"];
 /** Rods are cut off closer than this, so a rod leaving the player's own hand cannot fill the screen. */
 const BEAM_NEAR_PLANE = 0.5;
 /** Quads swept along a rod. Enough that the taper is smooth without paying for a real mesh. */
 const BEAM_PIECES = 10;
+/** Lightmap texels per cell. Three is the point where a light pool stops looking like a staircase. */
+const LIGHTMAP_SCALE = 3;
 
 export type EnemyRenderEffect = Readonly<{
   entityId: string;
@@ -72,6 +79,21 @@ export type RendererPreferences = Readonly<{
    * its own hands, because it has to show whatever is currently being carried.
    */
   viewmodel?: boolean;
+  /**
+   * Turns on the lightmap: placed lights actually pool on walls and floor instead of only warming
+   * nearby sprites.
+   *
+   * Off everywhere at present. It works, but the lightmap is sampled at three texels per cell with
+   * no interpolation, and a light that moves — the torch the player carries — crosses those texel
+   * boundaries every frame, so whole patches of wall snap between levels as you walk. Fixing it
+   * means filtering the sample, not tuning the numbers; until then this stays off.
+   */
+  enhancedLighting?: boolean;
+  /**
+   * The vignette and warm centre. Independent of the lightmap, because it is a lens effect rather
+   * than a lighting model and looks right over either one.
+   */
+  grade?: boolean;
 }>;
 
 const NO_EFFECTS: PresentationRenderEffects = {
@@ -90,6 +112,9 @@ type RayHit = Readonly<{
   textureX: number;
   face: "north" | "east" | "south" | "west";
   shade: number;
+  /** Where on the face the ray landed, so lighting can vary across a wall rather than per cell. */
+  hitX: number;
+  hitY: number;
 }>;
 
 type ProjectedSprite = Readonly<{
@@ -121,6 +146,20 @@ function requireImage(images: PresentationImages, assetId: string): CanvasImageS
   return image;
 }
 
+/**
+ * Fill styles for the wall pass, quantised and cached.
+ *
+ * Every one of these is set once per screen column, so building the `rgba(...)` string each time
+ * allocated a few thousand strings a frame — enough to be the single largest cost in the lit path.
+ * Quantising to a small ladder costs nothing visible and makes the styles reusable.
+ */
+const SHADOW_STEPS = 48;
+const SHADOW_STYLES = Array.from({ length: SHADOW_STEPS + 1 }, (_, step) => `rgba(7, 3, 15, ${step / SHADOW_STEPS})`);
+
+function shadowStyle(alpha: number): string {
+  return SHADOW_STYLES[Math.round(clamp(alpha, 0, 1) * SHADOW_STEPS)] ?? SHADOW_STYLES[0] ?? "rgba(7, 3, 15, 0)";
+}
+
 function along(start: RenderPoint, end: RenderPoint, t: number): RenderPoint {
   return {
     x: start.x + (end.x - start.x) * t,
@@ -150,6 +189,10 @@ export class CanvasGameplayRenderer {
   readonly #tintedSpriteCache = new Map<string, HTMLCanvasElement>();
   readonly #floorPatchPixels: readonly Uint8ClampedArray[];
   #depthBuffer = new Float64Array(1);
+  #lightmap = new Float32Array(0);
+  #solidGrid = new Uint8Array(0);
+  readonly #tintStyles = new Map<number, string>();
+  #lit = false;
 
   public constructor(
     readonly canvas: HTMLCanvasElement,
@@ -185,6 +228,133 @@ export class CanvasGameplayRenderer {
 
       return patchContext.getImageData(0, 0, TEXTURE_SIZE, TEXTURE_SIZE).data;
     });
+  }
+
+  /**
+   * Builds the frame's lightmap: placed lights accumulated onto a grid finer than the cells.
+   *
+   * Sampling per pixel against every light would cost a multiply-add per light per floor pixel, so
+   * the light is resolved once per lightmap texel instead and every surface reads it back with a
+   * single array index. Three samples per cell is enough that a torch pool has a soft edge rather
+   * than a staircase, and coarse enough that the whole grid is a few thousand texels.
+   *
+   * Occlusion is a short march from texel to light: without it a lamp in one room lights the far
+   * side of the wall it is standing against, which is exactly the giveaway that a scene is faked.
+   */
+  #buildLightmap(scene: RenderScene, surfaces: ReadonlyMap<string, RenderSurface>): void {
+    const width = scene.width * LIGHTMAP_SCALE;
+    const height = scene.height * LIGHTMAP_SCALE;
+
+    // A flat grid of which cells are solid. The occlusion march below runs tens of thousands of
+    // times a frame, and asking a string-keyed map each step allocated a key per step — on its own
+    // that was most of the frame.
+    if (this.#solidGrid.length !== scene.width * scene.height) {
+      this.#solidGrid = new Uint8Array(scene.width * scene.height);
+    }
+
+    this.#solidGrid.fill(0);
+
+    for (const surface of surfaces.values()) {
+      if (surface.cell.x >= 0 && surface.cell.y >= 0 && surface.cell.x < scene.width && surface.cell.y < scene.height) {
+        this.#solidGrid[surface.cell.y * scene.width + surface.cell.x] = 1;
+      }
+    }
+
+    if (this.#lightmap.length !== width * height * 3) {
+      this.#lightmap = new Float32Array(width * height * 3);
+    }
+
+    const map = this.#lightmap;
+    const ambient = scene.ambient ?? [0, 0, 0];
+
+    for (let index = 0; index < map.length; index += 3) {
+      map[index] = ambient[0];
+      map[index + 1] = ambient[1];
+      map[index + 2] = ambient[2];
+    }
+
+    for (const light of scene.lights) {
+      const minX = Math.max(0, Math.floor((light.x - light.radius) * LIGHTMAP_SCALE));
+      const maxX = Math.min(width - 1, Math.ceil((light.x + light.radius) * LIGHTMAP_SCALE));
+      const minY = Math.max(0, Math.floor((light.y - light.radius) * LIGHTMAP_SCALE));
+      const maxY = Math.min(height - 1, Math.ceil((light.y + light.radius) * LIGHTMAP_SCALE));
+
+      for (let texelY = minY; texelY <= maxY; texelY += 1) {
+        for (let texelX = minX; texelX <= maxX; texelX += 1) {
+          const worldX = (texelX + 0.5) / LIGHTMAP_SCALE;
+          const worldY = (texelY + 0.5) / LIGHTMAP_SCALE;
+          const distance = Math.hypot(worldX - light.x, worldY - light.y);
+
+          if (distance > light.radius) {
+            continue;
+          }
+
+          // A gentler curve than inverse-square: a torch that falls off physically leaves the player
+          // standing in a bright disc with a hard edge, and the readable thing is a long soft reach.
+          const falloff = (1 - distance / light.radius) ** 1.7 * light.intensity;
+
+          if (falloff < 0.01 || this.#occluded(scene, light.x, light.y, worldX, worldY)) {
+            continue;
+          }
+
+          const index = (texelY * width + texelX) * 3;
+          map[index] = (map[index] ?? 0) + (light.color[0] / 255) * falloff;
+          map[index + 1] = (map[index + 1] ?? 0) + (light.color[1] / 255) * falloff;
+          map[index + 2] = (map[index + 2] ?? 0) + (light.color[2] / 255) * falloff;
+        }
+      }
+    }
+  }
+
+  /** Coarse line test between a light and a lightmap texel. Wrong by at most part of one cell. */
+  #occluded(scene: RenderScene, fromX: number, fromY: number, toX: number, toY: number): boolean {
+    const steps = Math.ceil(Math.hypot(toX - fromX, toY - fromY) * 2);
+
+    for (let step = 1; step < steps; step += 1) {
+      const t = step / steps;
+      const x = Math.floor(fromX + (toX - fromX) * t);
+      const y = Math.floor(fromY + (toY - fromY) * t);
+
+      if (x < 0 || y < 0 || x >= scene.width || y >= scene.height) {
+        continue;
+      }
+
+      if (this.#solidGrid[y * scene.width + x] === 1) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /** The additive light tint for a wall column, quantised so the strings can be reused. */
+  #tintStyle(red: number, green: number, blue: number, alpha: number): string {
+    const quantisedRed = Math.round(clamp(red, 0, 1) * 15);
+    const quantisedGreen = Math.round(clamp(green, 0, 1) * 15);
+    const quantisedBlue = Math.round(clamp(blue, 0, 1) * 15);
+    const quantisedAlpha = Math.round(clamp(alpha, 0, 1) * 15);
+    const key = (quantisedRed << 12) | (quantisedGreen << 8) | (quantisedBlue << 4) | quantisedAlpha;
+    const cached = this.#tintStyles.get(key);
+
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const style = `rgba(${Math.round((quantisedRed / 15) * 190)}, ${Math.round(
+      (quantisedGreen / 15) * 190,
+    )}, ${Math.round((quantisedBlue / 15) * 190)}, ${quantisedAlpha / 15})`;
+    this.#tintStyles.set(key, style);
+    return style;
+  }
+
+  /** Reads the lightmap at a world position, clamped to the grid. */
+  #sampleLight(scene: RenderScene, x: number, y: number): readonly [number, number, number] {
+    const width = scene.width * LIGHTMAP_SCALE;
+    const height = scene.height * LIGHTMAP_SCALE;
+    const texelX = clamp(Math.floor(x * LIGHTMAP_SCALE), 0, width - 1);
+    const texelY = clamp(Math.floor(y * LIGHTMAP_SCALE), 0, height - 1);
+    const index = (texelY * width + texelX) * 3;
+    return [this.#lightmap[index] ?? 0, this.#lightmap[index + 1] ?? 0, this.#lightmap[index + 2] ?? 0];
   }
 
   /**
@@ -272,6 +442,12 @@ export class CanvasGameplayRenderer {
     }
 
     const surfaceMap = new Map(scene.surfaces.map((surface) => [keyOf(surface.cell.x, surface.cell.y), surface]));
+    this.#lit = preferences.enhancedLighting === true;
+
+    if (this.#lit) {
+      this.#buildLightmap(scene, surfaceMap);
+    }
+
     this.#drawProjectedPlanes(scene, elapsedSeconds, preferences.reducedMotion, effects.rejectionTorch);
     this.#drawWalls(scene, surfaceMap, elapsedSeconds, effects.rejectionTorch);
     this.#drawSprites(scene, elapsedSeconds, effects);
@@ -281,15 +457,23 @@ export class CanvasGameplayRenderer {
     }
 
     this.#drawEmitters(scene.emitters, scene, elapsedSeconds, preferences.reducedMotion);
-    this.#drawAtmosphere(elapsedSeconds, preferences.reducedMotion);
+
+    if (preferences.grade === true) {
+      this.#drawMotes(scene, elapsedSeconds, preferences.reducedMotion);
+    } else {
+      this.#drawAtmosphere(elapsedSeconds, preferences.reducedMotion);
+    }
 
     if (preferences.viewmodel !== false) {
       this.#drawViewmodel(elapsedSeconds, effects, preferences.reducedMotion);
     }
 
+    if (preferences.grade === true) {
+      this.#drawGrade(elapsedSeconds, preferences.reducedMotion);
+    }
+
     if (effects.playerHit > 0) {
-      this.#context.fillStyle = `rgba(180, 24, 54, ${0.23 * effects.playerHit})`;
-      this.#context.fillRect(0, 0, width, height);
+      this.#drawPlayerHit(effects.playerHit);
     }
 
     if (effects.rejectionStaticCue) {
@@ -324,6 +508,13 @@ export class CanvasGameplayRenderer {
     const image = this.#context.createImageData(width, height);
     const flicker = reducedMotion ? 1 : 0.96 + Math.sin(elapsedSeconds * 7.1) * 0.025;
     const patchGrid = this.#floorPatchGrid(scene);
+    const waterMaterial = FLOOR_MATERIALS.indexOf("water");
+    const ceilingIndex = scene.ceilingMaterial ? FLOOR_MATERIALS.indexOf(scene.ceilingMaterial) : -1;
+    const ceilingMaterial = ceilingIndex >= 0 ? ceilingIndex : undefined;
+    const drift = reducedMotion ? 0 : elapsedSeconds * 0.045;
+    const lightWidth = scene.width * LIGHTMAP_SCALE;
+    const lastLightX = lightWidth - 1;
+    const lastLightY = scene.height * LIGHTMAP_SCALE - 1;
 
     // Every row is walked rather than the floor half being walked and the ceiling mirrored onto it:
     // once the horizon can sit anywhere on the screen, the two halves are no longer the same size
@@ -338,14 +529,17 @@ export class CanvasGameplayRenderer {
       let planeYPosition = camera.y + rowDistance * rayY0;
       const fog = clamp(1 - rowDistance / MAX_DEPTH, 0.12, 1) * (below ? 1 : 0.82);
       const torch = clamp(1.2 - rowDistance / 8, 0, 1) * flicker * torchContraction * (below ? 1 : 0.5);
-      const defaultPixels = below ? this.#texturePixels.floor : this.#texturePixels.ceiling;
+      const fogRed = 9 * (1 - fog);
+      const fogGreen = 5 * (1 - fog);
+      const fogBlue = 16 * (1 - fog);
+      const ceilingPixels = ceilingMaterial ? this.#floorPatchPixels[ceilingMaterial] : undefined;
+      const defaultPixels = below ? this.#texturePixels.floor : (ceilingPixels ?? this.#texturePixels.ceiling);
       // Only the floor half can be patched; a pool has no counterpart on the ceiling.
       const patchable = below && patchGrid !== undefined;
 
       for (let x = 0; x < width; x += 1) {
-        const textureX = ((Math.floor(planeXPosition * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
-        const textureY = ((Math.floor(planeYPosition * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
-        const source = (textureY * TEXTURE_SIZE + textureX) * 4;
+        let sampleX = planeXPosition;
+        let sampleY = planeYPosition;
         let pixels = defaultPixels;
 
         if (patchable) {
@@ -357,11 +551,44 @@ export class CanvasGameplayRenderer {
 
             if (patch !== 0) {
               pixels = this.#floorPatchPixels[patch - 1] ?? defaultPixels;
+
+              // Water is the one surface that moves. Sliding where the texture is read from, rather
+              // than rebuilding the texture, animates it for the cost of two adds per pixel.
+              if (patch - 1 === waterMaterial) {
+                sampleX += drift;
+                sampleY += Math.sin(sampleX * 2.2 + elapsedSeconds) * 0.02;
+              }
             }
           }
         }
 
-        this.#writeLitPixel(image.data, (y * width + x) * 4, pixels, source, fog, torch);
+        const textureX = ((Math.floor(sampleX * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
+        const textureY = ((Math.floor(sampleY * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
+        const source = (textureY * TEXTURE_SIZE + textureX) * 4;
+        const target = (y * width + x) * 4;
+
+        if (!this.#lit) {
+          this.#writeLitPixel(image.data, target, pixels, source, fog, torch);
+          planeXPosition += stepX;
+          planeYPosition += stepY;
+          continue;
+        }
+
+        // Read and shade inline. This body runs a fifth of a million times a frame, so a helper call
+        // and a returned tuple per pixel are both real costs rather than tidiness.
+        let texelX = (planeXPosition * LIGHTMAP_SCALE) | 0;
+        let texelY = (planeYPosition * LIGHTMAP_SCALE) | 0;
+        texelX = texelX < 0 ? 0 : texelX > lastLightX ? lastLightX : texelX;
+        texelY = texelY < 0 ? 0 : texelY > lastLightY ? lastLightY : texelY;
+        const light = (texelY * lightWidth + texelX) * 3;
+        const pixel = image.data;
+        const red = (pixels[source] ?? 0) * (this.#lightmap[light] ?? 0) * fog + fogRed;
+        const green = (pixels[source + 1] ?? 0) * (this.#lightmap[light + 1] ?? 0) * fog + fogGreen;
+        const blue = (pixels[source + 2] ?? 0) * (this.#lightmap[light + 2] ?? 0) * fog + fogBlue;
+        pixel[target] = red;
+        pixel[target + 1] = green;
+        pixel[target + 2] = blue;
+        pixel[target + 3] = 255;
         planeXPosition += stepX;
         planeYPosition += stepY;
       }
@@ -432,7 +659,15 @@ export class CanvasGameplayRenderer {
       }
 
       const face = side === 0 ? (rayX > 0 ? "west" : "east") : rayY > 0 ? "north" : "south";
-      return { distance, surface, textureX, face, shade: side === 0 ? 1 : 0.78 };
+      return {
+        distance,
+        surface,
+        textureX,
+        face,
+        shade: side === 0 ? 1 : 0.78,
+        hitX: scene.camera.x + rayX * distance,
+        hitY: scene.camera.y + rayY * distance,
+      };
     }
 
     return undefined;
@@ -448,6 +683,8 @@ export class CanvasGameplayRenderer {
     const height = this.canvas.height;
     const horizon = this.#horizon(scene);
     const flicker = 0.96 + Math.sin(elapsedSeconds * 7.1) * 0.025;
+    const lightWidth = scene.width * LIGHTMAP_SCALE;
+    const lightHeight = scene.height * LIGHTMAP_SCALE;
 
     for (let x = 0; x < width; x += 1) {
       const hit = this.#castRay(scene, surfaces, (2 * x) / width - 1);
@@ -467,13 +704,62 @@ export class CanvasGameplayRenderer {
       const texture = this.#textures.walls[material];
       this.#context.drawImage(texture, hit.textureX, 0, 1, TEXTURE_SIZE, x, start, 1, wallHeight);
       const fog = clamp(hit.distance / MAX_DEPTH, 0, 0.88);
-      const torch = clamp(1.15 - hit.distance / 7.5, 0, 1) * flicker * torchContraction;
-      this.#context.fillStyle = `rgba(13, 5, 24, ${fog + (1 - hit.shade) * 0.15})`;
+
+      if (!this.#lit) {
+        const torch = clamp(1.15 - hit.distance / 7.5, 0, 1) * flicker * torchContraction;
+        this.#context.fillStyle = `rgba(13, 5, 24, ${fog + (1 - hit.shade) * 0.15})`;
+        this.#context.fillRect(x, start, 1, wallHeight);
+
+        if (torch > 0) {
+          this.#context.fillStyle = `rgba(255, 112, 35, ${torch * 0.16})`;
+          this.#context.fillRect(x, start, 1, wallHeight);
+        }
+
+        continue;
+      }
+
+      // Sampled a little in front of the face rather than inside the block, which is solid and
+      // therefore always unlit.
+      const normal = WALL_FACE_NORMALS[hit.face];
+      const texelX = clamp(Math.floor((hit.hitX + normal.x * 0.4) * LIGHTMAP_SCALE), 0, lightWidth - 1);
+      const texelY = clamp(Math.floor((hit.hitY + normal.y * 0.4) * LIGHTMAP_SCALE), 0, lightHeight - 1);
+      const light = (texelY * lightWidth + texelX) * 3;
+      // Faces turned away from the eye take less: the same one-line convention the block bevels use,
+      // applied at wall scale, is what stops a corridor reading as one continuous painted surface.
+      const level = clamp(
+        Math.max(this.#lightmap[light] ?? 0, this.#lightmap[light + 1] ?? 0, this.#lightmap[light + 2] ?? 0) *
+          hit.shade *
+          flicker *
+          torchContraction,
+        0,
+        1,
+      );
+      this.#context.fillStyle = shadowStyle(clamp(1 - level, 0, 0.94) * (1 - fog) + fog);
       this.#context.fillRect(x, start, 1, wallHeight);
 
-      if (torch > 0) {
-        this.#context.fillStyle = `rgba(255, 112, 35, ${torch * 0.16})`;
+      if (level > 0.05) {
+        this.#context.globalCompositeOperation = "lighter";
+        this.#context.fillStyle = this.#tintStyle(
+          this.#lightmap[light] ?? 0,
+          this.#lightmap[light + 1] ?? 0,
+          this.#lightmap[light + 2] ?? 0,
+          clamp(level * (1 - fog) * 0.42, 0, 0.8),
+        );
         this.#context.fillRect(x, start, 1, wallHeight);
+        this.#context.globalCompositeOperation = "source-over";
+      }
+
+      // Contact shadow where the wall meets the floor. Nothing else in this renderer grounds a wall
+      // to the floor, and without it every corridor reads as flat cardboard standing on tile. Two
+      // solid bands rather than a gradient object, which would be allocated once per column.
+      const shade = 0.44 * (1 - fog) * level;
+
+      if (shade > 0.03) {
+        const skirting = wallHeight * 0.18;
+        this.#context.fillStyle = shadowStyle(shade * 0.45);
+        this.#context.fillRect(x, start + wallHeight - skirting, 1, skirting / 2 + 1);
+        this.#context.fillStyle = shadowStyle(shade);
+        this.#context.fillRect(x, start + wallHeight - skirting / 2, 1, skirting / 2 + 1);
       }
     }
   }
@@ -846,12 +1132,25 @@ export class CanvasGameplayRenderer {
     let warmth = clamp(1 - depth / 7, 0, 0.42);
     let warmColor = DEFAULT_TORCH_COLOR;
 
-    for (const light of scene.lights) {
-      const reach = clamp(1 - Math.hypot(light.x - x, light.y - y) / light.radius, 0, 1) * light.intensity;
+    if (this.#lit) {
+      // Under the lightmap a sprite is tinted by the same accumulation the walls behind it use, so a
+      // slime standing in the altar's glow is the same gold as the floor it is standing on.
+      const placed = this.#sampleLight(scene, x, y);
+      const strength = Math.max(placed[0], placed[1], placed[2]);
 
-      if (reach > warmth) {
-        warmth = reach;
-        warmColor = light.color;
+      if (strength > warmth) {
+        const scale = 255 / strength;
+        warmth = Math.min(1, strength);
+        warmColor = [placed[0] * scale, placed[1] * scale, placed[2] * scale];
+      }
+    } else {
+      for (const light of scene.lights) {
+        const reach = clamp(1 - Math.hypot(light.x - x, light.y - y) / light.radius, 0, 1) * light.intensity;
+
+        if (reach > warmth) {
+          warmth = reach;
+          warmColor = light.color;
+        }
       }
     }
 
@@ -1021,6 +1320,84 @@ export class CanvasGameplayRenderer {
         context.fill();
       }
     }
+  }
+
+  /**
+   * The finishing pass: a vignette, a warm centre, and a breathing darkness at the edges.
+   *
+   * None of this is information — it is the difference between a rendering and a scene. The vignette
+   * pulls the eye to the middle of the frame, the warm core keeps the torch reading as a light source
+   * carried by the player, and the slow breath stops a still frame from looking like a screenshot.
+   */
+  #drawGrade(elapsedSeconds: number, reducedMotion: boolean): void {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const centreX = width * 0.5;
+    const centreY = height * 0.54;
+    const breath = reducedMotion ? 1 : 1 + Math.sin(elapsedSeconds * 0.9) * 0.03;
+    const outer = Math.hypot(width, height) * 0.62 * breath;
+    const vignette = this.#context.createRadialGradient(centreX, centreY, outer * 0.34, centreX, centreY, outer);
+    vignette.addColorStop(0, "rgba(6, 2, 12, 0)");
+    vignette.addColorStop(0.62, "rgba(6, 2, 12, 0.3)");
+    vignette.addColorStop(1, "rgba(4, 1, 9, 0.82)");
+    this.#context.fillStyle = vignette;
+    this.#context.fillRect(0, 0, width, height);
+
+    const warm = this.#context.createRadialGradient(centreX, centreY, 0, centreX, centreY, outer * 0.55);
+    warm.addColorStop(0, "rgba(255, 156, 74, 0.07)");
+    warm.addColorStop(1, "rgba(255, 156, 74, 0)");
+    this.#context.save();
+    this.#context.globalCompositeOperation = "lighter";
+    this.#context.fillStyle = warm;
+    this.#context.fillRect(0, 0, width, height);
+    this.#context.restore();
+  }
+
+  /**
+   * Dust in the air, in three layers that drift at different rates.
+   *
+   * The shipped atmosphere pass scatters a fixed number of identical specks at one speed, which
+   * reads as static over the image. Parallax is what turns it into air the player is moving through:
+   * the near layer is larger, brighter and faster, and slides against the turn of the head.
+   */
+  #drawMotes(scene: RenderScene, elapsedSeconds: number, reducedMotion: boolean): void {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const time = reducedMotion ? 0 : elapsedSeconds;
+    // Tied to the camera so the dust belongs to the room rather than to the screen.
+    const sway = scene.camera.angle * width * 0.24 + scene.camera.x * 26 + scene.camera.y * 18;
+
+    for (let layer = 0; layer < 3; layer += 1) {
+      const depth = (layer + 1) / 3;
+      const count = 30 - layer * 8;
+      const size = 1 + layer;
+      const alpha = 0.05 + layer * 0.035;
+      this.#context.fillStyle = `rgba(238, 206, 168, ${alpha})`;
+
+      for (let index = 0; index < count; index += 1) {
+        const seed = index * 97 + layer * 311;
+        const drift = time * (5 + layer * 11);
+        const x = (((seed * 37) % width) + width + drift - sway * depth * 0.35) % width;
+        const bob = Math.sin(time * (0.4 + layer * 0.25) + seed) * height * 0.03 * depth;
+        const y = (((seed * 53) % height) + height + bob) % height;
+        this.#context.fillRect(x, y, size, size);
+      }
+    }
+  }
+
+  /** Damage reads from the edges inward, so it never hides what is in front of the player. */
+  #drawPlayerHit(strength: number): void {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const centreX = width * 0.5;
+    const centreY = height * 0.54;
+    const outer = Math.hypot(width, height) * 0.62;
+    const blood = this.#context.createRadialGradient(centreX, centreY, outer * 0.2, centreX, centreY, outer);
+    blood.addColorStop(0, "rgba(180, 24, 54, 0)");
+    blood.addColorStop(0.55, `rgba(168, 20, 48, ${0.24 * strength})`);
+    blood.addColorStop(1, `rgba(122, 8, 30, ${0.6 * strength})`);
+    this.#context.fillStyle = blood;
+    this.#context.fillRect(0, 0, width, height);
   }
 
   #drawAtmosphere(elapsedSeconds: number, reducedMotion: boolean): void {

@@ -24,7 +24,11 @@ export type RenderSurfaceMaterial =
   | "doorBlue"
   | "doorYellow"
   | "breakableWall"
-  // Added for the standalone demo surface; the baked floors never author these.
+  // Added for the standalone demo surface; the baked floors never author these. They are separate
+  // materials rather than improvements to the shipped ones so the shipped game renders unchanged.
+  | "demoFoundation"
+  | "demoAshlar"
+  | "demoSpalledAshlar"
   | "woodWall"
   | "splinteredWoodWall";
 
@@ -41,7 +45,7 @@ export type RenderSurface = Readonly<{
  * has to be named here rather than covered with a sprite: a sprite laid flat is a squashed billboard
  * that floats, tiles against its neighbours with a visible seam, and cannot be walked over correctly.
  */
-export type RenderFloorMaterial = "water";
+export type RenderFloorMaterial = "water" | "demoFlagstone" | "demoVault";
 
 export type RenderFloorPatch = Readonly<{ cell: Cell; material: RenderFloorMaterial }>;
 
@@ -113,6 +117,13 @@ export type RenderScene = Readonly<{
   surfaces: readonly RenderSurface[];
   /** Cells whose floor is drawn from a different texture. Baked floors author none of these. */
   floorPatches?: readonly RenderFloorPatch[];
+  /** Replaces the default ceiling texture for the whole scene. */
+  ceilingMaterial?: RenderFloorMaterial;
+  /**
+   * Ambient light everywhere, before any placed light contributes. Only read under enhanced
+   * lighting; without it the renderer's fixed torch model is the only illumination.
+   */
+  ambient?: readonly [number, number, number];
   sprites: readonly RenderSprite[];
   /** Oriented rods. Baked floors author none of these. */
   beams?: readonly RenderBeam[];

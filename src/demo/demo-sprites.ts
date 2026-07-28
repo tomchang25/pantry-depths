@@ -24,6 +24,7 @@ export const DEMO_ASSET_IDS = {
   altarSpent: "demo.altarSpent",
   blast: "demo.blast",
   spark: "demo.spark",
+  hitSpark: "demo.hitSpark",
   hazardOrb: "demo.hazardOrb",
   warnShoot: "demo.warnShoot",
   warnCharge: "demo.warnCharge",
@@ -240,6 +241,40 @@ function blast(): HTMLCanvasElement {
   return canvas;
 }
 
+/**
+ * The mark a landed hit leaves: a tight core with shards thrown off it.
+ *
+ * Distinct from the blast gradient, which is a fireball and swallows whatever it is drawn over. What
+ * a hit needs is something small and sharp enough to point at a body without hiding it.
+ */
+function hitSpark(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const core = context.createRadialGradient(256, 256, 0, 256, 256, 96);
+  core.addColorStop(0, "rgb(255 250 226 / 96%)");
+  core.addColorStop(0.4, "rgb(255 196 120 / 72%)");
+  core.addColorStop(1, "rgb(255 140 60 / 0%)");
+  context.fillStyle = core;
+  context.beginPath();
+  context.arc(256, 256, 96, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = "rgb(255 226 176 / 88%)";
+  context.lineCap = "round";
+
+  for (let shard = 0; shard < 7; shard += 1) {
+    const angle = (shard / 7) * Math.PI * 2 + 0.4;
+    const inner = 40 + ((shard * 37) % 30);
+    const outer = inner + 90 + ((shard * 61) % 80);
+    context.lineWidth = 13 - (shard % 3) * 3;
+    context.beginPath();
+    context.moveTo(256 + Math.cos(angle) * inner, 256 + Math.sin(angle) * inner);
+    context.lineTo(256 + Math.cos(angle) * outer, 256 + Math.sin(angle) * outer);
+    context.stroke();
+  }
+
+  return canvas;
+}
+
 function spark(): HTMLCanvasElement {
   const [canvas, context] = surface();
   const glow = context.createRadialGradient(256, 256, 4, 256, 256, 210);
@@ -446,6 +481,7 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.altarSpent, altar(true));
   merged.set(DEMO_ASSET_IDS.blast, blast());
   merged.set(DEMO_ASSET_IDS.spark, spark());
+  merged.set(DEMO_ASSET_IDS.hitSpark, hitSpark());
   merged.set(DEMO_ASSET_IDS.hazardOrb, hazardOrb());
   merged.set(DEMO_ASSET_IDS.bubble, bubble());
   merged.set(DEMO_ASSET_IDS.warnShoot, warning("#5aa8e0", "!"));

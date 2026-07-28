@@ -179,4 +179,35 @@ export function drawDemoViewmodel(
   if (active && !throwing) {
     drawSlash(context, progress);
   }
+
+  drawCarriedLight(context, world.elapsedSeconds);
+}
+
+/**
+ * A warm wash rising from the bottom of the frame.
+ *
+ * The demo took the torch out of the left hand so that hand could hold things, but the world is
+ * still lit as though the player were carrying one. This is what puts the light source back in the
+ * picture: not a flame to look at, just the glow it would be throwing on everything near the eye.
+ */
+function drawCarriedLight(context: CanvasRenderingContext2D, elapsedSeconds: number): void {
+  const width = context.canvas.width;
+  const height = context.canvas.height;
+  const flicker = 0.88 + Math.sin(elapsedSeconds * 9.7) * 0.07 + Math.sin(elapsedSeconds * 3.3) * 0.05;
+  const glow = context.createRadialGradient(
+    width * 0.5,
+    height * 1.06,
+    height * 0.05,
+    width * 0.5,
+    height * 1.06,
+    height * 0.86,
+  );
+  glow.addColorStop(0, `rgba(255, 172, 96, ${0.2 * flicker})`);
+  glow.addColorStop(0.45, `rgba(255, 138, 62, ${0.08 * flicker})`);
+  glow.addColorStop(1, "rgba(255, 120, 40, 0)");
+  context.save();
+  context.globalCompositeOperation = "lighter";
+  context.fillStyle = glow;
+  context.fillRect(0, 0, width, height);
+  context.restore();
 }

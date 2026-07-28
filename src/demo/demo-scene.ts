@@ -22,7 +22,6 @@ import type {
   RenderSurfaceMaterial,
 } from "@/presentation/render-scene";
 
-const ALL_FACES = ["north", "east", "south", "west"] as const;
 const EXIT_XRAY = { color: [138, 255, 190] as const, alpha: 0.95 };
 const ALTAR_XRAY = { color: [255, 208, 118] as const, alpha: 0.8 };
 /** How many spark billboards a lightning arc is drawn with. */
@@ -79,7 +78,7 @@ function surfaces(world: DemoWorld): RenderSurface[] {
       }
 
       if (tile.kind === "border") {
-        built.push({ cell: { x, y }, material: "stoneWall" });
+        built.push({ cell: { x, y }, material: "demoFoundation" });
         continue;
       }
 
@@ -93,13 +92,7 @@ function surfaces(world: DemoWorld): RenderSurface[] {
         continue;
       }
 
-      // A cracked stone face is the shipped breakable material, which only shows its cracks on the
-      // faces it is hinted for; a demo wall can be broken from any side, so hint all four.
-      if (worn) {
-        built.push({ cell: { x, y }, material: "breakableWall", hintFaces: ALL_FACES });
-      } else {
-        built.push({ cell: { x, y }, material: "oldBrickWall" });
-      }
+      built.push({ cell: { x, y }, material: worn ? "demoSpalledAshlar" : "demoAshlar" });
     }
   }
 
@@ -164,6 +157,23 @@ function vfxSprites(world: DemoWorld, built: RenderSprite[]): void {
         scale: effect.radius * (0.5 + life * 1.3),
         verticalAnchor: -0.4,
       });
+
+      // A ring of embers thrown outward along the ground. The fireball alone reads as a flash on the
+      // camera; debris leaving the centre is what gives the blast a size you can judge.
+      for (let ember = 0; ember < 10; ember += 1) {
+        const angle = (ember / 10) * Math.PI * 2 + effect.x;
+        const reach = effect.radius * (0.2 + life * 1.15);
+        built.push({
+          id: `${effect.id}-ember-${ember}`,
+          x: effect.x + Math.cos(angle) * reach,
+          y: effect.y + Math.sin(angle) * reach,
+          placement: "billboard",
+          assetId: DEMO_ASSET_IDS.blast,
+          scale: 0.34 * (1 - life),
+          verticalAnchor: -0.22 - life * 0.3,
+        });
+      }
+
       continue;
     }
 
@@ -230,6 +240,21 @@ function sprites(world: DemoWorld): RenderSprite[] {
       verticalAnchor: sinking * 0.9,
     });
     telegraph(world, enemy, built);
+
+    // A short spark at the point of contact. The white flash on the sprite says something landed;
+    // this says where, which is what makes a crowded melee readable.
+    if (enemy.hurtSeconds > 0) {
+      built.push({
+        id: `${enemy.id}-spark`,
+        x: enemy.x,
+        y: enemy.y,
+        placement: "billboard",
+        assetId: DEMO_ASSET_IDS.hitSpark,
+        // Snaps out and shrinks over the flash, so it punctuates the hit instead of sitting on it.
+        scale: 0.16 + (0.28 - enemy.hurtSeconds) * 0.7,
+        verticalAnchor: -0.34,
+      });
+    }
   }
 
   for (const hazard of world.hazards) {
@@ -298,15 +323,20 @@ function sprites(world: DemoWorld): RenderSprite[] {
   return built;
 }
 
-/** Pools are floor, not scenery: the renderer swaps the floor texture for these cells. */
+/**
+ * Every walkable cell names its floor.
+ *
+ * Pools are floor, not scenery — the renderer swaps the texture rather than laying a sprite on top.
+ * The dry cells are named too, which is how the demo gets its own flagstones without touching the
+ * default floor the shipped game draws.
+ */
 function floorPatches(world: DemoWorld): RenderFloorPatch[] {
   const built: RenderFloorPatch[] = [];
 
-  for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
-    for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
-      if (world.maze.tiles[tileIndex(x, y)]?.kind === "water") {
-        built.push({ cell: { x, y }, material: "water" });
-      }
+  for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
+    for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
+      const water = world.maze.tiles[tileIndex(x, y)]?.kind === "water";
+      built.push({ cell: { x, y }, material: water ? "water" : "demoFlagstone" });
     }
   }
 
@@ -390,14 +420,26 @@ function beams(world: DemoWorld): RenderBeam[] {
 }
 
 function lights(world: DemoWorld): RenderLight[] {
+  // The torch the player is carrying, as an actual light in the world rather than a screen effect —
+  // so it pools on the floor around them, throws their surroundings into relief, and dies out at a
+  // distance that tells them how far they can see.
+  const flicker = 0.9 + Math.sin(world.elapsedSeconds * 11.3) * 0.06 + Math.sin(world.elapsedSeconds * 4.1) * 0.04;
   const built: RenderLight[] = [
+    {
+      id: "demo-torch",
+      x: world.player.x,
+      y: world.player.y,
+      radius: 8.5,
+      color: [255, 176, 104],
+      intensity: 1.35 * flicker,
+    },
     {
       id: "demo-exit-light",
       x: world.maze.exit.x + 0.5,
       y: world.maze.exit.y + 0.5,
-      radius: 4.5,
-      color: [122, 226, 168],
-      intensity: 0.85,
+      radius: 5,
+      color: [110, 240, 172],
+      intensity: 0.95,
     },
   ];
 
@@ -406,32 +448,106 @@ function lights(world: DemoWorld): RenderLight[] {
       id: "demo-altar-light",
       x: world.altar.x,
       y: world.altar.y,
-      radius: 4,
-      color: [244, 202, 122],
+      radius: 4.6,
+      // Pulses slowly, so an unspent altar reads as waiting rather than as scenery.
+      intensity: 0.85 + Math.sin(world.elapsedSeconds * 1.6) * 0.15,
+      color: [255, 206, 128],
+    });
+  }
+
+  for (const pile of world.piles) {
+    if (pile.ammo === "bomb") {
+      built.push({ id: `${pile.id}-light`, x: pile.x, y: pile.y, radius: 2.4, color: [226, 82, 74], intensity: 0.5 });
+    }
+  }
+
+  for (const hazard of world.hazards) {
+    built.push({
+      id: `${hazard.id}-light`,
+      x: hazard.x,
+      y: hazard.y,
+      radius: 2.6,
+      color: [255, 96, 72],
       intensity: 0.8,
     });
   }
 
   for (const effect of world.vfx) {
+    const life = Math.min(1, effect.age / effect.life);
+
     if (effect.kind === "blast") {
       built.push({
         id: `${effect.id}-light`,
         x: effect.x,
         y: effect.y,
-        radius: effect.radius * 2.4,
-        color: [255, 168, 72],
-        intensity: 1,
+        radius: effect.radius * (1.6 + life * 1.6),
+        color: [255, 176, 84],
+        intensity: 1.6 * (1 - life),
       });
+      continue;
     }
+
+    built.push({
+      id: `${effect.id}-light`,
+      x: (effect.fromX + effect.toX) / 2,
+      y: (effect.fromY + effect.toY) / 2,
+      radius: 3.4,
+      color: [150, 214, 255],
+      intensity: 1.2 * (1 - life),
+    });
   }
 
   return built;
 }
 
 function emitters(world: DemoWorld): RenderEmitter[] {
-  return world.enemies
+  const built: RenderEmitter[] = world.enemies
     .filter((enemy) => enemy.drowningSeconds > 0)
     .map((enemy) => ({ id: `${enemy.id}-drown`, x: enemy.x, y: enemy.y, kind: "steam" as const, density: 9 }));
+
+  // The two things worth walking towards get their own signal in the air above them, so they read
+  // as live from further away than their light reaches.
+  built.push({
+    id: "demo-exit-motes",
+    x: world.maze.exit.x + 0.5,
+    y: world.maze.exit.y + 0.5,
+    kind: "steam",
+    density: 6,
+  });
+
+  if (world.altar.hp > 0) {
+    built.push({ id: "demo-altar-embers", x: world.altar.x, y: world.altar.y, kind: "embers", density: 7 });
+  }
+
+  for (const pile of world.piles) {
+    if (pile.ammo === "bomb") {
+      built.push({ id: `${pile.id}-fuse`, x: pile.x, y: pile.y, kind: "embers", density: 3 });
+    }
+  }
+
+  return built;
+}
+
+/**
+ * A kick on the camera when something detonates.
+ *
+ * Applied to pitch only. Pitch is presentation — nothing in the simulation reads it, and aiming is
+ * horizontal — so shaking it cannot cost the player a shot, which a positional shake could.
+ */
+function blastKick(world: DemoWorld): number {
+  let kick = 0;
+
+  for (const effect of world.vfx) {
+    if (effect.kind !== "blast") {
+      continue;
+    }
+
+    const life = Math.min(1, effect.age / effect.life);
+    const distance = Math.max(1, Math.hypot(effect.x - world.player.x, effect.y - world.player.y));
+    kick += (Math.sin(effect.age * 46) * 0.035 * (1 - life) ** 2) / distance;
+  }
+
+  return kick;
 }
 
 export function createDemoScene(world: DemoWorld): RenderScene {
@@ -453,7 +569,15 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     width: DEMO_GRID_SIZE,
     height: DEMO_GRID_SIZE,
     tiles: rows,
-    camera: { x: world.player.x, y: world.player.y, angle: world.player.angle, pitch: world.player.pitch },
+    camera: {
+      x: world.player.x,
+      y: world.player.y,
+      angle: world.player.angle,
+      pitch: world.player.pitch + blastKick(world),
+    },
+    // Just enough ambient that an unlit corridor is a silhouette rather than a black rectangle.
+    ambient: [0.16, 0.14, 0.24],
+    ceilingMaterial: "demoVault",
     surfaces: surfaces(world),
     floorPatches: floorPatches(world),
     sprites: sprites(world),

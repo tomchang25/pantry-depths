@@ -305,6 +305,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     renderer.render(createDemoScene(world), world.elapsedSeconds, createDemoEffects(world), {
       reducedMotion: false,
       viewmodel: false,
+      grade: true,
     });
     drawDemoViewmodel(sceneContext, images, world);
     drawMinimap(minimapContext, world);
