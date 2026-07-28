@@ -537,14 +537,13 @@ export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
 /**
  * What a corpse leaves behind.
  *
- * Every restock now comes off something you killed — walls supply shortcuts and nothing else. Each
+ * Weapons only. Ammunition now comes off the walls it is made of — sticks from wood, rocks from
+ * stone — so killing restocks the special tools and demolition restocks the throwing arm. Each
  * entry is cumulative against one roll, so the last number is the total chance of any drop at all.
  */
 const DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: number }>[] = [
   { kind: "axe", count: 1, upTo: 0.1 },
-  { kind: "stick", count: 3, upTo: 0.2 },
-  { kind: "rock", count: 3, upTo: 0.3 },
-  { kind: "bomb", count: 3, upTo: 0.36 },
+  { kind: "bomb", count: 3, upTo: 0.3 },
 ];
 export const LIFESTEAL_HEAL = 12;
 

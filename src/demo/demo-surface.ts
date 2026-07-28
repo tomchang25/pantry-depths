@@ -168,6 +168,22 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   let frame = 0;
   let lastTime: number | undefined;
   let cardTimer: number | undefined;
+  /** Retry loop for taking the pointer back; see `beginRelock`. */
+  let relockTimer: number | undefined;
+  /**
+   * The Escape that releases the pointer sometimes reaches the page after the lock has already
+   * dropped, where it reads as a fresh press and relocks immediately — pausing then looks like it
+   * never happened. Escapes are ignored until this stamp, set when the lock is released.
+   */
+  let suppressEscapeUntil = 0;
+  /**
+   * Paused while the pointer stays locked, toggled by Tab.
+   *
+   * Deliberately not the Escape path: releasing the pointer is a browser affair with a forced
+   * relock cooldown, so the pause that has to feel instant both ways keeps the lock and never
+   * meets that cooldown at all.
+   */
+  let paused = false;
   /** Exponentially smoothed, because a raw per-frame reciprocal is unreadable noise. */
   let smoothedFps = 60;
   /** Mouse counts since the last frame, and the smoothed rate the comfort vignette reads. */
@@ -208,7 +224,14 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     if (!locked()) {
       overlayTitle.textContent = "Pantry Depths — Demo";
       overlayBody.innerHTML =
-        "點一下畫面開始。<br><kbd>WASD</kbd> 移動 · 滑鼠轉向 · <kbd>左鍵</kbd> 攻擊／投擲 · <kbd>右鍵</kbd> 抓取／放下 · <kbd>R</kbd> 重新開始 · <kbd>Esc</kbd> 放開滑鼠<br>綠光是往下的樓梯，金光是祭壇（劈三下拿祝福）。兩者隔著牆也看得到。";
+        "點一下畫面或按 <kbd>Esc</kbd> 開始。<br><kbd>WASD</kbd> 移動 · 滑鼠轉向 · <kbd>左鍵</kbd> 攻擊／投擲 · <kbd>右鍵</kbd> 抓取／放下 · <kbd>Tab</kbd> 暫停 · <kbd>R</kbd> 重新開始 · <kbd>Esc</kbd> 放開滑鼠<br>綠光是往下的樓梯，金光是祭壇（劈三下拿祝福）。兩者隔著牆也看得到。";
+      overlay.hidden = false;
+      return;
+    }
+
+    if (paused) {
+      overlayTitle.textContent = "已暫停";
+      overlayBody.innerHTML = "按 <kbd>Tab</kbd> 繼續 · <kbd>Esc</kbd> 放開滑鼠 · <kbd>R</kbd> 重新開始";
       overlay.hidden = false;
       return;
     }
@@ -286,6 +309,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
   const restart = (): void => {
     world = createDemoWorld();
+    paused = false;
     clearInput();
     publish();
     card.classList.remove("demo__card--visible");
@@ -311,12 +335,18 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
     turnInput = 0;
 
-    const active = locked() && world.status === "playing";
-    stepDemoWorld(
-      world,
-      active ? input : { forward: false, backward: false, strafeLeft: false, strafeRight: false },
-      deltaSeconds,
-    );
+    const active = locked() && world.status === "playing" && !paused;
+
+    // Releasing the mouse or pausing stops the world outright, not just the player's hands:
+    // enemies, timers, projectiles and particles all hold still behind the overlay until play
+    // resumes. A dead world still steps, so the death's debris settles behind its own overlay.
+    if (active || world.status !== "playing") {
+      stepDemoWorld(
+        world,
+        active ? input : { forward: false, backward: false, strafeLeft: false, strafeRight: false },
+        deltaSeconds,
+      );
+    }
     renderer.resize(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio);
     const scene = createDemoScene(world);
     renderer.render(scene, world.elapsedSeconds, createDemoEffects(world), {
@@ -336,6 +366,35 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
   const handleKeyDown = (event: KeyboardEvent): void => {
     const key = event.key.toLowerCase();
+
+    // An Escape with the overlay up is a request to go back in — the same thing as clicking it.
+    // Guarded by the suppression stamp so the tail of the Escape that opened the overlay is not
+    // mistaken for that request.
+    if (key === "escape") {
+      if (!locked() && performance.now() >= suppressEscapeUntil) {
+        event.preventDefault();
+
+        if (world.status !== "playing") {
+          restart();
+        }
+
+        beginRelock();
+      }
+
+      return;
+    }
+
+    // Pause without giving the pointer up, so resuming never meets the browser's relock cooldown.
+    if (key === "tab") {
+      event.preventDefault();
+
+      if (locked() && world.status === "playing") {
+        paused = !paused;
+        refreshOverlay();
+      }
+
+      return;
+    }
 
     if (key === "r") {
       event.preventDefault();
@@ -375,7 +434,8 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   };
 
   const handleMouseMove = (event: MouseEvent): void => {
-    if (!locked()) {
+    // A paused world holds the view still too; the head is part of what pausing freezes.
+    if (!locked() || paused) {
       return;
     }
 
@@ -391,7 +451,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   };
 
   const handleMouseDown = (event: MouseEvent): void => {
-    if (!locked()) {
+    if (!locked() || paused) {
       return;
     }
 
@@ -421,10 +481,43 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
     if (request instanceof Promise) {
       request.catch(() => {
-        // Not every platform exposes raw input; an ordinary lock is still better than none.
-        void canvas.requestPointerLock();
+        // Not every platform exposes raw input; an ordinary lock is still better than none. This
+        // can also fail — the browser refuses relocks briefly after an Escape exit — and that is
+        // fine: the overlay stays up and the next press gets through.
+        const fallback = canvas.requestPointerLock() as unknown;
+
+        if (fallback instanceof Promise) {
+          fallback.catch(() => undefined);
+        }
       });
     }
+  };
+
+  /**
+   * Asks for the pointer until the browser hands it back.
+   *
+   * Chrome refuses relock requests for about a second and a quarter after the Escape that released
+   * the pointer — even requests carrying a fresh gesture — so a single call silently loses the
+   * press and the overlay "cannot be closed". A short retry loop turns that into the press simply
+   * taking a beat, and stops the moment the lock lands, the deadline passes, or the run ends.
+   */
+  const beginRelock = (): void => {
+    if (relockTimer !== undefined) {
+      window.clearInterval(relockTimer);
+      relockTimer = undefined;
+    }
+
+    requestLook();
+    const deadline = performance.now() + 2400;
+    relockTimer = window.setInterval(() => {
+      if (locked() || performance.now() > deadline || world.status !== "playing" || disposed) {
+        window.clearInterval(relockTimer);
+        relockTimer = undefined;
+        return;
+      }
+
+      requestLook();
+    }, 300);
   };
 
   const handleOverlayClick = (): void => {
@@ -432,12 +525,17 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
       restart();
     }
 
-    requestLook();
+    // Through the same retry as the Escape path: a click right after an Escape exit sits inside
+    // the same browser cooldown and would otherwise be lost too.
+    beginRelock();
   };
 
   const handleLockChange = (): void => {
     if (!locked()) {
       clearInput();
+      suppressEscapeUntil = performance.now() + 400;
+      // The unlocked overlay takes over from the paused one; coming back in resumes play.
+      paused = false;
     }
 
     refreshOverlay();
@@ -464,6 +562,10 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
       if (cardTimer !== undefined) {
         window.clearTimeout(cardTimer);
+      }
+
+      if (relockTimer !== undefined) {
+        window.clearInterval(relockTimer);
       }
 
       window.removeEventListener("keydown", handleKeyDown);

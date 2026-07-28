@@ -40,6 +40,8 @@ export const MELEE_WALL_DAMAGE = 1;
 const THROWN_WALL_DAMAGE = 2;
 const ROCK_WALL_DAMAGE = 4;
 export const BLAST_WALL_DAMAGE = 4;
+/** How often a broken wall drops a stack of its own material as ammunition. */
+const WALL_DROP_CHANCE = 0.2;
 
 /**
  * A thrown body always travels the same two tiles: the throw is a placement, not a ranged attack.
@@ -263,6 +265,20 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
   tile.kind = "open";
   tile.hp = 0;
   tile.maxHp = 0;
+
+  // A broken wall sometimes yields its own material as ammunition — sticks are timber, rocks are
+  // masonry. This is the only source of either now, so demolition is what keeps the throwing arm
+  // supplied while corpses supply the special tools.
+  if (Math.random() < WALL_DROP_CHANCE) {
+    world.props.push({
+      id: nextId(world, "prop"),
+      kind: wasWood ? "stick" : "rock",
+      count: 3,
+      x: cell.x + 0.5,
+      y: cell.y + 0.5,
+    });
+  }
+
   announce(world, wasWood ? "木牆碎了" : "石牆碎了");
 }
 
