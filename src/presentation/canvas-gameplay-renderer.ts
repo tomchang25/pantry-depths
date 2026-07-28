@@ -6,6 +6,7 @@ import type {
   RenderBeam,
   RenderEmitter,
   RenderFloorMaterial,
+  RenderFloorOverlay,
   RenderFloorPatch,
   RenderParticle,
   RenderPoint,
@@ -29,6 +30,8 @@ const DEFAULT_TORCH_COLOR: readonly [number, number, number] = [255, 112, 45];
 
 const MAX_DEPTH = 18;
 const RENDER_SCALE = 0.55;
+/** Distinct wall heights a single column can show at once. Beyond this the walk stops collecting. */
+const MAX_COLUMN_HITS = 4;
 const MAX_WIDTH = 1050;
 const MAX_HEIGHT = 650;
 const TEXTURE_SIZE = 64;
@@ -58,6 +61,27 @@ const BEAM_PIECES = 10;
 const LIGHTMAP_SCALE = 3;
 /** How far into a pool, in cells, the shoreline foam reaches. */
 const FOAM_WIDTH = 0.11;
+/**
+ * Stain strength levels a floor overlay is quantised to.
+ *
+ * Overlay blending was three multiply-adds per stained pixel, every frame, forever — a floor soaked
+ * over a long fight billed more than a milliisecond a frame for pixels that never change. Quantising
+ * the amount lets the blend be baked into a cached texture instead, read like any other floor. Eight
+ * levels spans the deepest stain the demo produces in steps too small to see.
+ */
+const STAIN_STEPS = 8;
+/**
+ * The water wave, tabulated. The slide the water texture reads through was a `Math.sin` per water
+ * pixel, which billed a screen-filling pool around ten milliseconds a frame; a table lookup is the
+ * same wobble at a fraction of that. The amplitude is baked into the entries.
+ */
+const WAVE_TABLE_SIZE = 1024;
+const WAVE_SCALE = WAVE_TABLE_SIZE / (Math.PI * 2);
+const WAVE_TABLE = new Float32Array(WAVE_TABLE_SIZE);
+
+for (let index = 0; index < WAVE_TABLE_SIZE; index += 1) {
+  WAVE_TABLE[index] = Math.sin((index / WAVE_TABLE_SIZE) * Math.PI * 2) * 0.02;
+}
 /** The two knobs on the turn vignette. Roughly a third of the first attempt, which was too obvious. */
 const TURN_VIGNETTE_REACH = 0.06;
 const TURN_VIGNETTE_DEPTH = 0.08;
@@ -164,10 +188,6 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
-function keyOf(x: number, y: number): string {
-  return `${x},${y}`;
-}
-
 function requireImage(images: PresentationImages, assetId: string): CanvasImageSource {
   const image = images.get(assetId);
 
@@ -190,6 +210,45 @@ const SHADOW_STYLES = Array.from({ length: SHADOW_STEPS + 1 }, (_, step) => `rgb
 
 function shadowStyle(alpha: number): string {
   return SHADOW_STYLES[Math.round(clamp(alpha, 0, 1) * SHADOW_STEPS)] ?? SHADOW_STYLES[0] ?? "rgba(7, 3, 15, 0)";
+}
+
+/**
+ * How much white water to add at a point inside a pool, given which of its cell's four sides are
+ * dry — bit 1 west, 2 east, 4 north, 8 south, precomputed per cell alongside the patch grid.
+ *
+ * Foam is a property of the boundary between water and dry floor, and the boundary is not in the
+ * water texture — it is in the map. The old form re-derived the four neighbours per water pixel,
+ * closure and grid reads included; almost every pixel of a pool is interior, where the mask is zero
+ * and this function is never even called.
+ */
+function foamAt(mask: number, withinX: number, withinY: number): number {
+  // Only the closest shore contributes. Summing every dry neighbour turned a one-cell pool — which
+  // is dry on all four sides — into a solid block of foam with no water left in it.
+  let nearest = 1;
+
+  if ((mask & 1) !== 0 && withinX < nearest) {
+    nearest = withinX;
+  }
+
+  if ((mask & 2) !== 0 && 1 - withinX < nearest) {
+    nearest = 1 - withinX;
+  }
+
+  if ((mask & 4) !== 0 && withinY < nearest) {
+    nearest = withinY;
+  }
+
+  if ((mask & 8) !== 0 && 1 - withinY < nearest) {
+    nearest = 1 - withinY;
+  }
+
+  if (nearest >= FOAM_WIDTH) {
+    return 0;
+  }
+
+  // A narrow band that peaks just inside the waterline and falls away on both sides, so the shore
+  // reads as a line of white water rather than as a glow over the whole pool.
+  return Math.sin((nearest / FOAM_WIDTH) * Math.PI) * 0.42;
 }
 
 function brighten(color: readonly [number, number, number], factor: number): readonly [number, number, number] {
@@ -231,8 +290,51 @@ export class CanvasGameplayRenderer {
   readonly #storeyTextures = new Map<string, HTMLCanvasElement>();
   /** Reused by every column so a per-frame walk of the maze allocates nothing. */
   readonly #rayColumn: RayHit[] = [];
+  #planeBuffer: ImageData | undefined;
+  /** Per column, the hits the cast pass found, flattened `MAX_COLUMN_HITS` to a column. */
+  #columnHits: (RayHit | undefined)[] = [];
+  #columnHitCount = new Uint8Array(1);
+  /**
+   * Per column, the screen band the walls cover, inset by a pixel or two so the plane pass can skip
+   * it without ever leaving a gap the walls do not actually paint over.
+   */
+  #coverTop = new Float32Array(1);
+  #coverBottom = new Float32Array(1);
+  /**
+   * Projects every other floor and sky row and duplicates it onto the next.
+   *
+   * Off by default: it trades vertical resolution on the planes for roughly half the cost of the
+   * most expensive pass, and that is a trade only a caller can make. The baked floors leave it
+   * alone and render exactly as before.
+   */
+  public halvePlaneRows = false;
+  /**
+   * The horizontal twin of `halvePlaneRows`: every other plane column is projected and written
+   * twice. Same trade, same default — and taking both knobs together keeps the coarser pixels
+   * square rather than stretched one way.
+   */
+  public halvePlaneColumns = false;
   #patchGridSource: readonly RenderFloorPatch[] | undefined;
   #patchGrid: Uint8Array | undefined;
+  /** Per cell, which sides of a water cell face dry floor. Built with, and cached like, the patch grid. */
+  #shoreMask: Uint8Array | undefined;
+  /** Floor textures with a stain baked in, keyed by base, stain and quantised strength. */
+  readonly #stainedPixelCache = new Map<number, Uint8ClampedArray>();
+  /**
+   * Per cell, the texture the floor reads: default, patch, or the patch with its stain baked in.
+   *
+   * Resolved per cell rather than per pixel. Per-pixel resolution was fine while a cell spanned many
+   * pixels, but in the middle distance a screen row crosses about one cell per pixel, and on a floor
+   * stained to different depths every pixel then re-derived patch, stain, step and cache key — which
+   * is exactly the band where the frame rate dipped.
+   */
+  #cellTextures: (Uint8ClampedArray | undefined)[] = [];
+  #cellTexturesPatchSource: Uint8Array | undefined;
+  #cellTexturesOverlaySource: Readonly<{ material: Uint8Array; amount: Float32Array }> | undefined;
+  #overlayGridsSource: readonly RenderFloorOverlay[] | undefined;
+  #overlayGrids: Readonly<{ material: Uint8Array; amount: Float32Array }> | undefined;
+  #surfaceGridSource: readonly RenderSurface[] | undefined;
+  #surfaceGrid = new Int16Array(0);
   #lit = false;
 
   public constructor(
@@ -282,7 +384,7 @@ export class CanvasGameplayRenderer {
    * Occlusion is a short march from texel to light: without it a lamp in one room lights the far
    * side of the wall it is standing against, which is exactly the giveaway that a scene is faked.
    */
-  #buildLightmap(scene: RenderScene, surfaces: ReadonlyMap<string, RenderSurface>): void {
+  #buildLightmap(scene: RenderScene): void {
     const width = scene.width * LIGHTMAP_SCALE;
     const height = scene.height * LIGHTMAP_SCALE;
 
@@ -295,7 +397,7 @@ export class CanvasGameplayRenderer {
 
     this.#solidGrid.fill(0);
 
-    for (const surface of surfaces.values()) {
+    for (const surface of scene.surfaces) {
       if (surface.cell.x >= 0 && surface.cell.y >= 0 && surface.cell.x < scene.width && surface.cell.y < scene.height) {
         this.#solidGrid[surface.cell.y * scene.width + surface.cell.x] = 1;
       }
@@ -476,8 +578,81 @@ export class CanvasGameplayRenderer {
       grid[patch.cell.y * scene.width + patch.cell.x] = FLOOR_MATERIALS.indexOf(patch.material) + 1;
     }
 
+    // Which sides of each water cell face dry floor, resolved here once instead of once per water
+    // pixel. Out of bounds counts as dry, matching how the per-pixel version treated the map edge.
+    const water = FLOOR_MATERIALS.indexOf("water") + 1;
+    const mask = new Uint8Array(scene.width * scene.height);
+
+    for (let y = 0; y < scene.height; y += 1) {
+      for (let x = 0; x < scene.width; x += 1) {
+        const cell = y * scene.width + x;
+
+        if (grid[cell] !== water) {
+          continue;
+        }
+
+        let sides = 0;
+
+        if (x === 0 || grid[cell - 1] !== water) {
+          sides |= 1;
+        }
+
+        if (x === scene.width - 1 || grid[cell + 1] !== water) {
+          sides |= 2;
+        }
+
+        if (y === 0 || grid[cell - scene.width] !== water) {
+          sides |= 4;
+        }
+
+        if (y === scene.height - 1 || grid[cell + scene.width] !== water) {
+          sides |= 8;
+        }
+
+        mask[cell] = sides;
+      }
+    }
+
     this.#patchGridSource = patches;
     this.#patchGrid = grid;
+    this.#shoreMask = mask;
+    return grid;
+  }
+
+  /**
+   * A per-cell index into `scene.surfaces`, offset by one so zero means no wall.
+   *
+   * The ray walk read the surfaces through a map keyed by a `"x,y"` string, which allocated a key
+   * per step — and in an open room, where nothing stops a ray early, that was tens of thousands of
+   * allocations a frame. A flat typed array makes the step one bounds check and one read.
+   */
+  #surfaceIndexGrid(scene: RenderScene): Int16Array {
+    const surfaces = scene.surfaces;
+    const length = scene.width * scene.height;
+
+    // Reused whenever the caller hands back the same array, exactly like the floor-patch grid: a
+    // scene that caches its terrain pays for a rebuild only when the terrain actually changes.
+    if (this.#surfaceGridSource === surfaces && this.#surfaceGrid.length === length) {
+      return this.#surfaceGrid;
+    }
+
+    if (this.#surfaceGrid.length === length) {
+      this.#surfaceGrid.fill(0);
+    } else {
+      this.#surfaceGrid = new Int16Array(length);
+    }
+
+    const grid = this.#surfaceGrid;
+
+    for (let index = 0; index < surfaces.length; index += 1) {
+      const cell = (surfaces[index] as RenderSurface).cell;
+
+      if (cell.x >= 0 && cell.y >= 0 && cell.x < scene.width && cell.y < scene.height) {
+        grid[cell.y * scene.width + cell.x] = index + 1;
+      }
+    }
+
+    this.#surfaceGridSource = surfaces;
     return grid;
   }
 
@@ -487,6 +662,12 @@ export class CanvasGameplayRenderer {
 
     if (!overlays || overlays.length === 0) {
       return undefined;
+    }
+
+    // Reused whenever the caller hands back the same array, like the patch grid. A scene that keeps
+    // its overlays stable between stains pays for a rebuild only when something actually bleeds.
+    if (this.#overlayGridsSource === overlays && this.#overlayGrids) {
+      return this.#overlayGrids;
     }
 
     const material = new Uint8Array(scene.width * scene.height);
@@ -508,7 +689,94 @@ export class CanvasGameplayRenderer {
       amount[index] = clamp(overlay.amount, 0, 1);
     }
 
-    return { material, amount };
+    this.#overlayGridsSource = overlays;
+    this.#overlayGrids = { material, amount };
+    return this.#overlayGrids;
+  }
+
+  /**
+   * Fills `#cellTextures` from the patch and overlay grids, one resolution per cell per change.
+   *
+   * Cached on the two grids' identities, so with a scene that keeps terrain and overlays stable the
+   * whole table is a straight reuse — and even a rebuild is a few hundred cells, not a few hundred
+   * thousand pixels.
+   */
+  #cellFloorTextures(
+    scene: RenderScene,
+    patchGrid: Uint8Array | undefined,
+    overlays: Readonly<{ material: Uint8Array; amount: Float32Array }> | undefined,
+  ): (Uint8ClampedArray | undefined)[] {
+    const length = scene.width * scene.height;
+
+    if (
+      this.#cellTextures.length === length &&
+      this.#cellTexturesPatchSource === patchGrid &&
+      this.#cellTexturesOverlaySource === overlays
+    ) {
+      return this.#cellTextures;
+    }
+
+    if (this.#cellTextures.length !== length) {
+      this.#cellTextures = Array.from({ length });
+    }
+
+    const table = this.#cellTextures;
+    const floor = this.#texturePixels.floor;
+
+    for (let cell = 0; cell < length; cell += 1) {
+      const patch = patchGrid ? (patchGrid[cell] ?? 0) : 0;
+      let pixels = patch === 0 ? floor : (this.#floorPatchPixels[patch - 1] ?? floor);
+
+      if (overlays) {
+        const stain = overlays.material[cell] ?? 0;
+
+        if (stain !== 0) {
+          const step = ((overlays.amount[cell] ?? 0) * STAIN_STEPS + 0.5) | 0;
+
+          if (step > 0) {
+            pixels = this.#stainedFloorPixels(patch, stain, step);
+          }
+        }
+      }
+
+      table[cell] = pixels;
+    }
+
+    this.#cellTexturesPatchSource = patchGrid;
+    this.#cellTexturesOverlaySource = overlays;
+    return table;
+  }
+
+  /**
+   * The floor texture for a stained cell: base and stain blended once, then read like any other
+   * floor. `base` is the patch index with zero meaning the default floor; `step` is the quantised
+   * strength, from one to `STAIN_STEPS`.
+   */
+  #stainedFloorPixels(base: number, stain: number, step: number): Uint8ClampedArray {
+    const key = (base << 16) | (stain << 8) | step;
+    const cached = this.#stainedPixelCache.get(key);
+
+    if (cached) {
+      return cached;
+    }
+
+    const basePixels =
+      base === 0 ? this.#texturePixels.floor : (this.#floorPatchPixels[base - 1] ?? this.#texturePixels.floor);
+    const stainPixels = this.#floorPatchPixels[stain - 1] ?? basePixels;
+    const amount = step / STAIN_STEPS;
+    const blended = new Uint8ClampedArray(basePixels.length);
+
+    for (let index = 0; index < blended.length; index += 4) {
+      blended[index] = (basePixels[index] ?? 0) + ((stainPixels[index] ?? 0) - (basePixels[index] ?? 0)) * amount;
+      blended[index + 1] =
+        (basePixels[index + 1] ?? 0) + ((stainPixels[index + 1] ?? 0) - (basePixels[index + 1] ?? 0)) * amount;
+      blended[index + 2] =
+        (basePixels[index + 2] ?? 0) + ((stainPixels[index + 2] ?? 0) - (basePixels[index + 2] ?? 0)) * amount;
+      blended[index + 3] = 255;
+    }
+
+    this.#stainedPixelCache.set(key, blended);
+    return blended;
   }
 
   public resize(cssWidth: number, cssHeight: number, devicePixelRatio: number): void {
@@ -531,6 +799,10 @@ export class CanvasGameplayRenderer {
     this.canvas.height = height;
     this.#context.imageSmoothingEnabled = false;
     this.#depthBuffer = new Float64Array(width);
+    this.#columnHits = Array.from({ length: width * MAX_COLUMN_HITS });
+    this.#columnHitCount = new Uint8Array(width);
+    this.#coverTop = new Float32Array(width);
+    this.#coverBottom = new Float32Array(width);
   }
 
   /**
@@ -595,20 +867,22 @@ export class CanvasGameplayRenderer {
       return;
     }
 
-    const surfaceMap = new Map(scene.surfaces.map((surface) => [keyOf(surface.cell.x, surface.cell.y), surface]));
     this.#lit = preferences.enhancedLighting === true;
 
     if (this.#lit) {
-      this.#buildLightmap(scene, surfaceMap);
+      this.#buildLightmap(scene);
     }
 
+    // Cast before the planes are painted, not as part of drawing the walls. The rays are cheap and
+    // knowing where the walls land is what lets the plane pass skip the pixels they will cover.
+    this.#castScene(scene);
     this.#drawProjectedPlanes(scene, elapsedSeconds, preferences.reducedMotion, effects.rejectionTorch);
 
     if (scene.sky) {
       this.#drawStars(scene, scene.sky, elapsedSeconds, preferences.reducedMotion);
     }
 
-    this.#drawWalls(scene, surfaceMap, elapsedSeconds, effects.rejectionTorch);
+    this.#drawWalls(scene, elapsedSeconds, effects.rejectionTorch);
     this.#drawSprites(scene, elapsedSeconds, effects);
 
     if (scene.beams && scene.beams.length > 0) {
@@ -649,6 +923,18 @@ export class CanvasGameplayRenderer {
     }
   }
 
+  #planeImage(width: number, height: number): ImageData {
+    const existing = this.#planeBuffer;
+
+    if (existing && existing.width === width && existing.height === height) {
+      return existing;
+    }
+
+    const created = this.#context.createImageData(width, height);
+    this.#planeBuffer = created;
+    return created;
+  }
+
   #drawProjectedPlanes(
     scene: RenderScene,
     elapsedSeconds: number,
@@ -668,11 +954,17 @@ export class CanvasGameplayRenderer {
     const rayY0 = directionY - planeY;
     const rayX1 = directionX + planeX;
     const rayY1 = directionY + planeY;
-    const image = this.#context.createImageData(width, height);
+    // Reused between frames rather than allocated per frame. Every pixel of it is written every
+    // frame — sky rows and plane rows both cover the full width, alpha included — so there is
+    // nothing to clear, and `createImageData` was allocating and zeroing a megabyte a frame for a
+    // buffer that never carried anything forward.
+    const image = this.#planeImage(width, height);
     const flicker = reducedMotion ? 1 : 0.96 + Math.sin(elapsedSeconds * 7.1) * 0.025;
     const patchGrid = this.#floorPatchGrid(scene);
+    const shoreMask = this.#shoreMask;
     const overlays = this.#floorOverlayGrids(scene);
-    const waterMaterial = FLOOR_MATERIALS.indexOf("water");
+    const cellTextures = this.#cellFloorTextures(scene, patchGrid, overlays);
+    const waterPatch = FLOOR_MATERIALS.indexOf("water") + 1;
     const sky = scene.sky;
     const ceilingIndex = scene.ceilingMaterial ? FLOOR_MATERIALS.indexOf(scene.ceilingMaterial) : -1;
     const ceilingMaterial = ceilingIndex >= 0 ? ceilingIndex : undefined;
@@ -686,7 +978,29 @@ export class CanvasGameplayRenderer {
     // Every row is walked rather than the floor half being walked and the ceiling mirrored onto it:
     // once the horizon can sit anywhere on the screen, the two halves are no longer the same size
     // and a mirror leaves whichever half grew unpainted.
-    for (let y = 0; y < height; y += 1) {
+    // Under `halvePlaneRows`, every other row is projected and then copied onto its neighbour.
+    //
+    // The copy is a `copyWithin` over a whole row of bytes, so the duplicated row costs a memcpy
+    // instead of a projection, a cell lookup and a texture sample per pixel. For the sky this is
+    // nearly exact — a vertical gradient's neighbouring rows are close to what the duplicate would
+    // have computed — and for the floor it costs vertical resolution, worst near the horizon where
+    // consecutive rows are furthest apart in world space and where the fog already hides the most.
+    const rowStride = width * 4;
+    const coverTop = this.#coverTop;
+    const coverBottom = this.#coverBottom;
+    const rowStep = this.halvePlaneRows ? 2 : 1;
+    // Columns halve the same way rows do, except the duplicate is written inline — four bytes are
+    // not worth a copyWithin. A skipped pair is only skipped when both of its columns are covered,
+    // so a wall edge column can never inherit a stale neighbour.
+    const colStep = this.halvePlaneColumns ? 2 : 1;
+    // Once per row rather than once per pixel, so the call is not on the hot path.
+    const duplicateRow = (row: number): void => {
+      if (rowStep === 2 && row + 1 < height) {
+        image.data.copyWithin((row + 1) * rowStride, row * rowStride, (row + 1) * rowStride);
+      }
+    };
+
+    for (let y = 0; y < height; y += rowStep) {
       const offset = y - horizon;
       const below = offset > 0;
 
@@ -701,14 +1015,29 @@ export class CanvasGameplayRenderer {
         const green = sky.horizonColor[1] + (sky.zenithColor[1] - sky.horizonColor[1]) * ease;
         const blue = sky.horizonColor[2] + (sky.zenithColor[2] - sky.horizonColor[2]) * ease;
 
-        for (let x = 0; x < width; x += 1) {
+        for (let x = 0; x < width; x += colStep) {
+          const hasNext = colStep === 2 && x + 1 < width;
+          const coveredNext = !hasNext || (y >= coverTop[x + 1]! && y < coverBottom[x + 1]!);
+
+          if (y >= coverTop[x]! && y < coverBottom[x]! && coveredNext) {
+            continue;
+          }
+
           const target = (y * width + x) * 4;
           image.data[target] = red;
           image.data[target + 1] = green;
           image.data[target + 2] = blue;
           image.data[target + 3] = 255;
+
+          if (hasNext) {
+            image.data[target + 4] = red;
+            image.data[target + 5] = green;
+            image.data[target + 6] = blue;
+            image.data[target + 7] = 255;
+          }
         }
 
+        duplicateRow(y);
         continue;
       }
 
@@ -730,14 +1059,24 @@ export class CanvasGameplayRenderer {
       const ceilingPixels = ceilingMaterial ? this.#floorPatchPixels[ceilingMaterial] : undefined;
       const defaultPixels = below ? this.#texturePixels.floor : (ceilingPixels ?? this.#texturePixels.ceiling);
 
-      for (let x = 0; x < width; x += 1) {
+      for (let x = 0; x < width; x += colStep) {
+        const hasNext = colStep === 2 && x + 1 < width;
+        const coveredNext = !hasNext || (y >= coverTop[x + 1]! && y < coverBottom[x + 1]!);
+
+        // Behind a wall. The step still has to be taken — the plane position walks the row rather
+        // than being computed from x — but everything after it is thrown away, so skipping here is
+        // the whole point of casting before painting.
+        if (y >= coverTop[x]! && y < coverBottom[x]! && coveredNext) {
+          planeXPosition += stepX * colStep;
+          planeYPosition += stepY * colStep;
+          continue;
+        }
+
         let sampleX = planeXPosition;
         let sampleY = planeYPosition;
         let pixels = defaultPixels;
 
         let foam = 0;
-        let stainPixels: Uint8ClampedArray | undefined;
-        let stainAmount = 0;
 
         if (below) {
           const cellX = Math.floor(planeXPosition);
@@ -745,33 +1084,30 @@ export class CanvasGameplayRenderer {
 
           if (cellX >= 0 && cellY >= 0 && cellX < scene.width && cellY < scene.height) {
             const cell = cellY * scene.width + cellX;
-            const patch = patchGrid ? (patchGrid[cell] ?? 0) : 0;
+            // Patch, stain and strength were already resolved into one texture per cell; a pixel
+            // pays one read however the cells under this row happen to alternate.
+            pixels = cellTextures[cell] ?? defaultPixels;
 
-            if (patch !== 0) {
-              pixels = this.#floorPatchPixels[patch - 1] ?? defaultPixels;
+            if (patchGrid && patchGrid[cell] === waterPatch) {
+              // Water is the one surface that moves. Sliding where the texture is read from,
+              // rather than rebuilding the texture, animates it — via the wave table, because a
+              // real sine per water pixel was most of what a screen-filling pool cost.
+              sampleX += drift;
+              sampleY += WAVE_TABLE[((sampleX * 2.2 + elapsedSeconds) * WAVE_SCALE) & (WAVE_TABLE_SIZE - 1)] ?? 0;
+              const mask = shoreMask ? (shoreMask[cell] ?? 0) : 0;
 
-              if (patch - 1 === waterMaterial) {
-                // Water is the one surface that moves. Sliding where the texture is read from,
-                // rather than rebuilding the texture, animates it for two adds per pixel.
-                sampleX += drift;
-                sampleY += Math.sin(sampleX * 2.2 + elapsedSeconds) * 0.02;
-                foam = this.#shoreFoam(scene, patchGrid, waterMaterial, cellX, cellY, planeXPosition, planeYPosition);
-              }
-            }
-
-            if (overlays) {
-              const stain = overlays.material[cell] ?? 0;
-
-              if (stain !== 0) {
-                stainPixels = this.#floorPatchPixels[stain - 1];
-                stainAmount = overlays.amount[cell] ?? 0;
+              if (mask !== 0) {
+                foam = foamAt(mask, planeXPosition - cellX, planeYPosition - cellY);
               }
             }
           }
         }
 
-        const textureX = ((Math.floor(sampleX * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
-        const textureY = ((Math.floor(sampleY * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
+        // Masking wraps the texel for negatives too, because `&` works on the two's complement int32
+        // — but only while `TEXTURE_SIZE` is a power of two. Two modulos per axis per pixel priced
+        // the polite version out of this loop.
+        const textureX = Math.floor(sampleX * TEXTURE_SIZE) & (TEXTURE_SIZE - 1);
+        const textureY = Math.floor(sampleY * TEXTURE_SIZE) & (TEXTURE_SIZE - 1);
         const source = (textureY * TEXTURE_SIZE + textureX) * 4;
         const target = (y * width + x) * 4;
 
@@ -783,24 +1119,29 @@ export class CanvasGameplayRenderer {
           let green = pixels[source + 1] ?? 0;
           let blue = pixels[source + 2] ?? 0;
 
-          if (stainPixels && stainAmount > 0) {
-            red += ((stainPixels[source] ?? 0) - red) * stainAmount;
-            green += ((stainPixels[source + 1] ?? 0) - green) * stainAmount;
-            blue += ((stainPixels[source + 2] ?? 0) - blue) * stainAmount;
-          }
-
           if (foam > 0) {
             red += (206 - red) * foam;
             green += (232 - green) * foam;
             blue += (246 - blue) * foam;
           }
 
-          pixel[target] = red * fog + fogFlatRed + 31 * torch;
-          pixel[target + 1] = green * fog + fogFlatGreen + 12 * torch;
-          pixel[target + 2] = blue * fog + fogFlatBlue - 3 * torch;
+          const outRed = red * fog + fogFlatRed + 31 * torch;
+          const outGreen = green * fog + fogFlatGreen + 12 * torch;
+          const outBlue = blue * fog + fogFlatBlue - 3 * torch;
+          pixel[target] = outRed;
+          pixel[target + 1] = outGreen;
+          pixel[target + 2] = outBlue;
           pixel[target + 3] = 255;
-          planeXPosition += stepX;
-          planeYPosition += stepY;
+
+          if (hasNext) {
+            pixel[target + 4] = outRed;
+            pixel[target + 5] = outGreen;
+            pixel[target + 6] = outBlue;
+            pixel[target + 7] = 255;
+          }
+
+          planeXPosition += stepX * colStep;
+          planeYPosition += stepY * colStep;
           continue;
         }
 
@@ -812,8 +1153,6 @@ export class CanvasGameplayRenderer {
         texelY = texelY < 0 ? 0 : texelY > lastLightY ? lastLightY : texelY;
         const light = (texelY * lightWidth + texelX) * 3;
         const pixel = image.data;
-        void stainPixels;
-        void stainAmount;
         void foam;
         const red = (pixels[source] ?? 0) * (this.#lightmap[light] ?? 0) * fog + fogRed;
         const green = (pixels[source + 1] ?? 0) * (this.#lightmap[light + 1] ?? 0) * fog + fogGreen;
@@ -822,74 +1161,22 @@ export class CanvasGameplayRenderer {
         pixel[target + 1] = green;
         pixel[target + 2] = blue;
         pixel[target + 3] = 255;
-        planeXPosition += stepX;
-        planeYPosition += stepY;
+
+        if (hasNext) {
+          pixel[target + 4] = red;
+          pixel[target + 5] = green;
+          pixel[target + 6] = blue;
+          pixel[target + 7] = 255;
+        }
+
+        planeXPosition += stepX * colStep;
+        planeYPosition += stepY * colStep;
       }
+
+      duplicateRow(y);
     }
 
     this.#context.putImageData(image, 0, 0);
-  }
-
-  /**
-   * How much white water to add at a point inside a pool.
-   *
-   * Foam is a property of the boundary between water and dry floor, and the boundary is not in the
-   * water texture — it is in the map. So it is computed here from how close the sample is to a
-   * neighbouring cell that is not water, which costs four grid reads and no artwork at all.
-   */
-  #shoreFoam(
-    scene: RenderScene,
-    patchGrid: Uint8Array | undefined,
-    waterMaterial: number,
-    cellX: number,
-    cellY: number,
-    x: number,
-    y: number,
-  ): number {
-    if (!patchGrid) {
-      return 0;
-    }
-
-    const dry = (offsetX: number, offsetY: number): boolean => {
-      const nextX = cellX + offsetX;
-      const nextY = cellY + offsetY;
-
-      if (nextX < 0 || nextY < 0 || nextX >= scene.width || nextY >= scene.height) {
-        return true;
-      }
-
-      return (patchGrid[nextY * scene.width + nextX] ?? 0) - 1 !== waterMaterial;
-    };
-
-    const withinX = x - cellX;
-    const withinY = y - cellY;
-    // Only the closest shore contributes. Summing every dry neighbour turned a one-cell pool — which
-    // is dry on all four sides — into a solid block of foam with no water left in it.
-    let nearest = 1;
-
-    if (dry(-1, 0)) {
-      nearest = Math.min(nearest, withinX);
-    }
-
-    if (dry(1, 0)) {
-      nearest = Math.min(nearest, 1 - withinX);
-    }
-
-    if (dry(0, -1)) {
-      nearest = Math.min(nearest, withinY);
-    }
-
-    if (dry(0, 1)) {
-      nearest = Math.min(nearest, 1 - withinY);
-    }
-
-    if (nearest >= FOAM_WIDTH) {
-      return 0;
-    }
-
-    // A narrow band that peaks just inside the waterline and falls away on both sides, so the shore
-    // reads as a line of white water rather than as a glow over the whole pool.
-    return Math.sin((nearest / FOAM_WIDTH) * Math.PI) * 0.42;
   }
 
   /**
@@ -991,9 +1278,11 @@ export class CanvasGameplayRenderer {
    */
   #castColumn(
     scene: RenderScene,
-    surfaces: ReadonlyMap<string, RenderSurface>,
+    grid: Int16Array,
+    surfaceList: readonly RenderSurface[],
     cameraX: number,
     roomHeight: number,
+    maxSurfaceHeight: number,
     eyeHeight: number,
     coverScale: number,
     into: RayHit[],
@@ -1003,6 +1292,8 @@ export class CanvasGameplayRenderer {
     const planeLength = this.#planeLength();
     const rayX = directionX - directionY * planeLength * cameraX;
     const rayY = directionY + directionX * planeLength * cameraX;
+    const sceneWidth = scene.width;
+    const sceneHeight = scene.height;
     let mapX = Math.floor(scene.camera.x);
     let mapY = Math.floor(scene.camera.y);
     const deltaX = rayX === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / rayX);
@@ -1026,18 +1317,27 @@ export class CanvasGameplayRenderer {
         side = 1;
       }
 
-      const surface = surfaces.get(keyOf(mapX, mapY));
-
-      if (!surface) {
-        continue;
-      }
-
       const distance = side === 0 ? sideX - deltaX : sideY - deltaY;
 
+      // Distance alone ends the walk, hit or no hit. The check used to live on the hit path only,
+      // so a ray crossing open floor never stopped — in a room with its walls knocked down every
+      // column walked the full step budget through empty cells.
       if (distance > MAX_DEPTH) {
         return;
       }
 
+      // Outside the named grid is empty, not solid; the distance cutoff above is what ends the walk.
+      if (mapX < 0 || mapY < 0 || mapX >= sceneWidth || mapY >= sceneHeight) {
+        continue;
+      }
+
+      const surfaceIndex = grid[mapY * sceneWidth + mapX] ?? 0;
+
+      if (surfaceIndex === 0) {
+        continue;
+      }
+
+      const surface = surfaceList[surfaceIndex - 1] as RenderSurface;
       const surfaceHeight = surface.height ?? roomHeight;
 
       // A wall no taller than one already in front of it can never clear that one's silhouette, so
@@ -1066,20 +1366,104 @@ export class CanvasGameplayRenderer {
         hitY: scene.camera.y + rayY * distance,
       });
 
-      // Covered to the top of the screen: nothing behind this can appear above it. This is what
-      // keeps the walk one or two cells long in practice instead of running to the maze edge.
-      if (distance <= (surfaceHeight - eyeHeight) * coverScale) {
+      // Two ways the walk is done, and both matter. Nothing in the scene stands taller than this,
+      // so nothing behind it can clear it — which is the whole walk when every wall is the same
+      // height, as it is for the baked floors. Or it already reaches the top of the screen.
+      if (surfaceHeight >= maxSurfaceHeight || distance <= (surfaceHeight - eyeHeight) * coverScale) {
         return;
       }
     }
   }
 
-  #drawWalls(
-    scene: RenderScene,
-    surfaces: ReadonlyMap<string, RenderSurface>,
-    elapsedSeconds: number,
-    torchContraction: number,
-  ): void {
+  /**
+   * Casts every column once, recording the hits for the wall pass and the screen band they cover.
+   *
+   * Split out of `#drawWalls` so the plane pass in between can consult it. The floor used to be
+   * projected across the whole screen below the horizon and then painted over by the walls, which in
+   * a corridor threw away most of it — that pass costs a reprojection, a cell lookup and a texture
+   * sample per pixel, and a corridor is the one view where both it and the walls are at full extent
+   * at once.
+   */
+  #castScene(scene: RenderScene): void {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const horizon = this.#horizon(scene);
+    const eyeHeight = this.#eyeHeight(scene);
+    const roomHeight = this.#wallHeight(scene);
+    const coverScale = horizon > 0 ? height / horizon : Number.POSITIVE_INFINITY;
+    const column = this.#rayColumn;
+    const grid = this.#surfaceIndexGrid(scene);
+    let maxSurfaceHeight = roomHeight;
+
+    for (const surface of scene.surfaces) {
+      if (surface.height !== undefined && surface.height > maxSurfaceHeight) {
+        maxSurfaceHeight = surface.height;
+      }
+    }
+
+    for (let x = 0; x < width; x += 1) {
+      this.#castColumn(
+        scene,
+        grid,
+        scene.surfaces,
+        (2 * x) / width - 1,
+        roomHeight,
+        maxSurfaceHeight,
+        eyeHeight,
+        coverScale,
+        column,
+      );
+      const count = Math.min(column.length, MAX_COLUMN_HITS);
+      this.#columnHitCount[x] = count;
+
+      for (let index = 0; index < count; index += 1) {
+        this.#columnHits[x * MAX_COLUMN_HITS + index] = column[index];
+      }
+
+      if (count === 0) {
+        this.#depthBuffer[x] = MAX_DEPTH;
+        // An empty band: `y >= 0 && y < -1` is false for every row.
+        this.#coverTop[x] = 0;
+        this.#coverBottom[x] = -1;
+        continue;
+      }
+
+      // Sprites test against the nearest wall.
+      const nearest = column[0]!;
+      this.#depthBuffer[x] = nearest.distance;
+
+      const spanOf = (hit: RayHit): { top: number; bottom: number } => {
+        const depth = Math.max(0.001, hit.distance);
+        const surfaceHeight = hit.surface.height ?? roomHeight;
+        const bottom = horizon + (eyeHeight * height) / depth;
+        return { top: bottom - (surfaceHeight * height) / depth, bottom };
+      };
+
+      const near = spanOf(nearest);
+      let top = near.top;
+
+      // Farther hits are kept only when taller, so each reaches higher up the screen than the one in
+      // front. They normally overlap into one band; the merge stops at the first that does not,
+      // because a gap between them is sky the walls will not paint over.
+      for (let index = 1; index < count; index += 1) {
+        const span = spanOf(column[index]!);
+
+        if (span.bottom < top) {
+          break;
+        }
+
+        top = Math.min(top, span.top);
+      }
+
+      // Inset by two, not one: under `halvePlaneRows` a skipped row is also copied onto its
+      // neighbour, so the band has to clear the wall's own edge by more than a single row.
+      this.#coverTop[x] = Math.ceil(Math.max(0, top)) + 2;
+      this.#coverBottom[x] = Math.floor(Math.min(height, near.bottom)) - 2;
+    }
+  }
+
+  /** Paints the columns `#castScene` already resolved. Casting no longer happens here. */
+  #drawWalls(scene: RenderScene, elapsedSeconds: number, torchContraction: number): void {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const horizon = this.#horizon(scene);
@@ -1092,26 +1476,14 @@ export class CanvasGameplayRenderer {
     // it needs its own stack of courses.
     const frameTextures = new Map<string, CanvasImageSource>();
 
-    // Distance at which a wall one cell above the eye reaches the top of the screen. A non-positive
-    // horizon means the screen top is already below the level line, so the nearest wall always
-    // covers it and the walk stops at the first hit.
-    const coverScale = horizon > 0 ? height / horizon : Number.POSITIVE_INFINITY;
-    const column = this.#rayColumn;
-
     for (let x = 0; x < width; x += 1) {
-      this.#castColumn(scene, surfaces, (2 * x) / width - 1, roomHeight, eyeHeight, coverScale, column);
+      // Already cast by `#castScene`, before the planes were painted.
+      const count = this.#columnHitCount[x] ?? 0;
 
-      if (column.length === 0) {
-        this.#depthBuffer[x] = MAX_DEPTH;
-        continue;
-      }
-
-      // Sprites test against the nearest wall; the column itself paints far to near.
-      this.#depthBuffer[x] = column[0]!.distance;
-
-      for (let index = column.length - 1; index >= 0; index -= 1) {
+      // Painted far to near, so a nearer wall covers the one it stands in front of.
+      for (let index = count - 1; index >= 0; index -= 1) {
         this.#drawWallColumn(
-          column[index]!,
+          this.#columnHits[x * MAX_COLUMN_HITS + index]!,
           x,
           height,
           horizon,
@@ -1638,6 +2010,40 @@ export class CanvasGameplayRenderer {
     }
 
     this.#context.fillStyle = style;
+
+    // Whole-face fast path: when even the farthest corner is nearer than every wall across the
+    // span, no column of it can be clipped, and one path fill replaces a fill per pixel column.
+    // Standing at the exit dais put several near, wide, unoccluded faces on screen at once, and the
+    // column loop billed each of them hundreds of one-pixel rects.
+    let slowestInverse = Number.POSITIVE_INFINITY;
+
+    for (const corner of corners) {
+      slowestInverse = Math.min(slowestInverse, corner.inverseDepth);
+    }
+
+    let nearestWall = Number.POSITIVE_INFINITY;
+
+    for (let x = from; x <= to; x += 1) {
+      const wall = this.#depthBuffer[x] ?? MAX_DEPTH;
+
+      if (wall < nearestWall) {
+        nearestWall = wall;
+      }
+    }
+
+    if (1 / slowestInverse < nearestWall) {
+      const context = this.#context;
+      context.beginPath();
+      context.moveTo((corners[0] as ProjectedCorner).x, (corners[0] as ProjectedCorner).y);
+
+      for (let index = 1; index < corners.length; index += 1) {
+        context.lineTo((corners[index] as ProjectedCorner).x, (corners[index] as ProjectedCorner).y);
+      }
+
+      context.closePath();
+      context.fill();
+      return;
+    }
 
     for (let x = from; x <= to; x += 1) {
       let top = Number.POSITIVE_INFINITY;

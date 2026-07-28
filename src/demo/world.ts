@@ -13,6 +13,7 @@ import {
   blocksWalk,
   DEMO_GRID_SIZE,
   generateDemoMaze,
+  tileIndex,
   type DemoCell,
   type DemoMaze,
 } from "@/demo/maze";
@@ -182,6 +183,8 @@ export type DemoWorld = {
    * when a new one is generated, so a hard-fought room stays visibly hard-fought.
    */
   stains: Float32Array;
+  /** Bumped whenever `stains` changes, so the scene's overlay list can be reused between kills. */
+  stainsVersion: number;
   deaths: DemoDeath[];
   /** Room height in cells for this floor. Presentation only; nothing collides vertically. */
   wallHeight: number;
@@ -327,6 +330,7 @@ export function populateFloor(world: DemoWorld): void {
   world.vfx = [];
   world.particles = createParticleField();
   world.stains = new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE);
+  world.stainsVersion += 1;
   world.deaths = [];
   // A whole number of storeys, never a fraction. The wall texture is tiled once per cell of height,
   // so a room 1.7 cells tall stretched the last course and made the masonry read as low-resolution
@@ -395,6 +399,7 @@ export function createDemoWorld(): DemoWorld {
     vfx: [],
     particles: createParticleField(),
     stains: new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE),
+    stainsVersion: 0,
     deaths: [],
     wallHeight: 1.6,
     terrainVersion: 0,
@@ -419,6 +424,37 @@ export function createDemoWorld(): DemoWorld {
 
   populateFloor(world);
   return world;
+}
+
+/**
+ * Levels the current floor into one open arena, for the T key on the demo surface.
+ *
+ * Every interior tile becomes open floor — walls, pools and barricades included — and the enemy
+ * count is topped up to the cap. That is the renderer's worst case on purpose: nothing occludes
+ * anything, every sprite is visible at once, and every ray runs to the border unobstructed.
+ */
+export function flattenFloorForTesting(world: DemoWorld): void {
+  for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
+    for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
+      const tile = world.maze.tiles[tileIndex(x, y)];
+
+      if (tile && tile.kind !== "open") {
+        tile.kind = "open";
+        tile.hp = 0;
+        tile.maxHp = 0;
+      }
+    }
+  }
+
+  world.terrainVersion += 1;
+
+  while (world.enemies.length < MAX_ENEMIES) {
+    if (!spawnReinforcement(world)) {
+      break;
+    }
+  }
+
+  announce(world, "測試場：牆已清空，敵人補滿", 3);
 }
 
 /**
@@ -488,6 +524,7 @@ export function stainFloor(world: DemoWorld, x: number, y: number, amount: numbe
 
   const index = cellY * DEMO_GRID_SIZE + cellX;
   world.stains[index] = Math.min(MAX_STAIN, (world.stains[index] ?? 0) + amount);
+  world.stainsVersion += 1;
 }
 
 export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {

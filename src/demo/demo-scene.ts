@@ -801,6 +801,30 @@ type TerrainCache = {
 
 let terrainCache: TerrainCache | undefined;
 
+/**
+ * The stain overlays, held until another drop lands.
+ *
+ * Rebuilding them per frame allocated an object per bloodied cell sixty times a second — late in a
+ * fight that is most of the floor — and a fresh array identity also forced the renderer to rebuild
+ * its per-cell grids every frame. Blood only changes when something bleeds; this only rebuilds then.
+ */
+type StainCache = {
+  stains: Float32Array;
+  version: number;
+  overlays: RenderFloorOverlay[];
+};
+
+let stainCache: StainCache | undefined;
+
+function cachedOverlays(world: DemoWorld): RenderFloorOverlay[] {
+  if (stainCache && stainCache.stains === world.stains && stainCache.version === world.stainsVersion) {
+    return stainCache.overlays;
+  }
+
+  stainCache = { stains: world.stains, version: world.stainsVersion, overlays: floorOverlays(world) };
+  return stainCache.overlays;
+}
+
 function cachedTerrain(world: DemoWorld): TerrainCache {
   if (terrainCache && terrainCache.maze === world.maze && terrainCache.version === world.terrainVersion) {
     return terrainCache;
@@ -849,7 +873,7 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     eyeHeight: 0.5,
     surfaces: terrain.surfaces,
     floorPatches: terrain.floorPatches,
-    floorOverlays: floorOverlays(world),
+    floorOverlays: cachedOverlays(world),
     boxes: terrain.boxes,
     sprites: sprites(world),
     beams: beams(world),

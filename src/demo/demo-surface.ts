@@ -16,7 +16,7 @@ import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { DEMO_GRID_SIZE, tileAt, tileIndex } from "@/demo/maze";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
-import { createDemoWorld, type DemoWorld } from "@/demo/world";
+import { createDemoWorld, flattenFloorForTesting, type DemoWorld } from "@/demo/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
 
 export type MountedDemo = Readonly<{ dispose: () => void }>;
@@ -153,6 +153,10 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
   const images = await loadDemoImages();
   const renderer = new CanvasGameplayRenderer(canvas, images);
+  // The demo runs a real-time camera, so half the plane resolution — both axes, keeping the coarse
+  // pixels square — buys frames the turn-based game has no need to buy.
+  renderer.halvePlaneRows = true;
+  renderer.halvePlaneColumns = true;
   const sceneContext = canvas.getContext("2d");
 
   if (!sceneContext) {
@@ -180,6 +184,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   const publish = (): void => {
     if (import.meta.env.DEV) {
       (window as unknown as { demoWorld?: DemoWorld }).demoWorld = world;
+      (window as unknown as { demoRenderer?: CanvasGameplayRenderer }).demoRenderer = renderer;
     }
   };
 
@@ -335,6 +340,13 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     if (key === "r") {
       event.preventDefault();
       restart();
+      return;
+    }
+
+    // The frame-rate worst case on demand: an arena with no occlusion and a full crowd.
+    if (key === "t") {
+      event.preventDefault();
+      flattenFloorForTesting(world);
       return;
     }
 
