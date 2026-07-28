@@ -45,9 +45,8 @@ Platform rows, from `foundation/platforms/web-react/platform_startup.md`:
 
 Project rows:
 
-| Work                                                                              | Required reading                                                                                  |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Run `/implement`                                                                  | `dev/agent_rules/implement_operations.md` after the canonical `/implement` workflow               |
-| Change any gameplay rule, stat, enemy, door, key, floor layout, or balance number | `src/core/` and `src/content/`; `dev/standards/design_document_freeze.md` for why not the GDD     |
-| Read, cite, or edit anything under `dev/docs/design/`                             | `dev/standards/design_document_freeze.md` — the short answer is do not                            |
-| Anything involving React, IndexedDB, service workers, or PWA                      | The declared deviation in `dev/standards/project_structure.addendum.md` — these do not apply here |
+| Work                                                                         | Required reading                                                                                  |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Run `/implement`                                                             | `dev/agent_rules/implement_operations.md` after the canonical `/implement` workflow               |
+| Read, cite, or edit anything under `dev/docs/design/` or `dev/docs/reports/` | `dev/standards/frozen_reference_directories.md` — the short answer is do not                      |
+| Anything involving React, IndexedDB, service workers, or PWA                 | The declared deviation in `dev/standards/project_structure.addendum.md` — these do not apply here |

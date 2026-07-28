@@ -28,7 +28,7 @@ CONTRACTS: dict[str, list[str]] = {
         "git_operations.md",
         "test_operations.md",
         "implement_operations.md",
-        "design_document_freeze.md",
+        "frozen_reference_directories.md",
     ],
     "dev/agent_rules/implement_operations.md": [
         "commands/implement.md",
@@ -37,15 +37,19 @@ CONTRACTS: dict[str, list[str]] = {
     ],
     "dev/agent_rules/git_operations.md": ["dev/foundation/core/agent_rules/git_operations.md"],
     "dev/agent_rules/test_operations.md": ["# Test Operations"],
-    "dev/standards/design_document_freeze.md": ["# Design Document Freeze", "dev/docs/design/"],
+    "dev/standards/frozen_reference_directories.md": [
+        "# Frozen Reference Directories",
+        "dev/docs/design/",
+        "dev/docs/reports/",
+    ],
 }
 
-# The freeze rule's real failure mode is a durable document quietly regaining a pointer into the
-# frozen design tree, which no other check would notice. These files are allowed to name it: the
-# standard that owns the rule, and the navigation surfaces that say the directory exists.
-DESIGN_REFERENCE_ALLOWLIST = frozenset(
+# The freeze rule's real failure mode is a durable document quietly regaining a pointer into a
+# frozen directory, which no other check would notice. These files are allowed to name them: the
+# standard that owns the rule, and the navigation surfaces that say the directories exist.
+FROZEN_REFERENCE_ALLOWLIST = frozenset(
     {
-        "dev/standards/design_document_freeze.md",
+        "dev/standards/frozen_reference_directories.md",
         "dev/docs/README.md",
         "dev/README.md",
         "dev/agent_rules/agent_startup.md",
@@ -55,8 +59,10 @@ DESIGN_REFERENCE_ALLOWLIST = frozenset(
     }
 )
 
-# Plans are the one legitimate consumer: each records the design document it was derived from.
-DESIGN_REFERENCE_SCAN_DIRS = ("dev/agent_rules", "dev/standards", "dev/tools")
+FROZEN_REFERENCE_PATHS = ("dev/docs/design/", "dev/docs/reports/")
+
+# Plans are the one legitimate consumer: each records the document it was derived from.
+FROZEN_REFERENCE_SCAN_DIRS = ("dev/agent_rules", "dev/standards", "dev/tools")
 
 
 def read(relative_path: str) -> str | None:
@@ -75,13 +81,17 @@ for relative_path, fragments in CONTRACTS.items():
         if fragment not in contents:
             errors.append(f"{relative_path}: missing load-bearing pointer {fragment!r}")
 
-for scan_dir in DESIGN_REFERENCE_SCAN_DIRS:
+for scan_dir in FROZEN_REFERENCE_SCAN_DIRS:
     for candidate in sorted((ROOT / scan_dir).rglob("*.md")):
         relative = candidate.relative_to(ROOT).as_posix()
-        if relative in DESIGN_REFERENCE_ALLOWLIST:
+        if relative in FROZEN_REFERENCE_ALLOWLIST:
             continue
-        if "dev/docs/design/" in candidate.read_text(encoding="utf-8"):
-            errors.append(f"{relative}: references the frozen dev/docs/design/ tree; see dev/standards/design_document_freeze.md")
+        contents = candidate.read_text(encoding="utf-8")
+        for frozen_path in FROZEN_REFERENCE_PATHS:
+            if frozen_path in contents:
+                errors.append(
+                    f"{relative}: references the frozen {frozen_path} tree; see dev/standards/frozen_reference_directories.md"
+                )
 
 if not (ROOT / "dev/foundation/consumer_manifest.json").is_file():
     errors.append("dev/foundation is missing or uninitialized; run git submodule update --init --recursive")

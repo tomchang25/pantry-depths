@@ -71,7 +71,7 @@ No spec may press **Save Canonical JSON** in the Floor Set Workbench, or otherwi
 
 Presentation, input feel, audio, and VFX have no automated coverage in V1 and are not expected to gain any. Verify them by running `npm run dev` and playing.
 
-A manual playtest report states: which floor was reached, the player's attack and defense at that point, remaining HP, and which of the owning plan's acceptance criteria the run confirmed or contradicted. It does not measure the run against `dev/docs/design/`; that directory is frozen and `dev/standards/design_document_freeze.md` forbids citing it.
+A manual playtest report states what was played, what happened, and which of the change's intended outcomes the run confirmed or contradicted. It does not measure the run against `dev/docs/design/` or `dev/docs/reports/`; both are frozen and `dev/standards/frozen_reference_directories.md` forbids citing them.
 
 ## Result Reporting
 

@@ -2,9 +2,9 @@
 
 These files describe Pantry Depths' product intent and forward work. They do not replace durable rules under `dev/standards/` or the shared foundation.
 
-- `design/`: **frozen.** The documents the plans were originally derived from, including the V1 milestone plan now that its streams have landed. Do not read, cite, or edit them without an explicit instruction naming one; the only permitted change to the directory is adding a new document. See `dev/standards/design_document_freeze.md`.
+- `design/`: **frozen.** The documents the plans were originally derived from. See `dev/standards/frozen_reference_directories.md`.
 - `plans/`: active plans, sketches, and implementation specs. Start here, then `../../TODO.md`.
-- `reports/`: human-readable views of the implemented truth. `pantry_depths_balance.html` is regenerated from content data; `pantry_depths_architecture.html` is hand-written.
+- `reports/`: **frozen.** Snapshots of how the project looked when they were written. Same standard, same rule.
 - `../../TODO.md`: forward work that no plan owns. Plan children are tracked in their plan's child overview, never here.
 - `../../CHANGELOG.md`: append-only shipped-outcome history.
 
@@ -16,10 +16,8 @@ These files describe Pantry Depths' product intent and forward work. They do not
 | What is the rule?                                              | `src/core/`                                       |
 | Why is it this way, and what are we deliberately not building? | The plan that decided it, or `TODO.md` `## Draft` |
 | What ships, in what order?                                     | `../../TODO.md` and the active plans              |
-| What are the observed combat and route outcomes?               | The generated balance report                      |
-| How do I add an enemy?                                         | The architecture report                           |
 
-No row points at `design/`, and that is deliberate. It is expected to contradict the codebase, and `dev/standards/design_document_freeze.md` owns why that is fine and why it must not be repaired.
+No row points at `design/` or `reports/`, and that is deliberate. Both are expected to contradict the codebase, and `dev/standards/frozen_reference_directories.md` owns why that is fine and why it must not be repaired.
 
 ## Layout
 
