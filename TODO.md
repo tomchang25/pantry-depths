@@ -10,8 +10,6 @@ Actionable line format: `[scope] one sentence - [ref plans/<name>.md if any]`
 
 This tracker is the forward-work authority. The V1 milestone plan that used to own stream ordering has been frozen into `dev/docs/design/`; what still pointed forward from it lives under `## Draft` below. The critical-path next action is `pantry_floor_design_01`, and Scene Authoring and Live Preview runs in parallel with its preview children unblocked.
 
----
-
 ## Active
 
 > Nothing currently in progress.
@@ -22,10 +20,7 @@ This tracker is the forward-work authority. The V1 milestone plan that used to o
 
 Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line becomes actionable through `/implement`, which rewrites the sketch into a standalone implementation spec; the line stays here until the work ships. If a plan later adopts the work, the sketch moves into that plan as a child and this line is removed in the same change.
 
-- [feedback_and_leaving] Give the world its own voice for walls, doors, upgrades, the hot spring, and threats the player never faced, and make leaving through the exit an authored departure rather than a summary panel appearing - [ref plans/pantry_feedback_and_leaving.sketch.md]
-- [player_screen_layer] Make the held torch and sword, the attack slash, the torch flame, and the damage flash authored values instead of renderer constants; the open shape question is what each value is a fraction of - [ref plans/pantry_player_screen_layer.sketch.md]
-- [cross_floor_locks] Let the generator place a key on one floor and the door it opens on a later one, since runtime and the validator already allow it but the per-floor construction guarantee does not - [ref plans/pantry_cross_floor_locks.sketch.md]
-- [cross_floor_entity_move] Let the Workbench move a gameplay entity to another floor instead of forcing delete-and-recreate, by giving the move mutation an explicit source and destination floor - [ref plans/pantry_cross_floor_entity_move.sketch.md]
+> Nothing currently planned. The sketches this tier used to carry were deleted with the old direction.
 
 ---
 
@@ -33,7 +28,7 @@ Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line 
 
 One line, no rationale, no backing document.
 
-- [mega_plan_standard] Promote the mega-plan shape into game-devkit as `mega_plan_standard.md` once this project's trial run has an answer: whether three layers were too heavy for a one-week project, and whether keeping the top layer out of every child's reading path actually held
+> No open chores.
 
 ---
 
@@ -45,21 +40,9 @@ One line, no rationale, no backing document.
 
 ---
 
-## Infrastructure Debt
-
-Known gaps with a named closer. Not independently actionable — each closes as a side effect of the work that owns it.
-
-- [ ] `dev/docs/reports/pantry_depths_architecture.html` is still a skeleton; it is hand-written and filled in at milestone closeout.
-
----
-
 ## Draft
 
 Not scheduled. Do not start without a decision.
-
-### Palette Expansion
-
-White and black keys, widening the palette beyond the current three colours. Blocked on a product decision, not on implementation: the design document's section 八 binds red, blue, and yellow to passage, attack, and defence, while additional colours have no assigned meaning. The shipped authoring workbench and generator deliberately expose only the three existing colours, so widening the palette is a content-contract change, not a tooling change.
 
 ### Browser Acceptance Coverage For Gameplay
 
@@ -68,22 +51,6 @@ White and black keys, widening the palette beyond the current three colours. Blo
 ### DOM Component Test Layer
 
 A jsdom component layer — `jsdom` plus `@testing-library/dom`, no React — between unit and browser. Now a live question rather than a hypothetical: `src/ui/` ships player-facing DOM. The readout kept its whole derivation in a pure, DOM-free module so the branching logic is unit-covered, but the feel plan's acceptance criteria 3 and 6 — required information without relying on colour alone, keyboard reachable and semantically labelled — are semantic assertions about the DOM itself, and a stylesheet that silently overrode a hidden panel has already slipped through the current layers once.
-
-### V2 Direction
-
-The post-V1 product direction: extraction runs, exit unlock conditions, spawn conditions, map difficulty tiers, inventory and items, blessings and curses, and fog. It is a direction document, not forward work: no requirements, no children, and nothing in it loosens V1's frozen-extension contract. Two of its open questions — fog versus the explored map, and the persistence debt that carried items imply — need answers before any of it becomes a plan.
-
-### V1 Definition Of Done
-
-Lifted from the milestone plan before it was frozen, because it is the only statement of when V1 is finished. All of these must hold:
-
-1. A player walks from B1 to B5, leaves through the exit, and sees the departure and completion statistics.
-2. Five floors, three key colours, six doors, four stat upgrades, the hidden wall, and the hot spring are all reachable and usable.
-3. Combat stays fully deterministic: the same input sequence always produces the same result.
-4. Every number lives in `src/content/` rather than scattered through rendering or input code.
-5. `npm run verify` is green.
-6. The balance report regenerates from a command and matches current content.
-7. The architecture report exists and answers what a reader must change to add an enemy.
 
 ### Playtest Questions
 
