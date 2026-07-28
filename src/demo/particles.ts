@@ -7,7 +7,7 @@
  * gets busy.
  */
 
-export type DemoParticleKind = "blood" | "stoneChip" | "woodChip" | "dust" | "ember";
+export type DemoParticleKind = "blood" | "stoneChip" | "woodChip" | "dust" | "ember" | "splash";
 
 export type DemoParticle = {
   kind: DemoParticleKind;

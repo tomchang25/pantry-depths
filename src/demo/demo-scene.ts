@@ -1027,6 +1027,7 @@ const PARTICLE_COLORS: Readonly<Record<DemoParticleKind, readonly [number, numbe
   woodChip: [138, 92, 48],
   dust: [178, 162, 182],
   ember: [255, 172, 78],
+  splash: [162, 206, 232],
 };
 
 /** Everything small and numerous, as flat dots rather than sprites. */

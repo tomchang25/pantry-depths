@@ -133,10 +133,17 @@ function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: 
   enemy.x = settled.x;
   enemy.y = settled.y;
   world.enemies.push(enemy);
-  bodyLanding(world, enemy, hitWall, projectile.thud);
+  // Where it came down gets first claim on it, before what the fall cost it.
+  //
+  // The other order killed bodies thrown into a pool with the landing damage, so a slime went into
+  // the water and played the ordinary deflating-corpse death on the surface of it — the throw won a
+  // race it should never have been in. Resolving the hazard first puts the body under, and a body on
+  // its way down is immune to damage, so the fall silently does nothing to it. The spikes settle the
+  // same way: whatever the cell does to a body arriving in it, it does first and it does all of it.
+  checkHazards(world, enemy);
 
   if (world.enemies.includes(enemy)) {
-    checkHazards(world, enemy);
+    bodyLanding(world, enemy, hitWall, projectile.thud);
   }
 }
 

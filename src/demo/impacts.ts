@@ -82,6 +82,17 @@ export function checkHazards(world: DemoWorld, enemy: DemoEnemy): void {
   enemy.intent = "none";
   enemy.windupSeconds = 0;
   enemy.chargeSeconds = 0;
+  // The moment of going in, wherever it was reached from — thrown, shoved, or a charge that
+  // overran. Everything else about a drowning is slow and quiet, so the entry is the only chance
+  // there is to show that something just hit the water.
+  burst(world.particles, "splash", enemy.x, enemy.y, 0.12, 16, {
+    speed: 2.4,
+    spreadZ: 2.8,
+    gravity: 9,
+    drag: 0.7,
+    size: 0.055,
+    life: 0.7,
+  });
 }
 
 /** Anything shoved onto the spikes dies there and then. The spray is the whole record of it. */
@@ -246,14 +257,19 @@ function arrival(world: DemoWorld, x: number, y: number, thud: number): void {
     return;
   }
 
-  burst(world.particles, "dust", x, y, 0.16, Math.round(4 + thud * 7), {
-    speed: 1.5 * thud,
-    spreadZ: 0.9,
-    gravity: 2.2,
-    drag: 2.6,
-    size: 0.13,
-    life: 0.6,
-  });
+  // Nothing kicks dust off a pool. A body that came down in one has already thrown its splash on the
+  // way in, and the jolt below is still owed either way — the floor carries it just the same.
+  if (!isWaterCell(world.maze, Math.floor(x), Math.floor(y))) {
+    burst(world.particles, "dust", x, y, 0.16, Math.round(4 + thud * 7), {
+      speed: 1.5 * thud,
+      spreadZ: 0.9,
+      gravity: 2.2,
+      drag: 2.6,
+      size: 0.13,
+      life: 0.6,
+    });
+  }
+
   const nearness = Math.max(0, 1 - Math.hypot(x - world.player.x, y - world.player.y) / LANDING_HEARD_WITHIN);
   world.shake = Math.max(world.shake, thud * nearness);
 }
