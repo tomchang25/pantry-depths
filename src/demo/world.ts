@@ -442,7 +442,7 @@ export function createDemoWorld(): DemoWorld {
     spawnSeconds: SPAWN_INTERVAL_SECONDS,
     hitFlash: 0,
     walkBob: 0,
-    message: "WASD 移動 · 滑鼠轉向 · 左鍵攻擊 · 右鍵抓取 · 找祭壇與樓梯",
+    message: "WASD to move - mouse to look - left click attacks - right click grabs - find the altar and the stairs",
     messageSeconds: 6,
     pendingCard: undefined,
     nextId: 0,
@@ -482,7 +482,7 @@ export function flattenFloorForTesting(world: DemoWorld): void {
     }
   }
 
-  announce(world, "測試場：牆已拆除（水池、拒馬保留），敵人補滿", 3);
+  announce(world, "Test arena: walls cleared, pools and barricades kept, enemies topped up", 3);
 }
 
 /**
@@ -520,12 +520,12 @@ export function awardBless(world: DemoWorld): void {
     world.player.maxHp += OVERFLOW_MAX_HP;
     world.player.hp = Math.min(world.player.maxHp, world.player.hp + OVERFLOW_MAX_HP);
     world.pendingCard = "overflow";
-    announce(world, `祝福已滿：最大生命 +${OVERFLOW_MAX_HP}`, 3);
+    announce(world, `Blessings full - max HP +${OVERFLOW_MAX_HP}`, 3);
     return;
   }
 
   world.pendingCard = granted.id;
-  announce(world, `獲得祝福：${granted.name}`, 3);
+  announce(world, `Blessing gained: ${granted.name}`, 3);
 }
 
 export function announce(world: DemoWorld, message: string, seconds = 2.2): void {

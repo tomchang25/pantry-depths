@@ -221,8 +221,8 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
   const refreshOverlay = (): void => {
     if (world.status === "dead") {
-      overlayTitle.textContent = "被吃掉了";
-      overlayBody.innerHTML = `深入到第 ${world.depth} 層，殺掉 ${world.kills} 隻，持有 ${world.bless.owned.length} 個祝福。按 <kbd>R</kbd> 重來。`;
+      overlayTitle.textContent = "Eaten";
+      overlayBody.innerHTML = `Reached floor B${world.depth}, killed ${world.kills}, carried ${world.bless.owned.length} blessings. Press <kbd>R</kbd> to run again.`;
       overlay.hidden = false;
       return;
     }
@@ -230,14 +230,15 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     if (!locked()) {
       overlayTitle.textContent = "Pantry Depths — Demo";
       overlayBody.innerHTML =
-        "點一下畫面或按 <kbd>Esc</kbd> 開始。<br><kbd>WASD</kbd> 移動 · 滑鼠轉向 · <kbd>左鍵</kbd> 攻擊／投擲 · <kbd>右鍵</kbd> 抓取／放下 · <kbd>Tab</kbd> 暫停 · <kbd>R</kbd> 重新開始 · <kbd>Esc</kbd> 放開滑鼠<br>綠光是往下的樓梯，金光是祭壇（劈三下拿祝福）。兩者隔著牆也看得到。";
+        "Click the screen or press <kbd>Esc</kbd> to start.<br><kbd>WASD</kbd> move &middot; mouse to look &middot; <kbd>Left</kbd> attack / throw &middot; <kbd>Right</kbd> grab / drop &middot; <kbd>Tab</kbd> pause &middot; <kbd>R</kbd> restart &middot; <kbd>Esc</kbd> release the mouse<br>The green light is the stairs down, the gold light is an altar — three swings for a blessing. Both show through walls.";
       overlay.hidden = false;
       return;
     }
 
     if (paused) {
-      overlayTitle.textContent = "已暫停";
-      overlayBody.innerHTML = "按 <kbd>Tab</kbd> 繼續 · <kbd>Esc</kbd> 放開滑鼠 · <kbd>R</kbd> 重新開始";
+      overlayTitle.textContent = "Paused";
+      overlayBody.innerHTML =
+        "<kbd>Tab</kbd> to resume &middot; <kbd>Esc</kbd> to release the mouse &middot; <kbd>R</kbd> to restart";
       overlay.hidden = false;
       return;
     }
@@ -251,11 +252,11 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
       .filter((definition): definition is BlessDefinition => Boolean(definition))
       .map(
         (definition) =>
-          `<i class="demo__blessicon" style="--bless: ${definition.color}" title="${definition.name}：${definition.detail}">${definition.glyph}</i>`,
+          `<i class="demo__blessicon" style="--bless: ${definition.color}" title="${definition.name} — ${definition.detail}">${definition.glyph}</i>`,
       );
 
     if (world.bless.overflowMaxHp > 0) {
-      icons.push(`<i class="demo__blessicon" style="--bless: #f0f0d0" title="額外最大生命">＋</i>`);
+      icons.push(`<i class="demo__blessicon" style="--bless: #f0f0d0" title="Extra max HP">+</i>`);
     }
 
     blessBar.innerHTML = icons.join("");
@@ -271,7 +272,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     const definition = token === "overflow" ? undefined : findBless(token as BlessDefinition["id"]);
     card.innerHTML = definition
       ? `<i class="demo__cardglyph" style="--bless: ${definition.color}">${definition.glyph}</i><strong>${definition.name}</strong><span>${definition.detail}</span>`
-      : `<i class="demo__cardglyph" style="--bless: #f0f0d0">＋</i><strong>血脈</strong><span>祝福已收集完畢，改為提升最大生命</span>`;
+      : `<i class="demo__cardglyph" style="--bless: #f0f0d0">+</i><strong>Vitality</strong><span>Every blessing collected — max HP rises instead</span>`;
     card.classList.add("demo__card--visible");
 
     if (cardTimer !== undefined) {
@@ -286,23 +287,23 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     barFill.style.width = `${Math.max(0, (world.player.hp / world.player.maxHp) * 100)}%`;
     const held = world.held
       ? world.held.kind === "enemy"
-        ? "敵人"
-        : `${PROP_LABELS[world.held.prop]} ×${world.held.count}`
-      : "空手";
+        ? "Enemy"
+        : `${PROP_LABELS[world.held.prop]} x${world.held.count}`
+      : "Empty-handed";
     const ahead = wallAhead(world, meleeReach(world));
     const aheadTile = ahead ? tileAt(world.maze, ahead.x, ahead.y) : undefined;
     const aheadText =
       aheadTile === undefined
         ? "—"
         : aheadTile.kind === "border"
-          ? "外圈磚牆（不可破壞）"
-          : `${aheadTile.kind === "wood" ? "木牆" : "石牆"} HP ${aheadTile.hp}/${aheadTile.maxHp}`;
+          ? "Boundary brick (unbreakable)"
+          : `${aheadTile.kind === "wood" ? "Wood wall" : "Stone wall"} HP ${aheadTile.hp}/${aheadTile.maxHp}`;
     readout.innerHTML = [
       `<b>B${world.depth}</b> · HP ${Math.ceil(world.player.hp)} / ${world.player.maxHp} · <span class="demo__fps">${Math.round(smoothedFps)} FPS</span>`,
-      `手上：<span class="demo__held">${held}</span>`,
-      `面前：${aheadText}`,
-      `祭壇 ${world.altar.hp > 0 ? `${world.altar.hp}/${world.altar.maxHp} 下` : "已用"} · 敵人 ${world.enemies.length}`,
-      `擊殺 ${world.kills} · 破牆 ${world.wallsBroken}`,
+      `Holding: <span class="demo__held">${held}</span>`,
+      `Ahead: ${aheadText}`,
+      `Altar ${world.altar.hp > 0 ? `${world.altar.hp}/${world.altar.maxHp} swings` : "spent"} &middot; Enemies ${world.enemies.length}`,
+      `Kills ${world.kills} &middot; Walls broken ${world.wallsBroken}`,
     ].join("<br>");
     message.textContent = world.message;
     message.classList.toggle("demo__message--visible", world.messageSeconds > 0);
@@ -419,7 +420,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     if (key === "p") {
       event.preventDefault();
       world.enemiesPaused = !world.enemiesPaused;
-      announce(world, world.enemiesPaused ? "敵人已暫停（再按 P 恢復）" : "敵人恢復行動", 2.5);
+      announce(world, world.enemiesPaused ? "Enemies frozen (P to resume)" : "Enemies moving again", 2.5);
       return;
     }
 

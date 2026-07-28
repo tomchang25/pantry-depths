@@ -82,17 +82,17 @@ export const JAVELIN_CAPACITY = 3;
 export const AXE_CAPACITY = 3;
 
 export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
-  stick: "木刺",
-  rock: "石塊",
-  bomb: "炸彈",
-  axe: "飛斧",
+  stick: "Stakes",
+  rock: "Rocks",
+  bomb: "Bombs",
+  axe: "Axe",
 };
 
 const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
-  stick: "木刺標槍射出去了",
-  rock: "石塊砸出去了",
-  bomb: "炸彈扔出去了",
-  axe: "飛斧旋轉飛出",
+  stick: "Stake away!",
+  rock: "Rock away!",
+  bomb: "Bomb away!",
+  axe: "Axe away!",
 };
 
 export function meleeReach(world: DemoWorld): number {
@@ -206,7 +206,7 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
   });
 
   if (tile.hp > 0) {
-    announce(world, `鐵拒馬 HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    announce(world, `Barricade HP ${tile.hp}/${tile.maxHp}`, 1.1);
     return;
   }
 
@@ -218,7 +218,7 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
     size: 0.06,
     life: 1.2,
   });
-  announce(world, "鐵拒馬被拆掉了");
+  announce(world, "The barricade is torn down!");
 }
 
 export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): void {
@@ -229,7 +229,7 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
   }
 
   if (tile.kind === "border") {
-    announce(world, "最外圈磚牆打不破");
+    announce(world, "The boundary brick will not break");
     return;
   }
 
@@ -267,7 +267,7 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
       size: 0.15,
       life: 0.8,
     });
-    announce(world, `${wasWood ? "木牆" : "石牆"} HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    announce(world, `${wasWood ? "Wood wall" : "Stone wall"} HP ${tile.hp}/${tile.maxHp}`, 1.1);
     return;
   }
 
@@ -305,7 +305,7 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
     });
   }
 
-  announce(world, wasWood ? "木牆碎了" : "石牆碎了");
+  announce(world, wasWood ? "The wood wall splinters!" : "The stone wall shatters!");
 }
 
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
@@ -344,7 +344,7 @@ function throwHeld(world: DemoWorld): void {
   if (held.kind === "enemy") {
     world.held = undefined;
     spawnProjectile(world, "enemy", held.enemy);
-    announce(world, "把敵人扔出去了");
+    announce(world, "Threw the enemy!");
     return;
   }
 
@@ -352,7 +352,7 @@ function throwHeld(world: DemoWorld): void {
   const left = held.count - 1;
   world.held = left > 0 ? { kind: "prop", prop: held.prop, count: left } : undefined;
   spawnProjectile(world, held.prop, undefined);
-  announce(world, left > 0 ? `${THROW_CALLS[held.prop]}（還有 ${left}）` : THROW_CALLS[held.prop]);
+  announce(world, left > 0 ? `${THROW_CALLS[held.prop]} (${left} left)` : THROW_CALLS[held.prop]);
 }
 
 function strikeAltar(world: DemoWorld): boolean {
@@ -368,7 +368,7 @@ function strikeAltar(world: DemoWorld): boolean {
   world.terrainVersion += 1;
 
   if (world.altar.hp > 0) {
-    announce(world, `祭壇裂了，再 ${world.altar.hp} 下`, 1.4);
+    announce(world, `The altar cracks — ${world.altar.hp} more`, 1.4);
     return true;
   }
 
@@ -471,14 +471,14 @@ function dropHeld(world: DemoWorld): void {
     held.enemy.y = y;
     held.enemy.stunSeconds = Math.max(held.enemy.stunSeconds, 0.4);
     world.enemies.push(held.enemy);
-    announce(world, "放下敵人");
+    announce(world, "Dropped the enemy");
     return;
   }
 
   // Whatever is left of the stack goes back on the floor as one pickup, so putting something down
   // and taking it again is never a way to lose or gain uses.
   world.props.push({ id: nextId(world, "prop"), kind: held.prop, count: held.count, x, y });
-  announce(world, `放下${PROP_LABELS[held.prop]} ×${held.count}`);
+  announce(world, `Dropped ${PROP_LABELS[held.prop]} x${held.count}`);
 }
 
 /** Right button: grab an enemy or a stack of ammunition — or put down what is held. */
@@ -497,7 +497,7 @@ export function grabAction(world: DemoWorld): void {
   if (enemy) {
     world.enemies.splice(world.enemies.indexOf(enemy), 1);
     world.held = { kind: "enemy", enemy };
-    announce(world, "抓住了一隻敵人");
+    announce(world, "Grabbed an enemy!");
     return;
   }
 
@@ -506,9 +506,9 @@ export function grabAction(world: DemoWorld): void {
   if (prop) {
     world.props.splice(world.props.indexOf(prop), 1);
     world.held = { kind: "prop", prop: prop.kind, count: prop.count };
-    announce(world, `撿起${PROP_LABELS[prop.kind]} ×${prop.count}`);
+    announce(world, `Picked up ${PROP_LABELS[prop.kind]} x${prop.count}`);
     return;
   }
 
-  announce(world, "前面沒有東西可以抓", 1.1);
+  announce(world, "Nothing here to grab", 1.1);
 }

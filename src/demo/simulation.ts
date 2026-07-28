@@ -187,7 +187,7 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
     projectile.struck.add(enemy.id);
     world.enemies.splice(world.enemies.indexOf(enemy), 1);
     projectile.skewered.push(enemy);
-    announce(world, `串上第 ${projectile.skewered.length} 個`, 1.2);
+    announce(world, `Skewered ${projectile.skewered.length}!`, 1.2);
 
     if (projectile.skewered.length >= JAVELIN_CAPACITY) {
       return;
@@ -214,7 +214,7 @@ function cleaveWithAxe(world: DemoWorld, projectile: DemoProjectile): boolean {
     projectile.struck.add(enemy.id);
     projectile.cleaved += 1;
     killEnemy(world, enemy, "cleaved");
-    announce(world, `飛斧劈開第 ${projectile.cleaved} 個`, 1.2);
+    announce(world, `Axe cleaves ${projectile.cleaved}!`, 1.2);
 
     if (projectile.cleaved >= AXE_CAPACITY) {
       return true;
@@ -245,7 +245,7 @@ function pinToWall(world: DemoWorld, projectile: DemoProjectile): void {
     world.enemies.push(enemy);
     killEnemy(world, enemy, "pinned", { x: projectile.directionX, y: projectile.directionY });
   });
-  announce(world, `${projectile.skewered.length} 個被釘在牆上`);
+  announce(world, `${projectile.skewered.length} pinned to the wall!`);
 }
 
 /**
@@ -432,7 +432,7 @@ export function descend(world: DemoWorld): void {
   world.maze = generateDemoMaze();
   populateFloor(world);
   awardBless(world);
-  announce(world, `下到第 ${world.depth} 層`, 3);
+  announce(world, `Down to floor B${world.depth}`, 3);
 }
 
 export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
@@ -474,7 +474,7 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
       world.spawnSeconds += SPAWN_INTERVAL_SECONDS;
 
       if (spawnReinforcement(world)) {
-        announce(world, `又爬出來一隻（${world.enemies.length}/${MAX_ENEMIES}）`, 1.4);
+        announce(world, `Another one crawls out (${world.enemies.length}/${MAX_ENEMIES})`, 1.4);
       }
     }
   }

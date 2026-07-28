@@ -31,7 +31,7 @@ export type DemoEnemyArchetype = Readonly<{
 
 const WALKER: DemoEnemyArchetype = {
   id: "walker",
-  name: "史萊姆",
+  name: "Slime",
   appearance: "greenSlime",
   health: 30,
   speed: 1.9,
@@ -45,7 +45,7 @@ const WALKER: DemoEnemyArchetype = {
 
 const RANGED: DemoEnemyArchetype = {
   id: "ranged",
-  name: "投射史萊姆",
+  name: "Spitter Slime",
   appearance: "blueSlime",
   health: 22,
   speed: 1.7,
@@ -59,7 +59,7 @@ const RANGED: DemoEnemyArchetype = {
 
 const CHARGER: DemoEnemyArchetype = {
   id: "charger",
-  name: "衝撞史萊姆",
+  name: "Charger Slime",
   appearance: "redSlime",
   health: 38,
   speed: 1.8,

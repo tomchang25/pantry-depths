@@ -260,7 +260,10 @@ export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fro
         directionY: 0,
       });
       world.kills += 1;
-      announce(world, `人質碎了，手上變成${salvage === "stick" ? "木棍" : salvage === "rock" ? "石塊" : "炸彈"}`);
+      announce(
+        world,
+        `The hostage burst — left holding ${salvage === "stick" ? "a stake" : salvage === "rock" ? "a rock" : "a bomb"}`,
+      );
     }
 
     return;
