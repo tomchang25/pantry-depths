@@ -13,8 +13,8 @@ test("the debug hub boots and opens a lazily loaded tool through a full-document
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Development Tools");
 
-  await page.getByRole("link", { name: /Floor Set Viewer/ }).click();
+  await page.getByRole("link", { name: /Floor Set Workbench/ }).click();
 
-  await expect(page).toHaveURL(/\/debug\/floors$/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Floor Set Viewer");
+  await expect(page).toHaveURL(/\/debug\/floor-workbench$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Floor Set Workbench");
 });

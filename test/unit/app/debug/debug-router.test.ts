@@ -7,34 +7,6 @@ describe("resolveDebugRoute", () => {
     expect(resolveDebugRoute("/debug")).toEqual({ kind: "hub" });
   });
 
-  it("resolves a registered tool by its exact catalog pathname", () => {
-    const route = resolveDebugRoute("/debug/combat");
-
-    expect(route.kind).toBe("tool");
-
-    if (route.kind === "tool") {
-      expect(route.tool).toMatchObject({
-        id: "combat",
-        path: "/debug/combat",
-        title: "Combat Explorer",
-      });
-    }
-  });
-
-  it("resolves the Floor Set Viewer from the shared debug catalog", () => {
-    const route = resolveDebugRoute("/debug/floors");
-
-    expect(route.kind).toBe("tool");
-
-    if (route.kind === "tool") {
-      expect(route.tool).toMatchObject({
-        id: "floors",
-        path: "/debug/floors",
-        title: "Floor Set Viewer",
-      });
-    }
-  });
-
   it("resolves the Floor Set Workbench from the shared debug catalog", () => {
     const route = resolveDebugRoute("/debug/floor-workbench");
 
@@ -49,23 +21,12 @@ describe("resolveDebugRoute", () => {
     }
   });
 
-  it("resolves Route Replay from the shared debug catalog", () => {
-    const route = resolveDebugRoute("/debug/routes");
-
-    expect(route.kind).toBe("tool");
-
-    if (route.kind === "tool") {
-      expect(route.tool).toMatchObject({
-        id: "routes",
-        path: "/debug/routes",
-        title: "Route Replay",
-      });
-    }
-  });
-
-  it.each(["/debug/unknown", "/debug/combat/"])("falls back to the hub for an unknown exact path: %s", (pathname) => {
-    expect(resolveDebugRoute(pathname)).toEqual({ kind: "hub" });
-  });
+  it.each(["/debug/unknown", "/debug/floor-workbench/"])(
+    "falls back to the hub for an unknown exact path: %s",
+    (pathname) => {
+      expect(resolveDebugRoute(pathname)).toEqual({ kind: "hub" });
+    },
+  );
 
   it.each(DEBUG_TOOLS)("keeps the registered $id tool reachable from its exact catalog path", (tool) => {
     expect(resolveDebugRoute(tool.path)).toEqual({ kind: "tool", tool });

@@ -7,7 +7,6 @@ import {
   type AuthoredFloorMapInteraction,
 } from "@/app/debug/floor-map";
 import { createDebugPage } from "@/app/debug/debug-shell";
-import { PROVISIONAL_FLOOR_SET, PROVISIONAL_FLOOR_VALIDATION } from "@/content/floor/floor-catalog";
 import type { FloorSetSource } from "@/content/floor/floor-schema";
 import type { FloorValidationResult } from "@/content/floor/floor-validation";
 import type { Cell } from "@/core/grid";
@@ -226,9 +225,4 @@ export function renderFloorSetInspector(
   content.append(introduction, mapPanel, validationPanel, solutionPanel);
   mount.replaceChildren(page);
   render();
-}
-
-/** Renders the canonical read-only floor-set inspection surface. */
-export function renderFloorViewer(mount: HTMLElement): void {
-  renderFloorSetInspector(mount, PROVISIONAL_FLOOR_SET, PROVISIONAL_FLOOR_VALIDATION, "Floor Set Viewer");
 }
