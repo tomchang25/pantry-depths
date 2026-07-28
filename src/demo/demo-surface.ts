@@ -63,6 +63,7 @@ const PILE_DOT_COLORS: Readonly<Record<DemoPropKind, string>> = {
   stick: "#d8a25c",
   rock: "#9c94ac",
   bomb: "#e0524a",
+  axe: "#dfe6ee",
 };
 
 const ENEMY_DOT_COLORS: Readonly<Record<DemoArchetypeId, string>> = {

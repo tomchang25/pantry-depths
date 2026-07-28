@@ -12,6 +12,7 @@ import { DEMO_GRID_SIZE, tileIndex } from "@/demo/maze";
 import { SWING_SECONDS, type DemoEnemy, type DemoPropKind, type DemoWorld } from "@/demo/world";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
+  RenderBeam,
   RenderEmitter,
   RenderFloorPatch,
   RenderLight,
@@ -27,19 +28,43 @@ const ALTAR_XRAY = { color: [255, 208, 118] as const, alpha: 0.8 };
 /** How many spark billboards a lightning arc is drawn with. */
 const ARC_SEGMENTS = 7;
 
+/**
+ * A javelin holds its line: no tumble at all, just a slow nose-down as it carries.
+ *
+ * The tumble was what made the old stick read as a hatchet — an object turning end over end is an
+ * axe, and one that stays pointed where it is going is a spear. That single difference is now the
+ * whole distinction between the two weapons, so it belongs to them rather than to the renderer.
+ */
+const JAVELIN_LENGTH = 0.95;
+const JAVELIN_WIDTH = 0.055;
+const JAVELIN_THROW_HEIGHT = 0.52;
+/** Radians of nose-down per cell travelled, capped so a long throw never points at the floor. */
+const JAVELIN_PITCH = 0.022;
+const JAVELIN_MAX_PITCH = 0.3;
+
+const AXE_LENGTH = 0.46;
+const AXE_WIDTH = 0.12;
+/** Radians of tumble per cell travelled. An axe is defined by turning over.  */
+const AXE_SPIN = 7.2;
+const AXE_THROW_HEIGHT = 0.52;
+const AXE_DROOP = 0.14;
+
 const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   stick: DEMO_ASSET_IDS.stick,
   rock: DEMO_ASSET_IDS.rock,
   bomb: DEMO_ASSET_IDS.bomb,
+  axe: DEMO_ASSET_IDS.axe,
 };
 
-const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = { stick: 0.5, rock: 0.42, bomb: 0.4 };
+const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = { stick: 0.5, rock: 0.42, bomb: 0.4, axe: 0.5 };
 
 /** A pile looks like what it holds, so its worth is readable from across the room. */
 const PILE_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   stick: DEMO_ASSET_IDS.stickPile,
   rock: DEMO_ASSET_IDS.rockPile,
   bomb: DEMO_ASSET_IDS.bombPile,
+  // Never appears — the axe only ever drops from a corpse — but the table must be total.
+  axe: DEMO_ASSET_IDS.bombPile,
 };
 
 function surfaces(world: DemoWorld): RenderSurface[] {
@@ -220,6 +245,28 @@ function sprites(world: DemoWorld): RenderSprite[] {
   }
 
   for (const projectile of world.projectiles) {
+    // A javelin or an axe in flight is a beam, not a picture of one; see `beams`. What a javelin is
+    // carrying, though, is still a body and still drawn as one — strung back along the shaft.
+    if (projectile.kind === "stick") {
+      projectile.skewered.forEach((enemy, index) => {
+        const back = 0.3 + index * 0.3;
+        built.push({
+          id: `${projectile.id}-run-${index}`,
+          x: projectile.x - projectile.directionX * back,
+          y: projectile.y - projectile.directionY * back,
+          placement: "billboard",
+          assetId: `enemy.${enemy.appearance}.hurt`,
+          scale: 0.5,
+          verticalAnchor: -0.1,
+        });
+      });
+      continue;
+    }
+
+    if (projectile.kind === "axe") {
+      continue;
+    }
+
     if (projectile.kind === "enemy") {
       if (projectile.payload) {
         built.push({
@@ -260,6 +307,82 @@ function floorPatches(world: DemoWorld): RenderFloorPatch[] {
       if (world.maze.tiles[tileIndex(x, y)]?.kind === "water") {
         built.push({ cell: { x, y }, material: "water" });
       }
+    }
+  }
+
+  return built;
+}
+
+/** One rod in the air, given the angle its own weapon flies at. */
+function rodBeam(
+  id: string,
+  x: number,
+  y: number,
+  directionX: number,
+  directionY: number,
+  pitch: number,
+  centreZ: number,
+  length: number,
+  width: number,
+  color: readonly [number, number, number],
+  tipColor: readonly [number, number, number],
+): RenderBeam {
+  const along = Math.cos(pitch);
+  const rise = Math.sin(pitch);
+  const halfX = directionX * along * (length / 2);
+  const halfY = directionY * along * (length / 2);
+  const halfZ = rise * (length / 2);
+  return {
+    id,
+    from: { x: x - halfX, y: y - halfY, z: centreZ - halfZ },
+    to: { x: x + halfX, y: y + halfY, z: centreZ + halfZ },
+    width,
+    color,
+    tipColor,
+  };
+}
+
+function beams(world: DemoWorld): RenderBeam[] {
+  const built: RenderBeam[] = [];
+
+  for (const projectile of world.projectiles) {
+    if (projectile.kind === "stick") {
+      const pitch = -Math.min(JAVELIN_MAX_PITCH, projectile.travelled * JAVELIN_PITCH);
+      built.push(
+        rodBeam(
+          projectile.id,
+          projectile.x,
+          projectile.y,
+          projectile.directionX,
+          projectile.directionY,
+          pitch,
+          JAVELIN_THROW_HEIGHT,
+          JAVELIN_LENGTH,
+          JAVELIN_WIDTH,
+          [104, 66, 36],
+          [232, 214, 176],
+        ),
+      );
+      continue;
+    }
+
+    if (projectile.kind === "axe") {
+      const flight = projectile.travelled / Math.max(0.0001, projectile.range);
+      built.push(
+        rodBeam(
+          projectile.id,
+          projectile.x,
+          projectile.y,
+          projectile.directionX,
+          projectile.directionY,
+          projectile.travelled * AXE_SPIN,
+          AXE_THROW_HEIGHT - flight * flight * AXE_DROOP,
+          AXE_LENGTH,
+          AXE_WIDTH,
+          [88, 58, 32],
+          [214, 222, 232],
+        ),
+      );
     }
   }
 
@@ -334,6 +457,7 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     surfaces: surfaces(world),
     floorPatches: floorPatches(world),
     sprites: sprites(world),
+    beams: beams(world),
     lights: lights(world),
     emitters: emitters(world),
   };

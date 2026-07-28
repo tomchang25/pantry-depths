@@ -63,6 +63,29 @@ export type RenderSprite = Readonly<{
   xray?: Readonly<{ color: readonly [number, number, number]; alpha: number }>;
 }>;
 
+/** A world-space point, where `z` is height above the floor in cell units — eye level is 0.5. */
+export type RenderPoint = Readonly<{ x: number; y: number; z: number }>;
+
+/**
+ * A rod in the world, drawn as an oriented segment rather than a camera-facing image.
+ *
+ * A billboard cannot express a thrown stick: it is the same picture whichever way the stick is
+ * travelling, so throwing one away from the camera reads as a picture of a stick sliding backwards.
+ * A beam is projected end to end, so it foreshortens to a stub when it points into the screen and
+ * runs its full length when it crosses the view — which is the whole difference between an image of
+ * a thrown object and a thrown object.
+ */
+export type RenderBeam = Readonly<{
+  id: string;
+  from: RenderPoint;
+  to: RenderPoint;
+  /** Thickness in cell units, projected like any other world measurement. */
+  width: number;
+  color: readonly [number, number, number];
+  /** Colour at the `to` end. Absent means one flat colour along the whole rod. */
+  tipColor?: readonly [number, number, number];
+}>;
+
 export type RenderLight = Readonly<{
   id: string;
   x: number;
@@ -91,6 +114,8 @@ export type RenderScene = Readonly<{
   /** Cells whose floor is drawn from a different texture. Baked floors author none of these. */
   floorPatches?: readonly RenderFloorPatch[];
   sprites: readonly RenderSprite[];
+  /** Oriented rods. Baked floors author none of these. */
+  beams?: readonly RenderBeam[];
   lights: readonly RenderLight[];
   emitters: readonly RenderEmitter[];
 }>;

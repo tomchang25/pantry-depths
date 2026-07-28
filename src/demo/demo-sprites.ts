@@ -14,6 +14,7 @@ export const DEMO_ASSET_IDS = {
   stick: "demo.stick",
   rock: "demo.rock",
   bomb: "demo.bomb",
+  axe: "demo.axe",
   stickPile: "demo.stickPile",
   rockPile: "demo.rockPile",
   bombPile: "demo.bombPile",
@@ -133,6 +134,49 @@ function bomb(): HTMLCanvasElement {
   context.beginPath();
   context.arc(336, 20, 54, 0, Math.PI * 2);
   context.fill();
+  return canvas;
+}
+
+/** The axe as it lies on the floor and sits in the hand; in flight it is a beam instead. */
+function axe(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  context.save();
+  context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
+  context.rotate(-0.5);
+  context.fillStyle = "#58381f";
+  context.fillRect(-22, -190, 44, 380);
+  context.fillStyle = "#75512f";
+  context.fillRect(-22, -190, 14, 380);
+  context.fillStyle = "#3d2a17";
+  context.fillRect(-24, 120, 48, 12);
+  context.fillRect(-24, 156, 48, 12);
+
+  const steel = context.createLinearGradient(-10, -190, 150, -60);
+  steel.addColorStop(0, "#9aa3ad");
+  steel.addColorStop(0.5, "#e4ecf4");
+  steel.addColorStop(1, "#8b949e");
+  context.fillStyle = steel;
+  context.beginPath();
+  context.moveTo(-6, -196);
+  context.quadraticCurveTo(150, -220, 176, -78);
+  context.quadraticCurveTo(120, -34, -6, -46);
+  context.closePath();
+  context.fill();
+  context.beginPath();
+  context.moveTo(6, -196);
+  context.quadraticCurveTo(-138, -220, -164, -78);
+  context.quadraticCurveTo(-108, -34, 6, -46);
+  context.closePath();
+  context.fill();
+  context.fillStyle = "rgb(255 255 255 / 55%)";
+  context.beginPath();
+  context.moveTo(-6, -186);
+  context.quadraticCurveTo(120, -200, 150, -96);
+  context.lineTo(126, -92);
+  context.quadraticCurveTo(100, -180, -6, -170);
+  context.closePath();
+  context.fill();
+  context.restore();
   return canvas;
 }
 
@@ -392,6 +436,7 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.stick, stick());
   merged.set(DEMO_ASSET_IDS.rock, rock(150));
   merged.set(DEMO_ASSET_IDS.bomb, bomb());
+  merged.set(DEMO_ASSET_IDS.axe, axe());
   merged.set(DEMO_ASSET_IDS.stickPile, spikePile());
   merged.set(DEMO_ASSET_IDS.rockPile, rockPile());
   merged.set(DEMO_ASSET_IDS.bombPile, bombPile());

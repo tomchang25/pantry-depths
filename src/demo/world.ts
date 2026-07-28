@@ -13,7 +13,7 @@ import { DEMO_GRID_SIZE, generateDemoMaze, blocksWalk, type DemoCell, type DemoM
 /** A grid coordinate as the demo passes it around; structurally the same as the maze's own cell. */
 export type DemoCellLike = Readonly<{ x: number; y: number }>;
 
-export type DemoPropKind = "stick" | "rock" | "bomb";
+export type DemoPropKind = "stick" | "rock" | "bomb" | "axe";
 export type DemoThrowKind = DemoPropKind | "enemy";
 
 /** What an enemy is currently committed to. A wind-up is visible to the player before it resolves. */
@@ -82,6 +82,13 @@ export type DemoProjectile = {
   /** The body of a thrown enemy, so it can land and keep fighting if it survives the flight. */
   payload: DemoEnemy | undefined;
   struck: Set<string>;
+  /**
+   * Bodies a javelin is carrying. They leave the world the moment they are run through and come back
+   * only as corpses, at the wall — being skewered is not a state anything is expected to survive.
+   */
+  skewered: DemoEnemy[];
+  /** Victims an axe has already cleaved, which is what limits it to three. */
+  cleaved: number;
 };
 
 /** An enemy's projectile, which only ever concerns the player. */
@@ -420,8 +427,15 @@ export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
   world.vfx.push({ ...effect, id: nextId(world, "vfx") });
 }
 
-/** Chance a corpse leaves a bomb behind. The other ammunition only ever comes out of wood. */
-const BOMB_DROP_CHANCE = 0.2;
+/**
+ * What a corpse leaves behind.
+ *
+ * Wood walls supply the ordinary ammunition; these two only ever come off something you killed, so
+ * fighting and mining stay separate ways of restocking. The axe in particular never appears in a
+ * pile — the only way to get one is to earn it.
+ */
+const BOMB_DROP_CHANCE = 0.16;
+const AXE_DROP_CHANCE = 0.14;
 export const LIFESTEAL_HEAL = 12;
 
 /**
@@ -444,8 +458,19 @@ export function killEnemy(world: DemoWorld, enemy: DemoEnemy): void {
     world.player.hp = Math.min(world.player.maxHp, world.player.hp + LIFESTEAL_HEAL);
   }
 
-  if (Math.random() < BOMB_DROP_CHANCE && !blocksWalk(world.maze, Math.floor(enemy.x), Math.floor(enemy.y))) {
+  if (blocksWalk(world.maze, Math.floor(enemy.x), Math.floor(enemy.y))) {
+    return;
+  }
+
+  const roll = Math.random();
+
+  if (roll < BOMB_DROP_CHANCE) {
     world.props.push({ id: nextId(world, "prop"), kind: "bomb", x: enemy.x, y: enemy.y });
+    return;
+  }
+
+  if (roll < BOMB_DROP_CHANCE + AXE_DROP_CHANCE) {
+    world.props.push({ id: nextId(world, "prop"), kind: "axe", x: enemy.x, y: enemy.y });
   }
 }
 

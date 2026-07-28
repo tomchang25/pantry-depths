@@ -3,8 +3,10 @@ import type { EnemySpriteState } from "@/content/presentation/presentation-asset
 import type { Facing } from "@/core/grid";
 import { createProceduralTextures, type TextureSet } from "@/presentation/procedural-textures";
 import type {
+  RenderBeam,
   RenderEmitter,
   RenderFloorMaterial,
+  RenderPoint,
   RenderScene,
   RenderSprite,
   RenderSurface,
@@ -29,6 +31,10 @@ const TEXTURE_SIZE = 64;
 const LIT_SPRITE_CACHE_LIMIT = 64;
 /** Index order for the per-cell floor lookup; position here is what the patch grid stores. */
 const FLOOR_MATERIALS: readonly RenderFloorMaterial[] = ["water"];
+/** Rods are cut off closer than this, so a rod leaving the player's own hand cannot fill the screen. */
+const BEAM_NEAR_PLANE = 0.5;
+/** Quads swept along a rod. Enough that the taper is smooth without paying for a real mesh. */
+const BEAM_PIECES = 10;
 
 export type EnemyRenderEffect = Readonly<{
   entityId: string;
@@ -113,6 +119,14 @@ function requireImage(images: PresentationImages, assetId: string): CanvasImageS
   }
 
   return image;
+}
+
+function along(start: RenderPoint, end: RenderPoint, t: number): RenderPoint {
+  return {
+    x: start.x + (end.x - start.x) * t,
+    y: start.y + (end.y - start.y) * t,
+    z: start.z + (end.z - start.z) * t,
+  };
 }
 
 function imageDimensions(image: CanvasImageSource): Readonly<{ width: number; height: number }> {
@@ -261,6 +275,11 @@ export class CanvasGameplayRenderer {
     this.#drawProjectedPlanes(scene, elapsedSeconds, preferences.reducedMotion, effects.rejectionTorch);
     this.#drawWalls(scene, surfaceMap, elapsedSeconds, effects.rejectionTorch);
     this.#drawSprites(scene, elapsedSeconds, effects);
+
+    if (scene.beams && scene.beams.length > 0) {
+      this.#drawBeams(scene, scene.beams);
+    }
+
     this.#drawEmitters(scene.emitters, scene, elapsedSeconds, preferences.reducedMotion);
     this.#drawAtmosphere(elapsedSeconds, preferences.reducedMotion);
 
@@ -629,6 +648,178 @@ export class CanvasGameplayRenderer {
     context.fillRect(0, 0, surface.width, surface.height);
     this.#tintedSpriteCache.set(key, surface);
     return surface;
+  }
+
+  /**
+   * Projects one world point, including its height off the floor.
+   *
+   * Sprites only ever needed a ground line and an anchor above it; a beam needs both of its ends
+   * placed independently, so the vertical projection is written out here in full. One cell of height
+   * subtends `canvasHeight / depth`, which is the same convention wall columns are drawn with.
+   */
+  #projectPoint(
+    scene: RenderScene,
+    point: RenderPoint,
+  ): Readonly<{ screenX: number; screenY: number; depth: number }> | undefined {
+    const directionX = Math.cos(scene.camera.angle);
+    const directionY = Math.sin(scene.camera.angle);
+    const planeLength = this.#planeLength();
+    const planeX = -directionY * planeLength;
+    const planeY = directionX * planeLength;
+    const relativeX = point.x - scene.camera.x;
+    const relativeY = point.y - scene.camera.y;
+    const inverse = 1 / (planeX * directionY - directionX * planeY);
+    const transformX = inverse * (directionY * relativeX - directionX * relativeY);
+    const depth = inverse * (-planeY * relativeX + planeX * relativeY);
+
+    if (depth <= 0.08 || depth > MAX_DEPTH) {
+      return undefined;
+    }
+
+    const height = this.canvas.height;
+    const groundLine = this.#horizon(scene) + height / (2 * depth);
+    return {
+      screenX: (this.canvas.width / 2) * (1 + transformX / depth),
+      screenY: groundLine - point.z * (height / depth),
+      depth,
+    };
+  }
+
+  /** Camera-space distance of a world position, which is what the near clip and the shading need. */
+  #cameraDepth(scene: RenderScene, x: number, y: number): number {
+    const directionX = Math.cos(scene.camera.angle);
+    const directionY = Math.sin(scene.camera.angle);
+    const planeLength = this.#planeLength();
+    const planeX = -directionY * planeLength;
+    const planeY = directionX * planeLength;
+    const inverse = 1 / (planeX * directionY - directionX * planeY);
+    return inverse * (-planeY * (x - scene.camera.x) + planeX * (y - scene.camera.y));
+  }
+
+  /**
+   * Trims a rod at the near plane.
+   *
+   * Without this a rod thrown from where the camera stands has an end a few centimetres from the eye,
+   * and perspective quite correctly blows that end up to fill the screen. Clipping is the standard
+   * answer: the geometry behind the near plane is cut away rather than drawn enormous.
+   */
+  #clipToNearPlane(
+    scene: RenderScene,
+    from: RenderPoint,
+    to: RenderPoint,
+  ): readonly [RenderPoint, RenderPoint] | undefined {
+    const depthFrom = this.#cameraDepth(scene, from.x, from.y);
+    const depthTo = this.#cameraDepth(scene, to.x, to.y);
+
+    if (depthFrom < BEAM_NEAR_PLANE && depthTo < BEAM_NEAR_PLANE) {
+      return undefined;
+    }
+
+    if (depthFrom < BEAM_NEAR_PLANE) {
+      return [along(from, to, (BEAM_NEAR_PLANE - depthFrom) / (depthTo - depthFrom)), to];
+    }
+
+    if (depthTo < BEAM_NEAR_PLANE) {
+      return [from, along(to, from, (BEAM_NEAR_PLANE - depthTo) / (depthFrom - depthTo))];
+    }
+
+    return [from, to];
+  }
+
+  /**
+   * Draws oriented rods as a chain of quads swept along the segment.
+   *
+   * Splitting into pieces is what makes the rod behave in perspective: each piece gets its own depth,
+   * so its own thickness and its own depth test, and a rod running away from the eye tapers instead
+   * of being one uniform bar. The offset is perpendicular to the rod on screen rather than straight
+   * up, so a rod crossing the view diagonally is thick across itself and not across the screen.
+   *
+   * A rod pointing directly at or away from the eye collapses to no screen length at all; that case
+   * is drawn as the disc it actually is — the cross-section, seen end-on.
+   */
+  #drawBeams(scene: RenderScene, beams: readonly RenderBeam[]): void {
+    const height = this.canvas.height;
+    const context = this.#context;
+
+    for (const beam of beams) {
+      const clipped = this.#clipToNearPlane(scene, beam.from, beam.to);
+
+      if (!clipped) {
+        continue;
+      }
+
+      const from = this.#projectPoint(scene, clipped[0]);
+      const to = this.#projectPoint(scene, clipped[1]);
+
+      if (!from || !to) {
+        continue;
+      }
+
+      const tip = beam.tipColor ?? beam.color;
+      const inverseFrom = 1 / from.depth;
+      const inverseTo = 1 / to.depth;
+      const screenLength = Math.hypot(to.screenX - from.screenX, to.screenY - from.screenY);
+
+      // End-on: what is actually visible is the cross-section, so draw that once and be done.
+      if (screenLength < 0.5) {
+        const near = from.depth <= to.depth ? from : to;
+        const column = clamp(Math.round(near.screenX), 0, this.canvas.width - 1);
+
+        if (near.depth < (this.#depthBuffer[column] ?? MAX_DEPTH)) {
+          const shade = clamp(1 - near.depth / MAX_DEPTH, 0.18, 1);
+          context.fillStyle = `rgb(${Math.round(tip[0] * shade)}, ${Math.round(tip[1] * shade)}, ${Math.round(
+            tip[2] * shade,
+          )})`;
+          context.beginPath();
+          context.arc(
+            near.screenX,
+            near.screenY,
+            Math.max(0.6, (beam.width * height) / (2 * near.depth)),
+            0,
+            Math.PI * 2,
+          );
+          context.fill();
+        }
+
+        continue;
+      }
+
+      const normalX = -(to.screenY - from.screenY) / screenLength;
+      const normalY = (to.screenX - from.screenX) / screenLength;
+
+      for (let piece = 0; piece < BEAM_PIECES; piece += 1) {
+        const nearT = piece / BEAM_PIECES;
+        const farT = (piece + 1) / BEAM_PIECES;
+        const midT = (nearT + farT) / 2;
+        const depth = 1 / (inverseFrom + (inverseTo - inverseFrom) * midT);
+        const midX = from.screenX + (to.screenX - from.screenX) * midT;
+        const column = clamp(Math.round(midX), 0, this.canvas.width - 1);
+
+        if (depth >= (this.#depthBuffer[column] ?? MAX_DEPTH)) {
+          continue;
+        }
+
+        const shade = clamp(1 - depth / MAX_DEPTH, 0.18, 1);
+        const red = Math.round((beam.color[0] + (tip[0] - beam.color[0]) * midT) * shade);
+        const green = Math.round((beam.color[1] + (tip[1] - beam.color[1]) * midT) * shade);
+        const blue = Math.round((beam.color[2] + (tip[2] - beam.color[2]) * midT) * shade);
+        context.fillStyle = `rgb(${red}, ${green}, ${blue})`;
+
+        const nearX = from.screenX + (to.screenX - from.screenX) * nearT;
+        const nearY = from.screenY + (to.screenY - from.screenY) * nearT;
+        const farX = from.screenX + (to.screenX - from.screenX) * farT;
+        const farY = from.screenY + (to.screenY - from.screenY) * farT;
+        const nearHalf = (beam.width * height * (inverseFrom + (inverseTo - inverseFrom) * nearT)) / 2;
+        const farHalf = (beam.width * height * (inverseFrom + (inverseTo - inverseFrom) * farT)) / 2;
+        context.beginPath();
+        context.moveTo(nearX + normalX * nearHalf, nearY + normalY * nearHalf);
+        context.lineTo(farX + normalX * farHalf, farY + normalY * farHalf);
+        context.lineTo(farX - normalX * farHalf, farY - normalY * farHalf);
+        context.lineTo(nearX - normalX * nearHalf, nearY - normalY * nearHalf);
+        context.closePath();
+        context.fill();
+      }
+    }
   }
 
   #drawProjectedImage(projected: ProjectedSprite, source: CanvasImageSource, alpha: number): void {

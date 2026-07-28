@@ -5,7 +5,7 @@
  * not replayed.
  */
 
-import { damageWall, projectileSpeed, thrownWallDamage } from "@/demo/actions";
+import { AXE_CAPACITY, damageWall, JAVELIN_CAPACITY, projectileSpeed, thrownWallDamage } from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
 import { bargeInto, bodyLanding, checkDrowning, detonate, rockImpact, stepDrowning } from "@/demo/impacts";
 import { blocksSight, generateDemoMaze } from "@/demo/maze";
@@ -133,6 +133,12 @@ function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: 
  */
 function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall: boolean): void {
   if (projectile.kind === "stick") {
+    pinToWall(world, projectile);
+    return;
+  }
+
+  // The axe is spent wherever it stops — buried in a wall, out of range, or out of victims.
+  if (projectile.kind === "axe") {
     return;
   }
 
@@ -149,8 +155,18 @@ function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall:
   landThrownEnemy(world, projectile, hitWall);
 }
 
-/** Only the stick still strikes along its flight; everything else resolves where it stops. */
-function pierceWithStick(world: DemoWorld, projectile: DemoProjectile): boolean {
+/**
+ * The javelin running someone through.
+ *
+ * Nobody dies here. Up to three bodies are lifted out of the world and carried on the shaft, and the
+ * kill is resolved against whatever the javelin finally buries itself in — which is the point of the
+ * weapon: the wall is what does it, not the throw.
+ */
+function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
+  if (projectile.skewered.length >= JAVELIN_CAPACITY) {
+    return;
+  }
+
   for (const enemy of world.enemies.slice()) {
     if (projectile.struck.has(enemy.id) || enemy.drowningSeconds > 0) {
       continue;
@@ -161,11 +177,62 @@ function pierceWithStick(world: DemoWorld, projectile: DemoProjectile): boolean 
     }
 
     projectile.struck.add(enemy.id);
+    world.enemies.splice(world.enemies.indexOf(enemy), 1);
+    projectile.skewered.push(enemy);
+    announce(world, `串上第 ${projectile.skewered.length} 個`, 1.2);
+
+    if (projectile.skewered.length >= JAVELIN_CAPACITY) {
+      return;
+    }
+  }
+}
+
+/** The axe cleaving through: outright kills, and it is spent on the third one. */
+function cleaveWithAxe(world: DemoWorld, projectile: DemoProjectile): boolean {
+  for (const enemy of world.enemies.slice()) {
+    if (projectile.struck.has(enemy.id) || enemy.drowningSeconds > 0) {
+      continue;
+    }
+
+    if (Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) > PROJECTILE_HIT_RADIUS) {
+      continue;
+    }
+
+    projectile.struck.add(enemy.id);
+    projectile.cleaved += 1;
     killEnemy(world, enemy);
-    announce(world, "木棍把敵人釘在牆上");
+    announce(world, `飛斧劈開第 ${projectile.cleaved} 個`, 1.2);
+
+    if (projectile.cleaved >= AXE_CAPACITY) {
+      return true;
+    }
   }
 
   return false;
+}
+
+/** Nails everything the javelin was carrying to whatever stopped it, and leaves them there dead. */
+function pinToWall(world: DemoWorld, projectile: DemoProjectile): void {
+  if (projectile.skewered.length === 0) {
+    return;
+  }
+
+  // Backed off the surface along the shaft, so three bodies read as a row on the wall rather than as
+  // one corpse standing where the other two are.
+  projectile.skewered.forEach((enemy, index) => {
+    const back = 0.28 + index * 0.34;
+    const settled = unstick(
+      world.maze,
+      { x: projectile.x - projectile.directionX * back, y: projectile.y - projectile.directionY * back },
+      0.24,
+      FLUNG,
+    );
+    enemy.x = settled.x;
+    enemy.y = settled.y;
+    world.enemies.push(enemy);
+    killEnemy(world, enemy);
+  });
+  announce(world, `${projectile.skewered.length} 個被釘在牆上`);
 }
 
 /**
@@ -217,7 +284,12 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
       }
 
       if (projectile.kind === "stick") {
-        pierceWithStick(world, projectile);
+        skewerWithJavelin(world, projectile);
+      } else if (projectile.kind === "axe") {
+        if (cleaveWithAxe(world, projectile)) {
+          finished = true;
+          break;
+        }
       } else if (projectile.kind === "enemy") {
         bargeThrough(world, projectile);
       } else if (hitsSomeone(world, projectile)) {

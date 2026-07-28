@@ -41,20 +41,37 @@ const THROWN_WALL_DAMAGE = 2;
 const ROCK_WALL_DAMAGE = 4;
 export const BLAST_WALL_DAMAGE = 4;
 
-// A thrown body always travels the same two tiles: the throw is a placement, not a ranged attack.
-const THROW_RANGE: Readonly<Record<DemoThrowKind, number>> = { enemy: 2, stick: 6, rock: 8, bomb: 9 };
-const THROW_SPEED: Readonly<Record<DemoThrowKind, number>> = { enemy: 11, stick: 18, rock: 14, bomb: 12 };
+/**
+ * A thrown body always travels the same two tiles: the throw is a placement, not a ranged attack.
+ * The javelin is the opposite — it is given more range than the map has, because what stops it is
+ * meant to be a wall, never the throw running out of arm.
+ */
+const THROW_RANGE: Readonly<Record<DemoThrowKind, number>> = { enemy: 2, stick: 40, rock: 8, bomb: 9, axe: 10 };
+const THROW_SPEED: Readonly<Record<DemoThrowKind, number>> = { enemy: 11, stick: 22, rock: 14, bomb: 12, axe: 16 };
+
+/** How many victims each of the two piercing throws is allowed. */
+export const JAVELIN_CAPACITY = 3;
+export const AXE_CAPACITY = 3;
 
 export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
-  stick: "木棍",
+  stick: "木刺",
   rock: "石塊",
   bomb: "炸彈",
+  axe: "飛斧",
+};
+
+const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
+  stick: "木刺標槍射出去了",
+  rock: "石塊砸出去了",
+  bomb: "炸彈扔出去了",
+  axe: "飛斧旋轉飛出",
 };
 
 export const PILE_LABELS: Readonly<Record<DemoPropKind, string>> = {
   stick: "木材堆",
   rock: "石材堆",
   bomb: "炸彈堆",
+  axe: "飛斧堆",
 };
 
 export function meleeReach(world: DemoWorld): number {
@@ -216,6 +233,8 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
     range: THROW_RANGE[kind],
     payload,
     struck: new Set<string>(),
+    skewered: [],
+    cleaved: 0,
   });
 }
 
@@ -235,7 +254,7 @@ function throwHeld(world: DemoWorld): void {
   }
 
   spawnProjectile(world, held.prop, undefined);
-  announce(world, held.prop === "stick" ? "木棍飛出去了" : held.prop === "rock" ? "石塊砸出去了" : "炸彈扔出去了");
+  announce(world, THROW_CALLS[held.prop]);
 }
 
 function strikeAltar(world: DemoWorld): boolean {
