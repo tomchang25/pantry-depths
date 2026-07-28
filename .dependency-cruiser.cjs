@@ -34,7 +34,7 @@ module.exports = {
       name: "core-imports-only-core",
       severity: "error",
       comment:
-        "src/core holds the deterministic rules: grid, turn resolution, the attack-minus-defense formula. It must never reach content, presentation, runtime, harness, ui, or a DOM global.",
+        "src/core holds the deterministic rules: grid, turn resolution, the attack-minus-defense formula. It must never reach content, presentation, ui, or a DOM global.",
       from: { path: "^src/core/" },
       to: { path: "^src/", pathNot: "^src/core/" },
     },
@@ -53,32 +53,11 @@ module.exports = {
       to: { path: "^src/", pathNot: "^src/(presentation|content|core)/" },
     },
     {
-      name: "runtime-does-not-import-ui-shared-or-app",
-      severity: "error",
-      from: { path: "^src/runtime/" },
-      to: { path: "^src/(ui|shared|app)/" },
-    },
-    {
-      name: "harness-imports-within-its-measured-set",
-      severity: "error",
-      comment: "Scenarios and the debug API drive core through runtime; they never render.",
-      from: { path: "^src/harness/" },
-      to: { path: "^src/", pathNot: "^src/(harness|core|content|runtime)/" },
-    },
-    {
       name: "ui-imports-within-its-measured-set",
       severity: "error",
-      comment: "The HUD reaches capabilities through runtime, never by importing platform or app directly.",
+      comment: "The HUD reaches capabilities through core and content, never by importing platform or app directly.",
       from: { path: "^src/ui/" },
-      to: { path: "^src/", pathNot: "^src/(ui|core|content|runtime)/" },
-    },
-    {
-      name: "only-app-imports-harness",
-      severity: "error",
-      comment:
-        "Inside the game layer the bootstrap is the single harness wiring point, so the harness stays a seam and not a rule bypass. The offline tooling tree is the one sanctioned harness consumer outside it; see tooling-imports-only-its-measured-set.",
-      from: { path: "^src/", pathNot: "^src/(app|harness)/" },
-      to: { path: "^src/harness/" },
+      to: { path: "^src/", pathNot: "^src/(ui|core|content)/" },
     },
     {
       name: "platform-and-shared-are-leaves",
@@ -100,9 +79,9 @@ module.exports = {
       name: "tooling-imports-only-its-measured-set",
       severity: "error",
       comment:
-        "Offline tooling drives the rules, authored content, and deterministic scenarios. It is the one sanctioned harness consumer outside src/app, and it never reaches application composition, orchestration, or the DOM: a tool that needs those is a debug tool and belongs in src/app/debug.",
+        "Offline tooling drives the rules and authored content, and it never reaches application composition, orchestration, or the DOM: a tool that needs those is a debug tool and belongs in src/app/debug.",
       from: { path: "^dev/tools/" },
-      to: { path: "^src/", pathNot: "^src/(core|content|harness)/" },
+      to: { path: "^src/", pathNot: "^src/(core|content)/" },
     },
   ],
   options: {

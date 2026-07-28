@@ -14,10 +14,10 @@ Run `npm run check:governance` as well whenever a governance, startup, or planni
 
 The repository is not uniform, and the contract should not pretend otherwise.
 
-| Half                                                                                              | Discipline                                                                                |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **The demo** — `src/demo/`, `src/presentation/`                                                   | Verified by playing it. No new automated tests are expected or required.                  |
-| **Everything else** — `src/core/`, `src/content/`, `src/harness/`, `src/app/debug/`, `dev/tools/` | Keeps its existing unit coverage. A behaviour change here updates or adds a focused test. |
+| Half                                                                              | Discipline                                                                                |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **The demo** — `src/demo/`, `src/presentation/`                                   | Verified by playing it. No new automated tests are expected or required.                  |
+| **Everything else** — `src/core/`, `src/content/`, `src/app/debug/`, `dev/tools/` | Keeps its existing unit coverage. A behaviour change here updates or adds a focused test. |
 
 Every test in `test/` today covers the second half. That is deliberate, not an omission: the demo is a real-time surface whose value is how it feels, and the cheapest honest check on it is a person playing it. Do not add tests to `src/demo/` or `src/presentation/` to satisfy a coverage instinct.
 
