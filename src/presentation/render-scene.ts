@@ -27,9 +27,14 @@ export type RenderSurfaceMaterial =
   // Added for the standalone demo surface; the baked floors never author these. They are separate
   // materials rather than improvements to the shipped ones so the shipped game renders unchanged.
   | "demoFoundation"
+  // One material per point of damage a wall can have taken, so breaking one is a visible sequence
+  // rather than a single swap halfway through.
   | "demoAshlar"
-  | "demoSpalledAshlar"
+  | "demoAshlarWorn"
+  | "demoAshlarCracked"
+  | "demoAshlarFailing"
   | "woodWall"
+  | "woodWallCracked"
   | "splinteredWoodWall";
 
 export type RenderSurface = Readonly<{
@@ -45,9 +50,40 @@ export type RenderSurface = Readonly<{
  * has to be named here rather than covered with a sprite: a sprite laid flat is a squashed billboard
  * that floats, tiles against its neighbours with a visible seam, and cannot be walked over correctly.
  */
-export type RenderFloorMaterial = "water" | "demoFlagstone" | "demoVault";
+export type RenderFloorMaterial = "water" | "demoFlagstone" | "demoVault" | "demoBlood";
 
 export type RenderFloorPatch = Readonly<{ cell: Cell; material: RenderFloorMaterial }>;
+
+/**
+ * A material mixed into the floor already at a cell, rather than replacing it.
+ *
+ * Blood belongs here and not on a sprite: a stain is part of the floor, so it has to be walked over,
+ * lit, and fogged as floor. `amount` is how much of the cell it has taken, so a stain can deepen as
+ * more is spilled on it.
+ */
+export type RenderFloorOverlay = Readonly<{ cell: Cell; material: RenderFloorMaterial; amount: number }>;
+
+/**
+ * An axis-aligned box standing in the world.
+ *
+ * The demo's altars, stair mouths and pedestals were flat images laid on the ground, which is what
+ * makes them read as decals rather than as things in the room. A box is drawn as its own faces with
+ * the depth buffer respected, so it is occluded correctly, shaded per face, and has a silhouette
+ * that changes as you walk around it.
+ */
+export type RenderBox = Readonly<{
+  id: string;
+  x: number;
+  y: number;
+  halfX: number;
+  halfY: number;
+  /** Vertical extent in cells; `bottom` may be negative, which sinks the box below the floor. */
+  bottom: number;
+  top: number;
+  color: readonly [number, number, number];
+  /** Top face colour. Defaults to the body lightened, which is what an overhead light would do. */
+  topColor?: readonly [number, number, number];
+}>;
 
 export type RenderSprite = Readonly<{
   id: string;
@@ -119,6 +155,20 @@ export type RenderScene = Readonly<{
   floorPatches?: readonly RenderFloorPatch[];
   /** Replaces the default ceiling texture for the whole scene. */
   ceilingMaterial?: RenderFloorMaterial;
+  /**
+   * Room height in cells, and how far up it the eye sits.
+   *
+   * The projection had both baked in at one and a half: floor rows and ceiling rows were mirrored
+   * about the horizon because they were the same distance from the eye, and a wall column was
+   * exactly `canvasHeight / depth` tall. Naming them lets a floor be built taller without touching
+   * anything else, and the defaults reproduce the old arithmetic exactly.
+   */
+  wallHeight?: number;
+  eyeHeight?: number;
+  /** Materials blended over the floor already there, by amount. Used for staining, not for terrain. */
+  floorOverlays?: readonly RenderFloorOverlay[];
+  /** Volumetric props. Boxes, because everything the demo needs to stand up is box-shaped. */
+  boxes?: readonly RenderBox[];
   /**
    * Ambient light everywhere, before any placed light contributes. Only read under enhanced
    * lighting; without it the renderer's fixed torch model is the only illumination.

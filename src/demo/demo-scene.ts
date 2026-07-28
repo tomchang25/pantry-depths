@@ -13,7 +13,9 @@ import { SWING_SECONDS, type DemoEnemy, type DemoPropKind, type DemoWorld } from
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
   RenderBeam,
+  RenderBox,
   RenderEmitter,
+  RenderFloorOverlay,
   RenderFloorPatch,
   RenderLight,
   RenderScene,
@@ -21,6 +23,15 @@ import type {
   RenderSurface,
   RenderSurfaceMaterial,
 } from "@/presentation/render-scene";
+
+/** Indexed by hit points already lost, so the wall degrades one visible step per blow. */
+const STONE_DAMAGE: readonly RenderSurfaceMaterial[] = [
+  "demoAshlar",
+  "demoAshlarWorn",
+  "demoAshlarCracked",
+  "demoAshlarFailing",
+];
+const WOOD_DAMAGE: readonly RenderSurfaceMaterial[] = ["woodWall", "woodWallCracked", "splinteredWoodWall"];
 
 const EXIT_XRAY = { color: [138, 255, 190] as const, alpha: 0.95 };
 const ALTAR_XRAY = { color: [255, 208, 118] as const, alpha: 0.8 };
@@ -82,17 +93,12 @@ function surfaces(world: DemoWorld): RenderSurface[] {
         continue;
       }
 
-      // Wear is read off the fraction of hit points left, so it keeps working whatever the numbers
-      // are: a wall that has taken half of what it can take starts showing damage.
-      const worn = tile.hp <= tile.maxHp / 2;
-
-      if (tile.kind === "wood") {
-        const material: RenderSurfaceMaterial = worn ? "splinteredWoodWall" : "woodWall";
-        built.push({ cell: { x, y }, material });
-        continue;
-      }
-
-      built.push({ cell: { x, y }, material: worn ? "demoSpalledAshlar" : "demoAshlar" });
+      // One step of damage per point lost, so every swing visibly moves the wall closer to failing
+      // rather than nothing happening until a single mid-point swap.
+      const lost = Math.max(0, tile.maxHp - tile.hp);
+      const ladder = tile.kind === "wood" ? WOOD_DAMAGE : STONE_DAMAGE;
+      const material: RenderSurfaceMaterial = ladder[Math.min(lost, ladder.length - 1)] ?? ladder[0] ?? "demoAshlar";
+      built.push({ cell: { x, y }, material });
     }
   }
 
@@ -200,30 +206,55 @@ function vfxSprites(world: DemoWorld, built: RenderSprite[]): void {
 function sprites(world: DemoWorld): RenderSprite[] {
   const built: RenderSprite[] = [];
 
+  // The rune hanging over the altar and the shaft over the stairs are what carry the x-ray outline,
+  // because they sit above the structure and so are what you want to see over a wall.
+  if (world.altar.hp > 0) {
+    built.push({
+      id: "demo-altar-rune",
+      x: world.altar.x,
+      y: world.altar.y,
+      placement: "billboard",
+      assetId: DEMO_ASSET_IDS.rune,
+      scale: 0.38,
+      verticalAnchor: -0.72 - Math.sin(world.elapsedSeconds * 1.7) * 0.05,
+      xray: ALTAR_XRAY,
+    });
+  }
+
   built.push({
-    ...ground("demo-exit", world.maze.exit.x + 0.5, world.maze.exit.y + 0.5, DEMO_ASSET_IDS.exit, 1.2),
+    id: "demo-exit-shaft",
+    x: world.maze.exit.x + 0.5,
+    y: world.maze.exit.y + 0.5,
+    placement: "billboard",
+    assetId: DEMO_ASSET_IDS.shaft,
+    scale: 1.4,
+    verticalAnchor: -0.36,
     xray: EXIT_XRAY,
   });
   built.push(
-    ground("demo-entrance", world.maze.entrance.x + 0.5, world.maze.entrance.y + 0.5, DEMO_ASSET_IDS.entrance, 1),
+    ground("demo-entrance", world.maze.entrance.x + 0.5, world.maze.entrance.y + 0.5, DEMO_ASSET_IDS.entrance, 0.9),
   );
-  built.push({
-    id: "demo-altar",
-    x: world.altar.x,
-    y: world.altar.y,
-    placement: "billboard",
-    assetId: world.altar.hp > 0 ? DEMO_ASSET_IDS.altar : DEMO_ASSET_IDS.altarSpent,
-    scale: 0.85,
-    verticalAnchor: 0,
-    ...(world.altar.hp > 0 ? { xray: ALTAR_XRAY } : {}),
-  });
 
   for (const pile of world.piles) {
+    built.push(ground(`${pile.id}-glow`, pile.x, pile.y, DEMO_ASSET_IDS.groundGlow, 1.3));
     built.push(ground(pile.id, pile.x, pile.y, PILE_ASSETS[pile.ammo], 1.05));
   }
 
+  // Loose pickups float, turn, and cast a shadow. Lying flat on the floor is what made them read as
+  // stains on the ground rather than as things worth walking over to.
   for (const prop of world.props) {
-    built.push(ground(prop.id, prop.x, prop.y, PROP_ASSETS[prop.kind], PROP_SCALES[prop.kind]));
+    const bob = Math.sin(world.elapsedSeconds * 2.2 + prop.x * 3 + prop.y * 5) * 0.06;
+    built.push(ground(`${prop.id}-shadow`, prop.x, prop.y, DEMO_ASSET_IDS.dropShadow, 0.5));
+    built.push(ground(`${prop.id}-glow`, prop.x, prop.y, DEMO_ASSET_IDS.groundGlow, 0.75));
+    built.push({
+      id: prop.id,
+      x: prop.x,
+      y: prop.y,
+      placement: "billboard",
+      assetId: PROP_ASSETS[prop.kind],
+      scale: PROP_SCALES[prop.kind],
+      verticalAnchor: -0.3 - bob,
+    });
   }
 
   for (const enemy of world.enemies) {
@@ -319,7 +350,92 @@ function sprites(world: DemoWorld): RenderSprite[] {
     });
   }
 
+  trailSprites(world, built);
+  particleSprites(world, built);
   vfxSprites(world, built);
+  return built;
+}
+
+/**
+ * The structures that stand up: the altar and the mouth of the stairs.
+ *
+ * Both were flat images on the ground, which is the single thing that made them read as markers
+ * painted on the floor rather than as places. The altar is now a plinth you can walk around; the
+ * stair is a pit sunk below the floor with four steps descending into it and a raised kerb.
+ */
+function boxes(world: DemoWorld): RenderBox[] {
+  const built: RenderBox[] = [];
+  const spent = world.altar.hp <= 0;
+  const stone: readonly [number, number, number] = spent ? [58, 52, 68] : [96, 86, 106];
+  const footprint = [
+    { half: 0.34, bottom: 0, top: 0.16 },
+    { half: 0.24, bottom: 0.16, top: 0.5 },
+    { half: 0.33, bottom: 0.5, top: 0.62 },
+  ];
+
+  footprint.forEach((part, index) => {
+    built.push({
+      id: `altar-${index}`,
+      x: world.altar.x,
+      y: world.altar.y,
+      halfX: part.half,
+      halfY: part.half,
+      bottom: part.bottom,
+      top: part.top,
+      color: stone,
+      ...(index === 2 ? { topColor: (spent ? [70, 62, 80] : [152, 134, 160]) as [number, number, number] } : {}),
+    });
+  });
+
+  const exitX = world.maze.exit.x + 0.5;
+  const exitY = world.maze.exit.y + 0.5;
+
+  // A dais climbing to a lit landing, rather than a pit descending into one. The depth buffer this
+  // renderer keeps is one value per screen column, written only by the walls — the floor is never in
+  // it — so anything drawn below floor level cannot be hidden by the floor and simply sits on top of
+  // it. Geometry that stands up is the only kind this projection can honestly draw.
+  for (let step = 0; step < 3; step += 1) {
+    const inset = 0.46 - step * 0.09;
+    built.push({
+      id: `exit-step-${step}`,
+      x: exitX,
+      y: exitY,
+      halfX: inset,
+      halfY: inset,
+      bottom: step * 0.11,
+      top: (step + 1) * 0.11,
+      color: [74 + step * 6, 68 + step * 6, 92 + step * 6],
+      topColor: [104 + step * 10, 98 + step * 10, 128 + step * 10],
+    });
+  }
+
+  // Two posts flanking the landing, which is what makes it read as a way through rather than a step.
+  for (const side of [-1, 1]) {
+    built.push({
+      id: `exit-post-${side}`,
+      x: exitX + side * 0.38,
+      y: exitY,
+      halfX: 0.09,
+      halfY: 0.09,
+      bottom: 0.33,
+      top: 1.05,
+      color: [88, 80, 106],
+      topColor: [138, 128, 158],
+    });
+  }
+
+  built.push({
+    id: "exit-lintel",
+    x: exitX,
+    y: exitY,
+    halfX: 0.48,
+    halfY: 0.1,
+    bottom: 1.05,
+    top: 1.24,
+    color: [96, 88, 116],
+    topColor: [146, 136, 168],
+  });
+
   return built;
 }
 
@@ -417,6 +533,68 @@ function beams(world: DemoWorld): RenderBeam[] {
   }
 
   return built;
+}
+
+/** Blood already spilled, as a material mixed into the floor rather than an image laid over it. */
+function floorOverlays(world: DemoWorld): RenderFloorOverlay[] {
+  const built: RenderFloorOverlay[] = [];
+
+  for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
+    for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
+      const amount = world.stains[y * DEMO_GRID_SIZE + x] ?? 0;
+
+      if (amount > 0.01) {
+        built.push({ cell: { x, y }, material: "demoBlood", amount });
+      }
+    }
+  }
+
+  return built;
+}
+
+const PARTICLE_COLORS: Readonly<Record<string, string>> = {
+  blood: DEMO_ASSET_IDS.bloodDrop,
+  stoneChip: DEMO_ASSET_IDS.stoneChip,
+  woodChip: DEMO_ASSET_IDS.woodChip,
+  dust: DEMO_ASSET_IDS.dustPuff,
+  ember: DEMO_ASSET_IDS.blast,
+};
+
+function particleSprites(world: DemoWorld, built: RenderSprite[]): void {
+  world.particles.items.forEach((particle, index) => {
+    const life = Math.min(1, particle.age / particle.life);
+    // Dust swells as it disperses; everything solid keeps its size and simply stops existing.
+    const swell = particle.kind === "dust" ? 1 + life * 1.9 : 1;
+    built.push({
+      id: `particle-${index}`,
+      x: particle.x,
+      y: particle.y,
+      placement: "billboard",
+      assetId: PARTICLE_COLORS[particle.kind] ?? DEMO_ASSET_IDS.dustPuff,
+      scale: particle.size * swell * (particle.kind === "dust" ? 1 : 1 - life * 0.3),
+      verticalAnchor: -particle.z,
+    });
+  });
+}
+
+/** A fading ribbon behind anything in flight, drawn from the positions it actually passed through. */
+function trailSprites(world: DemoWorld, built: RenderSprite[]): void {
+  for (const projectile of world.projectiles) {
+    const asset = projectile.kind === "bomb" ? DEMO_ASSET_IDS.blast : DEMO_ASSET_IDS.dustPuff;
+
+    projectile.trail.forEach((point, index) => {
+      const age = (projectile.trail.length - index) / projectile.trail.length;
+      built.push({
+        id: `${projectile.id}-trail-${index}`,
+        x: point.x,
+        y: point.y,
+        placement: "billboard",
+        assetId: asset,
+        scale: (projectile.kind === "bomb" ? 0.3 : 0.2) * (1 - age) * (1 - age),
+        verticalAnchor: -point.z,
+      });
+    });
+  }
 }
 
 function lights(world: DemoWorld): RenderLight[] {
@@ -578,8 +756,12 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     // Just enough ambient that an unlit corridor is a silhouette rather than a black rectangle.
     ambient: [0.16, 0.14, 0.24],
     ceilingMaterial: "demoVault",
+    wallHeight: world.wallHeight,
+    eyeHeight: 0.5,
     surfaces: surfaces(world),
     floorPatches: floorPatches(world),
+    floorOverlays: floorOverlays(world),
+    boxes: boxes(world),
     sprites: sprites(world),
     beams: beams(world),
     lights: lights(world),

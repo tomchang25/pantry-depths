@@ -10,6 +10,7 @@ import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
 import { bargeInto, bodyLanding, checkDrowning, detonate, rockImpact, stepDrowning } from "@/demo/impacts";
 import { blocksSight, generateDemoMaze } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
+import { stepParticles } from "@/demo/particles";
 import {
   announce,
   awardBless,
@@ -20,6 +21,7 @@ import {
   populateFloor,
   SPAWN_INTERVAL_SECONDS,
   spawnReinforcement,
+  stainFloor,
   type DemoCellLike,
   type DemoProjectile,
   type DemoWorld,
@@ -264,6 +266,7 @@ function hitsSomeone(world: DemoWorld, projectile: DemoProjectile): boolean {
 
 function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
   for (const projectile of world.projectiles.slice()) {
+    recordTrail(projectile);
     const distance = projectileSpeed(projectile.kind) * deltaSeconds;
     const steps = Math.max(1, Math.ceil(distance / 0.15));
     let finished = false;
@@ -352,6 +355,17 @@ function stepHazards(world: DemoWorld, deltaSeconds: number): void {
   }
 }
 
+/** How many past positions a projectile keeps for its trail. */
+const TRAIL_LENGTH = 9;
+
+function recordTrail(projectile: DemoProjectile): void {
+  projectile.trail.push({ x: projectile.x, y: projectile.y, z: 0.52 });
+
+  if (projectile.trail.length > TRAIL_LENGTH) {
+    projectile.trail.shift();
+  }
+}
+
 function stepVfx(world: DemoWorld, deltaSeconds: number): void {
   for (const effect of world.vfx.slice()) {
     effect.age += deltaSeconds;
@@ -391,10 +405,21 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
   const step = Math.min(deltaSeconds, 0.05);
   world.elapsedSeconds += step;
   world.swing = Math.max(0, world.swing - step);
+  world.impact = Math.max(0, world.impact - step * 6);
   world.hitFlash = Math.max(0, world.hitFlash - step * 2.4);
   world.messageSeconds = Math.max(0, world.messageSeconds - step);
   stepDeaths(world, step);
   stepVfx(world, step);
+
+  // Blood marks the floor where it actually falls, so a spray scatters and a body pools.
+  for (const landing of stepParticles(world.particles, step, (x, y) =>
+    blocksSight(world.maze, Math.floor(x), Math.floor(y)),
+  )) {
+    if (landing.kind === "blood") {
+      stainFloor(world, landing.x, landing.y, 0.16);
+    }
+  }
+
   stepProjectiles(world, step);
   stepHazards(world, step);
   stepDrowning(world, step);

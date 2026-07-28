@@ -217,7 +217,8 @@ function ashlar(
   base: readonly [number, number, number],
   mortar: readonly [number, number, number],
   courses: number,
-  spalled: boolean,
+  /** Zero is intact; one is about to come down. Drives crack width, spalling, and lost mortar. */
+  damage: number,
 ): HTMLCanvasElement {
   const courseHeight = TEXTURE_SIZE / courses;
   const blockWidth = TEXTURE_SIZE / 2;
@@ -233,8 +234,10 @@ function ashlar(
     const jointX = Math.min(withinX, blockWidth - withinX);
     const jointY = Math.min(withinY, courseHeight - withinY);
 
-    if (jointX < 1.2 || jointY < 1.2) {
-      const damp = 0.72 + smoothNoise(x, y, 3, 11) * 0.5;
+    // Mortar crumbles out of the joints before the blocks themselves give, so a damaged wall widens
+    // at its seams first — which is what a wall about to fail actually looks like.
+    if (jointX < 1.2 + damage * 1.6 || jointY < 1.2 + damage * 1.6) {
+      const damp = (0.72 + smoothNoise(x, y, 3, 11) * 0.5) * (1 - damage * 0.4);
       return [mortar[0] * damp, mortar[1] * damp, mortar[2] * damp];
     }
 
@@ -249,15 +252,20 @@ function ashlar(
     const settle = 1 - (withinY / courseHeight) * 0.16 * (0.5 + smoothNoise(x, 0, 9, 3) * 1.2);
     let light = tone * grain * lift * sink * settle;
 
-    if (spalled) {
+    if (damage > 0) {
       const bite = smoothNoise(x, y, 11, 21);
+      // The main fracture opens first and widens; a second one joins it only once badly damaged.
       const fracture = Math.abs(smoothNoise(x, y * 0.35, 13, 31) - 0.5);
+      const branch = Math.abs(smoothNoise(y, x * 0.4, 17, 47) - 0.5);
 
-      if (fracture < 0.035) {
-        light *= 0.34;
-      } else if (bite > 0.74) {
-        light *= 0.6 + (bite - 0.74) * 1.4;
+      if (fracture < 0.012 + damage * 0.05 || (damage > 0.6 && branch < (damage - 0.6) * 0.09)) {
+        light *= 0.3;
+      } else if (bite > 0.82 - damage * 0.16) {
+        light *= 0.58 + (bite - (0.82 - damage * 0.16)) * 1.4;
       }
+
+      // Dust ground into the whole face as it loses integrity.
+      light *= 1 - damage * 0.12;
     }
 
     return [base[0] * light, base[1] * light, base[2] * light];
@@ -265,7 +273,7 @@ function ashlar(
 }
 
 /** Old timber: separate boards, deep gaps between them, knots, and iron banding. */
-function timber(documentOwner: Document, splintered: boolean): HTMLCanvasElement {
+function timber(documentOwner: Document, damage: number): HTMLCanvasElement {
   const boards = 4;
   const boardWidth = TEXTURE_SIZE / boards;
 
@@ -295,14 +303,15 @@ function timber(documentOwner: Document, splintered: boolean): HTMLCanvasElement
       return [74 * metal * 1.5, 70 * metal * 1.5, 78 * metal * 1.5];
     }
 
-    if (splintered) {
+    if (damage > 0) {
       const split = Math.abs(smoothNoise(x * 0.6, y * 0.25, 9, 53) - 0.5);
 
-      if (split < 0.045) {
+      // A split opens to daylight; the pale lip either side is fresh wood torn open.
+      if (split < 0.012 + damage * 0.045) {
         return [26, 16, 12];
       }
 
-      if (split < 0.075) {
+      if (split < 0.04 + damage * 0.05) {
         light *= 1.5;
       }
     }
@@ -344,6 +353,23 @@ function flagstone(documentOwner: Document): HTMLCanvasElement {
     // the eye, and a floor mixed any brighter than this turns pink under the player's feet.
     const light = tone * grain * damp * chip;
     return [52 * light, 44 * light, 72 * light];
+  });
+}
+
+/**
+ * Spilled blood, as a floor material.
+ *
+ * Mixed into whatever floor is underneath rather than laid over it, so the stone's own joints and
+ * grain still show through a thin splash and drown under a thick one. Mottled rather than flat: an
+ * even wash of red reads as a decal, and blood on stone never pools evenly.
+ */
+function bloodstain(documentOwner: Document): HTMLCanvasElement {
+  return paint(documentOwner, (x, y) => {
+    const pool = smoothNoise(x, y, 7, 83) * 0.7 + smoothNoise(x, y, 2.5, 89) * 0.3;
+    const depth = 0.5 + pool * 0.8;
+    // A darker rim where a pool has dried at its edge, which is the detail that sells it as fluid.
+    const rim = pool > 0.62 && pool < 0.72 ? 0.68 : 1;
+    return [72 * depth * rim, 12 * depth * rim, 16 * depth * rim];
   });
 }
 
@@ -400,11 +426,14 @@ export function createProceduralTextures(documentOwner: Document): TextureSet {
       doorBlue: door(documentOwner, "#304c75", "#6d9bc2"),
       doorYellow: door(documentOwner, "#80632e", "#d0ae58"),
       breakableWall: breakable(documentOwner),
-      demoFoundation: ashlar(documentOwner, [58, 48, 72], [22, 17, 32], 4, false),
-      demoAshlar: ashlar(documentOwner, [104, 72, 84], [34, 20, 34], 6, false),
-      demoSpalledAshlar: ashlar(documentOwner, [104, 72, 84], [34, 20, 34], 6, true),
-      woodWall: timber(documentOwner, false),
-      splinteredWoodWall: timber(documentOwner, true),
+      demoFoundation: ashlar(documentOwner, [58, 48, 72], [22, 17, 32], 4, 0),
+      demoAshlar: ashlar(documentOwner, [104, 72, 84], [34, 20, 34], 6, 0),
+      demoAshlarWorn: ashlar(documentOwner, [104, 72, 84], [34, 20, 34], 6, 0.34),
+      demoAshlarCracked: ashlar(documentOwner, [104, 72, 84], [34, 20, 34], 6, 0.68),
+      demoAshlarFailing: ashlar(documentOwner, [104, 72, 84], [34, 20, 34], 6, 1),
+      woodWall: timber(documentOwner, 0),
+      woodWallCracked: timber(documentOwner, 0.55),
+      splinteredWoodWall: timber(documentOwner, 1),
     },
     // The floor carries the cell count the player navigates by, so its seam is the readable one.
     // The ceiling is never counted against and keeps its seam near the base colour to stay quiet.
@@ -414,6 +443,7 @@ export function createProceduralTextures(documentOwner: Document): TextureSet {
       water: stillWater(documentOwner),
       demoFlagstone: flagstone(documentOwner),
       demoVault: vault(documentOwner),
+      demoBlood: bloodstain(documentOwner),
     },
   };
 }

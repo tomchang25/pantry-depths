@@ -25,6 +25,14 @@ export const DEMO_ASSET_IDS = {
   blast: "demo.blast",
   spark: "demo.spark",
   hitSpark: "demo.hitSpark",
+  rune: "demo.rune",
+  shaft: "demo.shaft",
+  groundGlow: "demo.groundGlow",
+  dropShadow: "demo.dropShadow",
+  bloodDrop: "demo.bloodDrop",
+  stoneChip: "demo.stoneChip",
+  woodChip: "demo.woodChip",
+  dustPuff: "demo.dustPuff",
   hazardOrb: "demo.hazardOrb",
   warnShoot: "demo.warnShoot",
   warnCharge: "demo.warnCharge",
@@ -309,6 +317,60 @@ function hazardOrb(): HTMLCanvasElement {
   return canvas;
 }
 
+/** A soft round blob. Every particle is one of these in a different colour and size. */
+function blob(red: number, green: number, blue: number, hardness: number, alpha = 1): () => HTMLCanvasElement {
+  return () => {
+    const [canvas, context] = surface();
+    const glow = context.createRadialGradient(256, 256, 0, 256, 256, 240);
+    glow.addColorStop(0, `rgb(${red} ${green} ${blue} / ${alpha * 100}%)`);
+    glow.addColorStop(hardness, `rgb(${red} ${green} ${blue} / ${alpha * 82}%)`);
+    glow.addColorStop(1, `rgb(${red} ${green} ${blue} / 0%)`);
+    context.fillStyle = glow;
+    context.beginPath();
+    context.arc(256, 256, 240, 0, Math.PI * 2);
+    context.fill();
+    return canvas;
+  };
+}
+
+/** The rune that hangs over an unspent altar; the part of it worth seeing through a wall. */
+function rune(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const glow = context.createRadialGradient(256, 256, 8, 256, 256, 230);
+  glow.addColorStop(0, "rgb(255 246 206 / 92%)");
+  glow.addColorStop(0.35, "rgb(240 186 104 / 52%)");
+  glow.addColorStop(1, "rgb(240 186 104 / 0%)");
+  context.fillStyle = glow;
+  context.beginPath();
+  context.arc(256, 256, 230, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#fff6d8";
+  context.font = "bold 220px Georgia, serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("✦", 256, 262);
+  return canvas;
+}
+
+/** The column of light standing in the stairwell, brightest at the floor and fading upward. */
+function shaft(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const column = context.createLinearGradient(0, 512, 0, 0);
+  column.addColorStop(0, "rgb(150 255 198 / 46%)");
+  column.addColorStop(0.45, "rgb(120 236 178 / 18%)");
+  column.addColorStop(1, "rgb(110 226 170 / 0%)");
+  context.fillStyle = column;
+  context.beginPath();
+  // Narrower at the top, so it reads as light rising out of an opening.
+  context.moveTo(150, 512);
+  context.lineTo(362, 512);
+  context.lineTo(306, 0);
+  context.lineTo(206, 0);
+  context.closePath();
+  context.fill();
+  return canvas;
+}
+
 function bubble(): HTMLCanvasElement {
   const [canvas, context] = surface();
   context.fillStyle = "rgb(196 232 248 / 62%)";
@@ -482,6 +544,14 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.blast, blast());
   merged.set(DEMO_ASSET_IDS.spark, spark());
   merged.set(DEMO_ASSET_IDS.hitSpark, hitSpark());
+  merged.set(DEMO_ASSET_IDS.rune, rune());
+  merged.set(DEMO_ASSET_IDS.shaft, shaft());
+  merged.set(DEMO_ASSET_IDS.groundGlow, blob(255, 214, 150, 0.18, 0.4)());
+  merged.set(DEMO_ASSET_IDS.dropShadow, blob(6, 3, 12, 0.42, 0.66)());
+  merged.set(DEMO_ASSET_IDS.bloodDrop, blob(128, 18, 26, 0.72)());
+  merged.set(DEMO_ASSET_IDS.stoneChip, blob(122, 112, 136, 0.76)());
+  merged.set(DEMO_ASSET_IDS.woodChip, blob(134, 90, 48, 0.76)());
+  merged.set(DEMO_ASSET_IDS.dustPuff, blob(176, 158, 176, 0.1, 0.5)());
   merged.set(DEMO_ASSET_IDS.hazardOrb, hazardOrb());
   merged.set(DEMO_ASSET_IDS.bubble, bubble());
   merged.set(DEMO_ASSET_IDS.warnShoot, warning("#5aa8e0", "!"));

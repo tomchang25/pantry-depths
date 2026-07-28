@@ -9,6 +9,7 @@ import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { createBlessState, grantBless, hasBless, OVERFLOW_MAX_HP, type BlessState } from "@/demo/bless";
 import { ENEMY_ARCHETYPES, type DemoEnemyArchetype } from "@/demo/enemy-archetypes";
 import { DEMO_GRID_SIZE, generateDemoMaze, blocksWalk, type DemoCell, type DemoMaze } from "@/demo/maze";
+import { burst, createParticleField, type DemoParticleField } from "@/demo/particles";
 
 /** A grid coordinate as the demo passes it around; structurally the same as the maze's own cell. */
 export type DemoCellLike = Readonly<{ x: number; y: number }>;
@@ -82,6 +83,8 @@ export type DemoProjectile = {
   /** The body of a thrown enemy, so it can land and keep fighting if it survives the flight. */
   payload: DemoEnemy | undefined;
   struck: Set<string>;
+  /** Recent positions, newest last. Presentation only — the trail is drawn from it. */
+  trail: { x: number; y: number; z: number }[];
   /**
    * Bodies a javelin is carrying. They leave the world the moment they are run through and come back
    * only as corpses, at the wall — being skewered is not a state anything is expected to survive.
@@ -140,8 +143,18 @@ export type DemoPlayer = {
   maxHp: number;
 };
 
-/** Which arm animation a press started. A throw never plays the slash. */
-export type DemoSwingKind = "melee" | "throw";
+/**
+ * Which arm animation a press started.
+ *
+ * The three melee forms cycle, so holding down the attack never plays the same animation twice in a
+ * row and the third of every three lands as the heavy one.
+ */
+export type DemoSwingKind = "slash" | "backhand" | "chop" | "thrust" | "throw";
+
+export const MELEE_CYCLE: readonly DemoSwingKind[] = ["slash", "backhand", "chop", "thrust"];
+
+/** Where in the world a swing was aimed, so the arc can be drawn through it. */
+export type DemoSwingTarget = { x: number; y: number; z: number; connected: boolean } | undefined;
 
 export type DemoStatus = "playing" | "dead";
 
@@ -164,12 +177,25 @@ export type DemoWorld = {
   projectiles: DemoProjectile[];
   hazards: DemoHazard[];
   vfx: DemoVfx[];
+  particles: DemoParticleField;
+  /**
+   * How bloodied each cell's floor is, indexed like the maze. Accumulates over a floor and is wiped
+   * when a new one is generated, so a hard-fought room stays visibly hard-fought.
+   */
+  stains: Float32Array;
   deaths: DemoDeath[];
+  /** Room height in cells for this floor. Presentation only; nothing collides vertically. */
+  wallHeight: number;
   held: DemoHeld;
   status: DemoStatus;
   elapsedSeconds: number;
   swing: number;
   swingKind: DemoSwingKind;
+  /** Index into `MELEE_CYCLE`; advanced on every bare-handed press. */
+  swingStep: number;
+  swingTarget: DemoSwingTarget;
+  /** Rises when a swing connects, decays fast. Drives the impact hitch on the arm and the camera. */
+  impact: number;
   spawnSeconds: number;
   hitFlash: number;
   walkBob: number;
@@ -293,7 +319,12 @@ export function populateFloor(world: DemoWorld): void {
   world.projectiles = [];
   world.hazards = [];
   world.vfx = [];
+  world.particles = createParticleField();
+  world.stains = new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE);
   world.deaths = [];
+  // Rooms get taller as you go down, wandering rather than climbing steadily so consecutive floors
+  // never feel like the same room twice.
+  world.wallHeight = 1.45 + Math.min(0.9, world.depth * 0.12) + Math.random() * 0.35;
   world.altar = { hp: ALTAR_HITS, maxHp: ALTAR_HITS, x: maze.altar.x + 0.5, y: maze.altar.y + 0.5 };
   world.spawnSeconds = SPAWN_INTERVAL_SECONDS;
   world.player.x = maze.entrance.x + 0.5;
@@ -354,12 +385,18 @@ export function createDemoWorld(): DemoWorld {
     projectiles: [],
     hazards: [],
     vfx: [],
+    particles: createParticleField(),
+    stains: new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE),
     deaths: [],
+    wallHeight: 1.6,
     held: undefined,
     status: "playing",
     elapsedSeconds: 0,
     swing: 0,
-    swingKind: "melee",
+    swingKind: "slash",
+    swingStep: 0,
+    swingTarget: undefined,
+    impact: 0,
     spawnSeconds: SPAWN_INTERVAL_SECONDS,
     hitFlash: 0,
     walkBob: 0,
@@ -423,6 +460,21 @@ export function announce(world: DemoWorld, message: string, seconds = 2.2): void
   world.messageSeconds = seconds;
 }
 
+/** Ceiling on how dark one cell can get, so a long fight does not end in a solid red floor. */
+const MAX_STAIN = 0.72;
+
+export function stainFloor(world: DemoWorld, x: number, y: number, amount: number): void {
+  const cellX = Math.floor(x);
+  const cellY = Math.floor(y);
+
+  if (cellX < 0 || cellY < 0 || cellX >= DEMO_GRID_SIZE || cellY >= DEMO_GRID_SIZE) {
+    return;
+  }
+
+  const index = cellY * DEMO_GRID_SIZE + cellX;
+  world.stains[index] = Math.min(MAX_STAIN, (world.stains[index] ?? 0) + amount);
+}
+
 export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
   world.vfx.push({ ...effect, id: nextId(world, "vfx") });
 }
@@ -453,6 +505,17 @@ export function killEnemy(world: DemoWorld, enemy: DemoEnemy): void {
 
   world.deaths.push({ id: enemy.id, appearance: enemy.appearance, x: enemy.x, y: enemy.y, progress: 0 });
   world.kills += 1;
+  burst(world.particles, "blood", enemy.x, enemy.y, 0.34, 18, {
+    speed: 2.6,
+    spreadZ: 2.9,
+    gravity: 11,
+    drag: 1.1,
+    size: 0.07,
+    life: 1.4,
+  });
+  // A pool directly under the body as well as the spray, so a kill always marks the spot even when
+  // every droplet happens to fly off somewhere else.
+  stainFloor(world, enemy.x, enemy.y, 0.5);
 
   if (hasBless(world.bless, "lifesteal")) {
     world.player.hp = Math.min(world.player.maxHp, world.player.hp + LIFESTEAL_HEAL);

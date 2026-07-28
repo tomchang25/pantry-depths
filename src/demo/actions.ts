@@ -7,12 +7,14 @@
 
 import { hasBless } from "@/demo/bless";
 import { blocksSight, tileAt, type DemoCell } from "@/demo/maze";
+import { burst } from "@/demo/particles";
 import {
   announce,
   awardBless,
   damageEnemy,
   nextId,
   randomAmmo,
+  MELEE_CYCLE,
   REACH,
   SWING_SECONDS,
   type DemoEnemy,
@@ -198,11 +200,51 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
 
   const wasWood = tile.kind === "wood";
   tile.hp = Math.max(0, tile.hp - damage);
+  // Thrown outward from the face the blow came from, so the debris leaves the wall towards whoever
+  // hit it rather than spraying evenly out of the middle of a solid block.
+  const towardX = world.player.x - (cell.x + 0.5);
+  const towardY = world.player.y - (cell.y + 0.5);
+  const reach = Math.max(0.0001, Math.hypot(towardX, towardY));
+  const faceX = cell.x + 0.5 + (towardX / reach) * 0.5;
+  const faceY = cell.y + 0.5 + (towardY / reach) * 0.5;
 
   if (tile.hp > 0) {
+    burst(world.particles, wasWood ? "woodChip" : "stoneChip", faceX, faceY, 0.55, 9, {
+      speed: 2.4,
+      spreadZ: 1.6,
+      directionX: towardX / reach,
+      directionY: towardY / reach,
+      focus: 0.55,
+      size: wasWood ? 0.07 : 0.055,
+      life: 0.9,
+    });
+    burst(world.particles, "dust", faceX, faceY, 0.6, 5, {
+      speed: 0.8,
+      spreadZ: 0.9,
+      gravity: 1.4,
+      drag: 2.4,
+      size: 0.15,
+      life: 0.8,
+    });
     announce(world, `${wasWood ? "木牆" : "石牆"} HP ${tile.hp}/${tile.maxHp}`, 1.1);
     return;
   }
+
+  // The wall coming down: the whole cell's worth of material, not a face's worth.
+  burst(world.particles, wasWood ? "woodChip" : "stoneChip", cell.x + 0.5, cell.y + 0.5, 0.6, 26, {
+    speed: 3.4,
+    spreadZ: 3,
+    size: wasWood ? 0.1 : 0.085,
+    life: 1.5,
+  });
+  burst(world.particles, "dust", cell.x + 0.5, cell.y + 0.5, 0.7, 16, {
+    speed: 1.7,
+    spreadZ: 1.5,
+    gravity: 1.1,
+    drag: 2,
+    size: 0.28,
+    life: 1.6,
+  });
 
   tile.kind = "open";
   tile.hp = 0;
@@ -233,6 +275,7 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
     range: THROW_RANGE[kind],
     payload,
     struck: new Set<string>(),
+    trail: [],
     skewered: [],
     cleaved: 0,
   });
@@ -277,6 +320,13 @@ function strikeAltar(world: DemoWorld): boolean {
   return true;
 }
 
+/**
+ * One swing.
+ *
+ * Also records where it landed. The arm animation and the arc are drawn through that point, so a
+ * swing at something on your left visibly goes left — which is the difference between an attack
+ * animation and a canned one.
+ */
 function melee(world: DemoWorld): void {
   const reach = meleeReach(world);
   const enemy = nearestEnemyAhead(world, reach, MELEE_ARC);
@@ -287,10 +337,23 @@ function melee(world: DemoWorld): void {
     enemy.pushX += direction.x * knockback;
     enemy.pushY += direction.y * knockback;
     damageEnemy(world, enemy, meleeDamage(world));
+    world.swingTarget = { x: enemy.x, y: enemy.y, z: 0.34, connected: true };
+    world.impact = 1;
+    burst(world.particles, "blood", enemy.x, enemy.y, 0.36, 6, {
+      speed: 2,
+      spreadZ: 2.2,
+      size: 0.055,
+      life: 0.9,
+      directionX: direction.x,
+      directionY: direction.y,
+      focus: 0.4,
+    });
     return;
   }
 
   if (strikeAltar(world)) {
+    world.swingTarget = { x: world.altar.x, y: world.altar.y, z: 0.6, connected: true };
+    world.impact = 1;
     return;
   }
 
@@ -299,8 +362,20 @@ function melee(world: DemoWorld): void {
   const cell = wallAhead(world, reach);
 
   if (cell) {
+    world.swingTarget = { x: cell.x + 0.5, y: cell.y + 0.5, z: 0.55, connected: true };
+    world.impact = 1;
     damageWall(world, cell, MELEE_WALL_DAMAGE);
+    return;
   }
+
+  // Swung at nothing: the arc still plays, aimed straight ahead at arm's length.
+  const direction = facing(world);
+  world.swingTarget = {
+    x: world.player.x + direction.x * reach,
+    y: world.player.y + direction.y * reach,
+    z: 0.5,
+    connected: false,
+  };
 }
 
 /** Left button: throw what is held, otherwise swing. */
@@ -310,13 +385,16 @@ export function primaryAction(world: DemoWorld): void {
   }
 
   world.swing = SWING_SECONDS;
-  world.swingKind = world.held ? "throw" : "melee";
+  world.swingTarget = undefined;
 
   if (world.held) {
+    world.swingKind = "throw";
     throwHeld(world);
     return;
   }
 
+  world.swingKind = MELEE_CYCLE[world.swingStep % MELEE_CYCLE.length] ?? "slash";
+  world.swingStep += 1;
   melee(world);
 }
 

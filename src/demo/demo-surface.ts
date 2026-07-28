@@ -302,12 +302,16 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
       deltaSeconds,
     );
     renderer.resize(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio);
-    renderer.render(createDemoScene(world), world.elapsedSeconds, createDemoEffects(world), {
+    const scene = createDemoScene(world);
+    renderer.render(scene, world.elapsedSeconds, createDemoEffects(world), {
       reducedMotion: false,
       viewmodel: false,
       grade: true,
     });
-    drawDemoViewmodel(sceneContext, images, world);
+    // Where the swing landed, in screen space, so the arm and the arc can be aimed at it.
+    const target = world.swingTarget;
+    const aim = target ? renderer.project(scene, target) : undefined;
+    drawDemoViewmodel(sceneContext, images, world, aim ? { x: aim.screenX, y: aim.screenY } : undefined);
     drawMinimap(minimapContext, world);
     refreshPanel();
     refreshOverlay();

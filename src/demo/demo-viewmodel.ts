@@ -15,9 +15,19 @@ import type { PresentationImages } from "@/presentation/presentation-image-loade
 /** The shipped viewmodel is 512 square with the torch arm left of centre and the sword arm right. */
 const VIEWMODEL_SOURCE_SIZE = 512;
 
-// Right-handed, so the blade travels from the upper right down across to the left.
-const SLASH_START = -Math.PI * 0.12;
-const SLASH_END = -Math.PI * 0.9;
+/**
+ * Where each melee form's arc begins and ends, in radians around a centre below the screen.
+ *
+ * Four shapes rather than one, cycled by the caller. A single arc replayed at every press is the
+ * thing that made the attack read as a twitch: the eye learns it in two swings and then stops
+ * seeing it. These differ in direction, length and speed, and the chop and thrust barely arc at all.
+ */
+const SWING_ARCS: Readonly<Record<string, Readonly<{ from: number; to: number; sweep: number }>>> = {
+  slash: { from: -Math.PI * 0.12, to: -Math.PI * 0.9, sweep: 0.42 },
+  backhand: { from: -Math.PI * 0.92, to: -Math.PI * 0.08, sweep: 0.38 },
+  chop: { from: -Math.PI * 0.72, to: -Math.PI * 0.34, sweep: 0.62 },
+  thrust: { from: -Math.PI * 0.54, to: -Math.PI * 0.46, sweep: 0.2 },
+};
 
 function easeOut(progress: number): number {
   return 1 - (1 - progress) * (1 - progress);
@@ -37,17 +47,33 @@ function heldAssetId(world: DemoWorld): string | undefined {
   return DEMO_ASSET_IDS[held.prop];
 }
 
-function drawSlash(context: CanvasRenderingContext2D, progress: number): void {
+function drawSlash(
+  context: CanvasRenderingContext2D,
+  progress: number,
+  kind: string,
+  aim: Readonly<{ x: number; y: number }> | undefined,
+  impact: number,
+): void {
   const width = context.canvas.width;
   const height = context.canvas.height;
-  const centreX = width * 0.52;
-  const centreY = height * 1.22;
-  const radius = height * 1.02;
-  const sweep = SLASH_END - SLASH_START;
-  const head = SLASH_START + sweep * easeOut(progress);
+  const shape = SWING_ARCS[kind] ?? SWING_ARCS.slash;
+
+  if (!shape) {
+    return;
+  }
+
+  // The arc is hung off the point the swing actually landed on. Without this every attack sweeps
+  // the same patch of screen no matter where the thing you hit was standing.
+  const aimX = aim ? clamp(aim.x, width * 0.1, width * 0.9) : width * 0.5;
+  const aimY = aim ? clamp(aim.y, height * 0.1, height * 0.86) : height * 0.42;
+  const centreX = width * 0.52 + (aimX - width * 0.5) * 0.55;
+  const centreY = height * 1.22 + (aimY - height * 0.45) * 0.4;
+  const radius = Math.max(height * 0.42, Math.hypot(aimX - centreX, aimY - centreY));
+  const sweep = shape.to - shape.from;
+  const head = shape.from + sweep * easeOut(progress);
   // Bright the moment it lands, gone almost immediately after — a slash that lingers reads as a
   // held pose rather than a strike.
-  const envelope = Math.sin(Math.PI * Math.min(1, progress * 1.15));
+  const envelope = Math.sin(Math.PI * Math.min(1, progress * 1.15)) * (1 + impact * 0.5);
 
   context.save();
   context.globalCompositeOperation = "lighter";
@@ -57,7 +83,7 @@ function drawSlash(context: CanvasRenderingContext2D, progress: number): void {
     const spread = layer / 4;
     // The tail trails the head whichever way the sweep runs, so the two angles are ordered rather
     // than assumed: an unordered pair draws the long way round the circle.
-    const tail = head - sweep * 0.42 * (0.3 + 0.7 * spread);
+    const tail = head - sweep * shape.sweep * (0.3 + 0.7 * spread);
     context.beginPath();
     context.arc(centreX, centreY, radius * (1 - 0.06 * spread), Math.min(head, tail), Math.max(head, tail));
     context.lineWidth = height * (0.03 - 0.023 * spread);
@@ -120,11 +146,52 @@ function drawFist(context: CanvasRenderingContext2D, centreX: number, centreY: n
   context.restore();
 }
 
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+/**
+ * How the sword arm moves for each form.
+ *
+ * Rotation, lateral travel and lift, all as fractions of the frame — one row per form, so adding a
+ * fifth is a line here rather than another branch in the drawing code.
+ */
+function armPose(
+  kind: string,
+  arc: number,
+  aimBias: number,
+): Readonly<{ rotate: number; shiftX: number; shiftY: number; scale: number }> {
+  if (kind === "throw") {
+    return { rotate: arc * 0.05, shiftX: 0, shiftY: arc * 0.09, scale: 1 + arc * 0.06 };
+  }
+
+  if (kind === "backhand") {
+    return { rotate: arc * 0.2, shiftX: arc * -0.1 + aimBias * 0.04, shiftY: arc * 0.01, scale: 1 };
+  }
+
+  if (kind === "chop") {
+    // Rises first, then comes down hard: the lift is what tells you the heavy one is coming.
+    return {
+      rotate: arc * -0.06,
+      shiftX: aimBias * 0.05,
+      shiftY: arc * 0.12 - Math.sin(arc * Math.PI) * 0.04,
+      scale: 1 + arc * 0.05,
+    };
+  }
+
+  if (kind === "thrust") {
+    return { rotate: arc * -0.02, shiftX: aimBias * 0.03, shiftY: arc * 0.05, scale: 1 + arc * 0.16 };
+  }
+
+  return { rotate: arc * -0.16, shiftX: arc * 0.07 + aimBias * 0.04, shiftY: 0, scale: 1 };
+}
+
 /** Paints the demo hands over an already-rendered frame. */
 export function drawDemoViewmodel(
   context: CanvasRenderingContext2D,
   images: PresentationImages,
   world: DemoWorld,
+  aim?: Readonly<{ x: number; y: number }>,
 ): void {
   const width = context.canvas.width;
   const height = context.canvas.height;
@@ -135,14 +202,15 @@ export function drawDemoViewmodel(
   const bob = Math.sin(world.elapsedSeconds * 2.2) * height * 0.006 + world.walkBob * height * 0.017;
   const throwing = world.swingKind === "throw";
   const arm = images.get("presentation.playerViewmodel");
+  // A connected hit stops the arm dead for an instant rather than following through.
+  const hitch = world.impact * 0.4;
+  const aimBias = aim ? clamp((aim.x - width * 0.5) / (width * 0.5), -1, 1) : 0;
+  const pose = armPose(world.swingKind, arc * (1 - hitch), aimBias);
 
   if (arm) {
     context.save();
-    // A throw shoves the arm down and away instead of rotating it, so the two presses never read
-    // as the same animation played at different speeds.
-    context.translate(width / 2, height + bob + (throwing ? arc * height * 0.09 : 0));
-    context.rotate(throwing ? arc * 0.05 : arc * -0.16);
-    const scale = throwing ? 1 + arc * 0.06 : 1;
+    context.translate(width / 2 + pose.shiftX * width, height + bob + pose.shiftY * height);
+    context.rotate(pose.rotate);
     context.drawImage(
       arm,
       VIEWMODEL_SOURCE_SIZE / 2,
@@ -150,9 +218,9 @@ export function drawDemoViewmodel(
       VIEWMODEL_SOURCE_SIZE / 2,
       VIEWMODEL_SOURCE_SIZE,
       0,
-      -viewSize * 0.8 * scale,
-      (viewSize / 2) * scale,
-      viewSize * scale,
+      -viewSize * 0.8 * pose.scale,
+      (viewSize / 2) * pose.scale,
+      viewSize * pose.scale,
     );
     context.restore();
   }
@@ -176,8 +244,22 @@ export function drawDemoViewmodel(
     context.restore();
   }
 
-  if (active && !throwing) {
-    drawSlash(context, progress);
+  // A thrust has no arc worth drawing — the whole read is the arm going forward — so it gets a
+  // flash at the aim point instead of a sweep.
+  if (active && !throwing && world.swingKind !== "thrust") {
+    drawSlash(context, progress, world.swingKind, aim, world.impact);
+  }
+
+  if (active && world.swingKind === "thrust" && aim) {
+    const punch = Math.sin(progress * Math.PI) * (0.4 + world.impact * 0.6);
+    const flash = context.createRadialGradient(aim.x, aim.y, 0, aim.x, aim.y, height * 0.16);
+    flash.addColorStop(0, `rgba(255, 248, 214, ${punch * 0.7})`);
+    flash.addColorStop(1, "rgba(255, 150, 60, 0)");
+    context.save();
+    context.globalCompositeOperation = "lighter";
+    context.fillStyle = flash;
+    context.fillRect(0, 0, width, height);
+    context.restore();
   }
 
   drawCarriedLight(context, world.elapsedSeconds);

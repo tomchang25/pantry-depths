@@ -7,6 +7,7 @@ import type {
   RenderEmitter,
   RenderFloorMaterial,
   RenderPoint,
+  RenderBox,
   RenderScene,
   RenderSprite,
   RenderSurface,
@@ -35,13 +36,15 @@ const LIT_SPRITE_CACHE_LIMIT = 64;
  * Every member of `RenderFloorMaterial` must appear, or a scene naming the missing one silently
  * falls back to the default floor instead of failing.
  */
-const FLOOR_MATERIALS: readonly RenderFloorMaterial[] = ["water", "demoFlagstone", "demoVault"];
+const FLOOR_MATERIALS: readonly RenderFloorMaterial[] = ["water", "demoFlagstone", "demoVault", "demoBlood"];
 /** Rods are cut off closer than this, so a rod leaving the player's own hand cannot fill the screen. */
 const BEAM_NEAR_PLANE = 0.5;
 /** Quads swept along a rod. Enough that the taper is smooth without paying for a real mesh. */
 const BEAM_PIECES = 10;
 /** Lightmap texels per cell. Three is the point where a light pool stops looking like a staircase. */
 const LIGHTMAP_SCALE = 3;
+/** How far into a pool, in cells, the shoreline foam reaches. */
+const FOAM_WIDTH = 0.22;
 
 export type EnemyRenderEffect = Readonly<{
   entityId: string;
@@ -117,6 +120,8 @@ type RayHit = Readonly<{
   hitY: number;
 }>;
 
+type ProjectedCorner = Readonly<{ x: number; y: number; inverseDepth: number }>;
+
 type ProjectedSprite = Readonly<{
   sprite: RenderSprite;
   depth: number;
@@ -158,6 +163,10 @@ const SHADOW_STYLES = Array.from({ length: SHADOW_STEPS + 1 }, (_, step) => `rgb
 
 function shadowStyle(alpha: number): string {
   return SHADOW_STYLES[Math.round(clamp(alpha, 0, 1) * SHADOW_STEPS)] ?? SHADOW_STYLES[0] ?? "rgba(7, 3, 15, 0)";
+}
+
+function brighten(color: readonly [number, number, number], factor: number): readonly [number, number, number] {
+  return [Math.min(255, color[0] * factor), Math.min(255, color[1] * factor), Math.min(255, color[2] * factor)];
 }
 
 function along(start: RenderPoint, end: RenderPoint, t: number): RenderPoint {
@@ -383,6 +392,36 @@ export class CanvasGameplayRenderer {
     return grid;
   }
 
+  /** Per-cell overlay material and strength, packed as two parallel grids. */
+  #floorOverlayGrids(scene: RenderScene): Readonly<{ material: Uint8Array; amount: Float32Array }> | undefined {
+    const overlays = scene.floorOverlays;
+
+    if (!overlays || overlays.length === 0) {
+      return undefined;
+    }
+
+    const material = new Uint8Array(scene.width * scene.height);
+    const amount = new Float32Array(scene.width * scene.height);
+
+    for (const overlay of overlays) {
+      if (
+        overlay.cell.x < 0 ||
+        overlay.cell.y < 0 ||
+        overlay.cell.x >= scene.width ||
+        overlay.cell.y >= scene.height ||
+        overlay.amount <= 0
+      ) {
+        continue;
+      }
+
+      const index = overlay.cell.y * scene.width + overlay.cell.x;
+      material[index] = FLOOR_MATERIALS.indexOf(overlay.material) + 1;
+      amount[index] = clamp(overlay.amount, 0, 1);
+    }
+
+    return { material, amount };
+  }
+
   public resize(cssWidth: number, cssHeight: number, devicePixelRatio: number): void {
     if (cssWidth <= 0 || cssHeight <= 0) {
       return;
@@ -428,6 +467,32 @@ export class CanvasGameplayRenderer {
     return this.canvas.height * (0.49 + (scene.camera.pitch ?? 0));
   }
 
+  /** How far up the room the eye sits, in cells. */
+  #eyeHeight(scene: RenderScene): number {
+    return scene.eyeHeight ?? 0.5;
+  }
+
+  /** Room height in cells. One is the shipped game's only value; the demo raises it per floor. */
+  #wallHeight(scene: RenderScene): number {
+    return scene.wallHeight ?? 1;
+  }
+
+  /** The screen row a world height projects to at a given depth. */
+  #screenY(scene: RenderScene, z: number, depth: number): number {
+    return this.#horizon(scene) + ((this.#eyeHeight(scene) - z) * this.canvas.height) / depth;
+  }
+
+  /**
+   * Projects a world point to the screen. Public because the demo aims its melee at what it is about
+   * to hit, and that means knowing where on screen the target is.
+   */
+  public project(
+    scene: RenderScene,
+    point: RenderPoint,
+  ): Readonly<{ screenX: number; screenY: number; depth: number }> | undefined {
+    return this.#projectPoint(scene, point);
+  }
+
   public render(
     scene: RenderScene,
     elapsedSeconds: number,
@@ -450,6 +515,10 @@ export class CanvasGameplayRenderer {
 
     this.#drawProjectedPlanes(scene, elapsedSeconds, preferences.reducedMotion, effects.rejectionTorch);
     this.#drawWalls(scene, surfaceMap, elapsedSeconds, effects.rejectionTorch);
+    if (scene.boxes && scene.boxes.length > 0) {
+      this.#drawBoxes(scene, scene.boxes);
+    }
+
     this.#drawSprites(scene, elapsedSeconds, effects);
 
     if (scene.beams && scene.beams.length > 0) {
@@ -508,6 +577,7 @@ export class CanvasGameplayRenderer {
     const image = this.#context.createImageData(width, height);
     const flicker = reducedMotion ? 1 : 0.96 + Math.sin(elapsedSeconds * 7.1) * 0.025;
     const patchGrid = this.#floorPatchGrid(scene);
+    const overlays = this.#floorOverlayGrids(scene);
     const waterMaterial = FLOOR_MATERIALS.indexOf("water");
     const ceilingIndex = scene.ceilingMaterial ? FLOOR_MATERIALS.indexOf(scene.ceilingMaterial) : -1;
     const ceilingMaterial = ceilingIndex >= 0 ? ceilingIndex : undefined;
@@ -515,6 +585,8 @@ export class CanvasGameplayRenderer {
     const lightWidth = scene.width * LIGHTMAP_SCALE;
     const lastLightX = lightWidth - 1;
     const lastLightY = scene.height * LIGHTMAP_SCALE - 1;
+    const eyeHeight = this.#eyeHeight(scene);
+    const roomHeight = this.#wallHeight(scene);
 
     // Every row is walked rather than the floor half being walked and the ceiling mirrored onto it:
     // once the horizon can sit anywhere on the screen, the two halves are no longer the same size
@@ -522,7 +594,9 @@ export class CanvasGameplayRenderer {
     for (let y = 0; y < height; y += 1) {
       const offset = y - horizon;
       const below = offset > 0;
-      const rowDistance = (0.5 * height) / Math.max(1, Math.abs(offset));
+      // How far the plane is from the eye, vertically: the floor is `eye` below, the ceiling is the
+      // rest of the room above. Equal only when the room is exactly one cell tall.
+      const rowDistance = ((below ? eyeHeight : roomHeight - eyeHeight) * height) / Math.max(1, Math.abs(offset));
       const stepX = (rowDistance * (rayX1 - rayX0)) / width;
       const stepY = (rowDistance * (rayY1 - rayY0)) / width;
       let planeXPosition = camera.x + rowDistance * rayX0;
@@ -534,29 +608,42 @@ export class CanvasGameplayRenderer {
       const fogBlue = 16 * (1 - fog);
       const ceilingPixels = ceilingMaterial ? this.#floorPatchPixels[ceilingMaterial] : undefined;
       const defaultPixels = below ? this.#texturePixels.floor : (ceilingPixels ?? this.#texturePixels.ceiling);
-      // Only the floor half can be patched; a pool has no counterpart on the ceiling.
-      const patchable = below && patchGrid !== undefined;
 
       for (let x = 0; x < width; x += 1) {
         let sampleX = planeXPosition;
         let sampleY = planeYPosition;
         let pixels = defaultPixels;
 
-        if (patchable) {
+        let foam = 0;
+        let stainPixels: Uint8ClampedArray | undefined;
+        let stainAmount = 0;
+
+        if (below) {
           const cellX = Math.floor(planeXPosition);
           const cellY = Math.floor(planeYPosition);
 
           if (cellX >= 0 && cellY >= 0 && cellX < scene.width && cellY < scene.height) {
-            const patch = patchGrid[cellY * scene.width + cellX] ?? 0;
+            const cell = cellY * scene.width + cellX;
+            const patch = patchGrid ? (patchGrid[cell] ?? 0) : 0;
 
             if (patch !== 0) {
               pixels = this.#floorPatchPixels[patch - 1] ?? defaultPixels;
 
-              // Water is the one surface that moves. Sliding where the texture is read from, rather
-              // than rebuilding the texture, animates it for the cost of two adds per pixel.
               if (patch - 1 === waterMaterial) {
+                // Water is the one surface that moves. Sliding where the texture is read from,
+                // rather than rebuilding the texture, animates it for two adds per pixel.
                 sampleX += drift;
                 sampleY += Math.sin(sampleX * 2.2 + elapsedSeconds) * 0.02;
+                foam = this.#shoreFoam(scene, patchGrid, waterMaterial, cellX, cellY, planeXPosition, planeYPosition);
+              }
+            }
+
+            if (overlays) {
+              const stain = overlays.material[cell] ?? 0;
+
+              if (stain !== 0) {
+                stainPixels = this.#floorPatchPixels[stain - 1];
+                stainAmount = overlays.amount[cell] ?? 0;
               }
             }
           }
@@ -568,7 +655,7 @@ export class CanvasGameplayRenderer {
         const target = (y * width + x) * 4;
 
         if (!this.#lit) {
-          this.#writeLitPixel(image.data, target, pixels, source, fog, torch);
+          this.#writeLitPixel(image.data, target, pixels, source, fog, torch, stainPixels, stainAmount, foam);
           planeXPosition += stepX;
           planeYPosition += stepY;
           continue;
@@ -582,6 +669,9 @@ export class CanvasGameplayRenderer {
         texelY = texelY < 0 ? 0 : texelY > lastLightY ? lastLightY : texelY;
         const light = (texelY * lightWidth + texelX) * 3;
         const pixel = image.data;
+        void stainPixels;
+        void stainAmount;
+        void foam;
         const red = (pixels[source] ?? 0) * (this.#lightmap[light] ?? 0) * fog + fogRed;
         const green = (pixels[source + 1] ?? 0) * (this.#lightmap[light + 1] ?? 0) * fog + fogGreen;
         const blue = (pixels[source + 2] ?? 0) * (this.#lightmap[light + 2] ?? 0) * fog + fogBlue;
@@ -604,12 +694,92 @@ export class CanvasGameplayRenderer {
     sourceIndex: number,
     fog: number,
     torch: number,
+    stain?: Uint8ClampedArray,
+    stainAmount = 0,
+    foam = 0,
   ): void {
     const purple = 18;
-    target[targetIndex] = (source[sourceIndex] ?? 0) * fog + purple * (1 - fog) + 31 * torch;
-    target[targetIndex + 1] = (source[sourceIndex + 1] ?? 0) * fog + 11 * (1 - fog) + 12 * torch;
-    target[targetIndex + 2] = (source[sourceIndex + 2] ?? 0) * fog + 28 * (1 - fog) - 3 * torch;
+    let red = source[sourceIndex] ?? 0;
+    let green = source[sourceIndex + 1] ?? 0;
+    let blue = source[sourceIndex + 2] ?? 0;
+
+    if (stain && stainAmount > 0) {
+      red += ((stain[sourceIndex] ?? 0) - red) * stainAmount;
+      green += ((stain[sourceIndex + 1] ?? 0) - green) * stainAmount;
+      blue += ((stain[sourceIndex + 2] ?? 0) - blue) * stainAmount;
+    }
+
+    if (foam > 0) {
+      red += (206 - red) * foam;
+      green += (232 - green) * foam;
+      blue += (246 - blue) * foam;
+    }
+
+    target[targetIndex] = red * fog + purple * (1 - fog) + 31 * torch;
+    target[targetIndex + 1] = green * fog + 11 * (1 - fog) + 12 * torch;
+    target[targetIndex + 2] = blue * fog + 28 * (1 - fog) - 3 * torch;
     target[targetIndex + 3] = 255;
+  }
+
+  /**
+   * How much white water to add at a point inside a pool.
+   *
+   * Foam is a property of the boundary between water and dry floor, and the boundary is not in the
+   * water texture — it is in the map. So it is computed here from how close the sample is to a
+   * neighbouring cell that is not water, which costs four grid reads and no artwork at all.
+   */
+  #shoreFoam(
+    scene: RenderScene,
+    patchGrid: Uint8Array | undefined,
+    waterMaterial: number,
+    cellX: number,
+    cellY: number,
+    x: number,
+    y: number,
+  ): number {
+    if (!patchGrid) {
+      return 0;
+    }
+
+    const dry = (offsetX: number, offsetY: number): boolean => {
+      const nextX = cellX + offsetX;
+      const nextY = cellY + offsetY;
+
+      if (nextX < 0 || nextY < 0 || nextX >= scene.width || nextY >= scene.height) {
+        return true;
+      }
+
+      return (patchGrid[nextY * scene.width + nextX] ?? 0) - 1 !== waterMaterial;
+    };
+
+    const withinX = x - cellX;
+    const withinY = y - cellY;
+    let nearest = 1;
+
+    if (dry(-1, 0)) {
+      nearest = Math.min(nearest, withinX);
+    }
+
+    if (dry(1, 0)) {
+      nearest = Math.min(nearest, 1 - withinX);
+    }
+
+    if (dry(0, -1)) {
+      nearest = Math.min(nearest, withinY);
+    }
+
+    if (dry(0, 1)) {
+      nearest = Math.min(nearest, 1 - withinY);
+    }
+
+    if (nearest >= FOAM_WIDTH) {
+      return 0;
+    }
+
+    // A band that is brightest just inside the edge and fades inward, with the edge itself left
+    // slightly darker so the waterline reads as a line rather than as a glow.
+    const across = nearest / FOAM_WIDTH;
+    return Math.sin(across * Math.PI) * 0.5 + (1 - across) * 0.18;
   }
 
   #castRay(scene: RenderScene, surfaces: ReadonlyMap<string, RenderSurface>, cameraX: number): RayHit | undefined {
@@ -685,6 +855,8 @@ export class CanvasGameplayRenderer {
     const flicker = 0.96 + Math.sin(elapsedSeconds * 7.1) * 0.025;
     const lightWidth = scene.width * LIGHTMAP_SCALE;
     const lightHeight = scene.height * LIGHTMAP_SCALE;
+    const eyeHeight = this.#eyeHeight(scene);
+    const roomHeight = this.#wallHeight(scene);
 
     for (let x = 0; x < width; x += 1) {
       const hit = this.#castRay(scene, surfaces, (2 * x) / width - 1);
@@ -695,14 +867,37 @@ export class CanvasGameplayRenderer {
       }
 
       this.#depthBuffer[x] = hit.distance;
-      const wallHeight = Math.min(height * 2, height / Math.max(0.001, hit.distance));
-      const start = Math.floor(horizon - wallHeight / 2);
+      // The column runs from the floor to the top of the room, which is only symmetric about the
+      // horizon when the eye is halfway up it.
+      const depth = Math.max(0.001, hit.distance);
+      const bottom = horizon + (eyeHeight * height) / depth;
+      const wallHeight = Math.min(height * 2 * roomHeight, (roomHeight * height) / depth);
+      const start = Math.floor(bottom - wallHeight);
       const material: RenderSurfaceMaterial =
         hit.surface.material === "breakableWall" && !hit.surface.hintFaces?.includes(hit.face)
           ? "stoneWall"
           : hit.surface.material;
       const texture = this.#textures.walls[material];
-      this.#context.drawImage(texture, hit.textureX, 0, 1, TEXTURE_SIZE, x, start, 1, wallHeight);
+      // One copy of the texture per cell of room height. Stretching a single copy over a tall wall
+      // makes the masonry courses grow with the room, which reads as a low-resolution wall rather
+      // than a high one — the blocks have to stay the size the floor tiles say they are.
+      const courses = Math.max(1, Math.round(roomHeight));
+      const courseHeight = wallHeight / courses;
+
+      for (let course = 0; course < courses; course += 1) {
+        this.#context.drawImage(
+          texture,
+          hit.textureX,
+          0,
+          1,
+          TEXTURE_SIZE,
+          x,
+          start + course * courseHeight,
+          1,
+          courseHeight + 1,
+        );
+      }
+
       const fog = clamp(hit.distance / MAX_DEPTH, 0, 0.88);
 
       if (!this.#lit) {
@@ -808,8 +1003,7 @@ export class CanvasGameplayRenderer {
     const height = sprite.placement === "ground" ? baseSize * 0.38 : baseSize;
     const width = baseSize * facing;
     const startX = Math.floor(screenX - width / 2);
-    const horizon = this.#horizon(scene);
-    const groundLine = horizon + this.canvas.height / (2 * depth);
+    const groundLine = this.#screenY(scene, 0, depth);
     // Authored anchors are measured from the floor line: 0 stands on the ground, negative floats.
     const startY =
       sprite.placement === "ground"
@@ -962,11 +1156,9 @@ export class CanvasGameplayRenderer {
       return undefined;
     }
 
-    const height = this.canvas.height;
-    const groundLine = this.#horizon(scene) + height / (2 * depth);
     return {
       screenX: (this.canvas.width / 2) * (1 + transformX / depth),
-      screenY: groundLine - point.z * (height / depth),
+      screenY: this.#screenY(scene, point.z, depth),
       depth,
     };
   }
@@ -1104,6 +1296,187 @@ export class CanvasGameplayRenderer {
         context.lineTo(nearX - normalX * nearHalf, nearY - normalY * nearHalf);
         context.closePath();
         context.fill();
+      }
+    }
+  }
+
+  /**
+   * Fills a projected convex quad column by column, depth-tested against the walls.
+   *
+   * Column-wise rather than as one canvas path because the depth buffer is per column: a path fill
+   * is one decision for the whole shape, and a box standing at a corner needs to be cut off halfway
+   * across. Depth is interpolated as its reciprocal, which is the part that varies linearly on
+   * screen.
+   */
+  #fillProjectedQuad(corners: readonly ProjectedCorner[], style: string): void {
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+
+    for (const corner of corners) {
+      minX = Math.min(minX, corner.x);
+      maxX = Math.max(maxX, corner.x);
+    }
+
+    const from = Math.max(0, Math.floor(minX));
+    const to = Math.min(this.canvas.width - 1, Math.ceil(maxX));
+
+    if (to < from) {
+      return;
+    }
+
+    this.#context.fillStyle = style;
+
+    for (let x = from; x <= to; x += 1) {
+      let top = Number.POSITIVE_INFINITY;
+      let bottom = Number.NEGATIVE_INFINITY;
+      let inverseDepth = 0;
+      let crossings = 0;
+      const sample = x + 0.5;
+
+      for (let index = 0; index < corners.length; index += 1) {
+        const start = corners[index] as ProjectedCorner;
+        const end = corners[(index + 1) % corners.length] as ProjectedCorner;
+
+        if (start.x === end.x || sample < Math.min(start.x, end.x) || sample > Math.max(start.x, end.x)) {
+          continue;
+        }
+
+        const t = (sample - start.x) / (end.x - start.x);
+        const y = start.y + (end.y - start.y) * t;
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+        inverseDepth += start.inverseDepth + (end.inverseDepth - start.inverseDepth) * t;
+        crossings += 1;
+      }
+
+      if (crossings === 0 || bottom <= top) {
+        continue;
+      }
+
+      const depth = crossings / inverseDepth;
+
+      if (depth >= (this.#depthBuffer[x] ?? MAX_DEPTH)) {
+        continue;
+      }
+
+      this.#context.fillRect(x, top, 1, Math.max(1, bottom - top));
+    }
+  }
+
+  /**
+   * Draws boxes: the four sides, then the top.
+   *
+   * Only the two sides actually facing the camera are drawn — the far ones are behind the near ones
+   * and would only cost fill — and each face is shaded by its own orientation so the box reads as
+   * solid rather than as a flat silhouette.
+   */
+  #drawBoxes(scene: RenderScene, boxes: readonly RenderBox[]): void {
+    // Furthest first, so boxes that overlap each other stack correctly; the depth buffer only
+    // arbitrates against walls. Insertion into an ordered list, matching the sprite pass.
+    const ordered = boxes.reduce<RenderBox[]>((list, candidate) => {
+      const distance = Math.hypot(candidate.x - scene.camera.x, candidate.y - scene.camera.y);
+      const index = list.findIndex(
+        (current) => Math.hypot(current.x - scene.camera.x, current.y - scene.camera.y) < distance,
+      );
+
+      if (index === -1) {
+        list.push(candidate);
+      } else {
+        list.splice(index, 0, candidate);
+      }
+
+      return list;
+    }, []);
+
+    for (const box of ordered) {
+      const west = box.x - box.halfX;
+      const east = box.x + box.halfX;
+      const north = box.y - box.halfY;
+      const south = box.y + box.halfY;
+      const faces: readonly Readonly<{ corners: readonly RenderPoint[]; shade: number; facing: boolean }>[] = [
+        {
+          corners: [
+            { x: west, y: north, z: box.top },
+            { x: east, y: north, z: box.top },
+            { x: east, y: north, z: box.bottom },
+            { x: west, y: north, z: box.bottom },
+          ],
+          shade: 0.78,
+          facing: scene.camera.y < north,
+        },
+        {
+          corners: [
+            { x: west, y: south, z: box.top },
+            { x: east, y: south, z: box.top },
+            { x: east, y: south, z: box.bottom },
+            { x: west, y: south, z: box.bottom },
+          ],
+          shade: 0.78,
+          facing: scene.camera.y > south,
+        },
+        {
+          corners: [
+            { x: west, y: north, z: box.top },
+            { x: west, y: south, z: box.top },
+            { x: west, y: south, z: box.bottom },
+            { x: west, y: north, z: box.bottom },
+          ],
+          shade: 1,
+          facing: scene.camera.x < west,
+        },
+        {
+          corners: [
+            { x: east, y: north, z: box.top },
+            { x: east, y: south, z: box.top },
+            { x: east, y: south, z: box.bottom },
+            { x: east, y: north, z: box.bottom },
+          ],
+          shade: 1,
+          facing: scene.camera.x > east,
+        },
+        {
+          corners: [
+            { x: west, y: north, z: box.top },
+            { x: east, y: north, z: box.top },
+            { x: east, y: south, z: box.top },
+            { x: west, y: south, z: box.top },
+          ],
+          shade: -1,
+          facing: true,
+        },
+      ];
+
+      for (const face of faces) {
+        if (!face.facing) {
+          continue;
+        }
+
+        const projected: ProjectedCorner[] = [];
+        let visible = true;
+        let nearest = MAX_DEPTH;
+
+        for (const corner of face.corners) {
+          const point = this.#projectPoint(scene, corner);
+
+          if (!point) {
+            visible = false;
+            break;
+          }
+
+          nearest = Math.min(nearest, point.depth);
+          projected.push({ x: point.screenX, y: point.screenY, inverseDepth: 1 / point.depth });
+        }
+
+        if (!visible) {
+          continue;
+        }
+
+        const source = face.shade < 0 ? (box.topColor ?? brighten(box.color, 1.28)) : box.color;
+        const shade = clamp(1 - nearest / MAX_DEPTH, 0.2, 1) * (face.shade < 0 ? 1 : face.shade);
+        this.#fillProjectedQuad(
+          projected,
+          `rgb(${Math.round(source[0] * shade)}, ${Math.round(source[1] * shade)}, ${Math.round(source[2] * shade)})`,
+        );
       }
     }
   }
