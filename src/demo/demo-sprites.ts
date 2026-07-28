@@ -14,14 +14,16 @@ export const DEMO_ASSET_IDS = {
   stick: "demo.stick",
   rock: "demo.rock",
   bomb: "demo.bomb",
-  ammoPile: "demo.ammoPile",
-  debris: "demo.debris",
+  stickPile: "demo.stickPile",
+  rockPile: "demo.rockPile",
+  bombPile: "demo.bombPile",
   exit: "demo.exit",
   entrance: "demo.entrance",
   altar: "demo.altar",
   altarSpent: "demo.altarSpent",
   blast: "demo.blast",
   spark: "demo.spark",
+  hazardOrb: "demo.hazardOrb",
   warnShoot: "demo.warnShoot",
   warnCharge: "demo.warnCharge",
   laneMarker: "demo.laneMarker",
@@ -207,6 +209,27 @@ function spark(): HTMLCanvasElement {
   return canvas;
 }
 
+/**
+ * The orb a shooter throws.
+ *
+ * Red regardless of which enemy fired it: everything that can take the player's health is red in
+ * this demo, and the blue spark is the player's own lightning. Colouring a shot after the creature
+ * that fired it would put an incoming projectile and a friendly effect in the same palette.
+ */
+function hazardOrb(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const glow = context.createRadialGradient(256, 256, 4, 256, 256, 220);
+  glow.addColorStop(0, "rgb(255 244 232 / 98%)");
+  glow.addColorStop(0.24, "rgb(255 132 96 / 92%)");
+  glow.addColorStop(0.58, "rgb(214 46 44 / 66%)");
+  glow.addColorStop(1, "rgb(140 18 26 / 0%)");
+  context.fillStyle = glow;
+  context.beginPath();
+  context.arc(256, 256, 220, 0, Math.PI * 2);
+  context.fill();
+  return canvas;
+}
+
 function bubble(): HTMLCanvasElement {
   const [canvas, context] = surface();
   context.fillStyle = "rgb(196 232 248 / 62%)";
@@ -299,6 +322,51 @@ function rockPile(): HTMLCanvasElement {
   return canvas;
 }
 
+/** A nest of live bombs. Reads at a glance as the one pile you would rather not stand next to. */
+function bombPile(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  context.fillStyle = "#2a1420";
+  context.beginPath();
+  context.ellipse(256, 404, 200, 58, 0, 0, Math.PI * 2);
+  context.fill();
+
+  for (const [centreX, centreY, radius] of [
+    [148, 344, 82],
+    [364, 350, 74],
+    [256, 300, 104],
+    [212, 226, 58],
+  ] as const) {
+    const shell = context.createRadialGradient(
+      centreX - radius * 0.3,
+      centreY - radius * 0.35,
+      radius * 0.1,
+      centreX,
+      centreY,
+      radius,
+    );
+    shell.addColorStop(0, "#ff8a72");
+    shell.addColorStop(0.45, "#c92b33");
+    shell.addColorStop(1, "#5f0f17");
+    context.fillStyle = shell;
+    context.beginPath();
+    context.ellipse(centreX, centreY, radius, radius, 0, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = "#c8a06a";
+    context.lineWidth = radius * 0.11;
+    context.beginPath();
+    context.moveTo(centreX, centreY - radius);
+    context.quadraticCurveTo(
+      centreX + radius * 0.5,
+      centreY - radius * 1.5,
+      centreX + radius * 0.15,
+      centreY - radius * 1.8,
+    );
+    context.stroke();
+  }
+
+  return canvas;
+}
+
 function marker(inner: string, outer: string, glyph: string): HTMLCanvasElement {
   const [canvas, context] = surface();
   context.fillStyle = outer;
@@ -324,14 +392,16 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.stick, stick());
   merged.set(DEMO_ASSET_IDS.rock, rock(150));
   merged.set(DEMO_ASSET_IDS.bomb, bomb());
-  merged.set(DEMO_ASSET_IDS.ammoPile, spikePile());
-  merged.set(DEMO_ASSET_IDS.debris, rockPile());
+  merged.set(DEMO_ASSET_IDS.stickPile, spikePile());
+  merged.set(DEMO_ASSET_IDS.rockPile, rockPile());
+  merged.set(DEMO_ASSET_IDS.bombPile, bombPile());
   merged.set(DEMO_ASSET_IDS.exit, marker("#2f6b46", "#7fd8a2", "↑"));
   merged.set(DEMO_ASSET_IDS.entrance, marker("#4a3060", "#a789d4", "↓"));
   merged.set(DEMO_ASSET_IDS.altar, altar(false));
   merged.set(DEMO_ASSET_IDS.altarSpent, altar(true));
   merged.set(DEMO_ASSET_IDS.blast, blast());
   merged.set(DEMO_ASSET_IDS.spark, spark());
+  merged.set(DEMO_ASSET_IDS.hazardOrb, hazardOrb());
   merged.set(DEMO_ASSET_IDS.bubble, bubble());
   merged.set(DEMO_ASSET_IDS.warnShoot, warning("#5aa8e0", "!"));
   merged.set(DEMO_ASSET_IDS.warnCharge, warning("#e2585f", "!"));

@@ -7,7 +7,7 @@
 
 import { damageWall, projectileSpeed, thrownWallDamage } from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
-import { bodyLanding, checkDrowning, detonate, rockImpact, shoveAside, stepDrowning } from "@/demo/impacts";
+import { bargeInto, bodyLanding, checkDrowning, detonate, rockImpact, stepDrowning } from "@/demo/impacts";
 import { blocksSight, generateDemoMaze } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import {
@@ -169,11 +169,11 @@ function pierceWithStick(world: DemoWorld, projectile: DemoProjectile): boolean 
 }
 
 /**
- * A thrown body shoving past whoever it meets. Nobody stops it and nobody is hurt by it — they are
- * knocked to one side, once each, and the body carries on to the end of its two tiles.
+ * A thrown body running down whoever it meets. Nobody stops it: each is hit once, then it carries
+ * on to the end of its two tiles.
  */
 function bargeThrough(world: DemoWorld, projectile: DemoProjectile): void {
-  for (const enemy of world.enemies) {
+  for (const enemy of world.enemies.slice()) {
     if (projectile.struck.has(enemy.id) || enemy.drowningSeconds > 0) {
       continue;
     }
@@ -183,7 +183,7 @@ function bargeThrough(world: DemoWorld, projectile: DemoProjectile): void {
     }
 
     projectile.struck.add(enemy.id);
-    shoveAside(enemy, projectile.x, projectile.y, projectile.directionX, projectile.directionY);
+    bargeInto(world, enemy, projectile.x, projectile.y, projectile.directionX, projectile.directionY);
   }
 }
 

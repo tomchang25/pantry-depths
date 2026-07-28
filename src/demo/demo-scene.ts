@@ -35,6 +35,13 @@ const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
 
 const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = { stick: 0.5, rock: 0.42, bomb: 0.4 };
 
+/** A pile looks like what it holds, so its worth is readable from across the room. */
+const PILE_ASSETS: Readonly<Record<DemoPropKind, string>> = {
+  stick: DEMO_ASSET_IDS.stickPile,
+  rock: DEMO_ASSET_IDS.rockPile,
+  bomb: DEMO_ASSET_IDS.bombPile,
+};
+
 function surfaces(world: DemoWorld): RenderSurface[] {
   const built: RenderSurface[] = [];
 
@@ -177,9 +184,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
   });
 
   for (const pile of world.piles) {
-    built.push(
-      ground(pile.id, pile.x, pile.y, pile.kind === "ammo" ? DEMO_ASSET_IDS.ammoPile : DEMO_ASSET_IDS.debris, 1.05),
-    );
+    built.push(ground(pile.id, pile.x, pile.y, PILE_ASSETS[pile.ammo], 1.05));
   }
 
   for (const prop of world.props) {
@@ -208,8 +213,8 @@ function sprites(world: DemoWorld): RenderSprite[] {
       x: hazard.x,
       y: hazard.y,
       placement: "billboard",
-      assetId: DEMO_ASSET_IDS.spark,
-      scale: 0.32,
+      assetId: DEMO_ASSET_IDS.hazardOrb,
+      scale: 0.34,
       verticalAnchor: -0.42,
     });
   }

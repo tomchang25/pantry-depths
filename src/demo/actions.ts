@@ -51,6 +51,12 @@ export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
   bomb: "炸彈",
 };
 
+export const PILE_LABELS: Readonly<Record<DemoPropKind, string>> = {
+  stick: "木材堆",
+  rock: "石材堆",
+  bomb: "炸彈堆",
+};
+
 export function meleeReach(world: DemoWorld): number {
   return hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_REACH : REACH;
 }
@@ -127,16 +133,11 @@ function nearestPropAhead(world: DemoWorld): DemoProp | undefined {
   return best;
 }
 
-/** Only ammunition piles answer to a grab; the debris a stone wall leaves holds nothing. */
-function nearestAmmoPileAhead(world: DemoWorld): DemoPile | undefined {
+function nearestPileAhead(world: DemoWorld): DemoPile | undefined {
   let best: DemoPile | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const pile of world.piles) {
-    if (pile.kind !== "ammo") {
-      continue;
-    }
-
     const distance = inFront(world, pile.x, pile.y, REACH, GRAB_ARC);
 
     if (distance !== undefined && distance < bestDistance) {
@@ -189,16 +190,17 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
   tile.kind = "open";
   tile.hp = 0;
   world.wallsBroken += 1;
-  // Only wood is packed with anything worth carrying. Stone leaves rubble you cannot use, which is
-  // what makes a wood wall a decision — break it for the shortcut, or break it for the ammunition.
-  world.piles.push({
-    id: nextId(world, "pile"),
-    kind: wasWood ? "ammo" : "debris",
-    x: cell.x + 0.5,
-    y: cell.y + 0.5,
-    remaining: wasWood ? 3 : 0,
-  });
-  announce(world, wasWood ? "木牆碎了，掉出一堆彈藥" : "石牆碎了，只剩碎石");
+
+  // Stone is only ever a shortcut; wood is the whole supply line. Which of the three stashes a wood
+  // wall was hiding is rolled here, once, so the pile that appears already says what it holds.
+  if (!wasWood) {
+    announce(world, "石牆碎了");
+    return;
+  }
+
+  const ammo = randomAmmo();
+  world.piles.push({ id: nextId(world, "pile"), ammo, x: cell.x + 0.5, y: cell.y + 0.5, remaining: 3 });
+  announce(world, `木牆碎了，露出${PILE_LABELS[ammo]}`);
 }
 
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
@@ -325,17 +327,16 @@ function dropHeld(world: DemoWorld): void {
 }
 
 function takeFromPile(world: DemoWorld, pile: DemoPile): void {
-  const kind = randomAmmo();
   pile.remaining -= 1;
-  world.held = { kind: "prop", prop: kind };
+  world.held = { kind: "prop", prop: pile.ammo };
 
   if (pile.remaining <= 0) {
     world.piles.splice(world.piles.indexOf(pile), 1);
-    announce(world, `撿走最後一件：${PROP_LABELS[kind]}`);
+    announce(world, `撿走最後一件${PROP_LABELS[pile.ammo]}，堆空了`);
     return;
   }
 
-  announce(world, `撿起${PROP_LABELS[kind]}（堆裡還有 ${pile.remaining} 件）`);
+  announce(world, `撿起${PROP_LABELS[pile.ammo]}（堆裡還有 ${pile.remaining} 件）`);
 }
 
 /** Right button: grab an enemy, a loose prop, or one piece of an ammunition pile — or drop. */
@@ -367,7 +368,7 @@ export function grabAction(world: DemoWorld): void {
     return;
   }
 
-  const pile = nearestAmmoPileAhead(world);
+  const pile = nearestPileAhead(world);
 
   if (pile) {
     takeFromPile(world, pile);

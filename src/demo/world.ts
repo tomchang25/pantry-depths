@@ -53,10 +53,18 @@ export type DemoProp = {
   y: number;
 };
 
-/** Rubble a broken wall leaves. Only wood leaves anything worth carrying. */
+/**
+ * A stash a broken wood wall leaves behind.
+ *
+ * The kind of ammunition is decided once, when the wall breaks, and every pickup from that pile
+ * yields it — so what a pile is worth is legible from across the room by its shape, rather than
+ * being a slot machine you have to stand next to and pull three times.
+ *
+ * Stone walls leave nothing at all.
+ */
 export type DemoPile = {
   id: string;
-  kind: "ammo" | "debris";
+  ammo: DemoPropKind;
   x: number;
   y: number;
   remaining: number;
@@ -222,14 +230,15 @@ function takeRandom<T>(pool: T[]): T | undefined {
   return pool.splice(index, 1)[0];
 }
 
+/** Three in five are the plain green kind; the two specialists split the rest evenly. */
 function pickArchetype(): DemoEnemyArchetype {
   const roll = Math.random();
 
-  if (roll < 0.28) {
+  if (roll < 0.2) {
     return ENEMY_ARCHETYPES.ranged;
   }
 
-  if (roll < 0.55) {
+  if (roll < 0.4) {
     return ENEMY_ARCHETYPES.charger;
   }
 

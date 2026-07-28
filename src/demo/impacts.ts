@@ -4,9 +4,9 @@
  * Throwing is not a damage button. A rock stops where it lands and scatters whoever is near it; a
  * bomb does the obvious; a stick pierces, which is what pinning a line of enemies to a wall means.
  *
- * A thrown body is the odd one out and the most interesting: it does not stop and it does not hurt
- * what it passes, it barges people aside and then takes a swing's worth of damage itself for the
- * landing — doubled into a wall. You are spending that enemy, not shooting with it.
+ * A thrown body is the odd one out: it does not stop for anyone. It runs down whoever is in its two
+ * tiles — hurting, stunning, and shoving them aside — and then takes a swing's worth of damage
+ * itself for the landing, doubled into a wall. You are spending that enemy, not shooting with it.
  */
 
 import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/demo/actions";
@@ -179,19 +179,27 @@ export function rockImpact(world: DemoWorld, x: number, y: number): void {
 }
 
 /**
- * Barges an enemy out of a flying body's path, sideways rather than along it.
+ * Runs someone down with a flying body: hurt, stunned, and knocked to one side.
  *
- * A thrown body does not stop for anyone — it ploughs the two tiles it was thrown and shoves whoever
- * is in the way to whichever side they were already leaning. Pushing them along the flight direction
- * instead would just herd them ahead of the throw, which is the opposite of clearing a path.
+ * The shove is perpendicular to the flight rather than along it. Pushing them the way the body is
+ * already going would just herd them ahead of the throw, which is the opposite of clearing a path.
  */
-export function shoveAside(enemy: DemoEnemy, atX: number, atY: number, directionX: number, directionY: number): void {
+export function bargeInto(
+  world: DemoWorld,
+  enemy: DemoEnemy,
+  atX: number,
+  atY: number,
+  directionX: number,
+  directionY: number,
+): void {
   const perpendicularX = -directionY;
   const perpendicularY = directionX;
   const lean = (enemy.x - atX) * perpendicularX + (enemy.y - atY) * perpendicularY;
   const side = lean >= 0 ? 1 : -1;
   enemy.pushX += perpendicularX * side * BODY_SHOVE;
   enemy.pushY += perpendicularY * side * BODY_SHOVE;
+  enemy.stunSeconds = Math.max(enemy.stunSeconds, BODY_STUN_SECONDS);
+  damageEnemy(world, enemy, thrownImpactDamage(world));
 }
 
 /**

@@ -16,7 +16,7 @@ import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { DEMO_GRID_SIZE, tileAt, tileIndex } from "@/demo/maze";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
-import { createDemoWorld, type DemoWorld } from "@/demo/world";
+import { createDemoWorld, type DemoPropKind, type DemoWorld } from "@/demo/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
 
 export type MountedDemo = Readonly<{ dispose: () => void }>;
@@ -59,6 +59,12 @@ function suppressContextMenu(event: MouseEvent): void {
   event.preventDefault();
 }
 
+const PILE_DOT_COLORS: Readonly<Record<DemoPropKind, string>> = {
+  stick: "#d8a25c",
+  rock: "#9c94ac",
+  bomb: "#e0524a",
+};
+
 const ENEMY_DOT_COLORS: Readonly<Record<DemoArchetypeId, string>> = {
   walker: "#7fc46a",
   ranged: "#5aa8e0",
@@ -100,7 +106,7 @@ function drawMinimap(context: CanvasRenderingContext2D, world: DemoWorld): void 
   }
 
   for (const pile of world.piles) {
-    dot(pile.x, pile.y, 2.4, pile.kind === "ammo" ? "#d8a25c" : "#5c5566");
+    dot(pile.x, pile.y, 2.6, PILE_DOT_COLORS[pile.ammo]);
   }
 
   for (const prop of world.props) {
