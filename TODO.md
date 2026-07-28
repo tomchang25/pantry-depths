@@ -8,7 +8,7 @@ The single forward-work tracker for Pantry Depths. It tracks only work that no p
 
 Actionable line format: `[scope] one sentence - [ref plans/<name>.md if any]`
 
-This tracker is the forward-work authority. The V1 milestone plan that used to own stream ordering has been frozen into `dev/docs/design/`; what still pointed forward from it lives under `## Draft` below. The critical-path next action is `pantry_floor_design_01`, and Scene Authoring and Live Preview runs in parallel with its preview children unblocked.
+This tracker is the forward-work authority. The demo's direction lives in `dev/docs/design/pantry_demo_core.design.md` and the tool-chain work it implies lives in `dev/docs/plans/pantry_demo_workbench.plan.md`. The critical-path next action is that plan's stage 0 and stage 1, which have no dependencies between them.
 
 ## Active
 
