@@ -5,7 +5,7 @@
  * not replayed.
  */
 
-import { AXE_CAPACITY, damageWall, JAVELIN_CAPACITY, projectileSpeed, thrownWallDamage } from "@/demo/actions";
+import { AXE_CAPACITY, damageWall, heldWeight, JAVELIN_CAPACITY, thrownWallDamage } from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
 import { bargeInto, bodyLanding, checkHazards, detonate, rockImpact, stepDrowning } from "@/demo/impacts";
 import { blocksProjectile, blocksProjectileAt, generateDemoMaze } from "@/demo/maze";
@@ -38,6 +38,15 @@ export type DemoInput = Readonly<{
 const DEATH_SECONDS = 0.75;
 const PROJECTILE_HIT_RADIUS = 0.45;
 const EXIT_RADIUS = 0.55;
+/** The slowest a throw is allowed to get, however heavy it is. See where drag is applied. */
+const MIN_FLIGHT_SPEED = 4.5;
+/**
+ * How fast the weight jolt leaves the view, in units of `world.shake` per second.
+ *
+ * Fast on purpose: a jolt that fades over a fifth of a second is a thump, and one that lingers is a
+ * wobble the player has to look through.
+ */
+const SHAKE_DECAY = 5;
 
 function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
   const forwardX = Math.cos(world.player.angle);
@@ -68,7 +77,10 @@ function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): v
   const length = Math.hypot(moveX, moveY);
 
   if (length > 0.0001) {
-    const step = (PLAYER_SPEED * deltaSeconds) / length;
+    // Carrying something heavy costs pace. It is the one thing that makes picking a body up a
+    // decision rather than a free upgrade to the next throw.
+    const carried = heldWeight(world.held)?.carrySlow ?? 1;
+    const step = (PLAYER_SPEED * carried * deltaSeconds) / length;
     const moved = slideMove(world.maze, world.player, moveX * step, moveY * step, PLAYER_RADIUS, WALKING);
     world.player.x = moved.x;
     world.player.y = moved.y;
@@ -121,7 +133,7 @@ function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: 
   enemy.x = settled.x;
   enemy.y = settled.y;
   world.enemies.push(enemy);
-  bodyLanding(world, enemy, hitWall);
+  bodyLanding(world, enemy, hitWall, projectile.thud);
 
   if (world.enemies.includes(enemy)) {
     checkHazards(world, enemy);
@@ -268,7 +280,7 @@ function bargeThrough(world: DemoWorld, projectile: DemoProjectile): void {
     }
 
     projectile.struck.add(enemy.id);
-    bargeInto(world, enemy, projectile.x, projectile.y, projectile.directionX, projectile.directionY);
+    bargeInto(world, enemy, projectile.x, projectile.y, projectile.directionX, projectile.directionY, projectile.thud);
   }
 }
 
@@ -289,8 +301,15 @@ function hitsSomeone(world: DemoWorld, projectile: DemoProjectile): boolean {
 function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
   for (const projectile of world.projectiles.slice()) {
     recordTrail(projectile);
-    const distance = projectileSpeed(projectile.kind) * deltaSeconds;
+    const distance = projectile.speed * deltaSeconds;
     const steps = Math.max(1, Math.ceil(distance / 0.15));
+
+    // Shed forward speed, floored so a heavy throw still arrives: a flight that decayed towards zero
+    // would asymptote short of its range and never resolve.
+    if (projectile.drag > 0) {
+      projectile.speed = Math.max(MIN_FLIGHT_SPEED, projectile.speed * Math.exp(-projectile.drag * deltaSeconds));
+    }
+
     let finished = false;
     let struckCell: DemoCellLike | undefined;
 
@@ -440,6 +459,7 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
   world.elapsedSeconds += step;
   world.swing = Math.max(0, world.swing - step);
   world.impact = Math.max(0, world.impact - step * 6);
+  world.shake = Math.max(0, world.shake - step * SHAKE_DECAY);
   world.hitFlash = Math.max(0, world.hitFlash - step * 2.4);
   world.messageSeconds = Math.max(0, world.messageSeconds - step);
   stepDeaths(world, step);

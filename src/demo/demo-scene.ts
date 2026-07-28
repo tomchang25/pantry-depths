@@ -11,15 +11,9 @@ import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
 import { blocksWalk, DEMO_GRID_SIZE, holdsStains, tileIndex } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
+import type { DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
-import {
-  projectileHeight,
-  SWING_SECONDS,
-  type DemoDeath,
-  type DemoEnemy,
-  type DemoPropKind,
-  type DemoWorld,
-} from "@/demo/world";
+import { projectileHeight, SWING_SECONDS, type DemoDeath, type DemoEnemy, type DemoWorld } from "@/demo/world";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
   RenderBeam,
@@ -1203,6 +1197,17 @@ function blastKick(world: DemoWorld): number {
 }
 
 /**
+ * The same kick, for weight rather than for explosions: heaving a body out of your hands, and a body
+ * coming down near you. The world holds one number for it and this is the only thing that reads it.
+ *
+ * Kept to a tap. This fires far more often than a detonation does — every throw and every landing —
+ * and a camera that swings on all of them stops reading as weight and starts making people ill.
+ */
+function weightKick(world: DemoWorld): number {
+  return Math.sin(world.elapsedSeconds * 52) * world.shake * 0.014;
+}
+
+/**
  * The parts of the scene that only change when the terrain does.
  *
  * Walls, floor materials and structures were being rebuilt from scratch sixty times a second —
@@ -1287,7 +1292,7 @@ export function createDemoScene(world: DemoWorld): RenderScene {
       x: world.player.x,
       y: world.player.y,
       angle: world.player.angle,
-      pitch: world.player.pitch + blastKick(world),
+      pitch: world.player.pitch + blastKick(world) + weightKick(world),
     },
     // Just enough ambient that an unlit corridor is a silhouette rather than a black rectangle.
     ambient: [0.16, 0.14, 0.24],

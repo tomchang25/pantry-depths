@@ -35,6 +35,9 @@ export const CHAIN_MAX_HOPS = 6;
 
 export const DROWN_SECONDS = 1.1;
 
+/** How far a landing still shakes the view, in cells. Beyond it the floor has taken the whole thump. */
+const LANDING_HEARD_WITHIN = 9;
+
 /** Sends a body outward from a point. Knockback ignores water, which is what makes water lethal. */
 export function knockBack(enemy: DemoEnemy, fromX: number, fromY: number, force: number): void {
   const dx = enemy.x - fromX;
@@ -219,15 +222,40 @@ export function bargeInto(
   atY: number,
   directionX: number,
   directionY: number,
+  heft = 1,
 ): void {
   const perpendicularX = -directionY;
   const perpendicularY = directionX;
   const lean = (enemy.x - atX) * perpendicularX + (enemy.y - atY) * perpendicularY;
   const side = lean >= 0 ? 1 : -1;
-  enemy.pushX += perpendicularX * side * BODY_SHOVE;
-  enemy.pushY += perpendicularY * side * BODY_SHOVE;
+  enemy.pushX += perpendicularX * side * BODY_SHOVE * heft;
+  enemy.pushY += perpendicularY * side * BODY_SHOVE * heft;
   enemy.stunSeconds = Math.max(enemy.stunSeconds, BODY_STUN_SECONDS);
   damageEnemy(world, enemy, thrownImpactDamage(world));
+}
+
+/**
+ * The arrival itself, as distinct from what it costs whoever arrived.
+ *
+ * Dust off the floor and a jolt of the view, both scaled by what landed. The jolt falls away with
+ * distance because it is the floor carrying it: a body dropped across the room is a thump you hear
+ * about, and one dropped at your feet is one you feel.
+ */
+function arrival(world: DemoWorld, x: number, y: number, thud: number): void {
+  if (thud <= 0) {
+    return;
+  }
+
+  burst(world.particles, "dust", x, y, 0.16, Math.round(4 + thud * 7), {
+    speed: 1.5 * thud,
+    spreadZ: 0.9,
+    gravity: 2.2,
+    drag: 2.6,
+    size: 0.13,
+    life: 0.6,
+  });
+  const nearness = Math.max(0, 1 - Math.hypot(x - world.player.x, y - world.player.y) / LANDING_HEARD_WITHIN);
+  world.shake = Math.max(world.shake, thud * nearness);
 }
 
 /**
@@ -239,9 +267,10 @@ export function bargeInto(
  *
  * The blessed version keeps its detonation, which is the whole reason that blessing exists.
  */
-export function bodyLanding(world: DemoWorld, thrown: DemoEnemy, hitWall: boolean): void {
+export function bodyLanding(world: DemoWorld, thrown: DemoEnemy, hitWall: boolean, thud = 1): void {
   const explosive = hasBless(world.bless, "explosiveBody");
   thrown.stunSeconds = Math.max(thrown.stunSeconds, BODY_STUN_SECONDS);
+  arrival(world, thrown.x, thrown.y, thud * (hitWall ? 1.3 : 1));
 
   if (explosive) {
     const radius = EXPLOSIVE_BODY_RADIUS;

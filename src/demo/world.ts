@@ -21,12 +21,10 @@ import {
   type DemoMaze,
 } from "@/demo/maze";
 import { burst, createParticleField, type DemoParticleField } from "@/demo/particles";
+import type { DemoPropKind, DemoThrowKind } from "@/demo/throw-weight";
 
 /** A grid coordinate as the demo passes it around; structurally the same as the maze's own cell. */
 export type DemoCellLike = Readonly<{ x: number; y: number }>;
-
-export type DemoPropKind = "stick" | "rock" | "bomb" | "axe";
-export type DemoThrowKind = DemoPropKind | "enemy";
 
 /** What an enemy is currently committed to. A wind-up is visible to the player before it resolves. */
 export type DemoIntent = "none" | "shoot" | "charge";
@@ -82,6 +80,19 @@ export type DemoProjectile = {
   directionY: number;
   travelled: number;
   range: number;
+  /**
+   * Current forward speed in cells per second, and the floor it decays towards.
+   *
+   * Speed used to be a constant read off the kind. Carrying it lets a throw shed it as it flies,
+   * which is most of what tells a body apart from a stone; the floor is what guarantees a heavy
+   * throw still reaches the end of its range instead of creeping towards it forever.
+   */
+  speed: number;
+  drag: number;
+  /** How much steeper the drop is than the rise; one is a symmetric arc. See `projectileHeight`. */
+  plunge: number;
+  /** What the arrival is worth: dust, camera, and how hard it barges through a crowd on the way. */
+  thud: number;
   /**
    * Total unbent rise over the whole flight, in cells: the throw departs along the aim line, so
    * this is the aim slope times the range, negative when aimed down. The flight itself is still
@@ -236,6 +247,13 @@ export type DemoWorld = {
   swingTarget: DemoSwingTarget;
   /** Rises when a swing connects, decays fast. Drives the impact hitch on the arm and the camera. */
   impact: number;
+  /**
+   * A jolt of the view left by weight: a heavy throw leaving the hand, or a body arriving.
+   *
+   * Separate from `impact`, which the arm reads — this one is the camera's, and like the blast kick
+   * it is applied to pitch only, so shaking it can never cost the player a shot.
+   */
+  shake: number;
   spawnSeconds: number;
   hitFlash: number;
   walkBob: number;
@@ -442,6 +460,7 @@ export function createDemoWorld(): DemoWorld {
     swingStep: 0,
     swingTarget: undefined,
     impact: 0,
+    shake: 0,
     spawnSeconds: SPAWN_INTERVAL_SECONDS,
     hitFlash: 0,
     walkBob: 0,
@@ -570,10 +589,16 @@ export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
  * ground exactly where the range runs out; line-flying weapons keep the launch slope the whole
  * way. An earlier version fixed the peak instead of the launch direction, and a skyward throw
  * departed almost level, crawling off under the crosshair.
+ *
+ * `plunge` bends that curve without moving either end of it. The fall term is raised to a power, and
+ * since the flown fraction is one at the landing point the throw still touches down exactly where it
+ * always did — what changes is where it spends the flight. Below one it tops out early and is on its
+ * way down for most of the throw, which is a body; above one it carries flat and drops at the end,
+ * which is a stone.
  */
 export function projectileHeight(projectile: DemoProjectile): number {
   const s = Math.min(1, Math.max(0, projectile.travelled / Math.max(0.0001, projectile.range)));
-  return Math.max(0, 0.5 + projectile.arc * s - projectile.fall * s * s);
+  return Math.max(0, 0.5 + projectile.arc * s - projectile.fall * s ** (2 * projectile.plunge));
 }
 
 /**

@@ -9,6 +9,13 @@ import { hasBless } from "@/demo/bless";
 import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
 import { burst } from "@/demo/particles";
 import {
+  propWeight,
+  throwWeight,
+  type DemoPropKind,
+  type DemoThrowKind,
+  type DemoThrowWeight,
+} from "@/demo/throw-weight";
+import {
   announce,
   awardBless,
   damageEnemy,
@@ -17,9 +24,8 @@ import {
   REACH,
   SWING_SECONDS,
   type DemoEnemy,
+  type DemoHeld,
   type DemoProp,
-  type DemoPropKind,
-  type DemoThrowKind,
   type DemoWorld,
 } from "@/demo/world";
 
@@ -43,29 +49,21 @@ export const BLAST_WALL_DAMAGE = 4;
 /** How often a broken wall drops a stack of its own material as ammunition. */
 const WALL_DROP_CHANCE = 0.2;
 
-/**
- * A thrown body flies like any other lob now that flight has real height — the old fixed two-tile
- * placement made an upward toss look absurd. The javelin keeps more range than the map has,
- * because what stops it is meant to be a wall, never the throw running out of arm; the boundary
- * wall guarantees that even a skyward one comes down somewhere.
- */
-const THROW_RANGE: Readonly<Record<DemoThrowKind, number>> = { enemy: 8, stick: 40, rock: 8, bomb: 9, axe: 10 };
-const THROW_SPEED: Readonly<Record<DemoThrowKind, number>> = { enemy: 11, stick: 22, rock: 14, bomb: 12, axe: 16 };
-
-/**
- * Throws that arc: they depart along the aim line and gravity brings them down on the landing
- * point. The javelin and the axe are not here — they fly the straight line they were pointed
- * along, which is the whole character difference between a lob and a hurled weapon.
- */
-const LOBBED_THROWS: ReadonlySet<DemoThrowKind> = new Set(["enemy", "rock", "bomb"]);
-
 /** How far ahead a projectile leaves the hand; the aim cap subtracts it so the landing matches. */
 const THROW_SPAWN_AHEAD = 0.4;
 
-/** Every throw aimed at the floor stops where the crosshair meets it, lobbed or straight. */
-function throwRange(world: DemoWorld, kind: DemoThrowKind): number {
-  const base = THROW_RANGE[kind];
+/**
+ * What one point of recoil is worth, in cells per second of backward shove and in view jolt.
+ *
+ * Both are deliberately tiny. The first version of these moved the player the better part of half a
+ * cell backwards on every throw, which does not read as effort — it reads as being shoved by
+ * something you cannot see. Recoil says a weight left the hands; it must never take a step for you.
+ */
+const RECOIL_SHOVE = 0.8;
+const RECOIL_SHAKE = 0.22;
 
+/** Every throw aimed at the floor stops where the crosshair meets it, lobbed or straight. */
+function throwRange(world: DemoWorld, base: number): number {
   if (world.player.pitch > 0) {
     return base;
   }
@@ -112,8 +110,13 @@ export function thrownWallDamage(kind: DemoThrowKind): number {
   return kind === "rock" ? ROCK_WALL_DAMAGE : THROWN_WALL_DAMAGE;
 }
 
-export function projectileSpeed(kind: DemoThrowKind): number {
-  return THROW_SPEED[kind];
+/** What the hands are currently carrying weighs, for whatever wants to charge the player for it. */
+export function heldWeight(held: DemoHeld): DemoThrowWeight | undefined {
+  if (!held) {
+    return undefined;
+  }
+
+  return held.kind === "enemy" ? held.enemy.archetype.weight : propWeight(held.prop);
 }
 
 function facing(world: DemoWorld): Readonly<{ x: number; y: number }> {
@@ -310,10 +313,12 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
 
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
   const direction = facing(world);
-  const range = throwRange(world, kind);
+  const weight = throwWeight(kind, payload?.archetype.weight);
+  const range = throwRange(world, weight.range);
   // Every throw departs along the aim line: the unbent rise is the aim slope times the distance.
-  // Lobbed kinds hand that rise back to gravity so they land at the end of the range; straight
-  // kinds keep the slope the whole way.
+  // Lobbed kinds hand that rise back to gravity so they land at the end of the range; straight kinds
+  // keep the slope the whole way. Weight is not allowed in this line — a heavy thing leaves the hand
+  // exactly where it was pointed, and only what happens to it afterwards is its own.
   const arc = (world.player.pitch - 0.01) * range;
   world.projectiles.push({
     id: nextId(world, "shot"),
@@ -324,14 +329,25 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
     directionY: direction.y,
     travelled: 0,
     range,
+    speed: weight.speed,
+    drag: weight.drag,
+    plunge: weight.plunge,
+    thud: weight.thud,
     arc,
-    fall: LOBBED_THROWS.has(kind) ? 0.5 + arc : 0,
+    fall: weight.lobbed ? 0.5 + arc : 0,
     payload,
     struck: new Set<string>(),
     trail: [],
     skewered: [],
     cleaved: 0,
   });
+
+  // What it cost to get rid of: a shove backwards along the throw and a jolt of the view. Nothing
+  // else in the demo moves the player without an enemy doing it, which is exactly why heaving a
+  // body registers.
+  world.player.pushX -= direction.x * weight.recoil * RECOIL_SHOVE;
+  world.player.pushY -= direction.y * weight.recoil * RECOIL_SHOVE;
+  world.shake = Math.max(world.shake, weight.recoil * RECOIL_SHAKE);
 }
 
 function throwHeld(world: DemoWorld): void {

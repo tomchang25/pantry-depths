@@ -8,6 +8,7 @@
  */
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import { DEFAULT_BODY_WEIGHT, type DemoThrowWeight } from "@/demo/throw-weight";
 
 export type DemoArchetypeId = "walker" | "ranged" | "charger";
 
@@ -16,6 +17,14 @@ export type DemoEnemyArchetype = Readonly<{
   name: string;
   appearance: EnemyAppearanceId;
   health: number;
+  /**
+   * What this body weighs in the hand and in the air.
+   *
+   * Its own property rather than something read off `health`: how heavy a slime is and how much of
+   * it there is to kill are two different statements about it, and tying them together would mean
+   * never being able to move one without moving the other.
+   */
+  weight: DemoThrowWeight;
   /** Ordinary movement, used while pathing toward the player. */
   speed: number;
   /** Speed while beelining inside the charge distance; the charger's dash is separate. */
@@ -34,6 +43,8 @@ const WALKER: DemoEnemyArchetype = {
   name: "Slime",
   appearance: "greenSlime",
   health: 30,
+  // The ordinary body, and the one every other weight is read against.
+  weight: DEFAULT_BODY_WEIGHT,
   speed: 1.9,
   rushSpeed: 2.6,
   rushDistance: 5,
@@ -48,6 +59,17 @@ const RANGED: DemoEnemyArchetype = {
   name: "Spitter Slime",
   appearance: "blueSlime",
   health: 22,
+  // The small one: it goes further out of the hand and lands lighter than the other two.
+  weight: {
+    speed: 10,
+    range: 5.2,
+    lobbed: true,
+    drag: 0.42,
+    plunge: 0.88,
+    recoil: 0.68,
+    thud: 0.8,
+    carrySlow: 0.88,
+  },
   speed: 1.7,
   rushSpeed: 1.7,
   rushDistance: 0,
@@ -62,6 +84,18 @@ const CHARGER: DemoEnemyArchetype = {
   name: "Charger Slime",
   appearance: "redSlime",
   health: 38,
+  // A slab of a thing. Picking one up is a commitment, throwing it barely clears the room in front
+  // of you, and every part of doing it is felt.
+  weight: {
+    speed: 7.5,
+    range: 3.6,
+    lobbed: true,
+    drag: 0.7,
+    plunge: 0.74,
+    recoil: 1.15,
+    thud: 1.25,
+    carrySlow: 0.74,
+  },
   speed: 1.8,
   rushSpeed: 2.2,
   rushDistance: 5,
