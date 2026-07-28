@@ -8,6 +8,8 @@
  * slash drawn live rather than blitted. A throw gets an arm motion and no slash at all.
  */
 
+import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import { slimeBody } from "@/demo/demo-scene";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
 import { SWING_SECONDS, type DemoWorld } from "@/demo/world";
 import type { PresentationImages } from "@/presentation/presentation-image-loader";
@@ -33,18 +35,59 @@ function easeOut(progress: number): number {
   return 1 - (1 - progress) * (1 - progress);
 }
 
-function heldAssetId(world: DemoWorld): string | undefined {
-  const held = world.held;
+/**
+ * The captured slime, squirming in the fist — the same ring-stack body the world draws, in screen
+ * space. It struggles on a cycle: gathers itself, strains upward, sags back.
+ */
+function drawHeldSlime(
+  context: CanvasRenderingContext2D,
+  centreX: number,
+  centreY: number,
+  unit: number,
+  appearance: EnemyAppearanceId,
+  elapsedSeconds: number,
+): void {
+  const body = slimeBody(appearance);
+  const struggle = Math.max(0, Math.sin(elapsedSeconds * 2.1)) * Math.abs(Math.sin(elapsedSeconds * 8));
+  const radius = unit * 0.4 * (body.radius / 0.3);
+  const height = unit * 0.52 * (body.height / 0.46) * (1 + struggle * 0.18);
+  const rings = 10;
+  context.save();
+  context.translate(centreX, centreY + unit * 0.16);
+  context.rotate(-0.12 + Math.sin(elapsedSeconds * 1.7) * 0.03);
 
-  if (!held) {
-    return undefined;
+  for (let ring = 0; ring < rings; ring += 1) {
+    const h = ring / (rings - 1);
+    const profile = Math.sqrt(Math.max(0, 1 - h * h)) * (1 - 0.12 * h) + 0.05;
+    const wobble = 1 + Math.sin(elapsedSeconds * 9 + h * 5) * (0.05 + struggle * 0.07);
+    const rx = radius * profile * wobble * (1 - struggle * 0.12);
+    const ry = Math.max(1, rx * 0.4);
+    // Matched to how dark the shipped viewmodel already reads, like the carried props are.
+    const shade = (0.5 + 0.42 * h) * 0.86;
+    context.fillStyle = `rgb(${(body.color[0] * shade) | 0}, ${(body.color[1] * shade) | 0}, ${
+      (body.color[2] * shade) | 0
+    })`;
+    context.beginPath();
+    context.ellipse(0, -h * height, rx, ry, 0, 0, Math.PI * 2);
+    context.fill();
   }
 
-  if (held.kind === "enemy") {
-    return `enemy.${held.enemy.appearance}.normal`;
-  }
+  context.fillStyle = "rgba(255, 255, 255, 0.14)";
+  context.beginPath();
+  context.ellipse(-radius * 0.25, -height * 0.68, radius * 0.32, radius * 0.14, -0.3, 0, Math.PI * 2);
+  context.fill();
 
-  return DEMO_ASSET_IDS[held.prop];
+  // Cross about being carried: squeezed eyes and a small complaining mouth.
+  const faceY = -height * 0.5;
+  const eye = Math.max(1.5, radius * 0.13);
+  const eyeGap = radius * 0.4;
+  context.fillStyle = "rgb(26, 15, 30)";
+  context.fillRect(-eyeGap - eye, faceY - eye * 0.45, eye * 2, eye * 0.9);
+  context.fillRect(eyeGap - eye, faceY - eye * 0.45, eye * 2, eye * 0.9);
+  context.beginPath();
+  context.ellipse(0, faceY + eye * 2.2, eye * 0.8, eye * 1, 0, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
 }
 
 function drawSlash(
@@ -225,23 +268,38 @@ export function drawDemoViewmodel(
     context.restore();
   }
 
-  const assetId = heldAssetId(world);
-  const carried = assetId === undefined ? undefined : images.get(assetId);
+  const held = world.held;
 
-  if (carried) {
+  if (held) {
     const unit = viewSize * 0.34;
     const sway = Math.sin(world.elapsedSeconds * 1.7) * 0.025;
     const centreX = width * 0.215;
     const centreY = height * 0.92 + bob * 1.6;
     drawFist(context, centreX, centreY, unit);
-    context.save();
-    context.translate(centreX + unit * 0.02, centreY - unit * 0.34);
-    context.rotate(-0.18 + sway);
-    // Matched to how dark the shipped viewmodel already reads, so the carried thing does not glow
-    // against the arm holding it.
-    context.filter = "brightness(0.86) saturate(0.92)";
-    context.drawImage(carried, -unit * 0.5, -unit * 0.5, unit, unit);
-    context.restore();
+
+    if (held.kind === "enemy") {
+      drawHeldSlime(
+        context,
+        centreX + unit * 0.02,
+        centreY - unit * 0.34,
+        unit,
+        held.enemy.appearance,
+        world.elapsedSeconds,
+      );
+    } else {
+      const carried = images.get(DEMO_ASSET_IDS[held.prop]);
+
+      if (carried) {
+        context.save();
+        context.translate(centreX + unit * 0.02, centreY - unit * 0.34);
+        context.rotate(-0.18 + sway);
+        // Matched to how dark the shipped viewmodel already reads, so the carried thing does not
+        // glow against the arm holding it.
+        context.filter = "brightness(0.86) saturate(0.92)";
+        context.drawImage(carried, -unit * 0.5, -unit * 0.5, unit, unit);
+        context.restore();
+      }
+    }
   }
 
   // A thrust has no arc worth drawing — the whole read is the arm going forward — so it gets a

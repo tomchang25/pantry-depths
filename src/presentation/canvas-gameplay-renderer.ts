@@ -4,6 +4,7 @@ import type { Facing } from "@/core/grid";
 import { createProceduralTextures, type TextureSet } from "@/presentation/procedural-textures";
 import type {
   RenderBeam,
+  RenderBlob,
   RenderEmitter,
   RenderFloorMaterial,
   RenderFloorOverlay,
@@ -184,8 +185,8 @@ type RayHit = Readonly<{
 
 type ProjectedCorner = Readonly<{ x: number; y: number; inverseDepth: number }>;
 
-/** One entry in the shared back-to-front pass: exactly one of `sprite` or `box` is set. */
-type Drawable = Readonly<{ depth: number; sprite?: ProjectedSprite; box?: RenderBox }>;
+/** One entry in the shared back-to-front pass: exactly one of `sprite`, `box` or `blob` is set. */
+type Drawable = Readonly<{ depth: number; sprite?: ProjectedSprite; box?: RenderBox; blob?: RenderBlob }>;
 
 type ProjectedSprite = Readonly<{
   sprite: RenderSprite;
@@ -1815,6 +1816,14 @@ export class CanvasGameplayRenderer {
       drawables.push({ depth: Math.hypot(nearestX - scene.camera.x, nearestY - scene.camera.y), box });
     }
 
+    for (const blob of scene.blobs ?? []) {
+      const depth = this.#cameraDepth(scene, blob.x, blob.y);
+
+      if (depth > 0.08 && depth <= MAX_DEPTH && blob.alpha > 0.01) {
+        drawables.push({ depth, blob });
+      }
+    }
+
     // Far to near, sorted in place — the list is built fresh above, so nothing else holds it.
     // `sort` is stable, so drawables at equal depth keep their scene order: the same tie-break the
     // quadratic insertion loop this replaces had, at a cost that stays sane as crowds grow.
@@ -1823,6 +1832,11 @@ export class CanvasGameplayRenderer {
     for (const entry of ordered) {
       if (entry.box) {
         this.#drawBox(scene, entry.box);
+        continue;
+      }
+
+      if (entry.blob) {
+        this.#drawBlob(scene, entry.blob);
         continue;
       }
 
@@ -2294,6 +2308,225 @@ export class CanvasGameplayRenderer {
   }
 
   /**
+   * Draws one soft body as a stack of filled rings.
+   *
+   * The profile is a dome deformed by the blob's parameters: squash trades height for width, lean
+   * shifts rings progressively toward the crown, droop sags them back down, and the wobble
+   * modulates each ring's radius — which together cover walking bounce, lunges, shivers, melting
+   * and sinking without any skeleton. A split body is the same stack drawn twice, each half clipped
+   * at the cut and toppling outward. Rings are cheap — one ellipse fill each, a dozen or so per
+   * body — and the whole body is depth-clipped against the walls at once.
+   */
+  #drawBlob(scene: RenderScene, blob: RenderBlob): void {
+    const context = this.#context;
+    const squash = Math.max(0.05, blob.squash);
+    const base = this.#projectPoint(scene, { x: blob.x, y: blob.y, z: blob.sink });
+
+    if (!base) {
+      return;
+    }
+
+    const depth = base.depth;
+    const pxPerCell = this.canvas.height / depth;
+    const widen = 1 / Math.sqrt(squash);
+    const maxRadius = blob.radius * widen * (1 + Math.abs(blob.wobbleAmp)) * pxPerCell;
+    const clipReach =
+      maxRadius + (Math.abs(blob.split?.separation ?? 0) + Math.abs(blob.leanX) + Math.abs(blob.leanY)) * pxPerCell;
+    context.save();
+
+    if (!this.#clipToVisibleColumns(base.screenX - clipReach, base.screenX + clipReach, depth)) {
+      context.restore();
+      return;
+    }
+
+    context.globalAlpha = clamp(blob.alpha, 0, 1);
+
+    // Bodies below the floor stay below it. The floor never enters the depth buffer, so a sinking
+    // blob has to be cut off at its own waterline instead of being hidden by the ground.
+    if (blob.sink < 0) {
+      const floorLineY = base.screenY + blob.sink * pxPerCell;
+      context.beginPath();
+      context.rect(0, floorLineY - this.canvas.height * 4, this.canvas.width, this.canvas.height * 4);
+      context.clip();
+    }
+
+    // Screen-space shadow of the lean: its component along the camera's right axis. The depth
+    // component is dropped — at body scale it moves a ring by less than a pixel.
+    const leanScreen =
+      (blob.leanX * -Math.sin(scene.camera.angle) + blob.leanY * Math.cos(scene.camera.angle)) * pxPerCell;
+
+    // Distance shading shared with the sprite pipeline's unlit path: darker with depth, warmed by
+    // whatever light reaches the spot.
+    const fade = 1 - clamp(depth / MAX_DEPTH, 0, 0.82);
+    let warmth = clamp(1 - depth / 7, 0, 0.42);
+    let warmColor = DEFAULT_TORCH_COLOR;
+
+    if (this.#lit) {
+      const placed = this.#sampleLight(scene, blob.x, blob.y);
+      const strength = Math.max(placed[0], placed[1], placed[2]);
+
+      if (strength > warmth) {
+        const scale = 255 / strength;
+        warmth = Math.min(1, strength);
+        warmColor = [placed[0] * scale, placed[1] * scale, placed[2] * scale];
+      }
+    } else {
+      for (const light of scene.lights) {
+        const lightReach =
+          clamp(1 - Math.hypot(light.x - blob.x, light.y - blob.y) / light.radius, 0, 1) * light.intensity;
+
+        if (lightReach > warmth) {
+          warmth = lightReach;
+          warmColor = light.color;
+        }
+      }
+    }
+
+    const heightWorld = blob.height * squash;
+    const ringCount = Math.max(6, Math.min(16, Math.round(maxRadius / 6)));
+    const flash = clamp(blob.flash, 0, 1);
+
+    const ringStyle = (h: number): string => {
+      // Lit from above: the crown takes most of the light, the skirt sits in its own shadow.
+      const shade = (0.5 + 0.5 * h) * fade;
+      const red = (blob.color[0] + (255 - blob.color[0]) * flash) * shade + warmColor[0] * warmth * 0.3;
+      const green = (blob.color[1] + (255 - blob.color[1]) * flash) * shade + warmColor[1] * warmth * 0.3;
+      const blue = (blob.color[2] + (255 - blob.color[2]) * flash) * shade + warmColor[2] * warmth * 0.3;
+      return `rgb(${Math.min(255, red) | 0}, ${Math.min(255, green) | 0}, ${Math.min(255, blue) | 0})`;
+    };
+
+    const ringZ = (h: number): number => h * heightWorld - blob.droop * h * h;
+
+    const drawStack = (offsetX: number, dropPx: number, tilt: number, side: -1 | 0 | 1): void => {
+      context.save();
+      context.translate(base.screenX + offsetX, base.screenY + dropPx);
+
+      if (tilt !== 0) {
+        context.rotate(tilt);
+      }
+
+      if (side !== 0) {
+        // The cut face: each half keeps its own side of the body, clipped in local space so the
+        // cut edge topples along with the half.
+        context.beginPath();
+        context.rect(side < 0 ? -maxRadius * 2 : 0, -this.canvas.height * 2, maxRadius * 2, this.canvas.height * 4);
+        context.clip();
+      }
+
+      for (let ring = 0; ring < ringCount; ring += 1) {
+        const h = ring / (ringCount - 1);
+        const profile = Math.sqrt(Math.max(0, 1 - h * h)) * (1 - 0.12 * h) + 0.04;
+        const wobble = 1 + blob.wobbleAmp * Math.sin(blob.wobblePhase + h * 4.6);
+        const radius = blob.radius * widen * profile * wobble;
+        const rx = Math.max(0.8, radius * pxPerCell);
+        const ry = Math.max(0.6, rx * 0.36);
+        context.fillStyle = ringStyle(h);
+        context.beginPath();
+        context.ellipse(leanScreen * h, -ringZ(h) * pxPerCell, rx, ry, 0, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      // A soft crown highlight, which is most of what makes the body read as wet.
+      const glossH = 0.66;
+      const glossR = blob.radius * widen * Math.sqrt(1 - glossH * glossH) * pxPerCell;
+      context.fillStyle = `rgba(255, 255, 255, ${0.16 * fade + 0.04})`;
+      context.beginPath();
+      context.ellipse(
+        leanScreen * glossH - glossR * 0.3,
+        -ringZ(glossH) * pxPerCell,
+        glossR * 0.5,
+        glossR * 0.22,
+        -0.3,
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
+      context.restore();
+    };
+
+    if (blob.split) {
+      const separation = blob.split.separation * pxPerCell;
+      const drop = blob.split.drop * pxPerCell;
+      drawStack(-separation, drop, -blob.split.tilt, -1);
+      drawStack(separation, drop, blob.split.tilt, 1);
+    } else {
+      drawStack(0, 0, 0, 0);
+
+      if (blob.face) {
+        this.#drawBlobFace(blob, base.screenX, base.screenY, pxPerCell, leanScreen, widen, heightWorld);
+      }
+    }
+
+    context.restore();
+  }
+
+  /** The face, drawn flat on the camera side: the one part of the body that stays a cartoon. */
+  #drawBlobFace(
+    blob: RenderBlob,
+    baseX: number,
+    baseY: number,
+    pxPerCell: number,
+    leanScreen: number,
+    widen: number,
+    heightWorld: number,
+  ): void {
+    const context = this.#context;
+    const h = 0.52;
+    const faceRadius = blob.radius * widen * Math.sqrt(1 - h * h) * pxPerCell;
+
+    if (faceRadius < 3) {
+      return;
+    }
+
+    const centerX = baseX + leanScreen * h;
+    const centerY = baseY - (h * heightWorld - blob.droop * h * h) * pxPerCell;
+    const eyeGap = faceRadius * 0.42;
+    const eye = Math.max(1, faceRadius * 0.14);
+    context.fillStyle = "rgb(26, 15, 30)";
+
+    if (blob.face === "hurt") {
+      // Squeezed shut: two short bars and a small round mouth.
+      context.fillRect(centerX - eyeGap - eye, centerY - eye * 0.45, eye * 2, eye * 0.9);
+      context.fillRect(centerX + eyeGap - eye, centerY - eye * 0.45, eye * 2, eye * 0.9);
+      context.beginPath();
+      context.ellipse(centerX, centerY + eye * 2.4, eye * 0.9, eye * 1.1, 0, 0, Math.PI * 2);
+      context.fill();
+      return;
+    }
+
+    if (blob.face === "attack") {
+      // Brows angled in over the eyes, mouth open wide.
+      context.beginPath();
+      context.moveTo(centerX - eyeGap - eye, centerY - eye * 1.6);
+      context.lineTo(centerX - eyeGap + eye, centerY - eye * 0.7);
+      context.lineTo(centerX - eyeGap + eye, centerY - eye * 0.2);
+      context.lineTo(centerX - eyeGap - eye, centerY - eye * 1.1);
+      context.moveTo(centerX + eyeGap + eye, centerY - eye * 1.6);
+      context.lineTo(centerX + eyeGap - eye, centerY - eye * 0.7);
+      context.lineTo(centerX + eyeGap - eye, centerY - eye * 0.2);
+      context.lineTo(centerX + eyeGap + eye, centerY - eye * 1.1);
+      context.fill();
+      context.beginPath();
+      context.arc(centerX - eyeGap, centerY + eye * 0.4, eye * 0.8, 0, Math.PI * 2);
+      context.arc(centerX + eyeGap, centerY + eye * 0.4, eye * 0.8, 0, Math.PI * 2);
+      context.fill();
+      context.beginPath();
+      context.ellipse(centerX, centerY + eye * 2.6, eye * 1.2, eye * 1.5, 0, 0, Math.PI * 2);
+      context.fill();
+      return;
+    }
+
+    // Calm: two round eyes and a small mouth.
+    context.beginPath();
+    context.arc(centerX - eyeGap, centerY, eye, 0, Math.PI * 2);
+    context.arc(centerX + eyeGap, centerY, eye, 0, Math.PI * 2);
+    context.fill();
+    context.beginPath();
+    context.ellipse(centerX, centerY + eye * 2.2, eye * 0.7, eye * 0.5, 0, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  /**
    * Draws particles as flat circles, sorted far to near and depth-tested at their centre.
    *
    * One `arc` and one `fill` each, and no image anywhere in the path. Measured against the sprite
@@ -2532,7 +2765,7 @@ export class CanvasGameplayRenderer {
     // Clipping to the same visible runs gets the depth test back — without it a death played out
     // through the wall it happened behind, because these two calls were the only ones in the sprite
     // pass that reached the canvas without consulting the depth buffer at all.
-    if (this.#clipToVisibleColumns(projected)) {
+    if (this.#clipToVisibleColumns(projected.startX, projected.endX, projected.depth)) {
       this.#context.globalAlpha = alpha;
       this.#drawDeathHalf(projected, source, dimensions, 0, -spread, fall, -progress * 0.42);
       this.#drawDeathHalf(projected, source, dimensions, 1, spread, fall, progress * 0.42);
@@ -2542,14 +2775,14 @@ export class CanvasGameplayRenderer {
   }
 
   /**
-   * Clips the context to the columns of a sprite that no wall stands in front of.
+   * Clips the context to the columns of a span that no wall stands in front of.
    *
-   * For anything drawn rotated or otherwise not column-aligned. Returns false when the sprite is
+   * For anything drawn rotated or otherwise not column-aligned. Returns false when the span is
    * entirely hidden, so the caller can skip it rather than draw into an empty clip.
    */
-  #clipToVisibleColumns(projected: ProjectedSprite): boolean {
-    const startX = Math.max(0, Math.floor(projected.startX));
-    const endX = Math.min(this.canvas.width, Math.ceil(projected.endX));
+  #clipToVisibleColumns(spanStartX: number, spanEndX: number, depth: number): boolean {
+    const startX = Math.max(0, Math.floor(spanStartX));
+    const endX = Math.min(this.canvas.width, Math.ceil(spanEndX));
 
     if (endX <= startX) {
       return false;
@@ -2561,7 +2794,7 @@ export class CanvasGameplayRenderer {
     let any = false;
 
     for (let x = startX; x <= endX; x += 1) {
-      const visible = x < endX && (this.#depthBuffer[x] ?? MAX_DEPTH) > projected.depth;
+      const visible = x < endX && (this.#depthBuffer[x] ?? MAX_DEPTH) > depth;
 
       if (visible && runStart < 0) {
         runStart = x;

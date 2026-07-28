@@ -255,6 +255,9 @@ export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fro
         x: world.player.x,
         y: world.player.y,
         progress: 0,
+        cause: "slain",
+        directionX: 0,
+        directionY: 0,
       });
       world.kills += 1;
       announce(world, `人質碎了，手上變成${salvage === "stick" ? "木棍" : salvage === "rock" ? "石塊" : "炸彈"}`);

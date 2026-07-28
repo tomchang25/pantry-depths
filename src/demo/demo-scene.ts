@@ -7,14 +7,24 @@
  * string of sparks is correctly hidden by the wall between you and it.
  */
 
+import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
 import { DEMO_GRID_SIZE, tileIndex } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
 import type { DemoMaze } from "@/demo/maze";
-import { SWING_SECONDS, type DemoEnemy, type DemoPropKind, type DemoWorld } from "@/demo/world";
+import {
+  projectileHeight,
+  SWING_SECONDS,
+  type DemoDeath,
+  type DemoEnemy,
+  type DemoPropKind,
+  type DemoWorld,
+} from "@/demo/world";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
   RenderBeam,
+  RenderBlob,
+  RenderBlobFace,
   RenderBox,
   RenderEmitter,
   RenderFloorOverlay,
@@ -276,18 +286,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
   }
 
   for (const enemy of world.enemies) {
-    const sinking = enemy.drowningSeconds > 0 ? 1 - enemy.drowningSeconds / 1.1 : 0;
-    built.push({
-      id: enemy.id,
-      x: enemy.x,
-      y: enemy.y,
-      placement: "billboard",
-      assetId: `enemy.${enemy.appearance}.normal`,
-      appearanceId: enemy.appearance,
-      scale: 0.62,
-      // Sinks out of sight as it drowns; the bubbles above it are emitters.
-      verticalAnchor: sinking * 0.9,
-    });
+    // The body itself is a blob now, not a billboard; only the telegraphs and sparks stay sprites.
     telegraph(world, enemy, built);
 
     // A short spark at the point of contact. The white flash on the sprite says something landed;
@@ -319,56 +318,345 @@ function sprites(world: DemoWorld): RenderSprite[] {
   }
 
   for (const projectile of world.projectiles) {
-    // A javelin or an axe in flight is a beam, not a picture of one; see `beams`. What a javelin is
-    // carrying, though, is still a body and still drawn as one — strung back along the shaft.
-    if (projectile.kind === "stick") {
-      projectile.skewered.forEach((enemy, index) => {
-        const back = 0.3 + index * 0.3;
-        built.push({
-          id: `${projectile.id}-run-${index}`,
-          x: projectile.x - projectile.directionX * back,
-          y: projectile.y - projectile.directionY * back,
-          placement: "billboard",
-          assetId: `enemy.${enemy.appearance}.hurt`,
-          scale: 0.5,
-          verticalAnchor: -0.1,
-        });
-      });
+    // Anything lobbed marks where it is coming down; the shadow is the aiming feedback.
+    if (projectile.arc > 0) {
+      built.push(ground(`${projectile.id}-shadow`, projectile.x, projectile.y, DEMO_ASSET_IDS.dropShadow, 0.5));
+    }
+
+    // A javelin or an axe in flight is a beam, not a picture of one; see `beams`. Bodies riding a
+    // projectile — skewered on the shaft or thrown whole — are blobs now, built in `blobs`.
+    if (projectile.kind === "stick" || projectile.kind === "axe" || projectile.kind === "enemy") {
       continue;
     }
 
-    if (projectile.kind === "axe") {
-      continue;
-    }
-
-    if (projectile.kind === "enemy") {
-      if (projectile.payload) {
-        built.push({
-          id: projectile.id,
-          x: projectile.x,
-          y: projectile.y,
-          placement: "billboard",
-          assetId: `enemy.${projectile.payload.appearance}.hurt`,
-          scale: 0.55,
-          verticalAnchor: -0.3,
-        });
-      }
-
-      continue;
-    }
-
+    const scale = PROP_SCALES[projectile.kind] * 0.8;
     built.push({
       id: projectile.id,
       x: projectile.x,
       y: projectile.y,
       placement: "billboard",
       assetId: PROP_ASSETS[projectile.kind],
-      scale: PROP_SCALES[projectile.kind] * 0.8,
-      verticalAnchor: -0.35,
+      scale,
+      // Centred on the display arc, so a lob rises and a slam drops with the curve.
+      verticalAnchor: 0.5 - projectileHeight(projectile) / scale,
     });
   }
 
   vfxSprites(world, built);
+  return built;
+}
+
+/**
+ * Body dimensions and colour per appearance — the whole visual identity of a slime archetype.
+ *
+ * The walker is the reference shape, the shooter is slimmer and taller, the charger is a wider,
+ * lower wedge; the silhouettes have to differ because the blobs no longer carry distinct artwork.
+ */
+const SLIME_BODIES: Readonly<
+  Partial<
+    Record<EnemyAppearanceId, Readonly<{ radius: number; height: number; color: readonly [number, number, number] }>>
+  >
+> = {
+  greenSlime: { radius: 0.3, height: 0.46, color: [118, 198, 92] },
+  blueSlime: { radius: 0.26, height: 0.54, color: [96, 152, 218] },
+  redSlime: { radius: 0.35, height: 0.4, color: [216, 92, 86] },
+};
+
+const FALLBACK_BODY: Readonly<{ radius: number; height: number; color: readonly [number, number, number] }> = {
+  radius: 0.3,
+  height: 0.46,
+  color: [160, 160, 160],
+};
+
+/** Body dimensions and colour for an appearance, shared with the viewmodel's held display. */
+export function slimeBody(
+  appearance: EnemyAppearanceId,
+): Readonly<{ radius: number; height: number; color: readonly [number, number, number] }> {
+  return SLIME_BODIES[appearance] ?? FALLBACK_BODY;
+}
+
+/** Stable per-enemy phase so a crowd does not bounce in lockstep. */
+function enemyPhase(id: string): number {
+  let hash = 0;
+
+  for (let index = 0; index < id.length; index += 1) {
+    hash = (hash * 31 + id.charCodeAt(index)) % 997;
+  }
+
+  return hash * 0.35;
+}
+
+/**
+ * A living slime, deformed by whatever it is currently doing.
+ *
+ * Everything is derived from simulation state the world already tracks; the body is how that state
+ * looks, not new state of its own. Later clauses override earlier ones, so being hurt interrupts a
+ * lunge visually the same way it reads in play.
+ */
+function enemyBlob(world: DemoWorld, enemy: DemoEnemy): RenderBlob {
+  const body = SLIME_BODIES[enemy.appearance] ?? FALLBACK_BODY;
+  const t = world.elapsedSeconds;
+  const phase = enemyPhase(enemy.id);
+  const toPlayerX = world.player.x - enemy.x;
+  const toPlayerY = world.player.y - enemy.y;
+  const distance = Math.max(0.0001, Math.hypot(toPlayerX, toPlayerY));
+  const towardX = toPlayerX / distance;
+  const towardY = toPlayerY / distance;
+
+  let squash = 1;
+  let wobbleAmp = 0.035;
+  let wobblePhase = t * 5 + phase;
+  let leanX = 0;
+  let leanY = 0;
+  let flash = 0;
+  let sink = 0;
+  let face: RenderBlobFace = "normal";
+
+  const acting = enemy.stunSeconds > 0 || enemy.windupSeconds > 0 || enemy.attackPoseSeconds > 0;
+
+  if (!acting) {
+    // Gait: a bounce in time with its own speed, landing squashed and leaving stretched.
+    squash = 1 + Math.sin(t * (5.5 + enemy.archetype.speed * 2.2) + phase) * 0.08;
+  }
+
+  if (enemy.stunSeconds > 0) {
+    // Dazed: flattened, swaying slowly.
+    squash = 0.85;
+    wobbleAmp = 0.07;
+    wobblePhase = t * 3 + phase;
+  }
+
+  if (enemy.windupSeconds > 0) {
+    // Anticipation: crouched and pulled back off the target, pulsing with the telegraph.
+    const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+    squash = 0.82 - progress * 0.08;
+    leanX = -towardX * 0.1;
+    leanY = -towardY * 0.1;
+    flash = 0.25 + 0.35 * Math.abs(Math.sin(t * (10 + 14 * (1 - enemy.windupSeconds))));
+    face = "attack";
+  } else if (enemy.chargeSeconds > 0) {
+    // Mid-charge: stretched flat out along its committed lane.
+    squash = 1.2;
+    leanX = enemy.chargeX * 0.26;
+    leanY = enemy.chargeY * 0.26;
+    face = "attack";
+  } else if (enemy.attackPoseSeconds > 0) {
+    // Releasing: lunging up and into the player.
+    squash = 1.18;
+    leanX = towardX * 0.16;
+    leanY = towardY * 0.16;
+    face = "attack";
+  }
+
+  if (enemy.hurtSeconds > 0) {
+    const hurt = Math.min(1, enemy.hurtSeconds / 0.28);
+    squash *= 0.78 + 0.22 * (1 - hurt);
+    wobbleAmp = 0.16 * hurt;
+    wobblePhase = t * 40;
+    flash = Math.max(flash, hurt);
+    face = "hurt";
+  }
+
+  if (enemy.drowningSeconds > 0) {
+    // Sinking. The bubbles above it are emitters; the body just goes under.
+    const gone = 1 - enemy.drowningSeconds / 1.1;
+    sink = -(body.height + 0.15) * gone;
+    wobbleAmp = 0.1;
+    face = "hurt";
+  }
+
+  return {
+    id: enemy.id,
+    x: enemy.x,
+    y: enemy.y,
+    radius: body.radius,
+    height: body.height,
+    color: body.color,
+    squash,
+    leanX,
+    leanY,
+    wobbleAmp,
+    wobblePhase,
+    sink,
+    droop: 0,
+    flash,
+    alpha: 1,
+    face,
+  };
+}
+
+function easeOut(t: number): number {
+  return t * (2 - t);
+}
+
+/** The corpse, one animation per way of dying. Returns nothing once there is nothing left to show. */
+function deathBlob(death: DemoDeath): RenderBlob | undefined {
+  const body = SLIME_BODIES[death.appearance] ?? FALLBACK_BODY;
+  const t = Math.min(1, Math.max(0, death.progress));
+  const corpse: RenderBlob = {
+    id: `${death.id}-corpse`,
+    x: death.x,
+    y: death.y,
+    radius: body.radius,
+    height: body.height,
+    color: body.color,
+    squash: 1,
+    leanX: 0,
+    leanY: 0,
+    wobbleAmp: 0,
+    wobblePhase: t * 12,
+    sink: 0,
+    droop: 0,
+    flash: 0,
+    alpha: 1,
+  };
+
+  if (death.cause === "blasted") {
+    // A flash of overinflation, then nothing — the particle burst is the rest of this body.
+    if (t > 0.22) {
+      return undefined;
+    }
+
+    const k = t / 0.22;
+    return {
+      ...corpse,
+      radius: body.radius * (1 + k * 1.3),
+      squash: 1 + k * 1.6,
+      flash: 0.5 + k * 0.5,
+      alpha: 1 - k * 0.7,
+    };
+  }
+
+  if (death.cause === "cleaved") {
+    const k = easeOut(t);
+    return {
+      ...corpse,
+      squash: 0.92,
+      alpha: t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4,
+      split: { separation: 0.06 + k * 0.3, tilt: k * 0.6, drop: k * k * 0.1 },
+    };
+  }
+
+  if (death.cause === "pinned") {
+    // Slumped on the shaft: pushed along the throw and sagging around it.
+    return {
+      ...corpse,
+      leanX: death.directionX * (0.28 + t * 0.06),
+      leanY: death.directionY * (0.28 + t * 0.06),
+      droop: 0.12 + t * 0.22,
+      squash: 0.85,
+      wobbleAmp: 0.05 * (1 - t),
+      wobblePhase: t * 26,
+      alpha: t < 0.55 ? 1 : 1 - (t - 0.55) / 0.45,
+    };
+  }
+
+  if (death.cause === "drowned") {
+    // Already under; what remains is the water closing over it.
+    return {
+      ...corpse,
+      sink: -(body.height * (0.75 + 0.25 * t)),
+      wobbleAmp: 0.14 * (1 - t),
+      wobblePhase: t * 18,
+      alpha: 1 - t,
+    };
+  }
+
+  // Slain, no signature: deflating into a puddle, edges rippling as it settles.
+  const k = easeOut(t);
+  return {
+    ...corpse,
+    squash: 1 - 0.88 * k,
+    wobbleAmp: 0.1 * (1 - k),
+    wobblePhase: t * 14,
+    alpha: t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3,
+  };
+}
+
+/** A body carried through the air: skewered on the javelin, or thrown whole and flailing. */
+function carriedBlob(
+  id: string,
+  appearance: EnemyAppearanceId,
+  x: number,
+  y: number,
+  directionX: number,
+  directionY: number,
+  t: number,
+  lift: number,
+  impaled: boolean,
+): RenderBlob {
+  const body = SLIME_BODIES[appearance] ?? FALLBACK_BODY;
+  return {
+    id,
+    x,
+    y,
+    radius: body.radius * (impaled ? 0.9 : 1),
+    height: body.height,
+    color: body.color,
+    // A skewered body is compressed on the shaft and holds still; a thrown one flails the whole way.
+    squash: impaled ? 0.72 : 0.95 + Math.sin(t * 16) * 0.08,
+    leanX: directionX * (impaled ? 0.16 : 0.1),
+    leanY: directionY * (impaled ? 0.16 : 0.1),
+    wobbleAmp: impaled ? 0.05 : 0.11,
+    wobblePhase: t * 30,
+    sink: lift,
+    droop: impaled ? 0.1 : 0,
+    flash: impaled ? 0.25 : 0,
+    alpha: 1,
+    face: "hurt",
+  };
+}
+
+function blobs(world: DemoWorld): RenderBlob[] {
+  const built: RenderBlob[] = world.enemies.map((enemy) => enemyBlob(world, enemy));
+
+  for (const death of world.deaths) {
+    const corpse = deathBlob(death);
+
+    if (corpse) {
+      built.push(corpse);
+    }
+  }
+
+  for (const projectile of world.projectiles) {
+    if (projectile.kind === "stick") {
+      projectile.skewered.forEach((enemy, index) => {
+        const back = 0.3 + index * 0.3;
+        built.push(
+          carriedBlob(
+            `${projectile.id}-run-${index}`,
+            enemy.appearance,
+            projectile.x - projectile.directionX * back,
+            projectile.y - projectile.directionY * back,
+            projectile.directionX,
+            projectile.directionY,
+            world.elapsedSeconds,
+            0.3,
+            true,
+          ),
+        );
+      });
+      continue;
+    }
+
+    if (projectile.kind === "enemy" && projectile.payload) {
+      built.push(
+        carriedBlob(
+          projectile.id,
+          projectile.payload.appearance,
+          projectile.x,
+          projectile.y,
+          projectile.directionX,
+          projectile.directionY,
+          world.elapsedSeconds,
+          // Riding the same display arc the props fly, so a thrown body slams and lobs too.
+          projectileHeight(projectile),
+          false,
+        ),
+      );
+    }
+  }
+
   return built;
 }
 
@@ -875,6 +1163,7 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     floorPatches: terrain.floorPatches,
     floorOverlays: cachedOverlays(world),
     boxes: terrain.boxes,
+    blobs: blobs(world),
     sprites: sprites(world),
     beams: beams(world),
     particles: particles(world),
@@ -885,27 +1174,10 @@ export function createDemoScene(world: DemoWorld): RenderScene {
 
 export function createDemoEffects(world: DemoWorld): PresentationRenderEffects {
   return {
-    enemies: world.enemies.map((enemy) => ({
-      entityId: enemy.id,
-      state: enemy.hurtSeconds > 0 ? "hurt" : enemy.attackPoseSeconds > 0 ? "attack" : "normal",
-      // A committed enemy pulses faster the closer it is to releasing, which is the second half of
-      // the telegraph: the marker says what, the pulse says when.
-      whiteFlash:
-        enemy.windupSeconds > 0
-          ? 0.25 + 0.35 * Math.abs(Math.sin(world.elapsedSeconds * (10 + 14 * (1 - enemy.windupSeconds))))
-          : enemy.hurtSeconds > 0
-            ? Math.min(1, enemy.hurtSeconds / 0.28)
-            : 0,
-    })),
-    deaths: world.deaths.map((death) => ({
-      entityId: death.id,
-      appearanceId: death.appearance,
-      x: death.x,
-      y: death.y,
-      scale: 0.62,
-      verticalAnchor: 0,
-      progress: death.progress,
-    })),
+    // Enemy state and deaths are carried by the blobs in the scene itself now — flash, pose and
+    // corpse animation included — so the sprite-side effect channels stay empty here.
+    enemies: [],
+    deaths: [],
     swing: world.swing > 0 ? 1 - world.swing / SWING_SECONDS : 0,
     playerHit: world.hitFlash,
     walkBob: world.walkBob,

@@ -178,7 +178,7 @@ export function detonate(
 
     if (distance <= BOMB_CORE_RADIUS) {
       knockBack(enemy, x, y, BOMB_PUSH * 0.6);
-      damageEnemy(world, enemy, BOMB_CORE_DAMAGE);
+      damageEnemy(world, enemy, BOMB_CORE_DAMAGE, "blasted");
       continue;
     }
 
@@ -253,7 +253,7 @@ export function bodyLanding(world: DemoWorld, thrown: DemoEnemy, hitWall: boolea
       }
 
       knockBack(enemy, thrown.x, thrown.y, ROCK_KNOCKBACK);
-      damageEnemy(world, enemy, thrownImpactDamage(world) * 2);
+      damageEnemy(world, enemy, thrownImpactDamage(world) * 2, "blasted");
     }
   }
 
@@ -270,7 +270,7 @@ export function stepDrowning(world: DemoWorld, deltaSeconds: number): void {
     enemy.drowningSeconds -= deltaSeconds;
 
     if (enemy.drowningSeconds <= 0) {
-      killEnemy(world, enemy);
+      killEnemy(world, enemy, "drowned");
     }
   }
 }

@@ -311,6 +311,11 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
 
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
   const direction = facing(world);
+  const range = throwRange(world, kind);
+  // The unbent rise over the whole flight is the aim-line slope times the distance, so the throw
+  // leaves the hand exactly where the crosshair points. `|| 0.0001` keeps one razor-thin aim from
+  // reading as the flat-weapon sentinel. The javelin and the axe stay flat by design.
+  const arc = AIM_CAPPED_THROWS.has(kind) ? (world.player.pitch - 0.01) * range || 0.0001 : 0;
   world.projectiles.push({
     id: nextId(world, "shot"),
     kind,
@@ -319,7 +324,8 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
     directionX: direction.x,
     directionY: direction.y,
     travelled: 0,
-    range: throwRange(world, kind),
+    range,
+    arc,
     payload,
     struck: new Set<string>(),
     trail: [],
@@ -386,7 +392,7 @@ function melee(world: DemoWorld): void {
     const knockback = hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_KNOCKBACK : 3;
     enemy.pushX += direction.x * knockback;
     enemy.pushY += direction.y * knockback;
-    damageEnemy(world, enemy, meleeDamage(world));
+    damageEnemy(world, enemy, meleeDamage(world), "cleaved");
     world.swingTarget = { x: enemy.x, y: enemy.y, z: 0.34, connected: true };
     world.impact = 1;
     burst(world.particles, "blood", enemy.x, enemy.y, 0.36, 6, {

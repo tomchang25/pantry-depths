@@ -79,6 +79,13 @@ export type DemoProjectile = {
   directionY: number;
   travelled: number;
   range: number;
+  /**
+   * Total unbent rise of the display parabola over the whole flight, in cells: the throw departs
+   * along the aim line and gravity bends it down onto the landing point the range already fixed.
+   * Negative for downward throws, zero only for flat-flying weapons. The flight itself is still
+   * two-dimensional.
+   */
+  arc: number;
   /** The body of a thrown enemy, so it can land and keep fighting if it survives the flight. */
   payload: DemoEnemy | undefined;
   struck: Set<string>;
@@ -118,12 +125,25 @@ export type DemoVfxSpec =
 
 export type DemoVfx = DemoVfxSpec & { id: string };
 
+/**
+ * How an enemy died, which is what its body does next.
+ *
+ * The corpse animation is picked by cause, not by damage source bookkeeping: a cleave splits the
+ * body, a pinning leaves it slumped on the shaft, a blast leaves nothing at all. Everything without
+ * a signature of its own — rocks, falls, spikes, lightning — deflates as "slain".
+ */
+export type DemoDeathCause = "slain" | "cleaved" | "drowned" | "pinned" | "blasted";
+
 export type DemoDeath = {
   id: string;
   appearance: EnemyAppearanceId;
   x: number;
   y: number;
   progress: number;
+  cause: DemoDeathCause;
+  /** Direction the killing blow travelled, for deaths with an axis — currently only pinning. */
+  directionX: number;
+  directionY: number;
 };
 
 export type DemoHeld =
@@ -535,6 +555,24 @@ export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
 }
 
 /**
+ * Display height of a projectile above the floor, in cells.
+ *
+ * Flat-flying weapons hold hand height the whole way. Lobbed ones follow a parabola pinned at both
+ * ends: it leaves the hand *along the aim line* — which is what makes an upward throw read as
+ * flying up rather than shrinking away — and touches down exactly where the range runs out. An
+ * earlier version fixed the peak instead of the launch direction, and a skyward throw departed
+ * almost level, crawling off under the crosshair.
+ */
+export function projectileHeight(projectile: DemoProjectile): number {
+  if (projectile.arc === 0) {
+    return 0.52;
+  }
+
+  const s = Math.min(1, Math.max(0, projectile.travelled / Math.max(0.0001, projectile.range)));
+  return Math.max(0, 0.5 + projectile.arc * s - (0.5 + projectile.arc) * s * s);
+}
+
+/**
  * What a corpse leaves behind.
  *
  * Weapons only. Ammunition now comes off the walls it is made of — sticks from wood, rocks from
@@ -553,14 +591,28 @@ export const LIFESTEAL_HEAL = 12;
  * Drowning, a stick through the chest, a bomb — all of them come here, so the drop chance and the
  * blessing payout cannot end up applying to some kill routes and not others.
  */
-export function killEnemy(world: DemoWorld, enemy: DemoEnemy): void {
+export function killEnemy(
+  world: DemoWorld,
+  enemy: DemoEnemy,
+  cause: DemoDeathCause = "slain",
+  direction?: DemoCellLike,
+): void {
   const index = world.enemies.indexOf(enemy);
 
   if (index >= 0) {
     world.enemies.splice(index, 1);
   }
 
-  world.deaths.push({ id: enemy.id, appearance: enemy.appearance, x: enemy.x, y: enemy.y, progress: 0 });
+  world.deaths.push({
+    id: enemy.id,
+    appearance: enemy.appearance,
+    x: enemy.x,
+    y: enemy.y,
+    progress: 0,
+    cause,
+    directionX: direction?.x ?? 0,
+    directionY: direction?.y ?? 0,
+  });
   world.kills += 1;
   burst(world.particles, "blood", enemy.x, enemy.y, 0.34, 18, {
     speed: 2.6,
@@ -590,7 +642,7 @@ export function killEnemy(world: DemoWorld, enemy: DemoEnemy): void {
   }
 }
 
-export function damageEnemy(world: DemoWorld, enemy: DemoEnemy, amount: number): void {
+export function damageEnemy(world: DemoWorld, enemy: DemoEnemy, amount: number, cause: DemoDeathCause = "slain"): void {
   if (enemy.drowningSeconds > 0) {
     return;
   }
@@ -599,7 +651,7 @@ export function damageEnemy(world: DemoWorld, enemy: DemoEnemy, amount: number):
   enemy.hurtSeconds = 0.28;
 
   if (enemy.hp <= 0) {
-    killEnemy(world, enemy);
+    killEnemy(world, enemy, cause);
   }
 }
 

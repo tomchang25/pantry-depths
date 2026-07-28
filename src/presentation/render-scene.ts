@@ -108,6 +108,59 @@ export type RenderBox = Readonly<{
   topColor?: readonly [number, number, number];
 }>;
 
+/** A cleaved body: the halves separate, tilt outward and settle. All values grow from zero. */
+export type RenderBlobSplit = Readonly<{
+  /** How far each half has moved from the centre, in cells. */
+  separation: number;
+  /** How far each half has toppled outward, in radians. */
+  tilt: number;
+  /** How far the halves have dropped down the screen, in cells. */
+  drop: number;
+}>;
+
+export type RenderBlobFace = "normal" | "hurt" | "attack";
+
+/**
+ * A soft body standing in the world, drawn as a stack of deformed rings rather than a flat image.
+ *
+ * A billboard is the same picture from every side and at every moment; a blob is a profile curve
+ * the scene deforms — squashed on landing, stretched into a lunge, collapsed into a puddle, split
+ * in half — so a boneless creature can act with its whole body instead of swapping between three
+ * drawings. Everything here is presentation-frame data; the scene recomputes it per frame.
+ */
+export type RenderBlob = Readonly<{
+  id: string;
+  x: number;
+  y: number;
+  /** Resting footprint radius in cells. */
+  radius: number;
+  /** Resting body height in cells. */
+  height: number;
+  color: readonly [number, number, number];
+  /** Vertical scale. The footprint widens as this drops, so the volume reads as conserved. */
+  squash: number;
+  /** World-space offset of the crown relative to the base — a lean, a lunge, a slump. */
+  leanX: number;
+  leanY: number;
+  /** Sinusoidal radius modulation along the height: jiggle, shivers, ripples. */
+  wobbleAmp: number;
+  wobblePhase: number;
+  /**
+   * Base height offset from the floor. Zero rests on it; negative sinks below and is cut off at
+   * the floor line; positive rides above it — a body carried through the air.
+   */
+  sink: number;
+  /** Downward sag of the upper body in cells, strongest at the crown — a body going limp. */
+  droop: number;
+  /** 0..1 white mixed into the body colour, shared with the sprite pipeline's hit flash. */
+  flash: number;
+  alpha: number;
+  /** Facial expression, drawn on the camera-facing side. Omitted for the dead. */
+  face?: RenderBlobFace;
+  /** Set while the body is cleaved in two; overrides the face. */
+  split?: RenderBlobSplit;
+}>;
+
 export type RenderSprite = Readonly<{
   id: string;
   x: number;
@@ -215,6 +268,8 @@ export type RenderScene = Readonly<{
   floorOverlays?: readonly RenderFloorOverlay[];
   /** Volumetric props. Boxes, because everything the demo needs to stand up is box-shaped. */
   boxes?: readonly RenderBox[];
+  /** Soft bodies drawn as deformed ring stacks. Baked floors author none of these. */
+  blobs?: readonly RenderBlob[];
   /**
    * Ambient light everywhere, before any placed light contributes. Only read under enhanced
    * lighting; without it the renderer's fixed torch model is the only illumination.

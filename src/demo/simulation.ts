@@ -19,6 +19,7 @@ import {
   PLAYER_RADIUS,
   PLAYER_SPEED,
   populateFloor,
+  projectileHeight,
   SPAWN_INTERVAL_SECONDS,
   spawnReinforcement,
   stainFloor,
@@ -202,7 +203,7 @@ function cleaveWithAxe(world: DemoWorld, projectile: DemoProjectile): boolean {
 
     projectile.struck.add(enemy.id);
     projectile.cleaved += 1;
-    killEnemy(world, enemy);
+    killEnemy(world, enemy, "cleaved");
     announce(world, `飛斧劈開第 ${projectile.cleaved} 個`, 1.2);
 
     if (projectile.cleaved >= AXE_CAPACITY) {
@@ -232,7 +233,7 @@ function pinToWall(world: DemoWorld, projectile: DemoProjectile): void {
     enemy.x = settled.x;
     enemy.y = settled.y;
     world.enemies.push(enemy);
-    killEnemy(world, enemy);
+    killEnemy(world, enemy, "pinned", { x: projectile.directionX, y: projectile.directionY });
   });
   announce(world, `${projectile.skewered.length} 個被釘在牆上`);
 }
@@ -258,6 +259,12 @@ function bargeThrough(world: DemoWorld, projectile: DemoProjectile): void {
 
 /** Whether anything solid enough to stop a throw sits at the projectile's position. */
 function hitsSomeone(world: DemoWorld, projectile: DemoProjectile): boolean {
+  // A lob sailing over someone's head is not a hit: the display arc is fake height, but letting a
+  // high bomb detonate on a scalp it visibly cleared reads as a bug, so the arc gates the test.
+  if (projectileHeight(projectile) > 0.6) {
+    return false;
+  }
+
   return world.enemies.some(
     (enemy) =>
       enemy.drowningSeconds <= 0 && Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) <= PROJECTILE_HIT_RADIUS,
@@ -361,7 +368,7 @@ function stepHazards(world: DemoWorld, deltaSeconds: number): void {
 const TRAIL_LENGTH = 9;
 
 function recordTrail(projectile: DemoProjectile): void {
-  projectile.trail.push({ x: projectile.x, y: projectile.y, z: 0.52 });
+  projectile.trail.push({ x: projectile.x, y: projectile.y, z: projectileHeight(projectile) });
 
   if (projectile.trail.length > TRAIL_LENGTH) {
     projectile.trail.shift();
