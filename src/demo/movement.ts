@@ -9,13 +9,13 @@
  * hazard instead of scenery.
  */
 
-import { blocksBody, blocksWalk, type DemoMaze } from "@/demo/maze";
+import { blocksFlung, blocksWalk, type DemoMaze } from "@/demo/maze";
 
 export type DemoPoint = Readonly<{ x: number; y: number }>;
 export type DemoBlocker = (maze: DemoMaze, x: number, y: number) => boolean;
 
 export const WALKING: DemoBlocker = blocksWalk;
-export const FLUNG: DemoBlocker = blocksBody;
+export const FLUNG: DemoBlocker = blocksFlung;
 
 function overlapsBlocked(maze: DemoMaze, x: number, y: number, radius: number, blocked: DemoBlocker): boolean {
   const minX = Math.floor(x - radius);

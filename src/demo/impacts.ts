@@ -11,7 +11,8 @@
 
 import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/demo/actions";
 import { hasBless } from "@/demo/bless";
-import { isWaterCell } from "@/demo/maze";
+import { isBarricadeCell, isWaterCell } from "@/demo/maze";
+import { burst } from "@/demo/particles";
 import { addVfx, damageEnemy, killEnemy, type DemoEnemy, type DemoWorld } from "@/demo/world";
 
 /** How wide "near the impact" is for a rock or a thrown body. */
@@ -49,13 +50,26 @@ export function knockBack(enemy: DemoEnemy, fromX: number, fromY: number, force:
   enemy.pushY += (dy / distance) * force;
 }
 
-/** Starts the sink if a body has ended up over a pool. Nothing walks here by choice. */
-export function checkDrowning(world: DemoWorld, enemy: DemoEnemy): void {
+/**
+ * Resolves a body arriving somewhere it did not choose to be.
+ *
+ * Two hazards, one check, because they are reached the same way: nothing walks into either, so
+ * anything standing in one was put there by a knockback, a throw, or a charge that overshot.
+ */
+export function checkHazards(world: DemoWorld, enemy: DemoEnemy): void {
   if (enemy.drowningSeconds > 0) {
     return;
   }
 
-  if (!isWaterCell(world.maze, Math.floor(enemy.x), Math.floor(enemy.y))) {
+  const cellX = Math.floor(enemy.x);
+  const cellY = Math.floor(enemy.y);
+
+  if (isBarricadeCell(world.maze, cellX, cellY)) {
+    impale(world, enemy);
+    return;
+  }
+
+  if (!isWaterCell(world.maze, cellX, cellY)) {
     return;
   }
 
@@ -65,6 +79,18 @@ export function checkDrowning(world: DemoWorld, enemy: DemoEnemy): void {
   enemy.intent = "none";
   enemy.windupSeconds = 0;
   enemy.chargeSeconds = 0;
+}
+
+/** Anything shoved onto the spikes dies there and then. The spray is the whole record of it. */
+function impale(world: DemoWorld, enemy: DemoEnemy): void {
+  burst(world.particles, "blood", enemy.x, enemy.y, 0.4, 16, {
+    speed: 2.4,
+    spreadZ: 2.6,
+    size: 0.06,
+    life: 1.2,
+  });
+  burst(world.particles, "ember", enemy.x, enemy.y, 0.45, 6, { speed: 2, spreadZ: 1.8, size: 0.04, life: 0.5 });
+  killEnemy(world, enemy);
 }
 
 function enemiesWithin(world: DemoWorld, x: number, y: number, radius: number): DemoEnemy[] {
@@ -126,7 +152,9 @@ function shatterWalls(
     for (let cellX = minX; cellX <= maxX; cellX += 1) {
       const tile = world.maze.tiles[cellY * world.maze.size + cellX];
 
-      if (!tile || (tile.kind !== "wood" && tile.kind !== "stone")) {
+      // Barricades included: a blast that flattens a stone wall but leaves the iron spikes in
+      // front of it standing would read as the spikes being scenery.
+      if (!tile || (tile.kind !== "wood" && tile.kind !== "stone" && tile.kind !== "barricade")) {
         continue;
       }
 

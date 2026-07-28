@@ -126,6 +126,27 @@ export type RenderBeam = Readonly<{
   tipColor?: readonly [number, number, number];
 }>;
 
+/**
+ * A flat coloured dot in the world: sparks, chips, blood, dust, trails.
+ *
+ * Deliberately not a sprite. A sprite is fetched from the image map and then tinted for its depth
+ * and the light on it, and the tinted result is cached per bucket in a full-size offscreen canvas —
+ * which is worth it for a slime and ruinous for four hundred specks that are three pixels across.
+ * This is drawn straight as a circle, depth-tested once, with no image and no cache.
+ */
+export type RenderParticle = Readonly<{
+  x: number;
+  y: number;
+  /** Height above the floor in cells. */
+  z: number;
+  /** Diameter in cells. */
+  size: number;
+  color: readonly [number, number, number];
+  alpha: number;
+  /** Adds rather than covers. Right for sparks and embers, wrong for blood and chips. */
+  additive?: boolean;
+}>;
+
 export type RenderLight = Readonly<{
   id: string;
   x: number;
@@ -177,6 +198,8 @@ export type RenderScene = Readonly<{
   sprites: readonly RenderSprite[];
   /** Oriented rods. Baked floors author none of these. */
   beams?: readonly RenderBeam[];
+  /** Cheap dots — particles, trails, sparks. Never goes near the sprite pipeline. */
+  particles?: readonly RenderParticle[];
   lights: readonly RenderLight[];
   emitters: readonly RenderEmitter[];
 }>;

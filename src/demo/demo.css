@@ -67,6 +67,11 @@ body,
   font-weight: 700;
 }
 
+.demo__fps {
+  color: #8fd4a2;
+  font-variant-numeric: tabular-nums;
+}
+
 .demo__blessbar {
   display: flex;
   flex-wrap: wrap;

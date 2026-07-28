@@ -9,7 +9,7 @@
 
 export const DEMO_GRID_SIZE = 21;
 
-export type DemoTileKind = "open" | "border" | "stone" | "wood" | "water";
+export type DemoTileKind = "open" | "border" | "stone" | "wood" | "water" | "barricade";
 
 export type DemoCell = Readonly<{ x: number; y: number }>;
 
@@ -37,6 +37,14 @@ export type DemoMaze = Readonly<{
  */
 export const STONE_WALL_HP = 4;
 export const WOOD_WALL_HP = 2;
+/**
+ * Iron caltrops: slow to clear, which is the point.
+ *
+ * Eight bare swings is deliberately more than any wall, because a barricade is not in your way —
+ * you can walk around it — and destroying one is giving up the free kills it would have handed you.
+ */
+export const BARRICADE_HP = 8;
+const BARRICADE_COUNT = { minimum: 4, maximum: 7 };
 
 /** Fraction of surviving interior walls knocked out after carving, to make loops and small rooms. */
 const PERFORATION_CHANCE = 0.16;
@@ -156,6 +164,42 @@ function floodPools(tiles: DemoTile[], open: DemoCell[]): void {
   }
 }
 
+/**
+ * Drops iron barricades into open floor, spread out rather than clustered.
+ *
+ * Placed by the generator rather than left behind by a broken wall: a hazard you can shove things
+ * onto is only interesting where the fighting happens, and where the fighting happens is not where
+ * the walls were.
+ */
+function scatterBarricades(tiles: DemoTile[], open: DemoCell[]): void {
+  const wanted = between(BARRICADE_COUNT.minimum, BARRICADE_COUNT.maximum);
+  const placed: DemoCell[] = [];
+  const pool = shuffled(open);
+
+  for (const cell of pool) {
+    if (placed.length >= wanted) {
+      return;
+    }
+
+    // Never adjacent to another one: a wall of caltrops blocks a corridor, and these are meant to
+    // be something you fight around rather than something that reroutes you.
+    if (placed.some((other) => Math.abs(other.x - cell.x) <= 1 && Math.abs(other.y - cell.y) <= 1)) {
+      continue;
+    }
+
+    const tile = tiles[tileIndex(cell.x, cell.y)];
+
+    if (!tile || tile.kind !== "open") {
+      continue;
+    }
+
+    tile.kind = "barricade";
+    tile.hp = BARRICADE_HP;
+    tile.maxHp = BARRICADE_HP;
+    placed.push(cell);
+  }
+}
+
 function walkableCells(tiles: readonly DemoTile[]): DemoCell[] {
   const cells: DemoCell[] = [];
 
@@ -208,6 +252,7 @@ export function generateDemoMaze(): DemoMaze {
   }
 
   floodPools(tiles, walkableCells(tiles));
+  scatterBarricades(tiles, walkableCells(tiles));
   const open = walkableCells(tiles);
   const entrance = pick(open) ?? { x: 1, y: 1 };
   const away = open.filter((cell) => cell.x !== entrance.x || cell.y !== entrance.y);
@@ -221,34 +266,59 @@ export function tileAt(maze: DemoMaze, x: number, y: number): DemoTile | undefin
 }
 
 /**
- * Whether a cell stops a ray: walls do, water does not.
+ * The four questions a cell can be asked, and why they are four rather than one.
  *
- * This is the predicate the raycaster and every projectile use. Water has to be seen across and
- * thrown across, which is the whole reason it is a separate question from whether a body can enter.
+ * Water and barricades each answer differently to different ones, and that is exactly what makes
+ * them interesting: a pool can be seen and thrown across but not walked into, and a barricade can be
+ * seen over and walked around but stops anything thrown — while still letting a knocked-back body
+ * land on top of it, which is what kills.
  */
-export function blocksSight(maze: DemoMaze, x: number, y: number): boolean {
+
+/** Line of sight only. You can see over both a pool and a barricade. */
+export function blocksVision(maze: DemoMaze, x: number, y: number): boolean {
+  const tile = tileAt(maze, x, y);
+  return tile === undefined || (tile.kind !== "open" && tile.kind !== "water" && tile.kind !== "barricade");
+}
+
+/**
+ * What stops something thrown, shot, or knocked loose as debris.
+ *
+ * Barricades count and pools do not, which is what makes a barricade cover: you and whatever is
+ * behind it can see each other perfectly well, and neither of you can put anything through it.
+ */
+export function blocksProjectile(maze: DemoMaze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
   return tile === undefined || (tile.kind !== "open" && tile.kind !== "water");
 }
 
-/** Whether a cell stops a body under its own power. Water does: nothing walks into a pool. */
+/** What stops a body moving under its own power. Nothing walks into a pool or onto the spikes. */
 export function blocksWalk(maze: DemoMaze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
   return tile === undefined || tile.kind !== "open";
 }
 
 /**
- * Whether a cell stops a body that is not in control of itself — knocked back, or thrown.
+ * What stops a body that is not in control of itself — knocked back, or thrown.
  *
- * Only walls do. A body flung over a pool lands in it, which is exactly what makes knockback lethal
- * next to water and is the reason this predicate exists apart from the walking one.
+ * Only walls. A barricade must *not* be in here: if it stopped flung bodies they would pile against
+ * it and never land on it, and landing on it is the entire point of the thing.
  */
-export function blocksBody(maze: DemoMaze, x: number, y: number): boolean {
-  return blocksSight(maze, x, y);
+export function blocksFlung(maze: DemoMaze, x: number, y: number): boolean {
+  return blocksVision(maze, x, y);
 }
 
 export function isWaterCell(maze: DemoMaze, x: number, y: number): boolean {
   return tileAt(maze, x, y)?.kind === "water";
+}
+
+/**
+ * A barricade: the timbers a broken wood wall leaves standing.
+ *
+ * Exactly the water contract — walk around it, see and throw over it, and be flung onto it. That
+ * last one is the whole point: it turns every knockback next to one into a kill.
+ */
+export function isBarricadeCell(maze: DemoMaze, x: number, y: number): boolean {
+  return tileAt(maze, x, y)?.kind === "barricade";
 }
 
 /** Open cells reachable from a start cell, ignoring destructibility. Used only by enemy pathing. */

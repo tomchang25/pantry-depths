@@ -7,8 +7,8 @@
 
 import { AXE_CAPACITY, damageWall, JAVELIN_CAPACITY, projectileSpeed, thrownWallDamage } from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
-import { bargeInto, bodyLanding, checkDrowning, detonate, rockImpact, stepDrowning } from "@/demo/impacts";
-import { blocksSight, generateDemoMaze } from "@/demo/maze";
+import { bargeInto, bodyLanding, checkHazards, detonate, rockImpact, stepDrowning } from "@/demo/impacts";
+import { blocksProjectile, generateDemoMaze } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
 import {
@@ -123,7 +123,7 @@ function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: 
   bodyLanding(world, enemy, hitWall);
 
   if (world.enemies.includes(enemy)) {
-    checkDrowning(world, enemy);
+    checkHazards(world, enemy);
   }
 }
 
@@ -278,7 +278,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
       projectile.y += projectile.directionY * advance;
       projectile.travelled += advance;
 
-      if (blocksSight(world.maze, Math.floor(projectile.x), Math.floor(projectile.y))) {
+      if (blocksProjectile(world.maze, Math.floor(projectile.x), Math.floor(projectile.y))) {
         struckCell = { x: Math.floor(projectile.x), y: Math.floor(projectile.y) };
         projectile.x -= projectile.directionX * advance;
         projectile.y -= projectile.directionY * advance;
@@ -333,7 +333,9 @@ function stepHazards(world: DemoWorld, deltaSeconds: number): void {
       hazard.y += hazard.directionY * advance;
       hazard.travelled += advance;
 
-      if (blocksSight(world.maze, Math.floor(hazard.x), Math.floor(hazard.y))) {
+      // Enemy fire stops at a barricade but does not wear it down. Letting it would mean the
+      // shooters clear the map's hazards for the player, for free, without being asked.
+      if (blocksProjectile(world.maze, Math.floor(hazard.x), Math.floor(hazard.y))) {
         finished = true;
         break;
       }
@@ -413,7 +415,7 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
 
   // Blood marks the floor where it actually falls, so a spray scatters and a body pools.
   for (const landing of stepParticles(world.particles, step, (x, y) =>
-    blocksSight(world.maze, Math.floor(x), Math.floor(y)),
+    blocksProjectile(world.maze, Math.floor(x), Math.floor(y)),
   )) {
     if (landing.kind === "blood") {
       stainFloor(world, landing.x, landing.y, 0.16);

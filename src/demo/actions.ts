@@ -6,19 +6,17 @@
  */
 
 import { hasBless } from "@/demo/bless";
-import { blocksSight, tileAt, type DemoCell } from "@/demo/maze";
+import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
 import { burst } from "@/demo/particles";
 import {
   announce,
   awardBless,
   damageEnemy,
   nextId,
-  randomAmmo,
   MELEE_CYCLE,
   REACH,
   SWING_SECONDS,
   type DemoEnemy,
-  type DemoPile,
   type DemoProp,
   type DemoPropKind,
   type DemoThrowKind,
@@ -67,13 +65,6 @@ const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
   rock: "石塊砸出去了",
   bomb: "炸彈扔出去了",
   axe: "飛斧旋轉飛出",
-};
-
-export const PILE_LABELS: Readonly<Record<DemoPropKind, string>> = {
-  stick: "木材堆",
-  rock: "石材堆",
-  bomb: "炸彈堆",
-  axe: "飛斧堆",
 };
 
 export function meleeReach(world: DemoWorld): number {
@@ -152,23 +143,12 @@ function nearestPropAhead(world: DemoWorld): DemoProp | undefined {
   return best;
 }
 
-function nearestPileAhead(world: DemoWorld): DemoPile | undefined {
-  let best: DemoPile | undefined;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  for (const pile of world.piles) {
-    const distance = inFront(world, pile.x, pile.y, REACH, GRAB_ARC);
-
-    if (distance !== undefined && distance < bestDistance) {
-      best = pile;
-      bestDistance = distance;
-    }
-  }
-
-  return best;
-}
-
-/** The wall cell the player is looking at within arm's length, if any. */
+/**
+ * The breakable thing the player is looking at within arm's length.
+ *
+ * Barricades count even though you can see over them: the same predicate that stops a thrown rock
+ * is the one that decides what a swing lands on, so the two can never disagree.
+ */
 export function wallAhead(world: DemoWorld, reach = REACH): DemoCell | undefined {
   const direction = facing(world);
   const steps = Math.max(4, Math.round(reach * 4));
@@ -178,12 +158,38 @@ export function wallAhead(world: DemoWorld, reach = REACH): DemoCell | undefined
     const x = Math.floor(world.player.x + direction.x * along);
     const y = Math.floor(world.player.y + direction.y * along);
 
-    if (blocksSight(world.maze, x, y)) {
+    if (blocksProjectile(world.maze, x, y)) {
       return { x, y };
     }
   }
 
   return undefined;
+}
+
+/** Iron sparks rather than splinters, and the cell opens up when the last spike goes. */
+function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: number): void {
+  tile.hp = Math.max(0, tile.hp - damage);
+  burst(world.particles, "ember", cell.x + 0.5, cell.y + 0.5, 0.45, 7, {
+    speed: 2.6,
+    spreadZ: 1.8,
+    size: 0.045,
+    life: 0.55,
+  });
+
+  if (tile.hp > 0) {
+    announce(world, `鐵拒馬 HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    return;
+  }
+
+  tile.kind = "open";
+  tile.maxHp = 0;
+  burst(world.particles, "stoneChip", cell.x + 0.5, cell.y + 0.5, 0.5, 18, {
+    speed: 3,
+    spreadZ: 2.6,
+    size: 0.06,
+    life: 1.2,
+  });
+  announce(world, "鐵拒馬被拆掉了");
 }
 
 export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): void {
@@ -195,6 +201,11 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
 
   if (tile.kind === "border") {
     announce(world, "最外圈磚牆打不破");
+    return;
+  }
+
+  if (tile.kind === "barricade") {
+    damageBarricade(world, cell, tile, damage);
     return;
   }
 
@@ -246,20 +257,11 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
     life: 1.6,
   });
 
+  world.wallsBroken += 1;
   tile.kind = "open";
   tile.hp = 0;
-  world.wallsBroken += 1;
-
-  // Stone is only ever a shortcut; wood is the whole supply line. Which of the three stashes a wood
-  // wall was hiding is rolled here, once, so the pile that appears already says what it holds.
-  if (!wasWood) {
-    announce(world, "石牆碎了");
-    return;
-  }
-
-  const ammo = randomAmmo();
-  world.piles.push({ id: nextId(world, "pile"), ammo, x: cell.x + 0.5, y: cell.y + 0.5, remaining: 3 });
-  announce(world, `木牆碎了，露出${PILE_LABELS[ammo]}`);
+  tile.maxHp = 0;
+  announce(world, wasWood ? "木牆碎了" : "石牆碎了");
 }
 
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
@@ -288,16 +290,18 @@ function throwHeld(world: DemoWorld): void {
     return;
   }
 
-  world.held = undefined;
-
   if (held.kind === "enemy") {
+    world.held = undefined;
     spawnProjectile(world, "enemy", held.enemy);
     announce(world, "把敵人扔出去了");
     return;
   }
 
+  // One use off the stack, not the whole hand. The hand only empties on the last one.
+  const left = held.count - 1;
+  world.held = left > 0 ? { kind: "prop", prop: held.prop, count: left } : undefined;
   spawnProjectile(world, held.prop, undefined);
-  announce(world, THROW_CALLS[held.prop]);
+  announce(world, left > 0 ? `${THROW_CALLS[held.prop]}（還有 ${left}）` : THROW_CALLS[held.prop]);
 }
 
 function strikeAltar(world: DemoWorld): boolean {
@@ -419,24 +423,13 @@ function dropHeld(world: DemoWorld): void {
     return;
   }
 
-  world.props.push({ id: nextId(world, "prop"), kind: held.prop, x, y });
-  announce(world, `放下${PROP_LABELS[held.prop]}`);
+  // Whatever is left of the stack goes back on the floor as one pickup, so putting something down
+  // and taking it again is never a way to lose or gain uses.
+  world.props.push({ id: nextId(world, "prop"), kind: held.prop, count: held.count, x, y });
+  announce(world, `放下${PROP_LABELS[held.prop]} ×${held.count}`);
 }
 
-function takeFromPile(world: DemoWorld, pile: DemoPile): void {
-  pile.remaining -= 1;
-  world.held = { kind: "prop", prop: pile.ammo };
-
-  if (pile.remaining <= 0) {
-    world.piles.splice(world.piles.indexOf(pile), 1);
-    announce(world, `撿走最後一件${PROP_LABELS[pile.ammo]}，堆空了`);
-    return;
-  }
-
-  announce(world, `撿起${PROP_LABELS[pile.ammo]}（堆裡還有 ${pile.remaining} 件）`);
-}
-
-/** Right button: grab an enemy, a loose prop, or one piece of an ammunition pile — or drop. */
+/** Right button: grab an enemy or a stack of ammunition — or put down what is held. */
 export function grabAction(world: DemoWorld): void {
   if (world.status !== "playing") {
     return;
@@ -460,15 +453,8 @@ export function grabAction(world: DemoWorld): void {
 
   if (prop) {
     world.props.splice(world.props.indexOf(prop), 1);
-    world.held = { kind: "prop", prop: prop.kind };
-    announce(world, `撿起${PROP_LABELS[prop.kind]}`);
-    return;
-  }
-
-  const pile = nearestPileAhead(world);
-
-  if (pile) {
-    takeFromPile(world, pile);
+    world.held = { kind: "prop", prop: prop.kind, count: prop.count };
+    announce(world, `撿起${PROP_LABELS[prop.kind]} ×${prop.count}`);
     return;
   }
 

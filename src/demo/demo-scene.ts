@@ -9,6 +9,7 @@
 
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
 import { DEMO_GRID_SIZE, tileIndex } from "@/demo/maze";
+import type { DemoParticleKind } from "@/demo/particles";
 import { SWING_SECONDS, type DemoEnemy, type DemoPropKind, type DemoWorld } from "@/demo/world";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
@@ -18,6 +19,7 @@ import type {
   RenderFloorOverlay,
   RenderFloorPatch,
   RenderLight,
+  RenderParticle,
   RenderScene,
   RenderSprite,
   RenderSurface,
@@ -68,15 +70,6 @@ const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
 
 const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = { stick: 0.5, rock: 0.42, bomb: 0.4, axe: 0.5 };
 
-/** A pile looks like what it holds, so its worth is readable from across the room. */
-const PILE_ASSETS: Readonly<Record<DemoPropKind, string>> = {
-  stick: DEMO_ASSET_IDS.stickPile,
-  rock: DEMO_ASSET_IDS.rockPile,
-  bomb: DEMO_ASSET_IDS.bombPile,
-  // Never appears — the axe only ever drops from a corpse — but the table must be total.
-  axe: DEMO_ASSET_IDS.bombPile,
-};
-
 function surfaces(world: DemoWorld): RenderSurface[] {
   const built: RenderSurface[] = [];
 
@@ -84,7 +77,10 @@ function surfaces(world: DemoWorld): RenderSurface[] {
     for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
       const tile = world.maze.tiles[tileIndex(x, y)];
 
-      if (!tile || tile.kind === "open" || tile.kind === "water") {
+      // A barricade is boxes, not a wall face. Leaving it in here is what made a broken wood wall
+      // render as a cracked stone one: the cell was still emitting a surface, and with its hit
+      // points spent the damage ladder picked its most ruined texture.
+      if (!tile || tile.kind === "open" || tile.kind === "water" || tile.kind === "barricade") {
         continue;
       }
 
@@ -235,26 +231,25 @@ function sprites(world: DemoWorld): RenderSprite[] {
     ground("demo-entrance", world.maze.entrance.x + 0.5, world.maze.entrance.y + 0.5, DEMO_ASSET_IDS.entrance, 0.9),
   );
 
-  for (const pile of world.piles) {
-    built.push(ground(`${pile.id}-glow`, pile.x, pile.y, DEMO_ASSET_IDS.groundGlow, 1.3));
-    built.push(ground(pile.id, pile.x, pile.y, PILE_ASSETS[pile.ammo], 1.05));
-  }
-
-  // Loose pickups float, turn, and cast a shadow. Lying flat on the floor is what made them read as
-  // stains on the ground rather than as things worth walking over to.
+  // Loose pickups float, bob, and cast a shadow. A stack of three shows as three, staggered, so its
+  // worth is legible before you walk over to it.
   for (const prop of world.props) {
     const bob = Math.sin(world.elapsedSeconds * 2.2 + prop.x * 3 + prop.y * 5) * 0.06;
-    built.push(ground(`${prop.id}-shadow`, prop.x, prop.y, DEMO_ASSET_IDS.dropShadow, 0.5));
-    built.push(ground(`${prop.id}-glow`, prop.x, prop.y, DEMO_ASSET_IDS.groundGlow, 0.75));
-    built.push({
-      id: prop.id,
-      x: prop.x,
-      y: prop.y,
-      placement: "billboard",
-      assetId: PROP_ASSETS[prop.kind],
-      scale: PROP_SCALES[prop.kind],
-      verticalAnchor: -0.3 - bob,
-    });
+    built.push(ground(`${prop.id}-shadow`, prop.x, prop.y, DEMO_ASSET_IDS.dropShadow, 0.5 + prop.count * 0.06));
+    built.push(ground(`${prop.id}-glow`, prop.x, prop.y, DEMO_ASSET_IDS.groundGlow, 0.75 + prop.count * 0.1));
+
+    for (let copy = 0; copy < Math.min(prop.count, 3); copy += 1) {
+      const spread = (copy - (Math.min(prop.count, 3) - 1) / 2) * 0.14;
+      built.push({
+        id: `${prop.id}-${copy}`,
+        x: prop.x + spread,
+        y: prop.y + spread * 0.5,
+        placement: "billboard",
+        assetId: PROP_ASSETS[prop.kind],
+        scale: PROP_SCALES[prop.kind],
+        verticalAnchor: -0.28 - bob - copy * 0.05,
+      });
+    }
   }
 
   for (const enemy of world.enemies) {
@@ -350,8 +345,6 @@ function sprites(world: DemoWorld): RenderSprite[] {
     });
   }
 
-  trailSprites(world, built);
-  particleSprites(world, built);
   vfxSprites(world, built);
   return built;
 }
@@ -435,6 +428,51 @@ function boxes(world: DemoWorld): RenderBox[] {
     color: [96, 88, 116],
     topColor: [146, 136, 168],
   });
+
+  // Iron caltrops: two crossed rails carrying a row of upright spikes. Deliberately sparse and open
+  // — you have to be able to see through one to whatever is standing behind it.
+  for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
+    for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
+      const tile = world.maze.tiles[tileIndex(x, y)];
+
+      if (tile?.kind !== "barricade") {
+        continue;
+      }
+
+      // Bent and darkened as it takes damage, so how close one is to being cleared is visible.
+      const wear = tile.maxHp > 0 ? 1 - tile.hp / tile.maxHp : 0;
+      const iron: readonly [number, number, number] = [128 - wear * 44, 132 - wear * 46, 146 - wear * 50];
+      const edge: readonly [number, number, number] = [196 - wear * 70, 204 - wear * 74, 220 - wear * 80];
+
+      for (const along of [-0.28, 0, 0.28]) {
+        built.push({
+          id: `spike-${x}-${y}-${along}`,
+          x: x + 0.5 + along,
+          y: y + 0.5 + along * 0.35,
+          halfX: 0.045,
+          halfY: 0.045,
+          bottom: 0.1,
+          top: 0.66 - wear * 0.18,
+          color: iron,
+          topColor: edge,
+        });
+      }
+
+      for (const cross of [-1, 1]) {
+        built.push({
+          id: `rail-${x}-${y}-${cross}`,
+          x: x + 0.5,
+          y: y + 0.5 + cross * 0.16,
+          halfX: 0.42,
+          halfY: 0.04,
+          bottom: 0.06,
+          top: 0.14,
+          color: iron,
+          topColor: edge,
+        });
+      }
+    }
+  }
 
   return built;
 }
@@ -543,7 +581,8 @@ function floorOverlays(world: DemoWorld): RenderFloorOverlay[] {
     for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
       const amount = world.stains[y * DEMO_GRID_SIZE + x] ?? 0;
 
-      if (amount > 0.01) {
+      // Water washes it away — a red pool reads as a rendering mistake rather than as carnage.
+      if (amount > 0.01 && world.maze.tiles[tileIndex(x, y)]?.kind !== "water") {
         built.push({ cell: { x, y }, material: "demoBlood", amount });
       }
     }
@@ -552,49 +591,52 @@ function floorOverlays(world: DemoWorld): RenderFloorOverlay[] {
   return built;
 }
 
-const PARTICLE_COLORS: Readonly<Record<string, string>> = {
-  blood: DEMO_ASSET_IDS.bloodDrop,
-  stoneChip: DEMO_ASSET_IDS.stoneChip,
-  woodChip: DEMO_ASSET_IDS.woodChip,
-  dust: DEMO_ASSET_IDS.dustPuff,
-  ember: DEMO_ASSET_IDS.blast,
+const PARTICLE_COLORS: Readonly<Record<DemoParticleKind, readonly [number, number, number]>> = {
+  blood: [146, 20, 28],
+  stoneChip: [128, 118, 142],
+  woodChip: [138, 92, 48],
+  dust: [178, 162, 182],
+  ember: [255, 172, 78],
 };
 
-function particleSprites(world: DemoWorld, built: RenderSprite[]): void {
-  world.particles.items.forEach((particle, index) => {
+/** Everything small and numerous, as flat dots rather than sprites. */
+function particles(world: DemoWorld): RenderParticle[] {
+  const built: RenderParticle[] = [];
+
+  for (const particle of world.particles.items) {
     const life = Math.min(1, particle.age / particle.life);
-    // Dust swells as it disperses; everything solid keeps its size and simply stops existing.
-    const swell = particle.kind === "dust" ? 1 + life * 1.9 : 1;
+    // Dust swells as it disperses and fades out; solid debris keeps its size and simply stops.
+    const dusty = particle.kind === "dust";
     built.push({
-      id: `particle-${index}`,
       x: particle.x,
       y: particle.y,
-      placement: "billboard",
-      assetId: PARTICLE_COLORS[particle.kind] ?? DEMO_ASSET_IDS.dustPuff,
-      scale: particle.size * swell * (particle.kind === "dust" ? 1 : 1 - life * 0.3),
-      verticalAnchor: -particle.z,
+      z: particle.z,
+      size: particle.size * (dusty ? 1 + life * 2.2 : 1 - life * 0.25),
+      color: PARTICLE_COLORS[particle.kind],
+      alpha: dusty ? 0.42 * (1 - life) : particle.kind === "ember" ? 1 - life : 1 - life * life * 0.5,
+      ...(particle.kind === "ember" ? { additive: true } : {}),
     });
-  });
-}
+  }
 
-/** A fading ribbon behind anything in flight, drawn from the positions it actually passed through. */
-function trailSprites(world: DemoWorld, built: RenderSprite[]): void {
+  // A fading ribbon behind anything in flight, from the positions it actually passed through.
   for (const projectile of world.projectiles) {
-    const asset = projectile.kind === "bomb" ? DEMO_ASSET_IDS.blast : DEMO_ASSET_IDS.dustPuff;
+    const hot = projectile.kind === "bomb";
 
     projectile.trail.forEach((point, index) => {
       const age = (projectile.trail.length - index) / projectile.trail.length;
       built.push({
-        id: `${projectile.id}-trail-${index}`,
         x: point.x,
         y: point.y,
-        placement: "billboard",
-        assetId: asset,
-        scale: (projectile.kind === "bomb" ? 0.3 : 0.2) * (1 - age) * (1 - age),
-        verticalAnchor: -point.z,
+        z: point.z,
+        size: (hot ? 0.22 : 0.13) * (1 - age),
+        color: hot ? [255, 168, 84] : [186, 176, 190],
+        alpha: (1 - age) * (1 - age) * 0.75,
+        ...(hot ? { additive: true } : {}),
       });
     });
   }
+
+  return built;
 }
 
 function lights(world: DemoWorld): RenderLight[] {
@@ -631,12 +673,6 @@ function lights(world: DemoWorld): RenderLight[] {
       intensity: 0.85 + Math.sin(world.elapsedSeconds * 1.6) * 0.15,
       color: [255, 206, 128],
     });
-  }
-
-  for (const pile of world.piles) {
-    if (pile.ammo === "bomb") {
-      built.push({ id: `${pile.id}-light`, x: pile.x, y: pile.y, radius: 2.4, color: [226, 82, 74], intensity: 0.5 });
-    }
   }
 
   for (const hazard of world.hazards) {
@@ -695,12 +731,6 @@ function emitters(world: DemoWorld): RenderEmitter[] {
 
   if (world.altar.hp > 0) {
     built.push({ id: "demo-altar-embers", x: world.altar.x, y: world.altar.y, kind: "embers", density: 7 });
-  }
-
-  for (const pile of world.piles) {
-    if (pile.ammo === "bomb") {
-      built.push({ id: `${pile.id}-fuse`, x: pile.x, y: pile.y, kind: "embers", density: 3 });
-    }
   }
 
   return built;
@@ -764,6 +794,7 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     boxes: boxes(world),
     sprites: sprites(world),
     beams: beams(world),
+    particles: particles(world),
     lights: lights(world),
     emitters: emitters(world),
   };

@@ -21,7 +21,7 @@ import {
   RANGED_STANDOFF,
 } from "@/demo/enemy-archetypes";
 import { hasBless } from "@/demo/bless";
-import { checkDrowning } from "@/demo/impacts";
+import { checkHazards } from "@/demo/impacts";
 import { breadthFirstStep } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import {
@@ -70,7 +70,7 @@ function applyPush(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): vo
     enemy.pushY = 0;
   }
 
-  checkDrowning(world, enemy);
+  checkHazards(world, enemy);
 }
 
 function separate(world: DemoWorld, enemy: DemoEnemy): Readonly<{ x: number; y: number }> {
@@ -193,7 +193,7 @@ function stepCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
   );
   enemy.x = moved.x;
   enemy.y = moved.y;
-  checkDrowning(world, enemy);
+  checkHazards(world, enemy);
 
   if (Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y) <= 0.95) {
     hurtPlayer(world, CHARGE_DAMAGE, enemy.x, enemy.y);
@@ -242,7 +242,7 @@ export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fro
 
     if (hostage.hp <= 0) {
       const salvage = randomAmmo();
-      world.held = { kind: "prop", prop: salvage };
+      world.held = { kind: "prop", prop: salvage, count: 1 };
       world.deaths.push({
         id: hostage.id,
         appearance: hostage.appearance,

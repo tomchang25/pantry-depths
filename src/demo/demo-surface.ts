@@ -16,7 +16,7 @@ import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { DEMO_GRID_SIZE, tileAt, tileIndex } from "@/demo/maze";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
-import { createDemoWorld, type DemoPropKind, type DemoWorld } from "@/demo/world";
+import { createDemoWorld, type DemoWorld } from "@/demo/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
 
 export type MountedDemo = Readonly<{ dispose: () => void }>;
@@ -59,13 +59,6 @@ function suppressContextMenu(event: MouseEvent): void {
   event.preventDefault();
 }
 
-const PILE_DOT_COLORS: Readonly<Record<DemoPropKind, string>> = {
-  stick: "#d8a25c",
-  rock: "#9c94ac",
-  bomb: "#e0524a",
-  axe: "#dfe6ee",
-};
-
 const ENEMY_DOT_COLORS: Readonly<Record<DemoArchetypeId, string>> = {
   walker: "#7fc46a",
   ranged: "#5aa8e0",
@@ -77,6 +70,7 @@ const MINIMAP_TILE_COLORS: Readonly<Record<string, string>> = {
   stone: "#59506a",
   wood: "#7a5029",
   water: "#1c3f5e",
+  barricade: "#6b4526",
   open: "#241a2e",
 };
 
@@ -104,10 +98,6 @@ function drawMinimap(context: CanvasRenderingContext2D, world: DemoWorld): void 
 
   if (world.altar.hp > 0) {
     dot(world.altar.x, world.altar.y, 3.4, "#f4ca7a");
-  }
-
-  for (const pile of world.piles) {
-    dot(pile.x, pile.y, 2.6, PILE_DOT_COLORS[pile.ammo]);
   }
 
   for (const prop of world.props) {
@@ -172,6 +162,8 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   let frame = 0;
   let lastTime: number | undefined;
   let cardTimer: number | undefined;
+  /** Exponentially smoothed, because a raw per-frame reciprocal is unreadable noise. */
+  let smoothedFps = 60;
   const input: { forward: boolean; backward: boolean; strafeLeft: boolean; strafeRight: boolean } = {
     forward: false,
     backward: false,
@@ -253,7 +245,11 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
   const refreshPanel = (): void => {
     barFill.style.width = `${Math.max(0, (world.player.hp / world.player.maxHp) * 100)}%`;
-    const held = world.held ? (world.held.kind === "enemy" ? "敵人" : PROP_LABELS[world.held.prop]) : "空手";
+    const held = world.held
+      ? world.held.kind === "enemy"
+        ? "敵人"
+        : `${PROP_LABELS[world.held.prop]} ×${world.held.count}`
+      : "空手";
     const ahead = wallAhead(world, meleeReach(world));
     const aheadTile = ahead ? tileAt(world.maze, ahead.x, ahead.y) : undefined;
     const aheadText =
@@ -263,7 +259,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
           ? "外圈磚牆（不可破壞）"
           : `${aheadTile.kind === "wood" ? "木牆" : "石牆"} HP ${aheadTile.hp}/${aheadTile.maxHp}`;
     readout.innerHTML = [
-      `<b>B${world.depth}</b> · HP ${Math.ceil(world.player.hp)} / ${world.player.maxHp}`,
+      `<b>B${world.depth}</b> · HP ${Math.ceil(world.player.hp)} / ${world.player.maxHp} · <span class="demo__fps">${Math.round(smoothedFps)} FPS</span>`,
       `手上：<span class="demo__held">${held}</span>`,
       `面前：${aheadText}`,
       `祭壇 ${world.altar.hp > 0 ? `${world.altar.hp}/${world.altar.maxHp} 下` : "已用"} · 敵人 ${world.enemies.length}`,
@@ -295,6 +291,11 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     frame = window.requestAnimationFrame(tick);
     const deltaSeconds = lastTime === undefined ? 0 : Math.min(0.1, (now - lastTime) / 1000);
     lastTime = now;
+
+    if (deltaSeconds > 0.0005) {
+      smoothedFps += (1 / deltaSeconds - smoothedFps) * 0.08;
+    }
+
     const active = locked() && world.status === "playing";
     stepDemoWorld(
       world,

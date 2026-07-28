@@ -6,6 +6,7 @@ import type {
   RenderBeam,
   RenderEmitter,
   RenderFloorMaterial,
+  RenderParticle,
   RenderPoint,
   RenderBox,
   RenderScene,
@@ -29,7 +30,17 @@ const RENDER_SCALE = 0.55;
 const MAX_WIDTH = 1050;
 const MAX_HEIGHT = 650;
 const TEXTURE_SIZE = 64;
-const LIT_SPRITE_CACHE_LIMIT = 64;
+/**
+ * The lit-sprite cache: how many variants are kept, how big each is, and how finely they are keyed.
+ *
+ * A variant exists per asset, per depth step, per warmth step. With eight depth steps and five
+ * warmth steps a dozen enemies at mixed distances generated more variants than the cache held, so it
+ * evicted and rebuilt continuously. Fewer steps and smaller canvases mean the working set fits.
+ */
+const LIT_SPRITE_CACHE_LIMIT = 160;
+const LIT_SPRITE_SIZE = 160;
+const LIT_DEPTH_STEPS = 5;
+const LIT_WARMTH_STEPS = 3;
 /**
  * Index order for the per-cell floor lookup; position here is what the patch grid stores.
  *
@@ -44,7 +55,7 @@ const BEAM_PIECES = 10;
 /** Lightmap texels per cell. Three is the point where a light pool stops looking like a staircase. */
 const LIGHTMAP_SCALE = 3;
 /** How far into a pool, in cells, the shoreline foam reaches. */
-const FOAM_WIDTH = 0.22;
+const FOAM_WIDTH = 0.11;
 
 export type EnemyRenderEffect = Readonly<{
   entityId: string;
@@ -121,6 +132,9 @@ type RayHit = Readonly<{
 }>;
 
 type ProjectedCorner = Readonly<{ x: number; y: number; inverseDepth: number }>;
+
+/** One entry in the shared back-to-front pass: exactly one of `sprite` or `box` is set. */
+type Drawable = Readonly<{ depth: number; sprite?: ProjectedSprite; box?: RenderBox }>;
 
 type ProjectedSprite = Readonly<{
   sprite: RenderSprite;
@@ -201,6 +215,7 @@ export class CanvasGameplayRenderer {
   #lightmap = new Float32Array(0);
   #solidGrid = new Uint8Array(0);
   readonly #tintStyles = new Map<number, string>();
+  readonly #storeyTextures = new Map<string, HTMLCanvasElement>();
   #lit = false;
 
   public constructor(
@@ -334,6 +349,55 @@ export class CanvasGameplayRenderer {
     }
 
     return false;
+  }
+
+  /**
+   * A wall texture stacked to the room's height, built once and kept.
+   *
+   * The upper storeys are darkened progressively and a cornice line is drawn at each boundary, which
+   * is what makes a two-storey room read as two storeys rather than as one very tall wall.
+   */
+  #storeyTexture(material: RenderSurfaceMaterial, storeys: number): CanvasImageSource {
+    const base = this.#textures.walls[material];
+
+    if (storeys <= 1) {
+      return base;
+    }
+
+    const key = `${material}:${storeys}`;
+    const cached = this.#storeyTextures.get(key);
+
+    if (cached) {
+      return cached;
+    }
+
+    const surface = this.canvas.ownerDocument.createElement("canvas");
+    surface.width = TEXTURE_SIZE;
+    surface.height = TEXTURE_SIZE * storeys;
+    const context = surface.getContext("2d");
+
+    if (!context) {
+      return base;
+    }
+
+    for (let storey = 0; storey < storeys; storey += 1) {
+      // Counted from the top down, so the storey nearest the floor stays the brightest.
+      const above = storeys - 1 - storey;
+      const top = storey * TEXTURE_SIZE;
+      context.drawImage(base, 0, top);
+      context.fillStyle = `rgba(8, 4, 16, ${Math.min(0.5, above * 0.16)})`;
+      context.fillRect(0, top, TEXTURE_SIZE, TEXTURE_SIZE);
+
+      if (storey > 0) {
+        context.fillStyle = "rgba(4, 2, 9, 0.55)";
+        context.fillRect(0, top - 1, TEXTURE_SIZE, 3);
+        context.fillStyle = "rgba(196, 168, 140, 0.16)";
+        context.fillRect(0, top + 2, TEXTURE_SIZE, 1);
+      }
+    }
+
+    this.#storeyTextures.set(key, surface);
+    return surface;
   }
 
   /** The additive light tint for a wall column, quantised so the strings can be reused. */
@@ -515,14 +579,14 @@ export class CanvasGameplayRenderer {
 
     this.#drawProjectedPlanes(scene, elapsedSeconds, preferences.reducedMotion, effects.rejectionTorch);
     this.#drawWalls(scene, surfaceMap, elapsedSeconds, effects.rejectionTorch);
-    if (scene.boxes && scene.boxes.length > 0) {
-      this.#drawBoxes(scene, scene.boxes);
-    }
-
     this.#drawSprites(scene, elapsedSeconds, effects);
 
     if (scene.beams && scene.beams.length > 0) {
       this.#drawBeams(scene, scene.beams);
+    }
+
+    if (scene.particles && scene.particles.length > 0) {
+      this.#drawParticles(scene, scene.particles);
     }
 
     this.#drawEmitters(scene.emitters, scene, elapsedSeconds, preferences.reducedMotion);
@@ -606,6 +670,9 @@ export class CanvasGameplayRenderer {
       const fogRed = 9 * (1 - fog);
       const fogGreen = 5 * (1 - fog);
       const fogBlue = 16 * (1 - fog);
+      const fogFlatRed = 18 * (1 - fog);
+      const fogFlatGreen = 11 * (1 - fog);
+      const fogFlatBlue = 28 * (1 - fog);
       const ceilingPixels = ceilingMaterial ? this.#floorPatchPixels[ceilingMaterial] : undefined;
       const defaultPixels = below ? this.#texturePixels.floor : (ceilingPixels ?? this.#texturePixels.ceiling);
 
@@ -655,7 +722,29 @@ export class CanvasGameplayRenderer {
         const target = (y * width + x) * 4;
 
         if (!this.#lit) {
-          this.#writeLitPixel(image.data, target, pixels, source, fog, torch, stainPixels, stainAmount, foam);
+          // Inlined rather than calling a helper: this runs once per floor and ceiling pixel, so a
+          // call with nine arguments happens a fifth of a million times a frame.
+          const pixel = image.data;
+          let red = pixels[source] ?? 0;
+          let green = pixels[source + 1] ?? 0;
+          let blue = pixels[source + 2] ?? 0;
+
+          if (stainPixels && stainAmount > 0) {
+            red += ((stainPixels[source] ?? 0) - red) * stainAmount;
+            green += ((stainPixels[source + 1] ?? 0) - green) * stainAmount;
+            blue += ((stainPixels[source + 2] ?? 0) - blue) * stainAmount;
+          }
+
+          if (foam > 0) {
+            red += (206 - red) * foam;
+            green += (232 - green) * foam;
+            blue += (246 - blue) * foam;
+          }
+
+          pixel[target] = red * fog + fogFlatRed + 31 * torch;
+          pixel[target + 1] = green * fog + fogFlatGreen + 12 * torch;
+          pixel[target + 2] = blue * fog + fogFlatBlue - 3 * torch;
+          pixel[target + 3] = 255;
           planeXPosition += stepX;
           planeYPosition += stepY;
           continue;
@@ -685,40 +774,6 @@ export class CanvasGameplayRenderer {
     }
 
     this.#context.putImageData(image, 0, 0);
-  }
-
-  #writeLitPixel(
-    target: Uint8ClampedArray,
-    targetIndex: number,
-    source: Uint8ClampedArray,
-    sourceIndex: number,
-    fog: number,
-    torch: number,
-    stain?: Uint8ClampedArray,
-    stainAmount = 0,
-    foam = 0,
-  ): void {
-    const purple = 18;
-    let red = source[sourceIndex] ?? 0;
-    let green = source[sourceIndex + 1] ?? 0;
-    let blue = source[sourceIndex + 2] ?? 0;
-
-    if (stain && stainAmount > 0) {
-      red += ((stain[sourceIndex] ?? 0) - red) * stainAmount;
-      green += ((stain[sourceIndex + 1] ?? 0) - green) * stainAmount;
-      blue += ((stain[sourceIndex + 2] ?? 0) - blue) * stainAmount;
-    }
-
-    if (foam > 0) {
-      red += (206 - red) * foam;
-      green += (232 - green) * foam;
-      blue += (246 - blue) * foam;
-    }
-
-    target[targetIndex] = red * fog + purple * (1 - fog) + 31 * torch;
-    target[targetIndex + 1] = green * fog + 11 * (1 - fog) + 12 * torch;
-    target[targetIndex + 2] = blue * fog + 28 * (1 - fog) - 3 * torch;
-    target[targetIndex + 3] = 255;
   }
 
   /**
@@ -754,6 +809,8 @@ export class CanvasGameplayRenderer {
 
     const withinX = x - cellX;
     const withinY = y - cellY;
+    // Only the closest shore contributes. Summing every dry neighbour turned a one-cell pool — which
+    // is dry on all four sides — into a solid block of foam with no water left in it.
     let nearest = 1;
 
     if (dry(-1, 0)) {
@@ -776,10 +833,9 @@ export class CanvasGameplayRenderer {
       return 0;
     }
 
-    // A band that is brightest just inside the edge and fades inward, with the edge itself left
-    // slightly darker so the waterline reads as a line rather than as a glow.
-    const across = nearest / FOAM_WIDTH;
-    return Math.sin(across * Math.PI) * 0.5 + (1 - across) * 0.18;
+    // A narrow band that peaks just inside the waterline and falls away on both sides, so the shore
+    // reads as a line of white water rather than as a glow over the whole pool.
+    return Math.sin((nearest / FOAM_WIDTH) * Math.PI) * 0.42;
   }
 
   #castRay(scene: RenderScene, surfaces: ReadonlyMap<string, RenderSurface>, cameraX: number): RayHit | undefined {
@@ -857,6 +913,9 @@ export class CanvasGameplayRenderer {
     const lightHeight = scene.height * LIGHTMAP_SCALE;
     const eyeHeight = this.#eyeHeight(scene);
     const roomHeight = this.#wallHeight(scene);
+    const storeys = Math.max(1, Math.round(roomHeight));
+    // One entry per material actually seen this frame, so the column loop never composes a key.
+    const frameTextures = new Map<RenderSurfaceMaterial, CanvasImageSource>();
 
     for (let x = 0; x < width; x += 1) {
       const hit = this.#castRay(scene, surfaces, (2 * x) / width - 1);
@@ -871,32 +930,40 @@ export class CanvasGameplayRenderer {
       // horizon when the eye is halfway up it.
       const depth = Math.max(0.001, hit.distance);
       const bottom = horizon + (eyeHeight * height) / depth;
-      const wallHeight = Math.min(height * 2 * roomHeight, (roomHeight * height) / depth);
-      const start = Math.floor(bottom - wallHeight);
+      const wallHeight = (roomHeight * height) / depth;
+      const start = bottom - wallHeight;
       const material: RenderSurfaceMaterial =
         hit.surface.material === "breakableWall" && !hit.surface.hintFaces?.includes(hit.face)
           ? "stoneWall"
           : hit.surface.material;
-      const texture = this.#textures.walls[material];
-      // One copy of the texture per cell of room height. Stretching a single copy over a tall wall
-      // makes the masonry courses grow with the room, which reads as a low-resolution wall rather
-      // than a high one — the blocks have to stay the size the floor tiles say they are.
-      const courses = Math.max(1, Math.round(roomHeight));
-      const courseHeight = wallHeight / courses;
+      // Resolved from a table built once per frame. Looking it up by a key composed here instead
+      // allocated a string per screen column, which measured as most of the wall pass.
+      let texture = frameTextures.get(material);
 
-      for (let course = 0; course < courses; course += 1) {
-        this.#context.drawImage(
-          texture,
-          hit.textureX,
-          0,
-          1,
-          TEXTURE_SIZE,
-          x,
-          start + course * courseHeight,
-          1,
-          courseHeight + 1,
-        );
+      if (texture === undefined) {
+        texture = this.#storeyTexture(material, storeys);
+        frameTextures.set(material, texture);
       }
+
+      // Clipped against the screen in *source* space, not by shortening the destination.
+      //
+      // The height was previously clamped to a maximum, which quietly squashed the texture into a
+      // shorter rectangle for near columns while leaving neighbouring columns unsquashed — so the
+      // masonry courses stepped sideways from column to column and a wall you stood next to came out
+      // visibly sheared. Taking the matching slice of the source keeps every column's texels on the
+      // same lines no matter how close the wall gets.
+      const sourceHeight = TEXTURE_SIZE * storeys;
+      const above = Math.max(0, -start);
+      const below = Math.max(0, start + wallHeight - height);
+      const visible = wallHeight - above - below;
+
+      if (visible <= 0) {
+        continue;
+      }
+
+      const sourceTop = (above / wallHeight) * sourceHeight;
+      const sourceSpan = (visible / wallHeight) * sourceHeight;
+      this.#context.drawImage(texture, hit.textureX, sourceTop, 1, sourceSpan, x, start + above, 1, visible);
 
       const fog = clamp(hit.distance / MAX_DEPTH, 0, 0.88);
 
@@ -1013,24 +1080,54 @@ export class CanvasGameplayRenderer {
     return { sprite, depth, screenX, startX, endX: Math.ceil(screenX + width / 2), startY, width, height };
   }
 
+  /**
+   * Sprites and boxes, interleaved by depth and drawn back to front.
+   *
+   * They have to share one ordering. The depth buffer only records walls, so it cannot arbitrate
+   * between a box and a sprite — and drawing all the boxes first meant every creature painted itself
+   * over the barricade it was standing behind. Sorting them together is the painter's algorithm, and
+   * it gets this right for everything except a sprite standing inside a box, which is a case the
+   * geometry here never produces.
+   */
   #drawSprites(scene: RenderScene, elapsedSeconds: number, effects: PresentationRenderEffects): void {
     const enemyEffects = new Map(effects.enemies.map((effect) => [effect.entityId, effect]));
-    const sprites = scene.sprites
-      .map((sprite) => this.#projectSprite(scene, sprite))
-      .filter((sprite): sprite is ProjectedSprite => Boolean(sprite))
-      .reduce<ProjectedSprite[]>((ordered, candidate) => {
-        const index = ordered.findIndex((current) => current.depth < candidate.depth);
+    const drawables: Drawable[] = [];
 
-        if (index === -1) {
-          ordered.push(candidate);
-        } else {
-          ordered.splice(index, 0, candidate);
-        }
+    for (const sprite of scene.sprites) {
+      const projected = this.#projectSprite(scene, sprite);
 
-        return ordered;
-      }, []);
+      if (projected) {
+        drawables.push({ depth: projected.depth, sprite: projected });
+      }
+    }
 
-    for (const projected of sprites) {
+    for (const box of scene.boxes ?? []) {
+      // Measured to the nearest corner of the footprint rather than the centre: a wide box read as
+      // further away than its own leading edge and sank behind things standing in front of it.
+      const nearestX = clamp(scene.camera.x, box.x - box.halfX, box.x + box.halfX);
+      const nearestY = clamp(scene.camera.y, box.y - box.halfY, box.y + box.halfY);
+      drawables.push({ depth: Math.hypot(nearestX - scene.camera.x, nearestY - scene.camera.y), box });
+    }
+
+    const ordered = drawables.reduce<Drawable[]>((list, candidate) => {
+      const index = list.findIndex((current) => current.depth < candidate.depth);
+
+      if (index === -1) {
+        list.push(candidate);
+      } else {
+        list.splice(index, 0, candidate);
+      }
+
+      return list;
+    }, []);
+
+    for (const entry of ordered) {
+      if (entry.box) {
+        this.#drawBox(scene, entry.box);
+        continue;
+      }
+
+      const projected = entry.sprite as ProjectedSprite;
       const enemyEffect = enemyEffects.get(projected.sprite.id);
       const assetId = projected.sprite.appearanceId
         ? `enemy.${projected.sprite.appearanceId}.${enemyEffect?.state ?? "normal"}`
@@ -1045,11 +1142,11 @@ export class CanvasGameplayRenderer {
 
     // Last, and over everything: the silhouettes that are meant to be seen through the walls they
     // are behind. Drawn after the depth-tested pass so nothing can paint back over them.
-    for (const projected of sprites) {
-      const xray = projected.sprite.xray;
+    for (const entry of ordered) {
+      const xray = entry.sprite?.sprite.xray;
 
-      if (xray) {
-        this.#drawSilhouette(projected, xray, elapsedSeconds);
+      if (xray && entry.sprite) {
+        this.#drawSilhouette(entry.sprite, xray, elapsedSeconds);
       }
     }
 
@@ -1364,31 +1461,13 @@ export class CanvasGameplayRenderer {
   }
 
   /**
-   * Draws boxes: the four sides, then the top.
+   * Draws one box: the two sides facing the camera, then the top.
    *
-   * Only the two sides actually facing the camera are drawn — the far ones are behind the near ones
-   * and would only cost fill — and each face is shaded by its own orientation so the box reads as
-   * solid rather than as a flat silhouette.
+   * The faces turned away are behind the near ones and would only cost fill, and each visible face
+   * is shaded by its own orientation so the box reads as solid rather than as a flat silhouette.
    */
-  #drawBoxes(scene: RenderScene, boxes: readonly RenderBox[]): void {
-    // Furthest first, so boxes that overlap each other stack correctly; the depth buffer only
-    // arbitrates against walls. Insertion into an ordered list, matching the sprite pass.
-    const ordered = boxes.reduce<RenderBox[]>((list, candidate) => {
-      const distance = Math.hypot(candidate.x - scene.camera.x, candidate.y - scene.camera.y);
-      const index = list.findIndex(
-        (current) => Math.hypot(current.x - scene.camera.x, current.y - scene.camera.y) < distance,
-      );
-
-      if (index === -1) {
-        list.push(candidate);
-      } else {
-        list.splice(index, 0, candidate);
-      }
-
-      return list;
-    }, []);
-
-    for (const box of ordered) {
+  #drawBox(scene: RenderScene, box: RenderBox): void {
+    {
       const west = box.x - box.halfX;
       const east = box.x + box.halfX;
       const north = box.y - box.halfY;
@@ -1481,27 +1560,117 @@ export class CanvasGameplayRenderer {
     }
   }
 
+  /**
+   * Draws particles as flat circles, sorted far to near and depth-tested at their centre.
+   *
+   * One `arc` and one `fill` each, and no image anywhere in the path. Measured against the sprite
+   * pipeline this is the difference between four hundred specks costing a third of the frame and
+   * costing almost nothing.
+   */
+  #drawParticles(scene: RenderScene, particles: readonly RenderParticle[]): void {
+    const context = this.#context;
+    const height = this.canvas.height;
+    const projected: Readonly<{ x: number; y: number; radius: number; depth: number; particle: RenderParticle }>[] = [];
+
+    for (const particle of particles) {
+      const point = this.#projectPoint(scene, particle);
+
+      if (!point) {
+        continue;
+      }
+
+      const radius = (particle.size * height) / (2 * point.depth);
+
+      if (radius < 0.35) {
+        continue;
+      }
+
+      const column = clamp(Math.round(point.screenX), 0, this.canvas.width - 1);
+
+      if (point.depth >= (this.#depthBuffer[column] ?? MAX_DEPTH)) {
+        continue;
+      }
+
+      projected.push({ x: point.screenX, y: point.screenY, radius, depth: point.depth, particle });
+    }
+
+    // Painter's order among themselves; the depth buffer only arbitrates against walls.
+    projected.sort((left, right) => right.depth - left.depth);
+    context.save();
+
+    for (const item of projected) {
+      const fade = clamp(1 - item.depth / MAX_DEPTH, 0.15, 1);
+      const color = item.particle.color;
+      context.globalCompositeOperation = item.particle.additive === true ? "lighter" : "source-over";
+      context.fillStyle = `rgba(${Math.round(color[0] * fade)}, ${Math.round(color[1] * fade)}, ${Math.round(
+        color[2] * fade,
+      )}, ${clamp(item.particle.alpha, 0, 1)})`;
+      context.beginPath();
+      context.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    context.restore();
+  }
+
+  /**
+   * Draws a sprite, skipping the columns a wall is in front of.
+   *
+   * The depth test has to be per column — that is the resolution the depth buffer has — but the
+   * drawing does not. Consecutive visible columns are gathered into runs and each run is issued as
+   * one `drawImage`, so a sprite standing in the open costs a single call instead of one per pixel
+   * of its width. Measured on a crowd, this was most of the cost of drawing them.
+   */
   #drawProjectedImage(projected: ProjectedSprite, source: CanvasImageSource, alpha: number): void {
     const dimensions = imageDimensions(source);
     const startX = Math.max(0, projected.startX);
     const endX = Math.min(this.canvas.width, projected.endX);
-    this.#context.save();
-    this.#context.globalAlpha = clamp(alpha, 0, 1);
 
-    for (let x = startX; x < endX; x += 1) {
-      if (projected.depth >= (this.#depthBuffer[x] ?? MAX_DEPTH)) {
-        continue;
-      }
-
-      const sourceX = Math.floor(((x - projected.startX) / projected.width) * dimensions.width);
-      this.#context.drawImage(source, sourceX, 0, 1, dimensions.height, x, projected.startY, 1, projected.height);
+    if (endX <= startX) {
+      return;
     }
 
+    this.#context.save();
+    this.#context.globalAlpha = clamp(alpha, 0, 1);
+    let runStart = -1;
+
+    const flush = (runEnd: number): void => {
+      if (runStart < 0) {
+        return;
+      }
+
+      const sourceFrom = ((runStart - projected.startX) / projected.width) * dimensions.width;
+      const sourceTo = ((runEnd - projected.startX) / projected.width) * dimensions.width;
+      this.#context.drawImage(
+        source,
+        sourceFrom,
+        0,
+        Math.max(0.01, sourceTo - sourceFrom),
+        dimensions.height,
+        runStart,
+        projected.startY,
+        runEnd - runStart,
+        projected.height,
+      );
+      runStart = -1;
+    };
+
+    for (let x = startX; x < endX; x += 1) {
+      if (projected.depth < (this.#depthBuffer[x] ?? MAX_DEPTH)) {
+        if (runStart < 0) {
+          runStart = x;
+        }
+      } else {
+        flush(x);
+      }
+    }
+
+    flush(endX);
     this.#context.restore();
   }
 
   #litImage(assetId: string, depth: number, scene: RenderScene, x: number, y: number): CanvasImageSource {
-    const darknessBucket = Math.round(clamp(depth / MAX_DEPTH, 0, 0.82) * 8) / 8;
+    const darknessBucket = Math.round(clamp(depth / MAX_DEPTH, 0, 0.82) * LIT_DEPTH_STEPS) / LIT_DEPTH_STEPS;
     let warmth = clamp(1 - depth / 7, 0, 0.42);
     let warmColor = DEFAULT_TORCH_COLOR;
 
@@ -1527,7 +1696,7 @@ export class CanvasGameplayRenderer {
       }
     }
 
-    const warmthBucket = Math.round(warmth * 4) / 4;
+    const warmthBucket = Math.round(warmth * LIT_WARMTH_STEPS) / LIT_WARMTH_STEPS;
     const key = `${assetId}:${darknessBucket}:${warmthBucket}:${warmColor.join()}`;
     const cached = this.#litSpriteCache.get(key);
 
@@ -1539,16 +1708,21 @@ export class CanvasGameplayRenderer {
 
     const source = requireImage(this.images, assetId);
     const dimensions = imageDimensions(source);
+    // Cached at a fraction of the source resolution. These are only ever drawn a column at a time at
+    // whatever size perspective gives them, almost always far under the source's own 512 — and the
+    // full-size version cost a megabyte to allocate and clear, which is what made the cache missing
+    // so expensive that a crowd of enemies halved the frame rate.
+    const scale = Math.min(1, LIT_SPRITE_SIZE / Math.max(dimensions.width, dimensions.height));
     const surface = this.canvas.ownerDocument.createElement("canvas");
-    surface.width = dimensions.width;
-    surface.height = dimensions.height;
+    surface.width = Math.max(1, Math.round(dimensions.width * scale));
+    surface.height = Math.max(1, Math.round(dimensions.height * scale));
     const context = surface.getContext("2d");
 
     if (!context) {
       return source;
     }
 
-    context.drawImage(source, 0, 0);
+    context.drawImage(source, 0, 0, surface.width, surface.height);
     context.globalCompositeOperation = "source-atop";
     context.fillStyle = `rgba(13, 5, 24, ${darknessBucket})`;
     context.fillRect(0, 0, surface.width, surface.height);

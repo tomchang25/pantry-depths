@@ -8,7 +8,14 @@
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { createBlessState, grantBless, hasBless, OVERFLOW_MAX_HP, type BlessState } from "@/demo/bless";
 import { ENEMY_ARCHETYPES, type DemoEnemyArchetype } from "@/demo/enemy-archetypes";
-import { DEMO_GRID_SIZE, generateDemoMaze, blocksWalk, type DemoCell, type DemoMaze } from "@/demo/maze";
+import {
+  blocksProjectile,
+  blocksWalk,
+  DEMO_GRID_SIZE,
+  generateDemoMaze,
+  type DemoCell,
+  type DemoMaze,
+} from "@/demo/maze";
 import { burst, createParticleField, type DemoParticleField } from "@/demo/particles";
 
 /** A grid coordinate as the demo passes it around; structurally the same as the maze's own cell. */
@@ -47,28 +54,19 @@ export type DemoEnemy = {
   drowningSeconds: number;
 };
 
+/**
+ * A pickup lying on the floor, carrying however many uses it holds.
+ *
+ * Replaces the rubble piles, which were a thing you stood next to and pulled three times. A stack is
+ * taken in one grab and spent one throw at a time, so the decision is at the moment you pick it up
+ * rather than repeated three times at the same spot.
+ */
 export type DemoProp = {
   id: string;
   kind: DemoPropKind;
+  count: number;
   x: number;
   y: number;
-};
-
-/**
- * A stash a broken wood wall leaves behind.
- *
- * The kind of ammunition is decided once, when the wall breaks, and every pickup from that pile
- * yields it — so what a pile is worth is legible from across the room by its shape, rather than
- * being a slot machine you have to stand next to and pull three times.
- *
- * Stone walls leave nothing at all.
- */
-export type DemoPile = {
-  id: string;
-  ammo: DemoPropKind;
-  x: number;
-  y: number;
-  remaining: number;
 };
 
 export type DemoProjectile = {
@@ -128,7 +126,9 @@ export type DemoDeath = {
 };
 
 export type DemoHeld =
-  Readonly<{ kind: "prop"; prop: DemoPropKind }> | Readonly<{ kind: "enemy"; enemy: DemoEnemy }> | undefined;
+  | Readonly<{ kind: "prop"; prop: DemoPropKind; count: number }>
+  | Readonly<{ kind: "enemy"; enemy: DemoEnemy }>
+  | undefined;
 
 export type DemoPlayer = {
   x: number;
@@ -173,7 +173,6 @@ export type DemoWorld = {
   bless: BlessState;
   enemies: DemoEnemy[];
   props: DemoProp[];
-  piles: DemoPile[];
   projectiles: DemoProjectile[];
   hazards: DemoHazard[];
   vfx: DemoVfx[];
@@ -223,10 +222,10 @@ export const MAX_ENEMIES = 20;
 /** How far from the player a reinforcement must appear, so nothing pops into an occupied corridor. */
 const SPAWN_CLEARANCE = 7;
 
-const LOOSE_PROPS: readonly Readonly<{ kind: DemoPropKind; count: number }>[] = [
-  { kind: "stick", count: 5 },
-  { kind: "rock", count: 6 },
-  { kind: "bomb", count: 2 },
+const LOOSE_PROPS: readonly Readonly<{ kind: DemoPropKind; scatter: number }>[] = [
+  { kind: "stick", scatter: 4 },
+  { kind: "rock", scatter: 5 },
+  { kind: "bomb", scatter: 2 },
 ];
 
 export const AMMO_KINDS: readonly DemoPropKind[] = ["stick", "rock", "bomb"];
@@ -315,16 +314,17 @@ export function populateFloor(world: DemoWorld): void {
   const maze = world.maze;
   world.enemies = [];
   world.props = [];
-  world.piles = [];
   world.projectiles = [];
   world.hazards = [];
   world.vfx = [];
   world.particles = createParticleField();
   world.stains = new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE);
   world.deaths = [];
-  // Rooms get taller as you go down, wandering rather than climbing steadily so consecutive floors
-  // never feel like the same room twice.
-  world.wallHeight = 1.45 + Math.min(0.9, world.depth * 0.12) + Math.random() * 0.35;
+  // A whole number of storeys, never a fraction. The wall texture is tiled once per cell of height,
+  // so a room 1.7 cells tall stretched the last course and made the masonry read as low-resolution
+  // rather than as high — which is exactly the distortion a fractional height causes. Deeper floors
+  // are likelier to be the tall kind.
+  world.wallHeight = Math.random() < Math.min(0.75, 0.25 + world.depth * 0.12) ? 2 : 1;
   world.altar = { hp: ALTAR_HITS, maxHp: ALTAR_HITS, x: maze.altar.x + 0.5, y: maze.altar.y + 0.5 };
   world.spawnSeconds = SPAWN_INTERVAL_SECONDS;
   world.player.x = maze.entrance.x + 0.5;
@@ -350,14 +350,14 @@ export function populateFloor(world: DemoWorld): void {
   const propPool = walkableCells(maze);
 
   for (const group of LOOSE_PROPS) {
-    for (let index = 0; index < group.count; index += 1) {
+    for (let index = 0; index < group.scatter; index += 1) {
       const cell = takeRandom(propPool);
 
       if (!cell) {
         break;
       }
 
-      world.props.push({ id: nextId(world, "prop"), kind: group.kind, x: cell.x + 0.5, y: cell.y + 0.5 });
+      world.props.push({ id: nextId(world, "prop"), kind: group.kind, count: 3, x: cell.x + 0.5, y: cell.y + 0.5 });
     }
   }
 }
@@ -381,7 +381,6 @@ export function createDemoWorld(): DemoWorld {
     bless: createBlessState(),
     enemies: [],
     props: [],
-    piles: [],
     projectiles: [],
     hazards: [],
     vfx: [],
@@ -471,6 +470,12 @@ export function stainFloor(world: DemoWorld, x: number, y: number, amount: numbe
     return;
   }
 
+  // Nothing settles on water. Recorded here as well as skipped at draw time, so a pool that is
+  // later drained by some future change does not reveal blood that was never visible.
+  if (world.maze.tiles[cellY * DEMO_GRID_SIZE + cellX]?.kind === "water") {
+    return;
+  }
+
   const index = cellY * DEMO_GRID_SIZE + cellX;
   world.stains[index] = Math.min(MAX_STAIN, (world.stains[index] ?? 0) + amount);
 }
@@ -482,12 +487,15 @@ export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
 /**
  * What a corpse leaves behind.
  *
- * Wood walls supply the ordinary ammunition; these two only ever come off something you killed, so
- * fighting and mining stay separate ways of restocking. The axe in particular never appears in a
- * pile — the only way to get one is to earn it.
+ * Every restock now comes off something you killed — walls supply shortcuts and nothing else. Each
+ * entry is cumulative against one roll, so the last number is the total chance of any drop at all.
  */
-const BOMB_DROP_CHANCE = 0.16;
-const AXE_DROP_CHANCE = 0.14;
+const DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: number }>[] = [
+  { kind: "axe", count: 1, upTo: 0.1 },
+  { kind: "stick", count: 3, upTo: 0.2 },
+  { kind: "rock", count: 3, upTo: 0.3 },
+  { kind: "bomb", count: 3, upTo: 0.36 },
+];
 export const LIFESTEAL_HEAL = 12;
 
 /**
@@ -526,14 +534,10 @@ export function killEnemy(world: DemoWorld, enemy: DemoEnemy): void {
   }
 
   const roll = Math.random();
+  const drop = DROP_TABLE.find((entry) => roll < entry.upTo);
 
-  if (roll < BOMB_DROP_CHANCE) {
-    world.props.push({ id: nextId(world, "prop"), kind: "bomb", x: enemy.x, y: enemy.y });
-    return;
-  }
-
-  if (roll < BOMB_DROP_CHANCE + AXE_DROP_CHANCE) {
-    world.props.push({ id: nextId(world, "prop"), kind: "axe", x: enemy.x, y: enemy.y });
+  if (drop) {
+    world.props.push({ id: nextId(world, "prop"), kind: drop.kind, count: drop.count, x: enemy.x, y: enemy.y });
   }
 }
 
@@ -551,6 +555,14 @@ export function damageEnemy(world: DemoWorld, enemy: DemoEnemy, amount: number):
 }
 
 /** True when the straight segment between two points crosses no wall. Water does not block. */
+/**
+ * Whether an attack can be made along this line.
+ *
+ * Asks the projectile question, not the vision one, and the difference matters: a shooter that can
+ * *see* you over a barricade but cannot *shoot* through it would happily line up, fire, and bury
+ * every shot in the timbers forever. Using the same predicate the shot itself uses means it simply
+ * does not take the shot, and walks until it has an angle — which is what cover is supposed to do.
+ */
 export function hasLineOfSight(maze: DemoMaze, fromX: number, fromY: number, toX: number, toY: number): boolean {
   const distance = Math.hypot(toX - fromX, toY - fromY);
   const steps = Math.ceil(distance * 8);
@@ -560,14 +572,10 @@ export function hasLineOfSight(maze: DemoMaze, fromX: number, fromY: number, toX
     const x = fromX + (toX - fromX) * t;
     const y = fromY + (toY - fromY) * t;
 
-    if (blocksWalk(maze, Math.floor(x), Math.floor(y)) && !isWater(maze, x, y)) {
+    if (blocksProjectile(maze, Math.floor(x), Math.floor(y))) {
       return false;
     }
   }
 
   return true;
-}
-
-function isWater(maze: DemoMaze, x: number, y: number): boolean {
-  return maze.tiles[Math.floor(y) * DEMO_GRID_SIZE + Math.floor(x)]?.kind === "water";
 }
