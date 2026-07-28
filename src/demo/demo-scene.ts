@@ -79,17 +79,11 @@ const ARC_SEGMENTS = 7;
  */
 const JAVELIN_LENGTH = 0.95;
 const JAVELIN_WIDTH = 0.055;
-const JAVELIN_THROW_HEIGHT = 0.52;
-/** Radians of nose-down per cell travelled, capped so a long throw never points at the floor. */
-const JAVELIN_PITCH = 0.022;
-const JAVELIN_MAX_PITCH = 0.3;
 
 const AXE_LENGTH = 0.46;
 const AXE_WIDTH = 0.12;
 /** Radians of tumble per cell travelled. An axe is defined by turning over.  */
 const AXE_SPIN = 7.2;
-const AXE_THROW_HEIGHT = 0.52;
-const AXE_DROOP = 0.14;
 
 const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   stick: DEMO_ASSET_IDS.stick,
@@ -318,8 +312,9 @@ function sprites(world: DemoWorld): RenderSprite[] {
   }
 
   for (const projectile of world.projectiles) {
-    // Anything lobbed marks where it is coming down; the shadow is the aiming feedback.
-    if (projectile.arc > 0) {
+    // Anything lobbed marks where it is coming down; the shadow is the aiming feedback. Keyed on
+    // `fall` because a downward lob has a negative rise, which the old arc check misread as flat.
+    if (projectile.fall > 0) {
       built.push(ground(`${projectile.id}-shadow`, projectile.x, projectile.y, DEMO_ASSET_IDS.dropShadow, 0.5));
     }
 
@@ -842,7 +837,8 @@ function beams(world: DemoWorld): RenderBeam[] {
 
   for (const projectile of world.projectiles) {
     if (projectile.kind === "stick") {
-      const pitch = -Math.min(JAVELIN_MAX_PITCH, projectile.travelled * JAVELIN_PITCH);
+      // The shaft points along its own flight line, which is now the aim line it left the hand on.
+      const slope = projectile.arc / Math.max(0.0001, projectile.range);
       built.push(
         rodBeam(
           projectile.id,
@@ -850,8 +846,8 @@ function beams(world: DemoWorld): RenderBeam[] {
           projectile.y,
           projectile.directionX,
           projectile.directionY,
-          pitch,
-          JAVELIN_THROW_HEIGHT,
+          Math.atan(slope),
+          projectileHeight(projectile),
           JAVELIN_LENGTH,
           JAVELIN_WIDTH,
           [104, 66, 36],
@@ -862,7 +858,6 @@ function beams(world: DemoWorld): RenderBeam[] {
     }
 
     if (projectile.kind === "axe") {
-      const flight = projectile.travelled / Math.max(0.0001, projectile.range);
       built.push(
         rodBeam(
           projectile.id,
@@ -871,7 +866,7 @@ function beams(world: DemoWorld): RenderBeam[] {
           projectile.directionX,
           projectile.directionY,
           projectile.travelled * AXE_SPIN,
-          AXE_THROW_HEIGHT - flight * flight * AXE_DROOP,
+          projectileHeight(projectile),
           AXE_LENGTH,
           AXE_WIDTH,
           [88, 58, 32],

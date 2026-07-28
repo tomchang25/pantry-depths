@@ -80,12 +80,17 @@ export type DemoProjectile = {
   travelled: number;
   range: number;
   /**
-   * Total unbent rise of the display parabola over the whole flight, in cells: the throw departs
-   * along the aim line and gravity bends it down onto the landing point the range already fixed.
-   * Negative for downward throws, zero only for flat-flying weapons. The flight itself is still
-   * two-dimensional.
+   * Total unbent rise over the whole flight, in cells: the throw departs along the aim line, so
+   * this is the aim slope times the range, negative when aimed down. The flight itself is still
+   * two-dimensional; the height it implies is what collision consults.
    */
   arc: number;
+  /**
+   * How much of that rise gravity takes back, quadratically. Lobbed throws set it so the curve
+   * lands exactly at the end of the range; line-flying weapons — the javelin and the axe — leave
+   * it at zero and simply fly where they were pointed.
+   */
+  fall: number;
   /** The body of a thrown enemy, so it can land and keep fighting if it survives the flight. */
   payload: DemoEnemy | undefined;
   struck: Set<string>;
@@ -555,21 +560,17 @@ export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
 }
 
 /**
- * Display height of a projectile above the floor, in cells.
+ * Height of a projectile above the floor, in cells — simulation truth, not decoration.
  *
- * Flat-flying weapons hold hand height the whole way. Lobbed ones follow a parabola pinned at both
- * ends: it leaves the hand *along the aim line* — which is what makes an upward throw read as
- * flying up rather than shrinking away — and touches down exactly where the range runs out. An
- * earlier version fixed the peak instead of the launch direction, and a skyward throw departed
- * almost level, crawling off under the crosshair.
+ * Every throw leaves the hand *along the aim line*, which is what makes an upward throw read as
+ * flying up rather than shrinking away. Lobbed things then bend down under `fall` to touch the
+ * ground exactly where the range runs out; line-flying weapons keep the launch slope the whole
+ * way. An earlier version fixed the peak instead of the launch direction, and a skyward throw
+ * departed almost level, crawling off under the crosshair.
  */
 export function projectileHeight(projectile: DemoProjectile): number {
-  if (projectile.arc === 0) {
-    return 0.52;
-  }
-
   const s = Math.min(1, Math.max(0, projectile.travelled / Math.max(0.0001, projectile.range)));
-  return Math.max(0, 0.5 + projectile.arc * s - (0.5 + projectile.arc) * s * s);
+  return Math.max(0, 0.5 + projectile.arc * s - projectile.fall * s * s);
 }
 
 /**

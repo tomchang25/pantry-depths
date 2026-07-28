@@ -44,30 +44,29 @@ export const BLAST_WALL_DAMAGE = 4;
 const WALL_DROP_CHANCE = 0.2;
 
 /**
- * A thrown body always travels the same two tiles: the throw is a placement, not a ranged attack.
- * The javelin is the opposite — it is given more range than the map has, because what stops it is
- * meant to be a wall, never the throw running out of arm.
+ * A thrown body flies like any other lob now that flight has real height — the old fixed two-tile
+ * placement made an upward toss look absurd. The javelin keeps more range than the map has,
+ * because what stops it is meant to be a wall, never the throw running out of arm; the boundary
+ * wall guarantees that even a skyward one comes down somewhere.
  */
-const THROW_RANGE: Readonly<Record<DemoThrowKind, number>> = { enemy: 2, stick: 40, rock: 8, bomb: 9, axe: 10 };
+const THROW_RANGE: Readonly<Record<DemoThrowKind, number>> = { enemy: 8, stick: 40, rock: 8, bomb: 9, axe: 10 };
 const THROW_SPEED: Readonly<Record<DemoThrowKind, number>> = { enemy: 11, stick: 22, rock: 14, bomb: 12, axe: 16 };
 
 /**
- * Throws whose range shortens to where the crosshair meets the floor.
- *
- * The flight itself is flat — pitch turns the head, not the arm — so without this an enemy hurled
- * at the pool right in front of the player sailed its full fixed range and landed on the far side.
- * Lobbed things obey the aim; the javelin and the axe stay ballistic by design, flying until they
- * meet something.
+ * Throws that arc: they depart along the aim line and gravity brings them down on the landing
+ * point. The javelin and the axe are not here — they fly the straight line they were pointed
+ * along, which is the whole character difference between a lob and a hurled weapon.
  */
-const AIM_CAPPED_THROWS: ReadonlySet<DemoThrowKind> = new Set(["enemy", "rock", "bomb"]);
+const LOBBED_THROWS: ReadonlySet<DemoThrowKind> = new Set(["enemy", "rock", "bomb"]);
 
 /** How far ahead a projectile leaves the hand; the aim cap subtracts it so the landing matches. */
 const THROW_SPAWN_AHEAD = 0.4;
 
+/** Every throw aimed at the floor stops where the crosshair meets it, lobbed or straight. */
 function throwRange(world: DemoWorld, kind: DemoThrowKind): number {
   const base = THROW_RANGE[kind];
 
-  if (!AIM_CAPPED_THROWS.has(kind) || world.player.pitch > 0) {
+  if (world.player.pitch > 0) {
     return base;
   }
 
@@ -312,10 +311,10 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
   const direction = facing(world);
   const range = throwRange(world, kind);
-  // The unbent rise over the whole flight is the aim-line slope times the distance, so the throw
-  // leaves the hand exactly where the crosshair points. `|| 0.0001` keeps one razor-thin aim from
-  // reading as the flat-weapon sentinel. The javelin and the axe stay flat by design.
-  const arc = AIM_CAPPED_THROWS.has(kind) ? (world.player.pitch - 0.01) * range || 0.0001 : 0;
+  // Every throw departs along the aim line: the unbent rise is the aim slope times the distance.
+  // Lobbed kinds hand that rise back to gravity so they land at the end of the range; straight
+  // kinds keep the slope the whole way.
+  const arc = (world.player.pitch - 0.01) * range;
   world.projectiles.push({
     id: nextId(world, "shot"),
     kind,
@@ -326,6 +325,7 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
     travelled: 0,
     range,
     arc,
+    fall: LOBBED_THROWS.has(kind) ? 0.5 + arc : 0,
     payload,
     struck: new Set<string>(),
     trail: [],

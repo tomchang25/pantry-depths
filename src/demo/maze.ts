@@ -298,6 +298,41 @@ export function blocksWalk(maze: DemoMaze, x: number, y: number): boolean {
 }
 
 /**
+ * How high a thrown thing has to be flying to clear a barricade.
+ *
+ * This amends the flat cover contract: a barricade still stops every flat throw — which is what
+ * makes it cover — but a deliberate lob arcs over the timbers. Ground-level tactics keep their
+ * meaning and aiming upward buys a way past them.
+ */
+const BARRICADE_CLEAR_HEIGHT = 0.7;
+
+/**
+ * Whether a projectile flying at this height is stopped by the cell.
+ *
+ * The height-aware form of `blocksProjectile`, for flights that really have a height: walls stop
+ * what flies below their top, the boundary stops everything so the arena stays sealed however hard
+ * the throw, and pools stop nothing. `wallHeight` is the floor's interior wall height, owned by
+ * the world rather than the maze.
+ */
+export function blocksProjectileAt(maze: DemoMaze, x: number, y: number, z: number, wallHeight: number): boolean {
+  const tile = tileAt(maze, x, y);
+
+  if (tile === undefined || tile.kind === "border") {
+    return true;
+  }
+
+  if (tile.kind === "stone" || tile.kind === "wood") {
+    return z < wallHeight;
+  }
+
+  if (tile.kind === "barricade") {
+    return z < BARRICADE_CLEAR_HEIGHT;
+  }
+
+  return false;
+}
+
+/**
  * What stops a body that is not in control of itself — knocked back, or thrown.
  *
  * Only walls. A barricade must *not* be in here: if it stopped flung bodies they would pile against

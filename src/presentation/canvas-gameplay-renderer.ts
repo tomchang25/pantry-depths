@@ -1846,10 +1846,10 @@ export class CanvasGameplayRenderer {
         ? `enemy.${projected.sprite.appearanceId}.${enemyEffect?.state ?? "normal"}`
         : projected.sprite.assetId;
       const source = this.#litImage(assetId, projected.depth, scene, projected.sprite.x, projected.sprite.y);
-      this.#drawProjectedImage(projected, source, 1);
+      this.#drawProjectedImage(scene, projected, source, 1);
 
       if (enemyEffect && enemyEffect.whiteFlash > 0) {
-        this.#drawProjectedImage(projected, this.#whiteImage(assetId), enemyEffect.whiteFlash);
+        this.#drawProjectedImage(scene, projected, this.#whiteImage(assetId), enemyEffect.whiteFlash);
       }
     }
 
@@ -2334,7 +2334,7 @@ export class CanvasGameplayRenderer {
       maxRadius + (Math.abs(blob.split?.separation ?? 0) + Math.abs(blob.leanX) + Math.abs(blob.leanY)) * pxPerCell;
     context.save();
 
-    if (!this.#clipToVisibleColumns(base.screenX - clipReach, base.screenX + clipReach, depth)) {
+    if (!this.#clipToVisibleRegion(scene, base.screenX - clipReach, base.screenX + clipReach, depth)) {
       context.restore();
       return;
     }
@@ -2553,7 +2553,8 @@ export class CanvasGameplayRenderer {
 
       const column = clamp(Math.round(point.screenX), 0, this.canvas.width - 1);
 
-      if (point.depth >= (this.#depthBuffer[column] ?? MAX_DEPTH)) {
+      // Above-wall visibility: a trail dot behind a wall still shows where it rides over the top.
+      if (point.screenY >= this.#occlusionTop(scene, column, point.depth)) {
         continue;
       }
 
@@ -2580,58 +2581,31 @@ export class CanvasGameplayRenderer {
   }
 
   /**
-   * Draws a sprite, skipping the columns a wall is in front of.
-   *
-   * The depth test has to be per column — that is the resolution the depth buffer has — but the
-   * drawing does not. Consecutive visible columns are gathered into runs and each run is issued as
-   * one `drawImage`, so a sprite standing in the open costs a single call instead of one per pixel
-   * of its width. Measured on a crowd, this was most of the cost of drawing them.
+   * Draws a sprite through the wall-visibility clip: full columns where it stands clear, and the
+   * strip above the wall tops where it is behind them. One clipped `drawImage` replaces the old
+   * run-by-run slicing, which could never show the part of a sprite that rises above a wall.
    */
-  #drawProjectedImage(projected: ProjectedSprite, source: CanvasImageSource, alpha: number): void {
+  #drawProjectedImage(scene: RenderScene, projected: ProjectedSprite, source: CanvasImageSource, alpha: number): void {
     const dimensions = imageDimensions(source);
-    const startX = Math.max(0, projected.startX);
-    const endX = Math.min(this.canvas.width, projected.endX);
+    this.#context.save();
 
-    if (endX <= startX) {
+    if (!this.#clipToVisibleRegion(scene, projected.startX, projected.endX, projected.depth)) {
+      this.#context.restore();
       return;
     }
 
-    this.#context.save();
     this.#context.globalAlpha = clamp(alpha, 0, 1);
-    let runStart = -1;
-
-    const flush = (runEnd: number): void => {
-      if (runStart < 0) {
-        return;
-      }
-
-      const sourceFrom = ((runStart - projected.startX) / projected.width) * dimensions.width;
-      const sourceTo = ((runEnd - projected.startX) / projected.width) * dimensions.width;
-      this.#context.drawImage(
-        source,
-        sourceFrom,
-        0,
-        Math.max(0.01, sourceTo - sourceFrom),
-        dimensions.height,
-        runStart,
-        projected.startY,
-        runEnd - runStart,
-        projected.height,
-      );
-      runStart = -1;
-    };
-
-    for (let x = startX; x < endX; x += 1) {
-      if (projected.depth < (this.#depthBuffer[x] ?? MAX_DEPTH)) {
-        if (runStart < 0) {
-          runStart = x;
-        }
-      } else {
-        flush(x);
-      }
-    }
-
-    flush(endX);
+    this.#context.drawImage(
+      source,
+      0,
+      0,
+      dimensions.width,
+      dimensions.height,
+      projected.startX,
+      projected.startY,
+      projected.width,
+      projected.height,
+    );
     this.#context.restore();
   }
 
@@ -2765,7 +2739,7 @@ export class CanvasGameplayRenderer {
     // Clipping to the same visible runs gets the depth test back — without it a death played out
     // through the wall it happened behind, because these two calls were the only ones in the sprite
     // pass that reached the canvas without consulting the depth buffer at all.
-    if (this.#clipToVisibleColumns(projected.startX, projected.endX, projected.depth)) {
+    if (this.#clipToVisibleRegion(scene, projected.startX, projected.endX, projected.depth)) {
       this.#context.globalAlpha = alpha;
       this.#drawDeathHalf(projected, source, dimensions, 0, -spread, fall, -progress * 0.42);
       this.#drawDeathHalf(projected, source, dimensions, 1, spread, fall, progress * 0.42);
@@ -2775,12 +2749,51 @@ export class CanvasGameplayRenderer {
   }
 
   /**
-   * Clips the context to the columns of a span that no wall stands in front of.
+   * The screen row below which a thing at `depth` in this column is hidden by walls, or infinity
+   * when nothing stands in front of it at all.
    *
-   * For anything drawn rotated or otherwise not column-aligned. Returns false when the span is
-   * entirely hidden, so the caller can skip it rather than draw into an empty clip.
+   * The depth buffer alone answers "behind a wall", which was the whole story while everything
+   * stood on the floor. A lobbed body can be behind a wall and above its top at once, and the part
+   * that clears the silhouette is genuinely visible — this is where that line sits, taken across
+   * every wall this column keeps that is nearer than the thing being drawn.
    */
-  #clipToVisibleColumns(spanStartX: number, spanEndX: number, depth: number): boolean {
+  #occlusionTop(scene: RenderScene, column: number, depth: number): number {
+    if ((this.#depthBuffer[column] ?? MAX_DEPTH) > depth) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    const height = this.canvas.height;
+    const horizon = this.#horizon(scene);
+    const eyeHeight = this.#eyeHeight(scene);
+    const roomHeight = this.#wallHeight(scene);
+    const count = this.#columnHitCount[column] ?? 0;
+    let top = Number.NEGATIVE_INFINITY;
+
+    for (let index = 0; index < count; index += 1) {
+      const hit = this.#columnHits[column * MAX_COLUMN_HITS + index];
+
+      if (!hit || hit.distance > depth) {
+        continue;
+      }
+
+      const hitDepth = Math.max(0.001, hit.distance);
+      const bottom = horizon + (eyeHeight * height) / hitDepth;
+      const hitTop = bottom - ((hit.surface.height ?? roomHeight) * height) / hitDepth;
+
+      if (top === Number.NEGATIVE_INFINITY || hitTop < top) {
+        top = hitTop;
+      }
+    }
+
+    return top;
+  }
+
+  /**
+   * Clips the context to the region of a span that walls do not hide: full height where the span
+   * stands clear of every wall, and the strip above the wall tops where it is behind them. Returns
+   * false when nothing at all is visible, so the caller can skip drawing into an empty clip.
+   */
+  #clipToVisibleRegion(scene: RenderScene, spanStartX: number, spanEndX: number, depth: number): boolean {
     const startX = Math.max(0, Math.floor(spanStartX));
     const endX = Math.min(this.canvas.width, Math.ceil(spanEndX));
 
@@ -2789,23 +2802,49 @@ export class CanvasGameplayRenderer {
     }
 
     const context = this.#context;
+    const height = this.canvas.height;
     context.beginPath();
-    let runStart = -1;
     let any = false;
+    let runStart = -1;
+    let runTop = 0;
 
-    for (let x = startX; x <= endX; x += 1) {
-      const visible = x < endX && (this.#depthBuffer[x] ?? MAX_DEPTH) > depth;
+    const flush = (endColumn: number): void => {
+      if (runStart < 0) {
+        return;
+      }
 
-      if (visible && runStart < 0) {
+      if (runTop === Number.POSITIVE_INFINITY) {
+        context.rect(runStart, -height, endColumn - runStart, height * 3);
+      } else {
+        context.rect(runStart, -height, endColumn - runStart, height + runTop);
+      }
+
+      any = true;
+      runStart = -1;
+    };
+
+    for (let x = startX; x < endX; x += 1) {
+      let top = this.#occlusionTop(scene, x, depth);
+
+      if (top <= 0) {
+        flush(x);
+        continue;
+      }
+
+      // Quantised so neighbouring columns whose wall tops differ by less than a pixel share a rect.
+      top = top === Number.POSITIVE_INFINITY ? top : Math.ceil(top);
+
+      if (runStart < 0) {
         runStart = x;
-      } else if (!visible && runStart >= 0) {
-        // Full canvas height: the depth buffer only resolves horizontally, and the sprite's own
-        // bounds already limit the vertical extent.
-        context.rect(runStart, 0, x - runStart, this.canvas.height);
-        runStart = -1;
-        any = true;
+        runTop = top;
+      } else if (top !== runTop) {
+        flush(x);
+        runStart = x;
+        runTop = top;
       }
     }
+
+    flush(endX);
 
     if (!any) {
       return false;

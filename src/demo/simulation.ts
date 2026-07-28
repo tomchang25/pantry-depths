@@ -8,7 +8,7 @@
 import { AXE_CAPACITY, damageWall, JAVELIN_CAPACITY, projectileSpeed, thrownWallDamage } from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
 import { bargeInto, bodyLanding, checkHazards, detonate, rockImpact, stepDrowning } from "@/demo/impacts";
-import { blocksProjectile, generateDemoMaze } from "@/demo/maze";
+import { blocksProjectile, blocksProjectileAt, generateDemoMaze } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
 import {
@@ -170,6 +170,11 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
     return;
   }
 
+  // A shaft flying above head height runs nobody through on the way past.
+  if (projectileHeight(projectile) > 0.6) {
+    return;
+  }
+
   for (const enemy of world.enemies.slice()) {
     if (projectile.struck.has(enemy.id) || enemy.drowningSeconds > 0) {
       continue;
@@ -192,6 +197,11 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
 
 /** The axe cleaving through: outright kills, and it is spent on the third one. */
 function cleaveWithAxe(world: DemoWorld, projectile: DemoProjectile): boolean {
+  // Same head-height rule as everything else in flight: too high, and it passes clean over.
+  if (projectileHeight(projectile) > 0.6) {
+    return false;
+  }
+
   for (const enemy of world.enemies.slice()) {
     if (projectile.struck.has(enemy.id) || enemy.drowningSeconds > 0) {
       continue;
@@ -243,6 +253,11 @@ function pinToWall(world: DemoWorld, projectile: DemoProjectile): void {
  * on to the end of its two tiles.
  */
 function bargeThrough(world: DemoWorld, projectile: DemoProjectile): void {
+  // A body lobbed high overhead runs nobody down on the way; it hits whatever it lands on.
+  if (projectileHeight(projectile) > 0.6) {
+    return;
+  }
+
   for (const enemy of world.enemies.slice()) {
     if (projectile.struck.has(enemy.id) || enemy.drowningSeconds > 0) {
       continue;
@@ -285,7 +300,17 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
       projectile.y += projectile.directionY * advance;
       projectile.travelled += advance;
 
-      if (blocksProjectile(world.maze, Math.floor(projectile.x), Math.floor(projectile.y))) {
+      // Height-aware: the arc is simulation truth, so a lob sailing above a wall's top crosses it
+      // and comes down on the far side. Flat weapons fly at hand height and stop as they always did.
+      if (
+        blocksProjectileAt(
+          world.maze,
+          Math.floor(projectile.x),
+          Math.floor(projectile.y),
+          projectileHeight(projectile),
+          world.wallHeight,
+        )
+      ) {
         struckCell = { x: Math.floor(projectile.x), y: Math.floor(projectile.y) };
         projectile.x -= projectile.directionX * advance;
         projectile.y -= projectile.directionY * advance;
