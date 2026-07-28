@@ -121,8 +121,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: fileURLToPath(new URL("./index.html", import.meta.url)),
-        // Standalone real-time demo surface; shares only the renderer with the ordinary game.
-        demo: fileURLToPath(new URL("./demo.html", import.meta.url)),
       },
     },
   },

@@ -7,9 +7,7 @@
  */
 
 import { resolveAppRoute } from "@/app/app-route";
-import type { MountedGameSurface } from "@/app/game-surface";
-import { PROVISIONAL_FLOOR_SET, PROVISIONAL_RUN_WORLD } from "@/content/floor/floor-catalog";
-import { GameSession } from "@/runtime/game-session";
+import type { MountedDemo } from "@/demo/demo-surface";
 
 const mount = document.querySelector<HTMLDivElement>("#app");
 
@@ -18,7 +16,7 @@ if (!mount) {
 }
 
 const appMount = mount;
-let mountedGameSurface: MountedGameSurface | undefined;
+let mountedDemo: MountedDemo | undefined;
 let moduleDisposed = false;
 
 function renderLoadFailure(logLabel: string, message: string, error: unknown): void {
@@ -30,25 +28,32 @@ function renderLoadFailure(logLabel: string, message: string, error: unknown): v
 }
 
 /**
- * The game surface is imported lazily so that its full-viewport stylesheet — which locks
+ * The play surface is imported lazily so that its full-viewport stylesheet — which locks
  * `html`, `body`, and `#app` to the viewport and hides their scrollbars — is only injected
  * on the play route and never leaks into a scrollable debug page.
+ *
+ * Mounting is asynchronous because the surface loads its artwork before it draws, so disposal
+ * is checked on both sides of the await: the module can be torn down while the images are still
+ * in flight, and a surface that arrives after that has to be disposed rather than kept.
  */
 function renderOrdinaryPlay(): void {
-  void import("@/app/game-surface")
-    .then(({ mountGameSurface }) => {
+  void import("@/demo/demo-surface")
+    .then(async ({ mountDemo }) => {
       if (moduleDisposed) {
         return;
       }
 
-      mountedGameSurface = mountGameSurface(
-        appMount,
-        PROVISIONAL_FLOOR_SET,
-        () => new GameSession(PROVISIONAL_RUN_WORLD),
-      );
+      const mounted = await mountDemo(appMount);
+
+      if (moduleDisposed) {
+        mounted.dispose();
+        return;
+      }
+
+      mountedDemo = mounted;
     })
     .catch((error: unknown) => {
-      renderLoadFailure("game surface failed to load", "The game failed to load. Check the browser console.", error);
+      renderLoadFailure("play surface failed to load", "The game failed to load. Check the browser console.", error);
     });
 }
 
@@ -81,6 +86,6 @@ if (import.meta.env.DEV) {
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     moduleDisposed = true;
-    mountedGameSurface?.dispose();
+    mountedDemo?.dispose();
   });
 }
