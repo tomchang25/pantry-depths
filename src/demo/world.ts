@@ -268,7 +268,16 @@ export type DemoWorld = {
   wallsBroken: number;
 };
 
-export const PLAYER_RADIUS = 0.26;
+/**
+ * How close the player can get to anything solid.
+ *
+ * Also the only cheap answer to the near-field distortion at a wall. A wall column is projected as
+ * its height over the depth, so its top climbs with the *square* of how close you are: at 0.26 cells
+ * the top of a one-storey wall sweeps about seven screen-heights per cell of approach, which is what
+ * reads as the wall suddenly growing as you walk into it. Standing a little further off cuts that
+ * rate by a third for a sixth of a cell of clearance, and a one-cell corridor still has room to spare.
+ */
+export const PLAYER_RADIUS = 0.32;
 export const ENEMY_RADIUS = 0.3;
 export const PLAYER_SPEED = 3.4;
 export const REACH = 1.45;
