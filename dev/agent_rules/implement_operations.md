@@ -1,6 +1,32 @@
 # Implement Operations
 
-This file is the authoritative project-local permission delta for `/implement`. Read `dev/foundation/core/workflows/commands/implement.md`, `dev/foundation/core/workflows/work_lifecycle.md`, and `dev/foundation/core/workflows/implementation_spec_standard.md` first; their contracts continue to apply except for the narrow supersession below.
+This file is the authoritative project-local permission delta for `/implement`. Read `dev/foundation/core/workflows/commands/implement.md`, `dev/foundation/core/workflows/work_lifecycle.md`, and `dev/foundation/core/workflows/implementation_spec_standard.md` first; their contracts continue to apply except for the narrow supersessions below.
+
+## Two Halves
+
+These supersessions apply to **demo work** — changes whose surface is `src/demo/` or `src/presentation/`. Changes to `src/core/`, `src/content/`, `src/harness/`, `src/app/debug/`, or `dev/tools/` run the foundation workflow unchanged, because that half is the architecture the demo is expected to be archived into later and it keeps its full ceremony.
+
+## Phase 1 Is A Design Conversation
+
+The foundation's Focused Decision Scan gathers codebase evidence to surface user-authority decisions. In practice that framing makes every conversation about how to fit the request into the shape that already exists, and the answer arrives as a patch onto that shape.
+
+For demo work, Phase 1 is a conceptual discussion first: what should this be, and does the current shape deserve to survive it. Codebase evidence informs that conversation rather than bounding it.
+
+1. Propose replacing existing code, not only extending it, whenever extension would preserve a shape nobody is defending. Say plainly when the honest answer is that something should be thrown away.
+2. Gather only the evidence the conversation needs. Do not open a survey of the change's eventual surface before the direction is agreed.
+3. Disagree with the request when the request is the problem. A concept that will not work is a Phase 1 finding, not something to be faithfully implemented and discovered later.
+4. Target confirmation stays mandatory and is never inferred. This supersession changes what Phase 1 talks about, not whether it stops.
+
+## Phase 2 Delivers An Approach, Not An Inventory
+
+For demo work the spec is a short architectural note: what is being built, what owns it, what it replaces, and the shapes to avoid. It supersedes `implementation_spec_standard.md`'s required structure and the Relational Context inventory for this half only.
+
+1. Name the owning modules and the direction of the change. Do not enumerate every file, signature, or call site — those are discovered during implementation.
+2. State the load-bearing decisions and the ones deliberately left open. Detail that cannot change the agreed shape does not belong in the note.
+3. Lifecycle tracking is one pointer or none. A demo change does not need a plan child, a `TODO.md` entry, and a spec to all agree before work starts.
+4. Verification is `dev/agent_rules/test_operations.md`, which for this half means `npm run verify` and playing it. Do not plan new automated coverage for `src/demo/` or `src/presentation/`.
+
+**Why:** the demo reached a playable state in a day; the surface it replaced took days longer and never got there. The difference was not effort, it was how much of each change went into describing the change. Preserving that speed is the point of this delta, and it expires when the demo is archived into the permanent architecture.
 
 ## Explicit Second-Confirmation Bypass
 

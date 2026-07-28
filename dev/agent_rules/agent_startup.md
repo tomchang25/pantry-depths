@@ -25,7 +25,7 @@ This file describes how to operate the repository. It deliberately says nothing 
 
 - Read `dev/agent_rules/git_operations.md` before any Git mutation or when Git state is unreliable.
 - Read `dev/agent_rules/test_operations.md` before running any test, build, screenshot, smoke, or other platform validation operation.
-- Read `dev/agent_rules/implement_operations.md` before running `/implement`; it defines the project's explicit second-confirmation bypass.
+- Read `dev/agent_rules/implement_operations.md` before running `/implement`; it defines the second-confirmation bypass and how the two halves of this repository are worked differently.
 
 ## Project-Local Discovery
 

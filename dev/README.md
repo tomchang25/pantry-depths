@@ -13,7 +13,7 @@ The foundation owns document placement, core workflows, shared agent behavior, a
 
 ## Local ownership
 
-- `dev/agent_rules/`: project snapshot, implementation and Git permissions, and executable validation operations.
+- `dev/agent_rules/`: startup and environment, implementation and Git permissions, and executable validation operations.
 - `dev/standards/`: project-specific addenda and any local governance policy.
 - `dev/skills/`: only project-specific hazard cards, never a copy of a foundation skill.
 - `dev/docs/`: product design, active plans, reports, and archives.
