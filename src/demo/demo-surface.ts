@@ -23,10 +23,16 @@ export type MountedDemo = Readonly<{ dispose: () => void }>;
 
 const MOUSE_SENSITIVITY = 0.0026;
 /**
- * Vertical look is effectively unbounded: at ±1 the sheared horizon has already left the screen, so
- * this only stops the number growing without limit while the mouse keeps travelling.
+ * Vertical look limits, asymmetric on purpose.
+ *
+ * Pitch is a shear, not a rotation, and shear artefacts are one-sided: looking down magnifies the
+ * floor at the screen edge into smeared blocks and leaves billboards drawn front-on over a floor
+ * seen from above, while looking up only ever shows more sky — which has no geometry to distort.
+ * So the downward limit stops just short of the feet, and the upward one only stops the number
+ * growing without limit while the mouse keeps travelling.
  */
-const MAX_PITCH = 1.5;
+const MAX_PITCH_UP = 1.5;
+const MAX_PITCH_DOWN = 0.48;
 /** Mouse counts per second that read as a full-speed turn, for the comfort vignette. */
 const FULL_TURN_RATE = 2600;
 const MINIMAP_CELL = 8;
@@ -445,8 +451,8 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     world.player.angle = turned - Math.PI * 2 * Math.floor(turned / (Math.PI * 2));
     turnInput += Math.abs(event.movementX) + Math.abs(event.movementY) * 0.5;
     world.player.pitch = Math.max(
-      -MAX_PITCH,
-      Math.min(MAX_PITCH, world.player.pitch - event.movementY * MOUSE_SENSITIVITY * 0.42),
+      -MAX_PITCH_DOWN,
+      Math.min(MAX_PITCH_UP, world.player.pitch - event.movementY * MOUSE_SENSITIVITY * 0.42),
     );
   };
 

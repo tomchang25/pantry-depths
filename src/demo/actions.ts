@@ -51,6 +51,33 @@ const WALL_DROP_CHANCE = 0.2;
 const THROW_RANGE: Readonly<Record<DemoThrowKind, number>> = { enemy: 2, stick: 40, rock: 8, bomb: 9, axe: 10 };
 const THROW_SPEED: Readonly<Record<DemoThrowKind, number>> = { enemy: 11, stick: 22, rock: 14, bomb: 12, axe: 16 };
 
+/**
+ * Throws whose range shortens to where the crosshair meets the floor.
+ *
+ * The flight itself is flat — pitch turns the head, not the arm — so without this an enemy hurled
+ * at the pool right in front of the player sailed its full fixed range and landed on the far side.
+ * Lobbed things obey the aim; the javelin and the axe stay ballistic by design, flying until they
+ * meet something.
+ */
+const AIM_CAPPED_THROWS: ReadonlySet<DemoThrowKind> = new Set(["enemy", "rock", "bomb"]);
+
+/** How far ahead a projectile leaves the hand; the aim cap subtracts it so the landing matches. */
+const THROW_SPAWN_AHEAD = 0.4;
+
+function throwRange(world: DemoWorld, kind: DemoThrowKind): number {
+  const base = THROW_RANGE[kind];
+
+  if (!AIM_CAPPED_THROWS.has(kind) || world.player.pitch > 0) {
+    return base;
+  }
+
+  // Where the crosshair ray meets the floor: the horizon sits at `0.49 + pitch` of the screen and
+  // the eye half a cell up, so the centre of the view lands `0.5 / (0.01 - pitch)` cells out.
+  // Level looks resolve far beyond any base range and change nothing.
+  const aimDistance = 0.5 / (0.01 - world.player.pitch);
+  return Math.min(base, Math.max(THROW_SPAWN_AHEAD, aimDistance - THROW_SPAWN_AHEAD));
+}
+
 /** How many victims each of the two piercing throws is allowed. */
 export const JAVELIN_CAPACITY = 3;
 export const AXE_CAPACITY = 3;
@@ -287,12 +314,12 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
   world.projectiles.push({
     id: nextId(world, "shot"),
     kind,
-    x: world.player.x + direction.x * 0.4,
-    y: world.player.y + direction.y * 0.4,
+    x: world.player.x + direction.x * THROW_SPAWN_AHEAD,
+    y: world.player.y + direction.y * THROW_SPAWN_AHEAD,
     directionX: direction.x,
     directionY: direction.y,
     travelled: 0,
-    range: THROW_RANGE[kind],
+    range: throwRange(world, kind),
     payload,
     struck: new Set<string>(),
     trail: [],
