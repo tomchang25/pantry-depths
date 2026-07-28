@@ -245,7 +245,9 @@ function sprites(world: DemoWorld): RenderSprite[] {
       y: world.altar.y,
       placement: "billboard",
       assetId: DEMO_ASSET_IDS.rune,
-      scale: 0.38,
+      // Shrinks back towards the stone as the altar is broken, so the thing you can see through a
+      // wall says how many swings are left in it rather than only that one is there.
+      scale: 0.24 + altarShare(world) * 0.14,
       verticalAnchor: -0.72 - Math.sin(world.elapsedSeconds * 1.7) * 0.05,
       xray: ALTAR_XRAY,
     });
@@ -663,6 +665,127 @@ function blobs(world: DemoWorld): RenderBlob[] {
 }
 
 /**
+ * How much of an altar is left, from one down to zero.
+ *
+ * The stone, the light it throws, the rune over it and the embers off it all read from this one
+ * number, so an altar can never look half-broken and shine as though it were untouched.
+ */
+function altarShare(world: DemoWorld): number {
+  return world.altar.maxHp > 0 ? Math.max(0, world.altar.hp) / world.altar.maxHp : 0;
+}
+
+const ALTAR_STONE: readonly [number, number, number] = [96, 86, 106];
+const ALTAR_RUINED_STONE: readonly [number, number, number] = [58, 52, 68];
+
+/**
+ * Where each piece knocked off an altar comes to rest, in cells from its centre.
+ *
+ * Fixed rather than rolled. The terrain is rebuilt whenever anything on the floor changes, so a
+ * random scatter would pick new places for the same debris every time a wall came down.
+ */
+const ALTAR_DEBRIS: readonly Readonly<{ x: number; y: number; half: number; top: number }>[] = [
+  { x: 0.54, y: -0.28, half: 0.11, top: 0.09 },
+  { x: -0.42, y: 0.48, half: 0.09, top: 0.07 },
+  { x: 0.08, y: 0.6, half: 0.13, top: 0.11 },
+];
+
+function weathered(wear: number): readonly [number, number, number] {
+  return [
+    ALTAR_STONE[0] + (ALTAR_RUINED_STONE[0] - ALTAR_STONE[0]) * wear,
+    ALTAR_STONE[1] + (ALTAR_RUINED_STONE[1] - ALTAR_STONE[1]) * wear,
+    ALTAR_STONE[2] + (ALTAR_RUINED_STONE[2] - ALTAR_STONE[2]) * wear,
+  ];
+}
+
+/** The lit top face an overhead light would leave, so a slab never reads as flat as its sides. */
+function litFace(color: readonly [number, number, number]): [number, number, number] {
+  return [Math.min(255, color[0] * 1.58), Math.min(255, color[1] * 1.56), Math.min(255, color[2] * 1.5)];
+}
+
+/**
+ * The altar, one shape per swing it has taken.
+ *
+ * A plinth that stood identical through two of its three hits and then became rubble told the player
+ * nothing until it was over. This is the same ladder the walls and the caltrops already climb: the
+ * capstone is knocked further off true and loses more of itself with every blow, the shaft is shorter
+ * under it, the stone darkens, and each piece that comes off is still lying on the floor afterwards —
+ * so how much of an altar somebody has already spent is legible from across the room and from behind.
+ */
+function altarBoxes(world: DemoWorld): RenderBox[] {
+  const altar = world.altar;
+  const damage = Math.min(altar.maxHp, Math.max(0, altar.maxHp - altar.hp));
+  const wear = altar.maxHp > 0 ? damage / altar.maxHp : 0;
+  const stone = weathered(wear);
+  const shaftTop = 0.5 - damage * 0.05;
+  const built: RenderBox[] = [
+    { id: "altar-base", x: altar.x, y: altar.y, halfX: 0.34, halfY: 0.34, bottom: 0, top: 0.16, color: stone },
+    {
+      id: "altar-shaft",
+      x: altar.x,
+      y: altar.y,
+      halfX: 0.24 - damage * 0.02,
+      halfY: 0.24 - damage * 0.02,
+      bottom: 0.16,
+      top: shaftTop,
+      color: stone,
+    },
+  ];
+
+  if (altar.hp > 0) {
+    // The capstone carries most of the damage because it is the part that reads at a distance: it
+    // shifts off centre, narrows on the struck side, and settles lower against the shaft.
+    const lean = damage * 0.07;
+    built.push({
+      id: "altar-cap",
+      x: altar.x + lean,
+      y: altar.y - lean * 0.6,
+      halfX: 0.33 - damage * 0.07,
+      halfY: 0.33 - damage * 0.03,
+      bottom: shaftTop,
+      top: shaftTop + 0.12 - damage * 0.02,
+      color: stone,
+      topColor: litFace(stone),
+    });
+  } else {
+    // Spent: the top is gone and what is left is the snapped shaft, too low to be mistaken for one
+    // still worth swinging at.
+    built.push({
+      id: "altar-stump",
+      x: altar.x,
+      y: altar.y,
+      halfX: 0.27,
+      halfY: 0.27,
+      bottom: shaftTop,
+      top: shaftTop + 0.05,
+      color: stone,
+      topColor: litFace(ALTAR_RUINED_STONE),
+    });
+  }
+
+  for (let index = 0; index < damage; index += 1) {
+    const piece = ALTAR_DEBRIS[index];
+
+    if (!piece) {
+      continue;
+    }
+
+    built.push({
+      id: `altar-debris-${index}`,
+      x: altar.x + piece.x,
+      y: altar.y + piece.y,
+      halfX: piece.half,
+      halfY: piece.half * 0.78,
+      bottom: 0,
+      top: piece.top,
+      color: stone,
+      topColor: litFace(stone),
+    });
+  }
+
+  return built;
+}
+
+/**
  * The structures that stand up: the altar and the mouth of the stairs.
  *
  * Both were flat images on the ground, which is the single thing that made them read as markers
@@ -670,29 +793,7 @@ function blobs(world: DemoWorld): RenderBlob[] {
  * stair is a pit sunk below the floor with four steps descending into it and a raised kerb.
  */
 function boxes(world: DemoWorld): RenderBox[] {
-  const built: RenderBox[] = [];
-  const spent = world.altar.hp <= 0;
-  const stone: readonly [number, number, number] = spent ? [58, 52, 68] : [96, 86, 106];
-  const footprint = [
-    { half: 0.34, bottom: 0, top: 0.16 },
-    { half: 0.24, bottom: 0.16, top: 0.5 },
-    { half: 0.33, bottom: 0.5, top: 0.62 },
-  ];
-
-  footprint.forEach((part, index) => {
-    built.push({
-      id: `altar-${index}`,
-      x: world.altar.x,
-      y: world.altar.y,
-      halfX: part.half,
-      halfY: part.half,
-      bottom: part.bottom,
-      top: part.top,
-      color: stone,
-      ...(index === 2 ? { topColor: (spent ? [70, 62, 80] : [152, 134, 160]) as [number, number, number] } : {}),
-    });
-  });
-
+  const built: RenderBox[] = altarBoxes(world);
   const exitX = world.maze.exit.x + 0.5;
   const exitY = world.maze.exit.y + 0.5;
 
@@ -999,13 +1100,15 @@ function lights(world: DemoWorld): RenderLight[] {
   ];
 
   if (world.altar.hp > 0) {
+    // Pulses slowly, so an unspent altar reads as waiting rather than as scenery — and contracts as
+    // it is broken open, which is the same damage readout as the stone but visible from anywhere.
+    const left = altarShare(world);
     built.push({
       id: "demo-altar-light",
       x: world.altar.x,
       y: world.altar.y,
-      radius: 4.6,
-      // Pulses slowly, so an unspent altar reads as waiting rather than as scenery.
-      intensity: 0.85 + Math.sin(world.elapsedSeconds * 1.6) * 0.15,
+      radius: 3.2 + left * 1.4,
+      intensity: (0.85 + Math.sin(world.elapsedSeconds * 1.6) * 0.15) * (0.55 + left * 0.45),
       color: [255, 206, 128],
     });
   }
@@ -1065,7 +1168,13 @@ function emitters(world: DemoWorld): RenderEmitter[] {
   });
 
   if (world.altar.hp > 0) {
-    built.push({ id: "demo-altar-embers", x: world.altar.x, y: world.altar.y, kind: "embers", density: 7 });
+    built.push({
+      id: "demo-altar-embers",
+      x: world.altar.x,
+      y: world.altar.y,
+      kind: "embers",
+      density: Math.max(2, Math.round(altarShare(world) * 7)),
+    });
   }
 
   return built;

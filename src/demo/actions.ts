@@ -366,12 +366,53 @@ function strikeAltar(world: DemoWorld): boolean {
 
   world.altar.hp -= 1;
   world.terrainVersion += 1;
+  // Debris leaves the stone towards whoever hit it, the same way a wall sheds it: a burst thrown
+  // evenly out of the middle of a solid plinth reads as the plinth exploding rather than as a blow
+  // landing on the near face of it.
+  const towardX = world.player.x - world.altar.x;
+  const towardY = world.player.y - world.altar.y;
+  const reach = Math.max(0.0001, Math.hypot(towardX, towardY));
+  const faceX = world.altar.x + (towardX / reach) * 0.34;
+  const faceY = world.altar.y + (towardY / reach) * 0.34;
 
   if (world.altar.hp > 0) {
+    burst(world.particles, "stoneChip", faceX, faceY, 0.62, 11, {
+      speed: 2.8,
+      spreadZ: 1.8,
+      directionX: towardX / reach,
+      directionY: towardY / reach,
+      focus: 0.5,
+      size: 0.06,
+      life: 1,
+    });
+    // Gold with the grey: what is being broken open is the light in it, not only the masonry.
+    burst(world.particles, "ember", faceX, faceY, 0.66, 7, { speed: 2.2, spreadZ: 2, size: 0.045, life: 0.7 });
     announce(world, `The altar cracks — ${world.altar.hp} more`, 1.4);
     return true;
   }
 
+  // The last blow: the whole structure's worth of stone rather than a face's worth, and the light
+  // leaving it all at once.
+  burst(world.particles, "stoneChip", world.altar.x, world.altar.y, 0.6, 26, {
+    speed: 3.4,
+    spreadZ: 3,
+    size: 0.085,
+    life: 1.5,
+  });
+  burst(world.particles, "ember", world.altar.x, world.altar.y, 0.62, 20, {
+    speed: 3.2,
+    spreadZ: 3.4,
+    size: 0.05,
+    life: 1.1,
+  });
+  burst(world.particles, "dust", world.altar.x, world.altar.y, 0.5, 8, {
+    speed: 0.9,
+    spreadZ: 1,
+    gravity: 1.4,
+    drag: 2.4,
+    size: 0.16,
+    life: 0.9,
+  });
   awardBless(world);
   return true;
 }
