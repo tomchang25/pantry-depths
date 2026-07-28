@@ -1139,6 +1139,18 @@ export class CanvasGameplayRenderer {
       const fogFlatBlue = 28 * (1 - fog);
       const ceilingPixels = ceilingMaterial ? this.#floorPatchPixels[ceilingMaterial] : undefined;
       const defaultPixels = below ? this.#texturePixels.floor : (ceilingPixels ?? this.#texturePixels.ceiling);
+      const stepXCol = stepX * colStep;
+      const stepYCol = stepY * colStep;
+      // The current cell run: how many pixels remain before the sample crosses a cell edge, and
+      // what was resolved for the cell they share. Cell lookup, water test and shore mask move from
+      // once per pixel to once per run — near the horizon a run is a single pixel and this changes
+      // nothing, but across most of the floor a run is many.
+      let runLeft = 0;
+      let runPixels = defaultPixels;
+      let runWater = false;
+      let runMask = 0;
+      let runCellX = 0;
+      let runCellY = 0;
 
       for (let x = 0; x < width; x += colStep) {
         const hasNext = colStep === 2 && x + 1 < width;
@@ -1148,8 +1160,9 @@ export class CanvasGameplayRenderer {
         // than being computed from x — but everything after it is thrown away, so skipping here is
         // the whole point of casting before painting.
         if (y >= coverTop[x]! && y < coverBottom[x]! && coveredNext) {
-          planeXPosition += stepX * colStep;
-          planeYPosition += stepY * colStep;
+          runLeft -= 1;
+          planeXPosition += stepXCol;
+          planeYPosition += stepYCol;
           continue;
         }
 
@@ -1160,26 +1173,52 @@ export class CanvasGameplayRenderer {
         let foam = 0;
 
         if (below) {
-          const cellX = Math.floor(planeXPosition);
-          const cellY = Math.floor(planeYPosition);
+          if (runLeft <= 0) {
+            const cellX = Math.floor(planeXPosition);
+            const cellY = Math.floor(planeYPosition);
+            runCellX = cellX;
+            runCellY = cellY;
 
-          if (cellX >= 0 && cellY >= 0 && cellX < scene.width && cellY < scene.height) {
-            const cell = cellY * scene.width + cellX;
-            // Patch, stain and strength were already resolved into one texture per cell; a pixel
-            // pays one read however the cells under this row happen to alternate.
-            pixels = cellTextures[cell] ?? defaultPixels;
+            if (cellX >= 0 && cellY >= 0 && cellX < scene.width && cellY < scene.height) {
+              const cell = cellY * scene.width + cellX;
+              // Patch, stain and strength were already resolved into one texture per cell.
+              runPixels = cellTextures[cell] ?? defaultPixels;
+              runWater = patchGrid !== undefined && patchGrid[cell] === waterPatch;
+              runMask = runWater && shoreMask ? (shoreMask[cell] ?? 0) : 0;
+            } else {
+              runPixels = defaultPixels;
+              runWater = false;
+              runMask = 0;
+            }
 
-            if (patchGrid && patchGrid[cell] === waterPatch) {
-              // Water is the one surface that moves. Sliding where the texture is read from,
-              // rather than rebuilding the texture, animates it — via the wave table, because a
-              // real sine per water pixel was most of what a screen-filling pool cost.
-              sampleX += drift;
-              sampleY += WAVE_TABLE[((sampleX * 2.2 + elapsedSeconds) * WAVE_SCALE) & (WAVE_TABLE_SIZE - 1)] ?? 0;
-              const mask = shoreMask ? (shoreMask[cell] ?? 0) : 0;
+            // Iterations until either axis of the sample leaves this cell.
+            const untilX =
+              stepXCol > 0
+                ? (cellX + 1 - planeXPosition) / stepXCol
+                : stepXCol < 0
+                  ? (cellX - planeXPosition) / stepXCol
+                  : Number.POSITIVE_INFINITY;
+            const untilY =
+              stepYCol > 0
+                ? (cellY + 1 - planeYPosition) / stepYCol
+                : stepYCol < 0
+                  ? (cellY - planeYPosition) / stepYCol
+                  : Number.POSITIVE_INFINITY;
+            runLeft = Math.max(1, Math.ceil(Math.min(untilX, untilY)));
+          }
 
-              if (mask !== 0) {
-                foam = foamAt(mask, planeXPosition - cellX, planeYPosition - cellY);
-              }
+          runLeft -= 1;
+          pixels = runPixels;
+
+          if (runWater) {
+            // Water is the one surface that moves. Sliding where the texture is read from, rather
+            // than rebuilding the texture, animates it — via the wave table, because a real sine
+            // per water pixel was most of what a screen-filling pool cost.
+            sampleX += drift;
+            sampleY += WAVE_TABLE[((sampleX * 2.2 + elapsedSeconds) * WAVE_SCALE) & (WAVE_TABLE_SIZE - 1)] ?? 0;
+
+            if (runMask !== 0) {
+              foam = foamAt(runMask, planeXPosition - runCellX, planeYPosition - runCellY);
             }
           }
         }
@@ -1482,6 +1521,14 @@ export class CanvasGameplayRenderer {
       }
     }
 
+    // Hoisted out of the column loop, which was allocating one closure per column per frame.
+    const spanOf = (hit: RayHit): { top: number; bottom: number } => {
+      const depth = Math.max(0.001, hit.distance);
+      const surfaceHeight = hit.surface.height ?? roomHeight;
+      const bottom = horizon + (eyeHeight * height) / depth;
+      return { top: bottom - (surfaceHeight * height) / depth, bottom };
+    };
+
     for (let x = 0; x < width; x += 1) {
       this.#castColumn(
         scene,
@@ -1512,14 +1559,6 @@ export class CanvasGameplayRenderer {
       // Sprites test against the nearest wall.
       const nearest = column[0]!;
       this.#depthBuffer[x] = nearest.distance;
-
-      const spanOf = (hit: RayHit): { top: number; bottom: number } => {
-        const depth = Math.max(0.001, hit.distance);
-        const surfaceHeight = hit.surface.height ?? roomHeight;
-        const bottom = horizon + (eyeHeight * height) / depth;
-        return { top: bottom - (surfaceHeight * height) / depth, bottom };
-      };
-
       const near = spanOf(nearest);
       let top = near.top;
 
@@ -1776,17 +1815,10 @@ export class CanvasGameplayRenderer {
       drawables.push({ depth: Math.hypot(nearestX - scene.camera.x, nearestY - scene.camera.y), box });
     }
 
-    const ordered = drawables.reduce<Drawable[]>((list, candidate) => {
-      const index = list.findIndex((current) => current.depth < candidate.depth);
-
-      if (index === -1) {
-        list.push(candidate);
-      } else {
-        list.splice(index, 0, candidate);
-      }
-
-      return list;
-    }, []);
+    // Far to near, sorted in place — the list is built fresh above, so nothing else holds it.
+    // `sort` is stable, so drawables at equal depth keep their scene order: the same tie-break the
+    // quadratic insertion loop this replaces had, at a cost that stays sane as crowds grow.
+    const ordered = drawables.sort((left, right) => right.depth - left.depth);
 
     for (const entry of ordered) {
       if (entry.box) {

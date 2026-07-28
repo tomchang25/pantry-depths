@@ -332,9 +332,13 @@ export function breadthFirstStep(maze: DemoMaze, from: DemoCell, to: DemoCell): 
   const goal = tileIndex(to.x, to.y);
   const seen = new Set<number>(queue);
   let found = false;
+  // Read position instead of `shift()`: shifting re-indexes the whole remaining queue, which made
+  // an exhaustive no-path search quadratic in the open area it swept.
+  let head = 0;
 
-  while (queue.length > 0 && !found) {
-    const current = queue.shift() as number;
+  while (head < queue.length && !found) {
+    const current = queue[head] as number;
+    head += 1;
     const currentX = current % DEMO_GRID_SIZE;
     const currentY = Math.floor(current / DEMO_GRID_SIZE);
 

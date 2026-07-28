@@ -100,7 +100,12 @@ function pathHeading(world: DemoWorld, enemy: DemoEnemy): Readonly<{ x: number; 
   const cell = { x: Math.floor(enemy.x), y: Math.floor(enemy.y) };
   const goal = { x: Math.floor(world.player.x), y: Math.floor(world.player.y) };
 
-  if (enemy.repathSeconds <= 0 || !enemy.waypoint) {
+  // The cooldown alone gates the search. Retrying on an empty waypoint as well meant a player
+  // nothing could reach — sealed behind water or barricades — put every enemy into a full-map
+  // search every frame, because a failed search is precisely the one that leaves no waypoint.
+  // Consuming a waypoint zeroes the cooldown instead, so successful pathing stays as responsive
+  // as it was.
+  if (enemy.repathSeconds <= 0) {
     enemy.waypoint = breadthFirstStep(world.maze, cell, goal);
     enemy.repathSeconds = REPATH_SECONDS;
   }
@@ -117,6 +122,7 @@ function pathHeading(world: DemoWorld, enemy: DemoEnemy): Readonly<{ x: number; 
 
   if (length < 0.12) {
     enemy.waypoint = undefined;
+    enemy.repathSeconds = 0;
     return { x: 0, y: 0 };
   }
 
@@ -341,7 +347,10 @@ function stepMelee(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSe
     : pathHeading(world, enemy);
 
   if (close) {
+    // Dropping the waypoint alone would leave the rusher stalled for a whole cooldown when the
+    // player breaks back out of rush range; zeroing it makes the next path request immediate.
     enemy.waypoint = undefined;
+    enemy.repathSeconds = 0;
   }
 
   walk(world, enemy, heading.x, heading.y, close ? enemy.archetype.rushSpeed : enemy.archetype.speed, deltaSeconds);
