@@ -118,6 +118,13 @@ export default defineConfig({
   build: {
     outDir: "dist",
     target: "es2022",
+    rollupOptions: {
+      input: {
+        index: fileURLToPath(new URL("./index.html", import.meta.url)),
+        // Standalone real-time demo surface; shares only the renderer with the ordinary game.
+        demo: fileURLToPath(new URL("./demo.html", import.meta.url)),
+      },
+    },
   },
   test: {
     include: ["test/**/*.test.ts"],

@@ -5,10 +5,28 @@ import { DECORATION_PRESETS, EFFECT_PRESETS, LIGHT_PRESETS } from "@/presentatio
 import type { Cell, Facing } from "@/core/grid";
 import type { KeyColor, RunSnapshot, RunWorld } from "@/core/run-state";
 
-export type CameraPose = Readonly<{ x: number; y: number; angle: number }>;
+export type CameraPose = Readonly<{
+  x: number;
+  y: number;
+  angle: number;
+  /**
+   * Vertical look, as a fraction of canvas height the horizon shifts by. Omitted means level, which
+   * is what every baked floor uses; only the free-look demo surface ever sets it.
+   */
+  pitch?: number;
+}>;
 
 export type RenderSurfaceMaterial =
-  "stoneWall" | "oldBrickWall" | "ironBarWall" | "doorRed" | "doorBlue" | "doorYellow" | "breakableWall";
+  | "stoneWall"
+  | "oldBrickWall"
+  | "ironBarWall"
+  | "doorRed"
+  | "doorBlue"
+  | "doorYellow"
+  | "breakableWall"
+  // Added for the standalone demo surface; the baked floors never author these.
+  | "woodWall"
+  | "splinteredWoodWall";
 
 export type RenderSurface = Readonly<{
   cell: Cell;

@@ -119,6 +119,44 @@ function breakable(documentOwner: Document): HTMLCanvasElement {
   return surface;
 }
 
+function planks(documentOwner: Document, splintered: boolean): HTMLCanvasElement {
+  const [surface, context] = canvas(documentOwner);
+  context.fillStyle = "#1d1220";
+  context.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE);
+
+  for (let column = 0; column < 4; column += 1) {
+    const shade = column % 2 === 0 ? "#6b4526" : "#5a3820";
+    context.fillStyle = shade;
+    context.fillRect(column * 16 + 1, 0, 14, TEXTURE_SIZE);
+    context.fillStyle = "rgb(0 0 0 / 22%)";
+
+    for (let grain = 0; grain < 3; grain += 1) {
+      context.fillRect(column * 16 + 3 + grain * 4, (column * 7 + grain * 13) % 40, 1, 26);
+    }
+  }
+
+  context.fillStyle = "#3a2413";
+  context.fillRect(0, 20, TEXTURE_SIZE, 3);
+  context.fillRect(0, 43, TEXTURE_SIZE, 3);
+
+  if (splintered) {
+    context.strokeStyle = "#d8b184";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(6, 0);
+    context.lineTo(20, 22);
+    context.lineTo(12, 40);
+    context.lineTo(30, 63);
+    context.moveTo(52, 4);
+    context.lineTo(42, 30);
+    context.lineTo(56, 52);
+    context.stroke();
+  }
+
+  noise(context, 0.1);
+  return surface;
+}
+
 /**
  * One tile of this texture covers exactly one cell, so its outer edge is the only line in the scene
  * that marks a cell boundary. The four flagstones inside are decoration, and drawing them in the
@@ -156,6 +194,8 @@ export function createProceduralTextures(documentOwner: Document): TextureSet {
       doorBlue: door(documentOwner, "#304c75", "#6d9bc2"),
       doorYellow: door(documentOwner, "#80632e", "#d0ae58"),
       breakableWall: breakable(documentOwner),
+      woodWall: planks(documentOwner, false),
+      splinteredWoodWall: planks(documentOwner, true),
     },
     // The floor carries the cell count the player navigates by, so its seam is the readable one.
     // The ceiling is never counted against and keeps its seam near the base colour to stay quiet.

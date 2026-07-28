@@ -56,7 +56,14 @@ export type PresentationRenderEffects = Readonly<{
   rejectionStaticCue: boolean;
 }>;
 
-export type RendererPreferences = Readonly<{ reducedMotion: boolean }>;
+export type RendererPreferences = Readonly<{
+  reducedMotion: boolean;
+  /**
+   * Whether to draw the shipped torch-and-sword viewmodel. The demo surface turns it off and paints
+   * its own hands, because it has to show whatever is currently being carried.
+   */
+  viewmodel?: boolean;
+}>;
 
 const NO_EFFECTS: PresentationRenderEffects = {
   enemies: [],
@@ -188,6 +195,15 @@ export class CanvasGameplayRenderer {
     return this.canvas.width / (2 * this.canvas.height);
   }
 
+  /**
+   * The screen row the world's eye level projects to. Vertical look is a shear of this line rather
+   * than a real camera rotation, which is the only kind of pitch a column raycaster can express —
+   * the columns stay vertical, so looking up slides the whole projection down the screen.
+   */
+  #horizon(scene: RenderScene): number {
+    return this.canvas.height * (0.49 + (scene.camera.pitch ?? 0));
+  }
+
   public render(
     scene: RenderScene,
     elapsedSeconds: number,
@@ -207,7 +223,10 @@ export class CanvasGameplayRenderer {
     this.#drawSprites(scene, elapsedSeconds, effects);
     this.#drawEmitters(scene.emitters, scene, elapsedSeconds, preferences.reducedMotion);
     this.#drawAtmosphere(elapsedSeconds, preferences.reducedMotion);
-    this.#drawViewmodel(elapsedSeconds, effects, preferences.reducedMotion);
+
+    if (preferences.viewmodel !== false) {
+      this.#drawViewmodel(elapsedSeconds, effects, preferences.reducedMotion);
+    }
 
     if (effects.playerHit > 0) {
       this.#context.fillStyle = `rgba(180, 24, 54, ${0.23 * effects.playerHit})`;
@@ -232,7 +251,7 @@ export class CanvasGameplayRenderer {
   ): void {
     const width = this.canvas.width;
     const height = this.canvas.height;
-    const horizon = Math.floor(height * 0.49);
+    const horizon = this.#horizon(scene);
     const camera = scene.camera;
     const directionX = Math.cos(camera.angle);
     const directionY = Math.sin(camera.angle);
@@ -246,30 +265,28 @@ export class CanvasGameplayRenderer {
     const image = this.#context.createImageData(width, height);
     const flicker = reducedMotion ? 1 : 0.96 + Math.sin(elapsedSeconds * 7.1) * 0.025;
 
-    for (let y = horizon; y < height; y += 1) {
-      const rowDistance = (0.5 * height) / Math.max(1, y - horizon);
+    // Every row is walked rather than the floor half being walked and the ceiling mirrored onto it:
+    // once the horizon can sit anywhere on the screen, the two halves are no longer the same size
+    // and a mirror leaves whichever half grew unpainted.
+    for (let y = 0; y < height; y += 1) {
+      const offset = y - horizon;
+      const below = offset > 0;
+      const rowDistance = (0.5 * height) / Math.max(1, Math.abs(offset));
       const stepX = (rowDistance * (rayX1 - rayX0)) / width;
       const stepY = (rowDistance * (rayY1 - rayY0)) / width;
-      let floorX = camera.x + rowDistance * rayX0;
-      let floorY = camera.y + rowDistance * rayY0;
-      const fog = clamp(1 - rowDistance / MAX_DEPTH, 0.12, 1);
-      const torch = clamp(1.2 - rowDistance / 8, 0, 1) * flicker * torchContraction;
+      let planeXPosition = camera.x + rowDistance * rayX0;
+      let planeYPosition = camera.y + rowDistance * rayY0;
+      const fog = clamp(1 - rowDistance / MAX_DEPTH, 0.12, 1) * (below ? 1 : 0.82);
+      const torch = clamp(1.2 - rowDistance / 8, 0, 1) * flicker * torchContraction * (below ? 1 : 0.5);
+      const pixels = below ? this.#texturePixels.floor : this.#texturePixels.ceiling;
 
       for (let x = 0; x < width; x += 1) {
-        const textureX = ((Math.floor(floorX * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
-        const textureY = ((Math.floor(floorY * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
+        const textureX = ((Math.floor(planeXPosition * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
+        const textureY = ((Math.floor(planeYPosition * TEXTURE_SIZE) % TEXTURE_SIZE) + TEXTURE_SIZE) % TEXTURE_SIZE;
         const source = (textureY * TEXTURE_SIZE + textureX) * 4;
-        const floorTarget = (y * width + x) * 4;
-        const ceilingY = horizon - (y - horizon) - 1;
-        const ceilingTarget = (ceilingY * width + x) * 4;
-        this.#writeLitPixel(image.data, floorTarget, this.#texturePixels.floor, source, fog, torch);
-
-        if (ceilingY >= 0) {
-          this.#writeLitPixel(image.data, ceilingTarget, this.#texturePixels.ceiling, source, fog * 0.82, torch * 0.5);
-        }
-
-        floorX += stepX;
-        floorY += stepY;
+        this.#writeLitPixel(image.data, (y * width + x) * 4, pixels, source, fog, torch);
+        planeXPosition += stepX;
+        planeYPosition += stepY;
       }
     }
 
@@ -352,7 +369,7 @@ export class CanvasGameplayRenderer {
   ): void {
     const width = this.canvas.width;
     const height = this.canvas.height;
-    const horizon = height * 0.49;
+    const horizon = this.#horizon(scene);
     const flicker = 0.96 + Math.sin(elapsedSeconds * 7.1) * 0.025;
 
     for (let x = 0; x < width; x += 1) {
@@ -428,7 +445,7 @@ export class CanvasGameplayRenderer {
     const height = sprite.placement === "ground" ? baseSize * 0.38 : baseSize;
     const width = baseSize * facing;
     const startX = Math.floor(screenX - width / 2);
-    const horizon = this.canvas.height * 0.49;
+    const horizon = this.#horizon(scene);
     const groundLine = horizon + this.canvas.height / (2 * depth);
     // Authored anchors are measured from the floor line: 0 stands on the ground, negative floats.
     const startY =
