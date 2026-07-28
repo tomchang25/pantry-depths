@@ -169,6 +169,7 @@ export function wallAhead(world: DemoWorld, reach = REACH): DemoCell | undefined
 /** Iron sparks rather than splinters, and the cell opens up when the last spike goes. */
 function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: number): void {
   tile.hp = Math.max(0, tile.hp - damage);
+  world.terrainVersion += 1;
   burst(world.particles, "ember", cell.x + 0.5, cell.y + 0.5, 0.45, 7, {
     speed: 2.6,
     spreadZ: 1.8,
@@ -211,6 +212,7 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
 
   const wasWood = tile.kind === "wood";
   tile.hp = Math.max(0, tile.hp - damage);
+  world.terrainVersion += 1;
   // Thrown outward from the face the blow came from, so the debris leaves the wall towards whoever
   // hit it rather than spraying evenly out of the middle of a solid block.
   const towardX = world.player.x - (cell.x + 0.5);
@@ -314,6 +316,7 @@ function strikeAltar(world: DemoWorld): boolean {
   }
 
   world.altar.hp -= 1;
+  world.terrainVersion += 1;
 
   if (world.altar.hp > 0) {
     announce(world, `祭壇裂了，再 ${world.altar.hp} 下`, 1.4);

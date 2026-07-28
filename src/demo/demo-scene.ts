@@ -10,6 +10,7 @@
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
 import { DEMO_GRID_SIZE, tileIndex } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
+import type { DemoMaze } from "@/demo/maze";
 import { SWING_SECONDS, type DemoEnemy, type DemoPropKind, type DemoWorld } from "@/demo/world";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
@@ -34,6 +35,25 @@ const STONE_DAMAGE: readonly RenderSurfaceMaterial[] = [
   "demoAshlarFailing",
 ];
 const WOOD_DAMAGE: readonly RenderSurfaceMaterial[] = ["woodWall", "woodWallCracked", "splinteredWoodWall"];
+
+/** Storeys the outer boundary stands above the interior. */
+const BORDER_STOREYS = 2;
+
+/**
+ * The roof is gone.
+ *
+ * A ceiling one cell above the head is the nearest surface in the scene, so it sweeps past faster
+ * than anything else while walking — and fast optical flow close to the eye is what drives the
+ * feeling of being moved rather than moving. The sky replaces it with something effectively
+ * infinitely far away: it barely shifts as you walk and swings cleanly as you turn, which gives the
+ * eye a fixed thing to read its own rotation against.
+ */
+const NIGHT_SKY = {
+  horizonColor: [38, 30, 58] as const,
+  zenithColor: [8, 7, 20] as const,
+  stars: 220,
+  moonAngle: 2.1,
+};
 
 const EXIT_XRAY = { color: [138, 255, 190] as const, alpha: 0.95 };
 const ALTAR_XRAY = { color: [255, 208, 118] as const, alpha: 0.8 };
@@ -85,7 +105,10 @@ function surfaces(world: DemoWorld): RenderSurface[] {
       }
 
       if (tile.kind === "border") {
-        built.push({ cell: { x, y }, material: "demoFoundation" });
+        // The boundary stands well above everything inside it. Under an open sky the interior walls
+        // are low enough to see over from anywhere, and without a taller rim the whole floor reads
+        // as a hedge maze rather than as somewhere with an outside.
+        built.push({ cell: { x, y }, material: "demoFoundation", height: world.wallHeight + BORDER_STOREYS });
         continue;
       }
 
@@ -758,7 +781,43 @@ function blastKick(world: DemoWorld): number {
   return kick;
 }
 
+/**
+ * The parts of the scene that only change when the terrain does.
+ *
+ * Walls, floor materials and structures were being rebuilt from scratch sixty times a second —
+ * around seven hundred fresh objects a frame for a grid that changes when someone breaks something.
+ * Holding them until the terrain version moves costs one integer comparison and removes all of it.
+ *
+ * Keyed on the maze object as well as the version so a new floor can never serve stale geometry,
+ * however the counter happens to line up.
+ */
+type TerrainCache = {
+  maze: DemoMaze;
+  version: number;
+  surfaces: RenderSurface[];
+  floorPatches: RenderFloorPatch[];
+  boxes: RenderBox[];
+};
+
+let terrainCache: TerrainCache | undefined;
+
+function cachedTerrain(world: DemoWorld): TerrainCache {
+  if (terrainCache && terrainCache.maze === world.maze && terrainCache.version === world.terrainVersion) {
+    return terrainCache;
+  }
+
+  terrainCache = {
+    maze: world.maze,
+    version: world.terrainVersion,
+    surfaces: surfaces(world),
+    floorPatches: floorPatches(world),
+    boxes: boxes(world),
+  };
+  return terrainCache;
+}
+
 export function createDemoScene(world: DemoWorld): RenderScene {
+  const terrain = cachedTerrain(world);
   const rows: string[] = [];
 
   for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
@@ -785,13 +844,13 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     },
     // Just enough ambient that an unlit corridor is a silhouette rather than a black rectangle.
     ambient: [0.16, 0.14, 0.24],
-    ceilingMaterial: "demoVault",
+    sky: NIGHT_SKY,
     wallHeight: world.wallHeight,
     eyeHeight: 0.5,
-    surfaces: surfaces(world),
-    floorPatches: floorPatches(world),
+    surfaces: terrain.surfaces,
+    floorPatches: terrain.floorPatches,
     floorOverlays: floorOverlays(world),
-    boxes: boxes(world),
+    boxes: terrain.boxes,
     sprites: sprites(world),
     beams: beams(world),
     particles: particles(world),

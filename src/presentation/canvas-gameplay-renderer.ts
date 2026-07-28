@@ -6,10 +6,12 @@ import type {
   RenderBeam,
   RenderEmitter,
   RenderFloorMaterial,
+  RenderFloorPatch,
   RenderParticle,
   RenderPoint,
   RenderBox,
   RenderScene,
+  RenderSky,
   RenderSprite,
   RenderSurface,
   RenderSurfaceMaterial,
@@ -56,6 +58,9 @@ const BEAM_PIECES = 10;
 const LIGHTMAP_SCALE = 3;
 /** How far into a pool, in cells, the shoreline foam reaches. */
 const FOAM_WIDTH = 0.11;
+/** The two knobs on the turn vignette. Roughly a third of the first attempt, which was too obvious. */
+const TURN_VIGNETTE_REACH = 0.06;
+const TURN_VIGNETTE_DEPTH = 0.08;
 
 export type EnemyRenderEffect = Readonly<{
   entityId: string;
@@ -108,6 +113,14 @@ export type RendererPreferences = Readonly<{
    * than a lighting model and looks right over either one.
    */
   grade?: boolean;
+  /**
+   * How hard the view is turning, from zero to one, which draws the vignette in a little.
+   *
+   * Kept deliberately slight. An earlier version closed the frame by a fifth and was obvious enough
+   * to be its own distraction; the intent is that the periphery quietens during a fast turn without
+   * the player ever noticing the frame move.
+   */
+  turnRate?: number;
 }>;
 
 const NO_EFFECTS: PresentationRenderEffects = {
@@ -216,6 +229,10 @@ export class CanvasGameplayRenderer {
   #solidGrid = new Uint8Array(0);
   readonly #tintStyles = new Map<number, string>();
   readonly #storeyTextures = new Map<string, HTMLCanvasElement>();
+  /** Reused by every column so a per-frame walk of the maze allocates nothing. */
+  readonly #rayColumn: RayHit[] = [];
+  #patchGridSource: readonly RenderFloorPatch[] | undefined;
+  #patchGrid: Uint8Array | undefined;
   #lit = false;
 
   public constructor(
@@ -443,6 +460,12 @@ export class CanvasGameplayRenderer {
       return undefined;
     }
 
+    // Reused whenever the caller hands back the same array. A scene that caches its terrain gets the
+    // grid built once per change rather than once per frame, for the cost of one identity check.
+    if (this.#patchGridSource === patches && this.#patchGrid) {
+      return this.#patchGrid;
+    }
+
     const grid = new Uint8Array(scene.width * scene.height);
 
     for (const patch of patches) {
@@ -453,6 +476,8 @@ export class CanvasGameplayRenderer {
       grid[patch.cell.y * scene.width + patch.cell.x] = FLOOR_MATERIALS.indexOf(patch.material) + 1;
     }
 
+    this.#patchGridSource = patches;
+    this.#patchGrid = grid;
     return grid;
   }
 
@@ -578,6 +603,11 @@ export class CanvasGameplayRenderer {
     }
 
     this.#drawProjectedPlanes(scene, elapsedSeconds, preferences.reducedMotion, effects.rejectionTorch);
+
+    if (scene.sky) {
+      this.#drawStars(scene, scene.sky, elapsedSeconds, preferences.reducedMotion);
+    }
+
     this.#drawWalls(scene, surfaceMap, elapsedSeconds, effects.rejectionTorch);
     this.#drawSprites(scene, elapsedSeconds, effects);
 
@@ -602,7 +632,7 @@ export class CanvasGameplayRenderer {
     }
 
     if (preferences.grade === true) {
-      this.#drawGrade(elapsedSeconds, preferences.reducedMotion);
+      this.#drawGrade(elapsedSeconds, preferences.reducedMotion, preferences.turnRate ?? 0);
     }
 
     if (effects.playerHit > 0) {
@@ -643,6 +673,7 @@ export class CanvasGameplayRenderer {
     const patchGrid = this.#floorPatchGrid(scene);
     const overlays = this.#floorOverlayGrids(scene);
     const waterMaterial = FLOOR_MATERIALS.indexOf("water");
+    const sky = scene.sky;
     const ceilingIndex = scene.ceilingMaterial ? FLOOR_MATERIALS.indexOf(scene.ceilingMaterial) : -1;
     const ceilingMaterial = ceilingIndex >= 0 ? ceilingIndex : undefined;
     const drift = reducedMotion ? 0 : elapsedSeconds * 0.045;
@@ -658,6 +689,29 @@ export class CanvasGameplayRenderer {
     for (let y = 0; y < height; y += 1) {
       const offset = y - horizon;
       const below = offset > 0;
+
+      // Sky rows short-circuit the whole projection. A ceiling row costs a distance, two plane
+      // steps, a texture sample, a cell lookup and a materials lookup per pixel; a sky row costs one
+      // write. Roughly half the screen is above the horizon, so this is the cheapest half of the
+      // frame rather than the most expensive.
+      if (sky && !below) {
+        const t = clamp(-offset / Math.max(1, horizon), 0, 1);
+        const ease = t * t * (3 - 2 * t);
+        const red = sky.horizonColor[0] + (sky.zenithColor[0] - sky.horizonColor[0]) * ease;
+        const green = sky.horizonColor[1] + (sky.zenithColor[1] - sky.horizonColor[1]) * ease;
+        const blue = sky.horizonColor[2] + (sky.zenithColor[2] - sky.horizonColor[2]) * ease;
+
+        for (let x = 0; x < width; x += 1) {
+          const target = (y * width + x) * 4;
+          image.data[target] = red;
+          image.data[target + 1] = green;
+          image.data[target + 2] = blue;
+          image.data[target + 3] = 255;
+        }
+
+        continue;
+      }
+
       // How far the plane is from the eye, vertically: the floor is `eye` below, the ceiling is the
       // rest of the room above. Equal only when the room is exactly one cell tall.
       const rowDistance = ((below ? eyeHeight : roomHeight - eyeHeight) * height) / Math.max(1, Math.abs(offset));
@@ -838,7 +892,112 @@ export class CanvasGameplayRenderer {
     return Math.sin((nearest / FOAM_WIDTH) * Math.PI) * 0.42;
   }
 
-  #castRay(scene: RenderScene, surfaces: ReadonlyMap<string, RenderSurface>, cameraX: number): RayHit | undefined {
+  /**
+   * Stars and a moon, placed by where the head is pointed rather than where the body is standing.
+   *
+   * That is the whole reason they help: a star sweeps across as you turn and stays put as you walk,
+   * so it is a fixed thing to read your own rotation against — which is exactly what a ceiling one
+   * cell above your head cannot be. Elevation is a screen-space band, because a genuinely distant
+   * point projects onto the horizon in this camera and the whole sky would collapse to a line.
+   */
+  #drawStars(scene: RenderScene, sky: RenderSky, elapsedSeconds: number, reducedMotion: boolean): void {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const horizon = this.#horizon(scene);
+
+    if (horizon <= 0) {
+      return;
+    }
+
+    const context = this.#context;
+    const planeLength = this.#planeLength();
+    const halfAngle = Math.atan(planeLength);
+    const band = Math.min(horizon, height * 0.9);
+    context.save();
+
+    if (sky.moonAngle !== undefined) {
+      const moon = this.#skyScreenX(sky.moonAngle, scene.camera.angle, halfAngle, planeLength, width);
+
+      if (moon !== undefined) {
+        const moonY = horizon - band * 0.72;
+        const radius = height * 0.05;
+        const glow = context.createRadialGradient(moon, moonY, 0, moon, moonY, radius * 4);
+        glow.addColorStop(0, "rgba(206, 220, 255, 0.42)");
+        glow.addColorStop(1, "rgba(140, 164, 220, 0)");
+        context.fillStyle = glow;
+        context.beginPath();
+        context.arc(moon, moonY, radius * 4, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = "#e6ecff";
+        context.beginPath();
+        context.arc(moon, moonY, radius, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = "rgba(176, 190, 230, 0.5)";
+        context.beginPath();
+        context.arc(moon - radius * 0.3, moonY - radius * 0.2, radius * 0.22, 0, Math.PI * 2);
+        context.arc(moon + radius * 0.34, moonY + radius * 0.26, radius * 0.16, 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+
+    for (let index = 0; index < sky.stars; index += 1) {
+      // Positions are derived from the index by the golden angle, so the same sky is drawn every
+      // frame, spread evenly, without a table to store or seed.
+      const azimuth = (index * 2.399_963) % (Math.PI * 2);
+      const rise = 0.12 + (((index * 37) % 79) / 79) * 0.86;
+      const screenX = this.#skyScreenX(azimuth, scene.camera.angle, halfAngle, planeLength, width);
+
+      if (screenX === undefined) {
+        continue;
+      }
+
+      const twinkle = reducedMotion ? 1 : 0.65 + Math.sin(elapsedSeconds * (1.1 + (index % 7) * 0.3) + index) * 0.35;
+      const size = index % 11 === 0 ? 2 : 1;
+      context.fillStyle = `rgba(226, 234, 255, ${(0.22 + (index % 5) * 0.12) * twinkle})`;
+      context.fillRect(screenX, horizon - band * rise, size, size);
+    }
+
+    context.restore();
+  }
+
+  /** Where a compass direction lands on screen, or undefined when it is outside the view. */
+  #skyScreenX(
+    azimuth: number,
+    cameraAngle: number,
+    halfAngle: number,
+    planeLength: number,
+    width: number,
+  ): number | undefined {
+    let relative = azimuth - cameraAngle;
+    relative -= Math.PI * 2 * Math.floor((relative + Math.PI) / (Math.PI * 2));
+
+    if (Math.abs(relative) >= halfAngle) {
+      return undefined;
+    }
+
+    return (width / 2) * (1 + Math.tan(relative) / planeLength);
+  }
+
+  /**
+   * Walks a column's ray and collects every wall that can show above the ones in front of it,
+   * nearest first.
+   *
+   * A single-hit cast is only correct while every wall is the same height, because then the first
+   * one covers everything behind it. Once surfaces carry their own height — a boundary wall standing
+   * taller than the maze inside it — the wall behind a short one is visible above it, and returning
+   * early left open sky in its place. So the walk continues past a hit, keeping only surfaces taller
+   * than everything already in front (a shorter wall further away can never clear a taller near one),
+   * and stops as soon as the tallest so far reaches the top of the screen.
+   */
+  #castColumn(
+    scene: RenderScene,
+    surfaces: ReadonlyMap<string, RenderSurface>,
+    cameraX: number,
+    roomHeight: number,
+    eyeHeight: number,
+    coverScale: number,
+    into: RayHit[],
+  ): void {
     const directionX = Math.cos(scene.camera.angle);
     const directionY = Math.sin(scene.camera.angle);
     const planeLength = this.#planeLength();
@@ -853,6 +1012,8 @@ export class CanvasGameplayRenderer {
     let sideX = rayX < 0 ? (scene.camera.x - mapX) * deltaX : (mapX + 1 - scene.camera.x) * deltaX;
     let sideY = rayY < 0 ? (scene.camera.y - mapY) * deltaY : (mapY + 1 - scene.camera.y) * deltaY;
     let side: 0 | 1 = 0;
+    let tallest = 0;
+    into.length = 0;
 
     for (let step = 0; step < 64; step += 1) {
       if (sideX < sideY) {
@@ -874,8 +1035,18 @@ export class CanvasGameplayRenderer {
       const distance = side === 0 ? sideX - deltaX : sideY - deltaY;
 
       if (distance > MAX_DEPTH) {
-        return undefined;
+        return;
       }
+
+      const surfaceHeight = surface.height ?? roomHeight;
+
+      // A wall no taller than one already in front of it can never clear that one's silhouette, so
+      // it is stepped over without being drawn.
+      if (surfaceHeight <= tallest) {
+        continue;
+      }
+
+      tallest = surfaceHeight;
 
       const wallCoordinate = side === 0 ? scene.camera.y + distance * rayY : scene.camera.x + distance * rayX;
       let textureX = Math.floor((wallCoordinate - Math.floor(wallCoordinate)) * TEXTURE_SIZE);
@@ -885,7 +1056,7 @@ export class CanvasGameplayRenderer {
       }
 
       const face = side === 0 ? (rayX > 0 ? "west" : "east") : rayY > 0 ? "north" : "south";
-      return {
+      into.push({
         distance,
         surface,
         textureX,
@@ -893,10 +1064,14 @@ export class CanvasGameplayRenderer {
         shade: side === 0 ? 1 : 0.78,
         hitX: scene.camera.x + rayX * distance,
         hitY: scene.camera.y + rayY * distance,
-      };
-    }
+      });
 
-    return undefined;
+      // Covered to the top of the screen: nothing behind this can appear above it. This is what
+      // keeps the walk one or two cells long in practice instead of running to the maze edge.
+      if (distance <= (surfaceHeight - eyeHeight) * coverScale) {
+        return;
+      }
+    }
   }
 
   #drawWalls(
@@ -913,116 +1088,157 @@ export class CanvasGameplayRenderer {
     const lightHeight = scene.height * LIGHTMAP_SCALE;
     const eyeHeight = this.#eyeHeight(scene);
     const roomHeight = this.#wallHeight(scene);
-    const storeys = Math.max(1, Math.round(roomHeight));
-    // One entry per material actually seen this frame, so the column loop never composes a key.
-    const frameTextures = new Map<RenderSurfaceMaterial, CanvasImageSource>();
+    // Keyed by material *and* height, because a boundary wall standing taller than the ones inside
+    // it needs its own stack of courses.
+    const frameTextures = new Map<string, CanvasImageSource>();
+
+    // Distance at which a wall one cell above the eye reaches the top of the screen. A non-positive
+    // horizon means the screen top is already below the level line, so the nearest wall always
+    // covers it and the walk stops at the first hit.
+    const coverScale = horizon > 0 ? height / horizon : Number.POSITIVE_INFINITY;
+    const column = this.#rayColumn;
 
     for (let x = 0; x < width; x += 1) {
-      const hit = this.#castRay(scene, surfaces, (2 * x) / width - 1);
+      this.#castColumn(scene, surfaces, (2 * x) / width - 1, roomHeight, eyeHeight, coverScale, column);
 
-      if (!hit) {
+      if (column.length === 0) {
         this.#depthBuffer[x] = MAX_DEPTH;
         continue;
       }
 
-      this.#depthBuffer[x] = hit.distance;
-      // The column runs from the floor to the top of the room, which is only symmetric about the
-      // horizon when the eye is halfway up it.
-      const depth = Math.max(0.001, hit.distance);
-      const bottom = horizon + (eyeHeight * height) / depth;
-      const wallHeight = (roomHeight * height) / depth;
-      const start = bottom - wallHeight;
-      const material: RenderSurfaceMaterial =
-        hit.surface.material === "breakableWall" && !hit.surface.hintFaces?.includes(hit.face)
-          ? "stoneWall"
-          : hit.surface.material;
-      // Resolved from a table built once per frame. Looking it up by a key composed here instead
-      // allocated a string per screen column, which measured as most of the wall pass.
-      let texture = frameTextures.get(material);
+      // Sprites test against the nearest wall; the column itself paints far to near.
+      this.#depthBuffer[x] = column[0]!.distance;
 
-      if (texture === undefined) {
-        texture = this.#storeyTexture(material, storeys);
-        frameTextures.set(material, texture);
-      }
-
-      // Clipped against the screen in *source* space, not by shortening the destination.
-      //
-      // The height was previously clamped to a maximum, which quietly squashed the texture into a
-      // shorter rectangle for near columns while leaving neighbouring columns unsquashed — so the
-      // masonry courses stepped sideways from column to column and a wall you stood next to came out
-      // visibly sheared. Taking the matching slice of the source keeps every column's texels on the
-      // same lines no matter how close the wall gets.
-      const sourceHeight = TEXTURE_SIZE * storeys;
-      const above = Math.max(0, -start);
-      const below = Math.max(0, start + wallHeight - height);
-      const visible = wallHeight - above - below;
-
-      if (visible <= 0) {
-        continue;
-      }
-
-      const sourceTop = (above / wallHeight) * sourceHeight;
-      const sourceSpan = (visible / wallHeight) * sourceHeight;
-      this.#context.drawImage(texture, hit.textureX, sourceTop, 1, sourceSpan, x, start + above, 1, visible);
-
-      const fog = clamp(hit.distance / MAX_DEPTH, 0, 0.88);
-
-      if (!this.#lit) {
-        const torch = clamp(1.15 - hit.distance / 7.5, 0, 1) * flicker * torchContraction;
-        this.#context.fillStyle = `rgba(13, 5, 24, ${fog + (1 - hit.shade) * 0.15})`;
-        this.#context.fillRect(x, start, 1, wallHeight);
-
-        if (torch > 0) {
-          this.#context.fillStyle = `rgba(255, 112, 35, ${torch * 0.16})`;
-          this.#context.fillRect(x, start, 1, wallHeight);
-        }
-
-        continue;
-      }
-
-      // Sampled a little in front of the face rather than inside the block, which is solid and
-      // therefore always unlit.
-      const normal = WALL_FACE_NORMALS[hit.face];
-      const texelX = clamp(Math.floor((hit.hitX + normal.x * 0.4) * LIGHTMAP_SCALE), 0, lightWidth - 1);
-      const texelY = clamp(Math.floor((hit.hitY + normal.y * 0.4) * LIGHTMAP_SCALE), 0, lightHeight - 1);
-      const light = (texelY * lightWidth + texelX) * 3;
-      // Faces turned away from the eye take less: the same one-line convention the block bevels use,
-      // applied at wall scale, is what stops a corridor reading as one continuous painted surface.
-      const level = clamp(
-        Math.max(this.#lightmap[light] ?? 0, this.#lightmap[light + 1] ?? 0, this.#lightmap[light + 2] ?? 0) *
-          hit.shade *
-          flicker *
+      for (let index = column.length - 1; index >= 0; index -= 1) {
+        this.#drawWallColumn(
+          column[index]!,
+          x,
+          height,
+          horizon,
+          eyeHeight,
+          roomHeight,
+          frameTextures,
+          flicker,
           torchContraction,
-        0,
-        1,
-      );
-      this.#context.fillStyle = shadowStyle(clamp(1 - level, 0, 0.94) * (1 - fog) + fog);
+          lightWidth,
+          lightHeight,
+        );
+      }
+    }
+  }
+
+  #drawWallColumn(
+    hit: RayHit,
+    x: number,
+    height: number,
+    horizon: number,
+    eyeHeight: number,
+    roomHeight: number,
+    frameTextures: Map<string, CanvasImageSource>,
+    flicker: number,
+    torchContraction: number,
+    lightWidth: number,
+    lightHeight: number,
+  ): void {
+    // The column runs from the floor to the top of the room, which is only symmetric about the
+    // horizon when the eye is halfway up it.
+    const depth = Math.max(0.001, hit.distance);
+    const surfaceHeight = hit.surface.height ?? roomHeight;
+    const storeys = Math.max(1, Math.round(surfaceHeight));
+    const bottom = horizon + (eyeHeight * height) / depth;
+    const wallHeight = (surfaceHeight * height) / depth;
+    const start = bottom - wallHeight;
+    const material: RenderSurfaceMaterial =
+      hit.surface.material === "breakableWall" && !hit.surface.hintFaces?.includes(hit.face)
+        ? "stoneWall"
+        : hit.surface.material;
+    // Resolved from a table built once per frame. Looking it up by a key composed here instead
+    // allocated a string per screen column, which measured as most of the wall pass.
+    const textureKey = storeys === 1 ? material : `${material}:${storeys}`;
+    let texture = frameTextures.get(textureKey);
+
+    if (texture === undefined) {
+      texture = this.#storeyTexture(material, storeys);
+      frameTextures.set(textureKey, texture);
+    }
+
+    // Clipped against the screen in *source* space, not by shortening the destination.
+    //
+    // The height was previously clamped to a maximum, which quietly squashed the texture into a
+    // shorter rectangle for near columns while leaving neighbouring columns unsquashed — so the
+    // masonry courses stepped sideways from column to column and a wall you stood next to came out
+    // visibly sheared. Taking the matching slice of the source keeps every column's texels on the
+    // same lines no matter how close the wall gets.
+    const sourceHeight = TEXTURE_SIZE * storeys;
+    const above = Math.max(0, -start);
+    const below = Math.max(0, start + wallHeight - height);
+    const visible = wallHeight - above - below;
+
+    if (visible <= 0) {
+      return;
+    }
+
+    const sourceTop = (above / wallHeight) * sourceHeight;
+    const sourceSpan = (visible / wallHeight) * sourceHeight;
+    this.#context.drawImage(texture, hit.textureX, sourceTop, 1, sourceSpan, x, start + above, 1, visible);
+
+    const fog = clamp(hit.distance / MAX_DEPTH, 0, 0.88);
+
+    if (!this.#lit) {
+      const torch = clamp(1.15 - hit.distance / 7.5, 0, 1) * flicker * torchContraction;
+      this.#context.fillStyle = `rgba(13, 5, 24, ${fog + (1 - hit.shade) * 0.15})`;
       this.#context.fillRect(x, start, 1, wallHeight);
 
-      if (level > 0.05) {
-        this.#context.globalCompositeOperation = "lighter";
-        this.#context.fillStyle = this.#tintStyle(
-          this.#lightmap[light] ?? 0,
-          this.#lightmap[light + 1] ?? 0,
-          this.#lightmap[light + 2] ?? 0,
-          clamp(level * (1 - fog) * 0.42, 0, 0.8),
-        );
+      if (torch > 0) {
+        this.#context.fillStyle = `rgba(255, 112, 35, ${torch * 0.16})`;
         this.#context.fillRect(x, start, 1, wallHeight);
-        this.#context.globalCompositeOperation = "source-over";
       }
 
-      // Contact shadow where the wall meets the floor. Nothing else in this renderer grounds a wall
-      // to the floor, and without it every corridor reads as flat cardboard standing on tile. Two
-      // solid bands rather than a gradient object, which would be allocated once per column.
-      const shade = 0.44 * (1 - fog) * level;
+      return;
+    }
 
-      if (shade > 0.03) {
-        const skirting = wallHeight * 0.18;
-        this.#context.fillStyle = shadowStyle(shade * 0.45);
-        this.#context.fillRect(x, start + wallHeight - skirting, 1, skirting / 2 + 1);
-        this.#context.fillStyle = shadowStyle(shade);
-        this.#context.fillRect(x, start + wallHeight - skirting / 2, 1, skirting / 2 + 1);
-      }
+    // Sampled a little in front of the face rather than inside the block, which is solid and
+    // therefore always unlit.
+    const normal = WALL_FACE_NORMALS[hit.face];
+    const texelX = clamp(Math.floor((hit.hitX + normal.x * 0.4) * LIGHTMAP_SCALE), 0, lightWidth - 1);
+    const texelY = clamp(Math.floor((hit.hitY + normal.y * 0.4) * LIGHTMAP_SCALE), 0, lightHeight - 1);
+    const light = (texelY * lightWidth + texelX) * 3;
+    // Faces turned away from the eye take less: the same one-line convention the block bevels use,
+    // applied at wall scale, is what stops a corridor reading as one continuous painted surface.
+    const level = clamp(
+      Math.max(this.#lightmap[light] ?? 0, this.#lightmap[light + 1] ?? 0, this.#lightmap[light + 2] ?? 0) *
+        hit.shade *
+        flicker *
+        torchContraction,
+      0,
+      1,
+    );
+    this.#context.fillStyle = shadowStyle(clamp(1 - level, 0, 0.94) * (1 - fog) + fog);
+    this.#context.fillRect(x, start, 1, wallHeight);
+
+    if (level > 0.05) {
+      this.#context.globalCompositeOperation = "lighter";
+      this.#context.fillStyle = this.#tintStyle(
+        this.#lightmap[light] ?? 0,
+        this.#lightmap[light + 1] ?? 0,
+        this.#lightmap[light + 2] ?? 0,
+        clamp(level * (1 - fog) * 0.42, 0, 0.8),
+      );
+      this.#context.fillRect(x, start, 1, wallHeight);
+      this.#context.globalCompositeOperation = "source-over";
+    }
+
+    // Contact shadow where the wall meets the floor. Nothing else in this renderer grounds a wall
+    // to the floor, and without it every corridor reads as flat cardboard standing on tile. Two
+    // solid bands rather than a gradient object, which would be allocated once per column.
+    const shade = 0.44 * (1 - fog) * level;
+
+    if (shade > 0.03) {
+      const skirting = wallHeight * 0.18;
+      this.#context.fillStyle = shadowStyle(shade * 0.45);
+      this.#context.fillRect(x, start + wallHeight - skirting, 1, skirting / 2 + 1);
+      this.#context.fillStyle = shadowStyle(shade);
+      this.#context.fillRect(x, start + wallHeight - skirting / 2, 1, skirting / 2 + 1);
     }
   }
 
@@ -1794,10 +2010,59 @@ export class CanvasGameplayRenderer {
     const fall = progress * progress * projected.height * 0.45;
     const spread = progress * projected.width * 0.28;
     this.#context.save();
-    this.#context.globalAlpha = alpha;
-    this.#drawDeathHalf(projected, source, dimensions, 0, -spread, fall, -progress * 0.42);
-    this.#drawDeathHalf(projected, source, dimensions, 1, spread, fall, progress * 0.42);
+
+    // The halves are rotated, so they cannot be sliced per column the way an upright sprite is.
+    // Clipping to the same visible runs gets the depth test back — without it a death played out
+    // through the wall it happened behind, because these two calls were the only ones in the sprite
+    // pass that reached the canvas without consulting the depth buffer at all.
+    if (this.#clipToVisibleColumns(projected)) {
+      this.#context.globalAlpha = alpha;
+      this.#drawDeathHalf(projected, source, dimensions, 0, -spread, fall, -progress * 0.42);
+      this.#drawDeathHalf(projected, source, dimensions, 1, spread, fall, progress * 0.42);
+    }
+
     this.#context.restore();
+  }
+
+  /**
+   * Clips the context to the columns of a sprite that no wall stands in front of.
+   *
+   * For anything drawn rotated or otherwise not column-aligned. Returns false when the sprite is
+   * entirely hidden, so the caller can skip it rather than draw into an empty clip.
+   */
+  #clipToVisibleColumns(projected: ProjectedSprite): boolean {
+    const startX = Math.max(0, Math.floor(projected.startX));
+    const endX = Math.min(this.canvas.width, Math.ceil(projected.endX));
+
+    if (endX <= startX) {
+      return false;
+    }
+
+    const context = this.#context;
+    context.beginPath();
+    let runStart = -1;
+    let any = false;
+
+    for (let x = startX; x <= endX; x += 1) {
+      const visible = x < endX && (this.#depthBuffer[x] ?? MAX_DEPTH) > projected.depth;
+
+      if (visible && runStart < 0) {
+        runStart = x;
+      } else if (!visible && runStart >= 0) {
+        // Full canvas height: the depth buffer only resolves horizontally, and the sprite's own
+        // bounds already limit the vertical extent.
+        context.rect(runStart, 0, x - runStart, this.canvas.height);
+        runStart = -1;
+        any = true;
+      }
+    }
+
+    if (!any) {
+      return false;
+    }
+
+    context.clip();
+    return true;
   }
 
   #drawDeathHalf(
@@ -1876,16 +2141,17 @@ export class CanvasGameplayRenderer {
    * pulls the eye to the middle of the frame, the warm core keeps the torch reading as a light source
    * carried by the player, and the slow breath stops a still frame from looking like a screenshot.
    */
-  #drawGrade(elapsedSeconds: number, reducedMotion: boolean): void {
+  #drawGrade(elapsedSeconds: number, reducedMotion: boolean, turnRate: number): void {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const centreX = width * 0.5;
     const centreY = height * 0.54;
     const breath = reducedMotion ? 1 : 1 + Math.sin(elapsedSeconds * 0.9) * 0.03;
-    const outer = Math.hypot(width, height) * 0.62 * breath;
+    const closing = clamp(turnRate, 0, 1);
+    const outer = Math.hypot(width, height) * (0.62 - closing * TURN_VIGNETTE_REACH) * breath;
     const vignette = this.#context.createRadialGradient(centreX, centreY, outer * 0.34, centreX, centreY, outer);
     vignette.addColorStop(0, "rgba(6, 2, 12, 0)");
-    vignette.addColorStop(0.62, "rgba(6, 2, 12, 0.3)");
+    vignette.addColorStop(0.62, `rgba(6, 2, 12, ${0.3 + closing * TURN_VIGNETTE_DEPTH})`);
     vignette.addColorStop(1, "rgba(4, 1, 9, 0.82)");
     this.#context.fillStyle = vignette;
     this.#context.fillRect(0, 0, width, height);

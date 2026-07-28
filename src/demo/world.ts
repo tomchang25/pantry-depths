@@ -185,6 +185,14 @@ export type DemoWorld = {
   deaths: DemoDeath[];
   /** Room height in cells for this floor. Presentation only; nothing collides vertically. */
   wallHeight: number;
+  /**
+   * Bumped whenever the terrain or the altar changes.
+   *
+   * The scene's walls, floor materials and structures are derived from those and nothing else, so
+   * they only need rebuilding when this moves — which is a few times a minute rather than sixty
+   * times a second.
+   */
+  terrainVersion: number;
   held: DemoHeld;
   status: DemoStatus;
   elapsedSeconds: number;
@@ -325,6 +333,7 @@ export function populateFloor(world: DemoWorld): void {
   // rather than as high — which is exactly the distortion a fractional height causes. Deeper floors
   // are likelier to be the tall kind.
   world.wallHeight = Math.random() < Math.min(0.75, 0.25 + world.depth * 0.12) ? 2 : 1;
+  world.terrainVersion += 1;
   world.altar = { hp: ALTAR_HITS, maxHp: ALTAR_HITS, x: maze.altar.x + 0.5, y: maze.altar.y + 0.5 };
   world.spawnSeconds = SPAWN_INTERVAL_SECONDS;
   world.player.x = maze.entrance.x + 0.5;
@@ -388,6 +397,7 @@ export function createDemoWorld(): DemoWorld {
     stains: new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE),
     deaths: [],
     wallHeight: 1.6,
+    terrainVersion: 0,
     held: undefined,
     status: "playing",
     elapsedSeconds: 0,

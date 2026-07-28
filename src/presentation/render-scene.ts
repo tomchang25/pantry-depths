@@ -41,6 +41,29 @@ export type RenderSurface = Readonly<{
   cell: Cell;
   material: RenderSurfaceMaterial;
   hintFaces?: readonly Facing[];
+  /**
+   * Height in cells, overriding the scene's. Only meaningful under an open sky: with a ceiling to
+   * meet, every wall has to reach it, and the moment the ceiling is gone they no longer have to
+   * agree — which is what lets a boundary wall stand well above the ones inside it.
+   */
+  height?: number;
+}>;
+
+/**
+ * An open sky in place of a ceiling.
+ *
+ * Not geometry. Everything above the horizon that no wall covers is filled with a gradient, and the
+ * stars are placed in screen space at a fixed elevation band rather than in the world — a point at
+ * infinite distance projects onto the horizon itself in this camera, so a literally distant star
+ * would collapse to a line. Treating the sky as a backdrop is both the correct look and far cheaper
+ * than the textured plane it replaces: no sampling, no cell lookup, one write per pixel.
+ */
+export type RenderSky = Readonly<{
+  horizonColor: readonly [number, number, number];
+  zenithColor: readonly [number, number, number];
+  stars: number;
+  /** Direction of the moon in radians, or omitted for a moonless sky. */
+  moonAngle?: number;
 }>;
 
 /**
@@ -174,8 +197,10 @@ export type RenderScene = Readonly<{
   surfaces: readonly RenderSurface[];
   /** Cells whose floor is drawn from a different texture. Baked floors author none of these. */
   floorPatches?: readonly RenderFloorPatch[];
-  /** Replaces the default ceiling texture for the whole scene. */
+  /** Replaces the default ceiling texture for the whole scene. Ignored when `sky` is set. */
   ceilingMaterial?: RenderFloorMaterial;
+  /** Opens the roof. Takes the place of the ceiling entirely. */
+  sky?: RenderSky;
   /**
    * Room height in cells, and how far up it the eye sits.
    *

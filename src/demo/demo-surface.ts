@@ -27,6 +27,8 @@ const MOUSE_SENSITIVITY = 0.0026;
  * this only stops the number growing without limit while the mouse keeps travelling.
  */
 const MAX_PITCH = 1.5;
+/** Mouse counts per second that read as a full-speed turn, for the comfort vignette. */
+const FULL_TURN_RATE = 2600;
 const MINIMAP_CELL = 8;
 
 const MOVEMENT_KEYS: Readonly<Record<string, keyof DemoInput>> = {
@@ -164,6 +166,9 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   let cardTimer: number | undefined;
   /** Exponentially smoothed, because a raw per-frame reciprocal is unreadable noise. */
   let smoothedFps = 60;
+  /** Mouse counts since the last frame, and the smoothed rate the comfort vignette reads. */
+  let turnInput = 0;
+  let turnRate = 0;
   const input: { forward: boolean; backward: boolean; strafeLeft: boolean; strafeRight: boolean } = {
     forward: false,
     backward: false,
@@ -294,7 +299,12 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
     if (deltaSeconds > 0.0005) {
       smoothedFps += (1 / deltaSeconds - smoothedFps) * 0.08;
+      // Rises quickly and falls slowly, so the frame does not breathe every time the mouse pauses.
+      const instant = Math.min(1, turnInput / deltaSeconds / FULL_TURN_RATE);
+      turnRate += (instant - turnRate) * (instant > turnRate ? 0.4 : 0.06);
     }
+
+    turnInput = 0;
 
     const active = locked() && world.status === "playing";
     stepDemoWorld(
@@ -308,6 +318,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
       reducedMotion: false,
       viewmodel: false,
       grade: true,
+      turnRate,
     });
     // Where the swing landed, in screen space, so the arm and the arc can be aimed at it.
     const target = world.swingTarget;
@@ -352,6 +363,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     // Wrapped rather than accumulated: a long session spinning one way otherwise walks the angle out
     // to where float precision starts coarsening the turn.
     world.player.angle = turned - Math.PI * 2 * Math.floor(turned / (Math.PI * 2));
+    turnInput += Math.abs(event.movementX) + Math.abs(event.movementY) * 0.5;
     world.player.pitch = Math.max(
       -MAX_PITCH,
       Math.min(MAX_PITCH, world.player.pitch - event.movementY * MOUSE_SENSITIVITY * 0.42),
