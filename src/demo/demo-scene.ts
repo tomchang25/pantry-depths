@@ -298,7 +298,7 @@ function ground(id: string, x: number, y: number, assetId: string, scale: number
 }
 
 /** The wind-up marker floating over a committed enemy, and the lane a charger has claimed. */
-function telegraph(world: DemoWorld, enemy: DemoEnemy, built: RenderSprite[]): void {
+function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
   if (enemy.windupSeconds <= 0 || enemy.intent === "none") {
     return;
   }
@@ -319,8 +319,11 @@ function telegraph(world: DemoWorld, enemy: DemoEnemy, built: RenderSprite[]): v
     return;
   }
 
-  const dx = world.player.x - enemy.x;
-  const dy = world.player.y - enemy.y;
+  // The lane the charger committed to, not the one to wherever the player is now. Drawing the live
+  // line was honest only while the charge itself re-aimed at the last instant; now that it does not,
+  // this is the difference between a warning and a decoration.
+  const dx = enemy.aimX - enemy.x;
+  const dy = enemy.aimY - enemy.y;
   const length = Math.max(0.0001, Math.hypot(dx, dy));
 
   for (let step = 1; step <= 5; step += 1) {
@@ -637,7 +640,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
     built.push(...projectDemoEnemy(projectionContext, enemy).sprites);
 
     // Slimes stay blobs; authored enemies and all telegraphs share this depth-sorted sprite pass.
-    telegraph(world, enemy, built);
+    telegraph(enemy, built);
 
     // A short spark at the point of contact. The white flash on the sprite says something landed;
     // this says where, which is what makes a crowded melee readable.

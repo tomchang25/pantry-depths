@@ -50,6 +50,16 @@ export type DemoEnemy = {
   windupSeconds: number;
   windupTotal: number;
   intent: DemoIntent;
+  /**
+   * Where the current wind-up is aimed, taken when it began and never revised.
+   *
+   * The whole reason a telegraph can be trusted. Both committed attacks used to read the player's
+   * live position at the moment they resolved, so a wind-up was a pause before an unavoidable hit and
+   * anything drawn during it described where the player happened to be, not where the attack was
+   * going. Written only by the wind-up entry point; every resolution and every drawn warning reads it.
+   */
+  aimX: number;
+  aimY: number;
   chargeSeconds: number;
   chargeX: number;
   chargeY: number;
@@ -417,6 +427,8 @@ export function createEnemy(world: DemoWorld, x: number, y: number, archetype = 
     windupSeconds: 0,
     windupTotal: 0,
     intent: "none",
+    aimX: x,
+    aimY: y,
     chargeSeconds: 0,
     chargeX: 0,
     chargeY: 0,

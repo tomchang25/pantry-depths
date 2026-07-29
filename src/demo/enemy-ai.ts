@@ -203,16 +203,31 @@ function walk(
   enemy.y = moved.y;
 }
 
-function beginWindup(enemy: DemoEnemy, intent: DemoEnemy["intent"]): void {
+/**
+ * Commits an enemy to an attack, and to the spot it is aimed at.
+ *
+ * The aim is taken here and nowhere else. Both attacks used to derive their direction at the moment
+ * they resolved, from wherever the player was standing by then, which made them perfectly homing and
+ * made every marker drawn during the wind-up a description of the present rather than of what was
+ * about to happen. Recording the point up front is what turns the telegraph into a promise: the shot
+ * goes where the line was drawn, the charge runs the lane it painted, and stepping aside works.
+ *
+ * A point rather than a direction, because the drawn warnings need the place — the lane strip and the
+ * landing circle are both statements about a spot on the floor — and keeping two representations of
+ * one lock is how they come apart.
+ */
+function beginWindup(world: DemoWorld, enemy: DemoEnemy, intent: DemoEnemy["intent"]): void {
   enemy.intent = intent;
   enemy.windupSeconds = enemy.archetype.windup;
   enemy.windupTotal = enemy.archetype.windup;
   enemy.attackPoseSeconds = enemy.archetype.windup + 0.2;
+  enemy.aimX = world.player.x;
+  enemy.aimY = world.player.y;
 }
 
 function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
-  const dx = world.player.x - enemy.x;
-  const dy = world.player.y - enemy.y;
+  const dx = enemy.aimX - enemy.x;
+  const dy = enemy.aimY - enemy.y;
   const length = Math.max(0.0001, Math.hypot(dx, dy));
   world.hazards.push({
     id: nextId(world, "hazard"),
@@ -228,9 +243,16 @@ function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
   enemy.attackCooldown = enemy.archetype.attackCooldown;
 }
 
-function launchCharge(world: DemoWorld, enemy: DemoEnemy): void {
-  const dx = world.player.x - enemy.x;
-  const dy = world.player.y - enemy.y;
+/**
+ * Sends a charge down the lane it committed to.
+ *
+ * The locked point only sets the direction. Distance stays the charger's own, so a charge aimed at
+ * something two cells away still runs its full length past it — which is what leaves the charger
+ * beyond the player, facing the wrong way, when it misses.
+ */
+function launchCharge(enemy: DemoEnemy): void {
+  const dx = enemy.aimX - enemy.x;
+  const dy = enemy.aimY - enemy.y;
   const length = Math.max(0.0001, Math.hypot(dx, dy));
   enemy.chargeX = dx / length;
   enemy.chargeY = dy / length;
@@ -383,7 +405,7 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
         }
 
         if (intent === "charge") {
-          launchCharge(world, enemy);
+          launchCharge(enemy);
           continue;
         }
 
@@ -424,7 +446,7 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
       sighted &&
       enemy.attackCooldown <= 0
     ) {
-      beginWindup(enemy, "charge");
+      beginWindup(world, enemy, "charge");
       continue;
     }
 
@@ -436,7 +458,7 @@ function stepMelee(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSe
   if (distance <= enemy.archetype.contactRange) {
     if (enemy.attackCooldown <= 0) {
       if (enemy.archetype.meleeWindup) {
-        beginWindup(enemy, "melee");
+        beginWindup(world, enemy, "melee");
         return;
       }
 
@@ -472,7 +494,7 @@ function stepRanged(
   deltaSeconds: number,
 ): void {
   if (sighted && enemy.attackCooldown <= 0 && distance <= RANGED_STANDOFF.far) {
-    beginWindup(enemy, "shoot");
+    beginWindup(world, enemy, "shoot");
     return;
   }
 

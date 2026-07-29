@@ -179,6 +179,10 @@ function createEnemy(archetypeId: DemoArchetypeId, id = "workbench-enemy"): Demo
     windupSeconds: 0,
     windupTotal: Math.max(0.001, archetype.windup),
     intent: "none",
+    // Aimed straight down the room, so a previewed wind-up paints its lane towards the camera rather
+    // than at whatever the origin cell happens to be.
+    aimX: ROOM_CENTRE,
+    aimY: BODY_Y - 1,
     chargeSeconds: 0,
     chargeX: 0,
     chargeY: -1,
