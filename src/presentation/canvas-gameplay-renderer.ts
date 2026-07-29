@@ -113,6 +113,34 @@ const TINTED_WALL_CACHE_LIMIT = 384;
  * levels spans the deepest stain the demo produces in steps too small to see.
  */
 const STAIN_STEPS = 8;
+
+/**
+ * A floor decal's shape, as a number the inner loop can switch on.
+ *
+ * Discs and rings share a case because they are the same test with a different inner bound: a disc is
+ * a ring whose hole has no radius, so one comparison pair covers both and the loop stays one branch
+ * shorter than the authored vocabulary suggests.
+ */
+const DECAL_RADIAL = 0;
+const DECAL_LANE = 1;
+
+/** A decal with its shape flattened into fields the floor loop reads without branching on a string. */
+type PreparedDecal = Readonly<{
+  kind: number;
+  x: number;
+  y: number;
+  /** Radial: squared outer radius. Lane: length along its direction. */
+  outer: number;
+  /** Radial: squared inner radius, zero for a disc. Lane: half its width. */
+  inner: number;
+  directionX: number;
+  directionY: number;
+  red: number;
+  green: number;
+  blue: number;
+  strength: number;
+}>;
+
 /**
  * The water wave, tabulated. The slide the water texture reads through was a `Math.sin` per water
  * pixel, which billed a screen-filling pool around ten milliseconds a frame; a table lookup is the
@@ -782,6 +810,102 @@ export class CanvasGameplayRenderer {
     return grid;
   }
 
+  /**
+   * Decals resolved into the form the floor loop wants, plus which cells any of them reach.
+   *
+   * Two jobs, done once per frame rather than once per pixel. The shapes lose their discriminant for
+   * a number, because a string compare inside a loop that runs a fifth of a million times is a real
+   * cost; and the fields are reused across shapes so the test below reads the same slots whichever
+   * shape it is looking at. The cell mask is what keeps the whole thing affordable — a floor with
+   * nothing painted on it never enters the decal path, and a floor with a lane on it enters it only
+   * in the cells the lane crosses.
+   *
+   * The mask is one bit per decal, so the first thirty-two are drawn and any beyond that are not.
+   * Nothing in this game can produce thirty-two at once; the cap is a bound, not a policy.
+   */
+  #prepareFloorDecals(scene: RenderScene): Readonly<{ decals: PreparedDecal[]; cells: Uint32Array }> | undefined {
+    const decals = scene.floorDecals;
+
+    if (!decals || decals.length === 0) {
+      return undefined;
+    }
+
+    const prepared: PreparedDecal[] = [];
+    const cells = new Uint32Array(scene.width * scene.height);
+
+    for (const decal of decals) {
+      if (prepared.length >= 32 || decal.strength <= 0) {
+        continue;
+      }
+
+      const shape = decal.shape;
+      let reach: PreparedDecal;
+      let minX: number;
+      let maxX: number;
+      let minY: number;
+      let maxY: number;
+
+      if (shape.kind === "disc" || shape.kind === "ring") {
+        const radius = shape.radius;
+        const inner = shape.kind === "ring" ? Math.max(0, radius - shape.thickness) : 0;
+        reach = {
+          kind: DECAL_RADIAL,
+          x: decal.x,
+          y: decal.y,
+          outer: radius * radius,
+          inner: inner * inner,
+          directionX: 0,
+          directionY: 0,
+          red: decal.color[0],
+          green: decal.color[1],
+          blue: decal.color[2],
+          strength: clamp(decal.strength, 0, 1),
+        };
+        minX = decal.x - radius;
+        maxX = decal.x + radius;
+        minY = decal.y - radius;
+        maxY = decal.y + radius;
+      } else {
+        const endX = decal.x + shape.directionX * shape.length;
+        const endY = decal.y + shape.directionY * shape.length;
+        reach = {
+          kind: DECAL_LANE,
+          x: decal.x,
+          y: decal.y,
+          outer: shape.length,
+          inner: shape.halfWidth,
+          directionX: shape.directionX,
+          directionY: shape.directionY,
+          red: decal.color[0],
+          green: decal.color[1],
+          blue: decal.color[2],
+          strength: clamp(decal.strength, 0, 1),
+        };
+        // The bounding box of an oriented strip is the box around its two ends, grown by its width.
+        minX = Math.min(decal.x, endX) - shape.halfWidth;
+        maxX = Math.max(decal.x, endX) + shape.halfWidth;
+        minY = Math.min(decal.y, endY) - shape.halfWidth;
+        maxY = Math.max(decal.y, endY) + shape.halfWidth;
+      }
+
+      const bit = 1 << prepared.length;
+      prepared.push(reach);
+      const fromX = Math.max(0, Math.floor(minX));
+      const toX = Math.min(scene.width - 1, Math.floor(maxX));
+      const fromY = Math.max(0, Math.floor(minY));
+      const toY = Math.min(scene.height - 1, Math.floor(maxY));
+
+      for (let cellY = fromY; cellY <= toY; cellY += 1) {
+        for (let cellX = fromX; cellX <= toX; cellX += 1) {
+          const index = cellY * scene.width + cellX;
+          cells[index] = (cells[index] ?? 0) | bit;
+        }
+      }
+    }
+
+    return prepared.length > 0 ? { decals: prepared, cells } : undefined;
+  }
+
   /** Per-cell overlay material and strength, packed as two parallel grids. */
   #floorOverlayGrids(scene: RenderScene): Readonly<{ material: Uint8Array; amount: Float32Array }> | undefined {
     const overlays = scene.floorOverlays;
@@ -1086,6 +1210,9 @@ export class CanvasGameplayRenderer {
     const shoreMask = this.#shoreMask;
     const overlays = this.#floorOverlayGrids(scene);
     const cellTextures = this.#cellFloorTextures(scene, patchGrid, overlays);
+    const decals = this.#prepareFloorDecals(scene);
+    const decalList = decals?.decals;
+    const decalCells = decals?.cells;
     const sky = scene.sky;
     const ceilingIndex = scene.ceilingMaterial ? FLOOR_MATERIALS.indexOf(scene.ceilingMaterial) : -1;
     const ceilingMaterial = ceilingIndex >= 0 ? ceilingIndex : undefined;
@@ -1191,6 +1318,9 @@ export class CanvasGameplayRenderer {
       let runMask = 0;
       let runCellX = 0;
       let runCellY = 0;
+      // Which decals, if any, reach into the cell this run is inside. Zero for almost every cell on
+      // almost every floor, and the test below is skipped entirely when it is.
+      let runDecals = 0;
 
       for (let x = 0; x < width; x += colStep) {
         const hasNext = colStep === 2 && x + 1 < width;
@@ -1225,10 +1355,12 @@ export class CanvasGameplayRenderer {
               runPixels = cellTextures[cell] ?? defaultPixels;
               runWater = patchGrid !== undefined && WATERY_PATCH[patchGrid[cell] ?? 0] === 1;
               runMask = runWater && shoreMask ? (shoreMask[cell] ?? 0) : 0;
+              runDecals = decalCells ? (decalCells[cell] ?? 0) : 0;
             } else {
               runPixels = defaultPixels;
               runWater = false;
               runMask = 0;
+              runDecals = 0;
             }
 
             // Iterations until either axis of the sample leaves this cell.
@@ -1271,6 +1403,49 @@ export class CanvasGameplayRenderer {
         const source = (textureY * TEXTURE_SIZE + textureX) * 4;
         const target = (y * width + x) * 4;
 
+        // Whatever is painted on the floor at this exact point. Tested against the sample's own world
+        // position rather than the cell it happens to be in, which is what lets a circle be round and
+        // a lane keep square edges at any angle. A later decal paints over an earlier one, so the
+        // caller orders them the way it wants them stacked.
+        let decalRed = 0;
+        let decalGreen = 0;
+        let decalBlue = 0;
+        let decalAmount = 0;
+
+        if (runDecals !== 0 && decalList) {
+          for (let index = 0; index < decalList.length; index += 1) {
+            if ((runDecals & (1 << index)) === 0) {
+              continue;
+            }
+
+            const decal = decalList[index];
+
+            if (!decal) {
+              continue;
+            }
+
+            const toX = planeXPosition - decal.x;
+            const toY = planeYPosition - decal.y;
+            let covered: boolean;
+
+            if (decal.kind === DECAL_RADIAL) {
+              const squared = toX * toX + toY * toY;
+              covered = squared <= decal.outer && squared >= decal.inner;
+            } else {
+              const along = toX * decal.directionX + toY * decal.directionY;
+              const across = toY * decal.directionX - toX * decal.directionY;
+              covered = along >= 0 && along <= decal.outer && across >= -decal.inner && across <= decal.inner;
+            }
+
+            if (covered) {
+              decalRed = decal.red;
+              decalGreen = decal.green;
+              decalBlue = decal.blue;
+              decalAmount = decal.strength;
+            }
+          }
+        }
+
         if (!this.#lit) {
           // Inlined rather than calling a helper: this runs once per floor and ceiling pixel, so a
           // call with nine arguments happens a fifth of a million times a frame.
@@ -1283,6 +1458,14 @@ export class CanvasGameplayRenderer {
             red += (206 - red) * foam;
             green += (232 - green) * foam;
             blue += (246 - blue) * foam;
+          }
+
+          // Mixed into the texel, before the light and the fog, so a mark on the floor darkens with
+          // distance and brightens under the torch exactly as the ground it is painted on does.
+          if (decalAmount > 0) {
+            red += (decalRed - red) * decalAmount;
+            green += (decalGreen - green) * decalAmount;
+            blue += (decalBlue - blue) * decalAmount;
           }
 
           const outRed = red * fog + fogFlatRed + 31 * torch;
@@ -1314,9 +1497,20 @@ export class CanvasGameplayRenderer {
         const light = (texelY * lightWidth + texelX) * 3;
         const pixel = image.data;
         void foam;
-        const red = (pixels[source] ?? 0) * (this.#lightmap[light] ?? 0) * fog + fogRed;
-        const green = (pixels[source + 1] ?? 0) * (this.#lightmap[light + 1] ?? 0) * fog + fogGreen;
-        const blue = (pixels[source + 2] ?? 0) * (this.#lightmap[light + 2] ?? 0) * fog + fogBlue;
+        let texelRed = pixels[source] ?? 0;
+        let texelGreen = pixels[source + 1] ?? 0;
+        let texelBlue = pixels[source + 2] ?? 0;
+
+        // Same seam as the unlit path: the mark goes into the texel, then the texel is lit and fogged.
+        if (decalAmount > 0) {
+          texelRed += (decalRed - texelRed) * decalAmount;
+          texelGreen += (decalGreen - texelGreen) * decalAmount;
+          texelBlue += (decalBlue - texelBlue) * decalAmount;
+        }
+
+        const red = texelRed * (this.#lightmap[light] ?? 0) * fog + fogRed;
+        const green = texelGreen * (this.#lightmap[light + 1] ?? 0) * fog + fogGreen;
+        const blue = texelBlue * (this.#lightmap[light + 2] ?? 0) * fog + fogBlue;
         pixel[target] = red;
         pixel[target + 1] = green;
         pixel[target + 2] = blue;

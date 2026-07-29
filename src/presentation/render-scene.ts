@@ -102,6 +102,50 @@ export type RenderFloorPatch = Readonly<{ cell: Cell; material: RenderFloorMater
 export type RenderFloorOverlay = Readonly<{ cell: Cell; material: RenderFloorMaterial; amount: number }>;
 
 /**
+ * The shape a decal covers, in world units.
+ *
+ * A lane is measured forward from the decal's own point along its direction, so a charger paints one
+ * by handing over where it is standing and which way it has committed. The circles are centred on
+ * that point instead.
+ */
+export type RenderFloorDecalShape =
+  | Readonly<{ kind: "disc"; radius: number }>
+  | Readonly<{ kind: "ring"; radius: number; thickness: number }>
+  | Readonly<{
+      kind: "lane";
+      directionX: number;
+      directionY: number;
+      length: number;
+      halfWidth: number;
+    }>;
+
+/**
+ * A shape painted into the floor, at whatever resolution the floor is drawn at.
+ *
+ * Distinct from both of the things above it, and the distinction is the point. A floor patch or
+ * overlay is a whole cell and nothing finer, which is right for terrain and for blood but cannot
+ * describe a circle two cells across or a lane running at forty degrees. A sprite laid flat is not on
+ * the floor at all — the sprite pipeline draws a camera-facing quad squashed to a fraction of its
+ * height, so it lifts away from the ground at close range and at the edges of the view, keeps its own
+ * colour instead of taking the floor's light and fog, and reads as a sticker rather than as a mark.
+ *
+ * This is neither: the floor is already sampled per pixel from a known world position, so a decal is
+ * a test against that position and a blend into the texel before it is lit. It is therefore shaded,
+ * fogged, and walked over exactly like the ground it is part of, and it holds its shape at any angle.
+ *
+ * Cost is bounded by marking which cells each decal reaches and leaving every other cell on the fast
+ * path, so a floor with no decals on it costs nothing at all.
+ */
+export type RenderFloorDecal = Readonly<{
+  x: number;
+  y: number;
+  shape: RenderFloorDecalShape;
+  color: readonly [number, number, number];
+  /** How much of the floor's own colour it takes where it covers, from nothing to all of it. */
+  strength: number;
+}>;
+
+/**
  * An axis-aligned box standing in the world.
  *
  * The demo's altars, stair mouths and pedestals were flat images laid on the ground, which is what
@@ -309,6 +353,14 @@ export type RenderScene = Readonly<{
   eyeHeight?: number;
   /** Materials blended over the floor already there, by amount. Used for staining, not for terrain. */
   floorOverlays?: readonly RenderFloorOverlay[];
+  /**
+   * Shapes painted into the floor at sub-cell resolution. Baked floors author none of these.
+   *
+   * Deliberately a separate channel from the overlays rather than more of them: an overlay is one
+   * material per cell, so a warning drawn through that channel would erase whatever blood had been
+   * spilled on the cells it crosses and put it back when it expired.
+   */
+  floorDecals?: readonly RenderFloorDecal[];
   /** Volumetric props. Boxes, because everything the demo needs to stand up is box-shaped. */
   boxes?: readonly RenderBox[];
   /** Soft bodies drawn as deformed ring stacks. Baked floors author none of these. */

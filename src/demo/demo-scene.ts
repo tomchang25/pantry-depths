@@ -17,7 +17,15 @@ import {
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
 import { CHARGE_DISTANCE, RANGED_SHOT_RANGE } from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
-import { blocksProjectile, blocksWalk, DEMO_GRID_SIZE, DEMO_WALL_HEIGHT, holdsStains, tileIndex } from "@/demo/maze";
+import {
+  blocksFlung,
+  blocksProjectile,
+  blocksWalk,
+  DEMO_GRID_SIZE,
+  DEMO_WALL_HEIGHT,
+  holdsStains,
+  tileIndex,
+} from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
 import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
@@ -42,6 +50,7 @@ import type {
   RenderBox,
   RenderEmitter,
   RenderFloorMaterial,
+  RenderFloorDecal,
   RenderFloorOverlay,
   RenderFloorPatch,
   RenderLight,
@@ -351,63 +360,6 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
   });
 }
 
-/**
- * Where a shell is going to land, painted on the floor from the moment the mark is taken.
- *
- * The outer ring is the blast, and it never moves — the emplacement locked a spot, not a body, so
- * walking off it is the whole answer. The inner disc grows out to meet the ring as the shell comes
- * in, which is the clock. The pair covers the five seconds of lock and the flight in one object.
- */
-function landingCircles(world: DemoWorld, built: RenderSprite[]): void {
-  for (const mortar of world.mortars) {
-    if (mortar.phase !== "locked") {
-      continue;
-    }
-
-    const closing = 1 - mortar.seconds / MORTAR_LOCK_SECONDS;
-    built.push(
-      ground(
-        `mortar-ring-${mortar.cellX}-${mortar.cellY}`,
-        mortar.aimX,
-        mortar.aimY,
-        DEMO_ASSET_IDS.aoeRing,
-        SHELL_BLAST_RADIUS * 2,
-      ),
-    );
-    built.push(
-      ground(
-        `mortar-fill-${mortar.cellX}-${mortar.cellY}`,
-        mortar.aimX,
-        mortar.aimY,
-        DEMO_ASSET_IDS.aoeFill,
-        SHELL_BLAST_RADIUS * 2 * Math.max(0.08, closing),
-      ),
-    );
-  }
-
-  for (const hazard of world.hazards) {
-    if (hazard.kind !== "shell") {
-      continue;
-    }
-
-    // Once the shell is in the air the circle stays put and the disc keeps closing on it, so the
-    // mark is continuous from the lock through to the landing rather than blinking out at launch.
-    const landingX = hazard.x + hazard.directionX * (hazard.range - hazard.travelled);
-    const landingY = hazard.y + hazard.directionY * (hazard.range - hazard.travelled);
-    const closing = Math.min(1, hazard.travelled / Math.max(0.0001, hazard.range));
-    built.push(ground(`${hazard.id}-ring`, landingX, landingY, DEMO_ASSET_IDS.aoeRing, hazard.blastRadius * 2));
-    built.push(
-      ground(
-        `${hazard.id}-fill`,
-        landingX,
-        landingY,
-        DEMO_ASSET_IDS.aoeFill,
-        hazard.blastRadius * 2 * Math.max(0.08, closing),
-      ),
-    );
-  }
-}
-
 /** Where the top of an enemy sits, so anything worn over its head is worn over *its* head. */
 function crownHeight(enemy: DemoEnemy): number {
   return enemy.archetype.id === "swordsman" ? SKELETON_DISPLAY_SCALE : slimeBody(enemy.appearance).height;
@@ -455,55 +407,6 @@ function stunStars(enemy: DemoEnemy, elapsedSeconds: number, built: RenderSprite
       verticalAnchor: 0.5 - z / Math.max(0.0001, scale),
     });
   }
-}
-
-/** How far apart the blots of a charger's lane sit, and how wide each one is drawn. */
-const LANE_SPACING = 0.3;
-const LANE_BLOT_SCALE = 0.82;
-
-/**
- * The strip a charger paints down the lane it has committed to.
- *
- * One object answering two questions. It is laid dim along its whole length the moment the lane locks,
- * which is where the charge is going; and a bright fill sweeps out from the charger as the wind-up
- * runs down, which is when it arrives. Three seconds is long enough that both are worth reading, and
- * a player who has read them has already stepped off the strip.
- *
- * It stops where the charge will stop. Painting through a wall would promise a lane the charger
- * cannot use, and would hide the best thing a player can do with one — line it up on the masonry and
- * get out of the way.
- */
-function chargeLane(world: DemoWorld, enemy: DemoEnemy, built: RenderSprite[]): void {
-  if (enemy.windupSeconds <= 0 || enemy.intent !== "charge") {
-    return;
-  }
-
-  const dx = enemy.aimX - enemy.x;
-  const dy = enemy.aimY - enemy.y;
-  const length = Math.hypot(dx, dy);
-
-  if (length < 0.0001) {
-    return;
-  }
-
-  // The lane runs the charge's own distance, not the distance to the locked point: the charge does
-  // not stop where it was aimed, it runs its full length past it.
-  const blots = beadLine(world, enemy.x, enemy.y, dx / length, dy / length, CHARGE_DISTANCE, LANE_SPACING);
-  const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-  const filled = progress * CHARGE_DISTANCE;
-
-  blots.forEach((blot, index) => {
-    const reached = (index + 1) * LANE_SPACING <= filled;
-    built.push(
-      ground(
-        `${enemy.id}-lane-${index}`,
-        blot.x,
-        blot.y,
-        reached ? DEMO_ASSET_IDS.laneHot : DEMO_ASSET_IDS.laneDim,
-        LANE_BLOT_SCALE,
-      ),
-    );
-  });
 }
 
 function skeletonDirection(cameraAngle: number, facingAngle: number): number {
@@ -808,7 +711,6 @@ function sprites(world: DemoWorld): RenderSprite[] {
 
     // Slimes stay blobs; authored enemies and all telegraphs share this depth-sorted sprite pass.
     telegraph(enemy, built);
-    chargeLane(world, enemy, built);
     stunStars(enemy, world.elapsedSeconds, built);
 
     // A short spark at the point of contact. The white flash on the sprite says something landed;
@@ -854,8 +756,6 @@ function sprites(world: DemoWorld): RenderSprite[] {
       verticalAnchor: -0.42,
     });
   }
-
-  landingCircles(world, built);
 
   for (const projectile of world.projectiles) {
     // Anything lobbed marks where it is coming down; the shadow is the aiming feedback. Keyed on
@@ -2106,6 +2006,146 @@ function sightLines(world: DemoWorld, built: RenderParticle[]): void {
   }
 }
 
+/** How wide a charger's lane is painted, and how far a landing ring's edge reaches inward. */
+const LANE_HALF_WIDTH = 0.34;
+const RING_THICKNESS = 0.16;
+const LANE_DIM: readonly [number, number, number] = [128, 30, 34];
+const LANE_HOT: readonly [number, number, number] = [255, 118, 84];
+const CIRCLE_EDGE: readonly [number, number, number] = [255, 74, 58];
+const CIRCLE_FILL: readonly [number, number, number] = [220, 96, 62];
+
+/**
+ * How far a charge can run before something stops it.
+ *
+ * Uses the flung predicate rather than the projectile one, because that is what the charge itself
+ * moves under — and the two disagree in exactly the case worth drawing: a barricade stops a thrown
+ * rock but not a charging body, which sails onto the spikes and dies there. A lane cut short at the
+ * iron would hide the best thing a player can do with a charger after lining it up on a wall.
+ *
+ * Walked at a fixed step rather than solved, because the cells decide it and there is no closed form
+ * for which one comes first.
+ */
+function chargeRun(
+  world: DemoWorld,
+  fromX: number,
+  fromY: number,
+  directionX: number,
+  directionY: number,
+  limit: number,
+): number {
+  const step = 0.15;
+
+  for (let travelled = step; travelled <= limit; travelled += step) {
+    if (
+      blocksFlung(world.maze, Math.floor(fromX + directionX * travelled), Math.floor(fromY + directionY * travelled))
+    ) {
+      return travelled - step;
+    }
+  }
+
+  return limit;
+}
+
+/**
+ * Everything painted into the floor: the lane a charger has claimed, and where a shell will land.
+ *
+ * These were flat sprites once, and flat sprites are not on the floor. The sprite pipeline draws a
+ * camera-facing quad squashed to a fraction of its height, so the mark lifted away from the ground at
+ * close range and towards the edges of the view, kept its own brightness instead of taking the room's
+ * light, and read as a sticker floating over the stone. A decal is tested against the floor's own
+ * per-pixel world position, so a circle is round from every angle and a lane keeps square corners at
+ * any heading — which is what the charger's lane wanted to be all along.
+ *
+ * Order matters within each mark: the fill goes down first and the edge over it, so a circle keeps a
+ * hard rim right up to the moment it is full.
+ */
+function floorDecals(world: DemoWorld): RenderFloorDecal[] {
+  const built: RenderFloorDecal[] = [];
+
+  for (const enemy of world.enemies) {
+    if (enemy.windupSeconds <= 0 || enemy.intent !== "charge") {
+      continue;
+    }
+
+    const dx = enemy.aimX - enemy.x;
+    const dy = enemy.aimY - enemy.y;
+    const aim = Math.hypot(dx, dy);
+
+    if (aim < 0.0001) {
+      continue;
+    }
+
+    // The lane runs the charge's own distance, not the distance to the locked point: the charge does
+    // not stop where it was aimed, it runs its full length past it.
+    const directionX = dx / aim;
+    const directionY = dy / aim;
+    const length = chargeRun(world, enemy.x, enemy.y, directionX, directionY, CHARGE_DISTANCE);
+    const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+    built.push({
+      x: enemy.x,
+      y: enemy.y,
+      shape: { kind: "lane", directionX, directionY, length, halfWidth: LANE_HALF_WIDTH },
+      color: LANE_DIM,
+      strength: 0.55,
+    });
+    // The same strip again, shorter, sweeping out from the charger as the wind-up runs down. One
+    // object says both where the charge is going and how long there is to not be standing in it.
+    built.push({
+      x: enemy.x,
+      y: enemy.y,
+      shape: { kind: "lane", directionX, directionY, length: length * progress, halfWidth: LANE_HALF_WIDTH },
+      color: LANE_HOT,
+      strength: 0.82,
+    });
+  }
+
+  for (const mortar of world.mortars) {
+    if (mortar.phase !== "locked") {
+      continue;
+    }
+
+    pushLandingCircle(built, mortar.aimX, mortar.aimY, SHELL_BLAST_RADIUS, 1 - mortar.seconds / MORTAR_LOCK_SECONDS);
+  }
+
+  for (const hazard of world.hazards) {
+    if (hazard.kind !== "shell") {
+      continue;
+    }
+
+    // Once the shell is in the air the circle stays where it was marked and the fill keeps closing on
+    // it, so the mark runs unbroken from the lock through to the landing rather than blinking out at
+    // launch.
+    const left = hazard.range - hazard.travelled;
+    pushLandingCircle(
+      built,
+      hazard.x + hazard.directionX * left,
+      hazard.y + hazard.directionY * left,
+      hazard.blastRadius,
+      Math.min(1, hazard.travelled / Math.max(0.0001, hazard.range)),
+    );
+  }
+
+  return built;
+}
+
+/** A landing mark: a fixed rim at the blast's true edge, and a disc closing on it as the shell falls. */
+function pushLandingCircle(built: RenderFloorDecal[], x: number, y: number, radius: number, closing: number): void {
+  built.push({
+    x,
+    y,
+    shape: { kind: "disc", radius: radius * Math.max(0.06, closing) },
+    color: CIRCLE_FILL,
+    strength: 0.5,
+  });
+  built.push({
+    x,
+    y,
+    shape: { kind: "ring", radius, thickness: RING_THICKNESS },
+    color: CIRCLE_EDGE,
+    strength: 0.9,
+  });
+}
+
 function lights(world: DemoWorld): RenderLight[] {
   // The torch the player is carrying, as an actual light in the world rather than a screen effect —
   // so it pools on the floor around them, throws their surroundings into relief, and dies out at a
@@ -2410,6 +2450,7 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     surfaces: terrain.surfaces,
     floorPatches: terrain.floorPatches,
     floorOverlays: cachedOverlays(world),
+    floorDecals: floorDecals(world),
     boxes: terrain.boxes,
     blobs: blobs(world),
     sprites: sprites(world),
