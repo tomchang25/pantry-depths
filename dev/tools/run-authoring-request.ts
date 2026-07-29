@@ -1,8 +1,4 @@
-import {
-  createFloorAuthoringDependencies,
-  handleFloorAuthoringRequest,
-  type FloorAuthoringRequest,
-} from "./floor-set/authoring-api";
+import { createAuthoringDependencies, handleAuthoringRequest, type AuthoringRequest } from "./authoring/authoring-api";
 
 async function readStandardInput(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -15,9 +11,9 @@ async function readStandardInput(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  const request = JSON.parse(await readStandardInput()) as FloorAuthoringRequest;
-  const response = await handleFloorAuthoringRequest(request, createFloorAuthoringDependencies(process.cwd()));
-  const payload = JSON.stringify(response ?? { status: 404, body: { message: "Unknown floor authoring operation." } });
+  const request = JSON.parse(await readStandardInput()) as AuthoringRequest;
+  const response = await handleAuthoringRequest(request, createAuthoringDependencies(process.cwd()));
+  const payload = JSON.stringify(response ?? { status: 404, body: { message: "Unknown authoring operation." } });
 
   await new Promise<void>((resolve, reject) => {
     process.stdout.write(payload, (error) => (error ? reject(error) : resolve()));

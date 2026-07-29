@@ -21,16 +21,16 @@ describe("resolveDebugRoute", () => {
     }
   });
 
-  it("resolves the melee viewmodel comparison from the shared debug catalog", () => {
-    const route = resolveDebugRoute("/debug/melee-viewmodel-lab");
+  it("resolves the HUD and Attack Workbench from the shared debug catalog", () => {
+    const route = resolveDebugRoute("/debug/hud-attack-workbench");
 
     expect(route.kind).toBe("tool");
 
     if (route.kind === "tool") {
       expect(route.tool).toMatchObject({
-        id: "melee-viewmodel-lab",
-        path: "/debug/melee-viewmodel-lab",
-        title: "First-person Melee Viewmodel Lab",
+        id: "hud-attack-workbench",
+        path: "/debug/hud-attack-workbench",
+        title: "HUD and Attack Workbench",
       });
     }
   });

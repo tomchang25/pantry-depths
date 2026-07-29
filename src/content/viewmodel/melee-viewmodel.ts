@@ -14,6 +14,16 @@
  * caller.
  */
 
+import meleeAttacksJson from "@/content/viewmodel/melee-attacks.json";
+import {
+  parseMeleeAttacks,
+  type MeleeAttackDefinition,
+  type MeleeAttackId,
+  type MeleeViewmodelPose,
+} from "@/content/viewmodel/melee-attack-schema";
+
+export type { MeleeAttackDefinition, MeleeAttackId, MeleeViewmodelPose } from "@/content/viewmodel/melee-attack-schema";
+
 /** The space every coordinate in this module lives in. Callers scale it onto whatever they have. */
 export const MELEE_VIEW_WIDTH = 720;
 export const MELEE_VIEW_HEIGHT = 405;
@@ -56,41 +66,6 @@ const AIM_FOLLOW = 0.6;
 
 export type MeleeViewPoint = Readonly<{ x: number; y: number }>;
 
-export type MeleeViewmodelPose = Readonly<{
-  angle: number;
-  handX: number;
-  handY: number;
-  opacity?: number;
-  scale: number;
-  swordVisible?: boolean | undefined;
-}>;
-
-/** The eight cuts. One closed enumeration: the id names the pose pair *and* selects the arc. */
-export type MeleeAttackId =
-  | "horizontal-left-high"
-  | "horizontal-left"
-  | "horizontal-left-low"
-  | "horizontal-right"
-  | "diagonal-right"
-  | "overhead"
-  | "diagonal-left"
-  | "thrust";
-
-export type MeleeAttackDefinition = Readonly<{
-  follow: MeleeViewmodelPose;
-  /**
-   * Whether the follow-through is drawn at all.
-   *
-   * The wide cuts end with the arm somewhere it could not have got back from, and drawing that pose
-   * only announces how far it has to travel. They hide instead and the idle fades back in, which is
-   * the same trick the cut itself uses and costs nothing to look at.
-   */
-  hideFollow?: boolean;
-  id: MeleeAttackId;
-  label: string;
-  windup: MeleeViewmodelPose;
-}>;
-
 export type MeleeDrawOptions = Readonly<{
   /**
    * Where the swing landed, in stage coordinates. The arc and the sparks move onto it.
@@ -110,61 +85,7 @@ export const MELEE_IDLE_POSE: MeleeViewmodelPose = {
   scale: 1,
 };
 
-export const MELEE_ATTACKS: readonly MeleeAttackDefinition[] = [
-  {
-    follow: { angle: -1.72, handX: 128, handY: 252, scale: 1.06 },
-    id: "horizontal-left-high",
-    label: "高位左劈",
-    windup: { angle: 0.94, handX: 642, handY: 226, scale: 0.94 },
-  },
-  {
-    follow: { angle: -1.82, handX: 204, handY: 304, scale: 1.05 },
-    id: "horizontal-left",
-    label: "中位左劈",
-    windup: { angle: 1.08, handX: 622, handY: 286, scale: 0.96 },
-  },
-  {
-    follow: { angle: -2.02, handX: 154, handY: 378, scale: 1.08 },
-    id: "horizontal-left-low",
-    label: "低位左劈",
-    windup: { angle: 1.26, handX: 658, handY: 336, scale: 0.98 },
-  },
-  {
-    follow: { angle: 1.82, handX: 872, handY: 286, scale: 1.12 },
-    hideFollow: true,
-    id: "horizontal-right",
-    label: "水平右劈",
-    windup: { angle: -1.52, handX: 132, handY: 292, scale: 1.02 },
-  },
-  {
-    follow: { angle: 1.28, handX: 862, handY: 106, scale: 1.12 },
-    hideFollow: true,
-    id: "diagonal-right",
-    label: "斜右劈",
-    windup: { angle: -2.12, handX: 112, handY: 382, scale: 1.02 },
-  },
-  {
-    follow: { angle: 3.08, handX: 358, handY: 510, scale: 1.18 },
-    hideFollow: true,
-    id: "overhead",
-    label: "直劈",
-    windup: { angle: 0.58, handX: 606, handY: 142, scale: 0.94 },
-  },
-  {
-    follow: { angle: -2.64, handX: -118, handY: 454, scale: 1.14 },
-    hideFollow: true,
-    id: "diagonal-left",
-    label: "斜左劈",
-    windup: { angle: 0.48, handX: 608, handY: 116, scale: 0.92 },
-  },
-  {
-    follow: { angle: -1.06, handX: 520, handY: 302, scale: 0.72 },
-    hideFollow: true,
-    id: "thrust",
-    label: "直刺",
-    windup: { angle: -0.82, handX: 664, handY: 382, scale: 0.84 },
-  },
-];
+export const MELEE_ATTACKS = parseMeleeAttacks(meleeAttacksJson);
 
 export const MELEE_ATTACKS_BY_ID: Readonly<Record<MeleeAttackId, MeleeAttackDefinition>> = Object.fromEntries(
   MELEE_ATTACKS.map((attack) => [attack.id, attack]),

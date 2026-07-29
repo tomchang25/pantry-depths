@@ -23,13 +23,13 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
       })),
   },
   {
-    id: "melee-viewmodel-lab",
-    path: "/debug/melee-viewmodel-lab",
-    title: "First-person Melee Viewmodel Lab",
-    description: "Preview eight non-combo sword attacks with random and locked debug selection.",
+    id: "hud-attack-workbench",
+    path: "/debug/hud-attack-workbench",
+    title: "HUD and Attack Workbench",
+    description: "Tune pure HUD states and authored attacks against real dungeon renderer panels.",
     load: () =>
-      import("@/app/debug/melee-viewmodel-lab").then(({ renderMeleeViewmodelLab }) => ({
-        render: renderMeleeViewmodelLab,
+      import("@/app/debug/hud-attack-workbench").then(({ renderHudAttackWorkbench }) => ({
+        render: renderHudAttackWorkbench,
       })),
   },
   {

@@ -35,7 +35,9 @@ const BASE_MELEE_DAMAGE = 25;
 const HEAVY_MELEE_DAMAGE = 45;
 const HEAVY_MELEE_REACH = 2.1;
 const HEAVY_MELEE_KNOCKBACK = 9;
-const MELEE_ARC = Math.cos(0.85);
+/** Half-angle of the player's melee sweep, shared with the attack authoring preview. */
+export const MELEE_HALF_ANGLE = 0.85;
+const MELEE_ARC = Math.cos(MELEE_HALF_ANGLE);
 const GRAB_ARC = Math.cos(1);
 
 /**

@@ -7,7 +7,7 @@
  * the torch used to be.
  *
  * The arm itself is not this module's work — it is authored against a 720x405 stage and previewed at
- * `/debug/melee-viewmodel-lab`. What is here is the join: scaling that stage onto the backing store,
+ * `/debug/hud-attack-workbench`. What is here is the join: scaling that stage onto the backing store,
  * converting the point a swing landed on into stage coordinates so the arc chases it, and the second
  * hand, which the stage knows nothing about.
  *
@@ -25,6 +25,7 @@ import {
   MELEE_IDLE_POSE,
   MELEE_VIEW_HEIGHT,
   MELEE_VIEW_WIDTH,
+  type MeleeAttackDefinition,
   type MeleeViewPoint,
   type MeleeViewmodelPose,
 } from "@/content/viewmodel/melee-viewmodel";
@@ -43,6 +44,11 @@ import type { PresentationImages } from "@/presentation/presentation-image-loade
  */
 const STAGE_WIDTH_FRACTION = 0.94;
 const STAGE_HEIGHT_FRACTION = 1.45;
+
+export type DemoViewmodelModel = Pick<
+  DemoWorld,
+  "elapsedSeconds" | "held" | "impact" | "swing" | "swingKind" | "swingTarget" | "swingTotal" | "thrownKind" | "walkBob"
+>;
 
 function easeOut(progress: number): number {
   return 1 - (1 - progress) * (1 - progress);
@@ -155,13 +161,15 @@ function toStageSpace(
 
 function drawArm(
   context: CanvasRenderingContext2D,
-  world: DemoWorld,
+  world: DemoViewmodelModel,
   viewSize: number,
   bob: number,
   aim: MeleeViewPoint | undefined,
+  attackOverride: MeleeAttackDefinition | undefined,
 ): void {
   const active = world.swing > 0;
-  const progress = active ? 1 - world.swing / Math.max(0.0001, world.swingTotal) : 0;
+  const rawProgress = active ? 1 - world.swing / Math.max(0.0001, world.swingTotal) : 0;
+  const progress = Math.max(0, rawProgress - world.impact * 0.035);
 
   context.save();
   const placement = placeStage(context, viewSize, bob);
@@ -181,7 +189,7 @@ function drawArm(
   // A swing that connected burns brighter than one that hit air. `impact` is already the demo's
   // measure of that and it decays on its own, so the arc inherits the hitch the camera gets.
   const strength = (world.swingTarget?.connected ? 1 : 0.7) + world.impact * 0.5;
-  drawMeleeAttack(context, MELEE_ATTACKS_BY_ID[world.swingKind], progress, {
+  drawMeleeAttack(context, attackOverride ?? MELEE_ATTACKS_BY_ID[world.swingKind], progress, {
     aim: aim ? toStageSpace(aim, placement) : undefined,
     strength,
   });
@@ -192,8 +200,9 @@ function drawArm(
 export function drawDemoViewmodel(
   context: CanvasRenderingContext2D,
   images: PresentationImages,
-  world: DemoWorld,
+  world: DemoViewmodelModel,
   aim?: Readonly<{ x: number; y: number }>,
+  attackOverride?: MeleeAttackDefinition,
 ): void {
   const width = context.canvas.width;
   const height = context.canvas.height;
@@ -203,7 +212,7 @@ export function drawDemoViewmodel(
   const bob = Math.sin(world.elapsedSeconds * 2.2) * height * 0.006 + world.walkBob * height * 0.017;
   // The arm draws its own arc and its own sparks, inside the stage, so this one call is the whole
   // swing. There is no separate slash pass any more: the trail is part of the drawing it belongs to.
-  drawArm(context, world, viewSize, bob, aim);
+  drawArm(context, world, viewSize, bob, aim, attackOverride);
 
   const held = world.held;
   const unit = viewSize * 0.34;

@@ -8,7 +8,7 @@ Pantry Depths selects the `web-react` platform because it is the only Web platfo
 
 Consequences:
 
-- `src/ui/` holds plain DOM modules, not React components or hooks. Every other `ui/` rule from the standard still applies, including the prohibition on repository-wide `components/`, `hooks/`, or `utils/` trees and on importing `platform/` or `app/` directly.
+- `src/ui/` is omitted. The development demo's plain-DOM HUD lives beside its simulation in `src/demo/`; that whole real-time surface remains a manual-play boundary rather than a reusable application UI layer.
 - The following platform triggers never fire in this repository and reading them is not required: `react_component_standard.md`, `react_strict_mode_effects.md`, `browser_persistence_standard.md`, `indexeddb_upgrade_transactions.md`, `service_worker_cache_versioning.md`, and the service-worker and installability portions of `web_platform_standard.md`.
 - V1 has no save system, no IndexedDB, no service worker, and no PWA manifest, so `public/` is omitted entirely.
 
@@ -31,7 +31,6 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 | `src/app/`          | Present   | Ordinary/debug route boundary and development tools; ordinary runtime is still a placeholder.          |
 | `src/core/`         | Present   | Empty. Will own grid state, turn resolution, and the attack-minus-defense formula.                     |
 | `src/content/`      | Present   | Empty. Will own the enemy table, door effects, and the five baked floors.                              |
-| `src/ui/`           | Present   | Empty. Will own the HUD overlay.                                                                       |
 | `src/presentation/` | Absent    | Earned layer. Created by the renderer port; will own the raycaster, textures, sprites, VFX, and audio. |
 | `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                |
 | `src/shared/`       | Absent    | Earned layer. Create only on demonstrated cross-feature ownership.                                     |
@@ -55,7 +54,7 @@ Placement inside the tree follows the same test as the source layers. Content sc
 
 Import directions, machine-checked by the boundary rules:
 
-- `dev/tools/` imports `src/core/` and `src/content/` through the `@/` alias. It never imports `src/app/`, `src/ui/`, or a renderer; a tool that needs those is a debug tool and belongs in `src/app/debug/`.
+- `dev/tools/` imports `src/core/` and `src/content/` through the `@/` alias. It never imports `src/app/`, `src/demo/`, or a renderer; a tool that needs those is a debug tool and belongs in `src/app/debug/`.
 - `src/` never imports `dev/`. The shipped module graph must not depend on development-time tooling.
 
 The development authoring endpoint namespace is declared once in the tooling tree. The workbench client keeps its own literal because client code must not import `dev/`; a unit test holds that one copy equal to the declaration. Editor tasks invoke existing npm scripts and own no parameters, defaults, or behavior of their own — a prompt-driven flag surface belongs to the CLI or to the workbench, not to a third entry point.

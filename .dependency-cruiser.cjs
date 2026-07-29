@@ -53,13 +53,6 @@ module.exports = {
       to: { path: "^src/", pathNot: "^src/(presentation|content|core)/" },
     },
     {
-      name: "ui-imports-within-its-measured-set",
-      severity: "error",
-      comment: "The HUD reaches capabilities through core and content, never by importing platform or app directly.",
-      from: { path: "^src/ui/" },
-      to: { path: "^src/", pathNot: "^src/(ui|core|content)/" },
-    },
-    {
       name: "platform-and-shared-are-leaves",
       severity: "error",
       comment: "Support layers must not depend on the layers that consume them.",

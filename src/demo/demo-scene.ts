@@ -1775,7 +1775,7 @@ export function createDemoScene(world: DemoWorld): RenderScene {
       x: world.player.x,
       y: world.player.y,
       angle: world.player.angle,
-      pitch: world.player.pitch + blastKick(world) + weightKick(world),
+      pitch: world.player.pitch + blastKick(world) + weightKick(world) + demoMeleeImpactPitch(world.impact),
     },
     // Just enough ambient that an unlit corridor is a silhouette rather than a black rectangle.
     ambient: [0.16, 0.14, 0.24],
@@ -1793,6 +1793,12 @@ export function createDemoScene(world: DemoWorld): RenderScene {
     lights: lights(world),
     emitters: emitters(world),
   };
+}
+
+/** A short downward camera hitch while a melee impact decays. */
+export function demoMeleeImpactPitch(impact: number): number {
+  const strength = Math.max(0, Math.min(1, impact));
+  return -Math.sin((1 - strength) * Math.PI) * strength * 0.028;
 }
 
 export function createDemoEffects(world: DemoWorld): PresentationRenderEffects {

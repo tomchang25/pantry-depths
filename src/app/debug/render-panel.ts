@@ -17,6 +17,11 @@ export type RenderPanelFrame = Readonly<{
   elapsedSeconds?: number;
   effects?: PresentationRenderEffects;
   preferences?: Omit<RendererPreferences, "reducedMotion"> & Readonly<{ reducedMotion?: boolean }>;
+  afterRender?: (
+    context: CanvasRenderingContext2D,
+    images: PresentationImages,
+    renderer: CanvasGameplayRenderer,
+  ) => void;
 }>;
 
 export type RenderPanelOptions = Readonly<{
@@ -92,6 +97,12 @@ export function createRenderPanel(options: RenderPanelOptions): RenderPanel {
       }
 
       const renderer = new CanvasGameplayRenderer(canvas, images);
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        throw new Error("Render panel canvas is unavailable.");
+      }
+
       element.dataset.state = "ready";
       status.textContent = "Renderer ready.";
 
@@ -114,6 +125,7 @@ export function createRenderPanel(options: RenderPanelOptions): RenderPanel {
             reducedMotion: frame.preferences?.reducedMotion ?? reducedMotion,
             ...frame.preferences,
           });
+          frame.afterRender?.(context, images, renderer);
         } catch (error: unknown) {
           element.dataset.state = "error";
           status.setAttribute("role", "alert");

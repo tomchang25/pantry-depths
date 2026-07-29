@@ -4,15 +4,13 @@ import type { IncomingMessage } from "node:http";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
-import { FLOOR_AUTHORING_API_ROOT } from "./dev/tools/floor-set/api-contract";
+import { AUTHORING_API_ROOT } from "./dev/tools/authoring/api-contract";
 
-const FLOOR_AUTHORING_RUNNER_PATH = fileURLToPath(new URL("./node_modules/vite-node/vite-node.mjs", import.meta.url));
-const FLOOR_AUTHORING_SCRIPT_PATH = fileURLToPath(
-  new URL("./dev/tools/run-floor-authoring-request.ts", import.meta.url),
-);
+const AUTHORING_RUNNER_PATH = fileURLToPath(new URL("./node_modules/vite-node/vite-node.mjs", import.meta.url));
+const AUTHORING_SCRIPT_PATH = fileURLToPath(new URL("./dev/tools/run-authoring-request.ts", import.meta.url));
 const FLOOR_TOOL_CONFIG_PATH = fileURLToPath(new URL("./dev/tools/vite-node.config.ts", import.meta.url));
 
-type FloorAuthoringResponse = Readonly<{ status: number; body: unknown }>;
+type AuthoringResponse = Readonly<{ status: number; body: unknown }>;
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -23,7 +21,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
     size += buffer.length;
 
     if (size > 1_000_000) {
-      throw new Error("Floor authoring request exceeds the 1 MB limit.");
+      throw new Error("Authoring request exceeds the 1 MB limit.");
     }
 
     chunks.push(buffer);
@@ -32,11 +30,11 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   return chunks.length === 0 ? undefined : (JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown);
 }
 
-function runFloorAuthoringRequest(request: Readonly<{ method: string; pathname: string; body?: unknown }>) {
-  return new Promise<FloorAuthoringResponse>((resolve, reject) => {
+function runAuthoringRequest(request: Readonly<{ method: string; pathname: string; body?: unknown }>) {
+  return new Promise<AuthoringResponse>((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [FLOOR_AUTHORING_RUNNER_PATH, "--config", FLOOR_TOOL_CONFIG_PATH, FLOOR_AUTHORING_SCRIPT_PATH],
+      [AUTHORING_RUNNER_PATH, "--config", FLOOR_TOOL_CONFIG_PATH, AUTHORING_SCRIPT_PATH],
       {
         cwd: process.cwd(),
         stdio: ["pipe", "pipe", "pipe"],
@@ -51,14 +49,12 @@ function runFloorAuthoringRequest(request: Readonly<{ method: string; pathname: 
     child.on("error", reject);
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(
-          new Error(Buffer.concat(standardError).toString("utf8") || `Floor authoring runner exited with ${code}.`),
-        );
+        reject(new Error(Buffer.concat(standardError).toString("utf8") || `Authoring runner exited with ${code}.`));
         return;
       }
 
       try {
-        resolve(JSON.parse(Buffer.concat(standardOutput).toString("utf8")) as FloorAuthoringResponse);
+        resolve(JSON.parse(Buffer.concat(standardOutput).toString("utf8")) as AuthoringResponse);
       } catch (caught) {
         reject(caught);
       }
@@ -67,9 +63,9 @@ function runFloorAuthoringRequest(request: Readonly<{ method: string; pathname: 
   });
 }
 
-function floorAuthoringPlugin(): Plugin {
+function authoringPlugin(): Plugin {
   return {
-    name: "pantry-floor-authoring",
+    name: "pantry-authoring",
     apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
@@ -77,13 +73,13 @@ function floorAuthoringPlugin(): Plugin {
           try {
             const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
 
-            if (!pathname.startsWith(`${FLOOR_AUTHORING_API_ROOT}/`)) {
+            if (!pathname.startsWith(`${AUTHORING_API_ROOT}/`)) {
               next();
               return;
             }
 
             const body = request.method === "POST" ? await readJsonBody(request) : undefined;
-            const result = await runFloorAuthoringRequest({
+            const result = await runAuthoringRequest({
               method: request.method ?? "GET",
               pathname,
               ...(body === undefined ? {} : { body }),
@@ -93,7 +89,7 @@ function floorAuthoringPlugin(): Plugin {
             response.setHeader("Content-Type", "application/json; charset=utf-8");
             response.end(JSON.stringify(result.body));
           } catch (caught) {
-            const message = caught instanceof Error ? caught.message : "Unable to parse floor authoring request.";
+            const message = caught instanceof Error ? caught.message : "Unable to parse authoring request.";
             response.statusCode = 400;
             response.setHeader("Content-Type", "application/json; charset=utf-8");
             response.end(JSON.stringify({ message }));
@@ -105,7 +101,7 @@ function floorAuthoringPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [floorAuthoringPlugin()],
+  plugins: [authoringPlugin()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
