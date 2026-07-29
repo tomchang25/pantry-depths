@@ -5,11 +5,13 @@
  * not replayed.
  */
 
+import { MELEE_CUT_START } from "@/content/viewmodel/melee-viewmodel";
 import {
   CLEAVE_CAPACITY,
   damageWall,
   heldWeight,
   JAVELIN_CAPACITY,
+  resolveSwing,
   thrownImpactDamage,
   thrownWallDamage,
 } from "@/demo/actions";
@@ -572,6 +574,12 @@ function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
  */
 export function descend(world: DemoWorld): void {
   world.depth += 1;
+  // A swing in mid-air when the stairs are taken has nothing left to land on: the floor it was aimed
+  // at no longer exists. Dropping it stops the blade arriving on the next floor and cleaving whatever
+  // happened to spawn where the old target stood.
+  world.swing = 0;
+  world.swingResolved = true;
+  world.swingTarget = undefined;
   world.maze = generateDemoMaze();
   populateFloor(world);
   awardBless(world);
@@ -581,8 +589,21 @@ export function descend(world: DemoWorld): void {
 export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
   const step = Math.min(deltaSeconds, 0.05);
   world.elapsedSeconds += step;
+  const wasSwinging = world.swing > 0;
   world.swing = Math.max(0, world.swing - step);
   world.impact = Math.max(0, world.impact - step * 6);
+
+  if (wasSwinging && world.swing <= 0) {
+    world.thrownKind = undefined;
+  }
+
+  // The blade reaches the target partway through the animation, not on the press. Everything the
+  // swing does to the world happens on this frame, which is the frame the arc is drawn on.
+  if (!world.swingResolved && 1 - world.swing / Math.max(0.0001, world.swingTotal) >= MELEE_CUT_START) {
+    world.swingResolved = true;
+    resolveSwing(world);
+  }
+
   world.shake = Math.max(0, world.shake - step * SHAKE_DECAY);
   world.hitFlash = Math.max(0, world.hitFlash - step * 2.4);
   world.messageSeconds = Math.max(0, world.messageSeconds - step);

@@ -5,6 +5,7 @@
  * only on whether the hands are full, so neither button ever needs a modifier.
  */
 
+import { chooseMeleeAttack } from "@/content/viewmodel/melee-viewmodel";
 import { hasBless } from "@/demo/bless";
 import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
 import { burst } from "@/demo/particles";
@@ -21,9 +22,9 @@ import {
   awardBless,
   damageEnemy,
   nextId,
-  MELEE_CYCLE,
   REACH,
   SWING_SECONDS,
+  THROW_SWING_SECONDS,
   type DemoEnemy,
   type DemoHeld,
   type DemoProp,
@@ -373,6 +374,7 @@ function throwHeld(world: DemoWorld): void {
 
   if (held.kind === "enemy") {
     world.held = undefined;
+    world.thrownKind = "enemy";
     spawnProjectile(world, "enemy", held.enemy);
     announce(world, "Threw the enemy!");
     return;
@@ -381,6 +383,7 @@ function throwHeld(world: DemoWorld): void {
   // One use off the stack, not the whole hand. The hand only empties on the last one.
   const left = held.count - 1;
   world.held = left > 0 ? { kind: "prop", prop: held.prop, count: left } : undefined;
+  world.thrownKind = held.prop;
   spawnProjectile(world, held.prop, undefined);
   announce(world, left > 0 ? `${THROW_CALLS[held.prop]} (${left} left)` : THROW_CALLS[held.prop]);
 }
@@ -505,23 +508,52 @@ function melee(world: DemoWorld): void {
   };
 }
 
-/** Left button: throw what is held, otherwise swing. */
+/**
+ * Left button: one of the eight cuts, or a throw of whatever is in the hand.
+ *
+ * A press during a swing is ignored outright — not queued, not buffered. That is the prototype's own
+ * rule and it is the whole of the input model: there is no chain to be early for, so a dropped press
+ * costs the player nothing but the swing they were already watching. What it buys is that a swing is
+ * one hit. Mashing used to be a whole extra hit per click, which made the animation decoration over
+ * damage that had already been dealt.
+ */
 export function primaryAction(world: DemoWorld): void {
-  if (world.status !== "playing") {
+  if (world.status !== "playing" || world.swing > 0) {
     return;
   }
 
-  world.swing = SWING_SECONDS;
   world.swingTarget = undefined;
 
   if (world.held) {
     world.swingKind = "throw";
+    world.swing = THROW_SWING_SECONDS;
+    world.swingTotal = THROW_SWING_SECONDS;
+    // A throw is over the moment the hand opens; there is no blade travelling anywhere to wait for.
+    world.swingResolved = true;
     throwHeld(world);
     return;
   }
 
-  world.swingKind = MELEE_CYCLE[world.swingStep % MELEE_CYCLE.length] ?? "slash";
-  world.swingStep += 1;
+  // Never the cut just played, so consecutive swings always differ — the one repetition the eye
+  // catches when there is no chain to give the sequence a shape.
+  world.swingKind = chooseMeleeAttack(world.swingKind === "throw" ? undefined : world.swingKind).id;
+  world.swing = SWING_SECONDS;
+  world.swingTotal = SWING_SECONDS;
+  world.swingResolved = false;
+}
+
+/**
+ * The blade arrives.
+ *
+ * Called by the simulation partway through the animation rather than by the press, which is the only
+ * reason the arm's three quarters of a second is not a lie. Everything the hit does — the damage, the
+ * shove, the blood, and the point the arc is drawn through — happens here.
+ */
+export function resolveSwing(world: DemoWorld): void {
+  if (world.status !== "playing") {
+    return;
+  }
+
   melee(world);
 }
 

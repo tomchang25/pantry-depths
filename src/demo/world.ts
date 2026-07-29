@@ -6,6 +6,7 @@
  */
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/content/viewmodel/melee-viewmodel";
 import { createBlessState, grantBless, hasBless, OVERFLOW_MAX_HP, type BlessState } from "@/demo/bless";
 import { ENEMY_ARCHETYPES, type DemoArchetypeId, type DemoEnemyArchetype } from "@/demo/enemy-archetypes";
 import {
@@ -193,15 +194,31 @@ export type DemoPlayer = {
   maxHp: number;
 };
 
-/**
- * Which arm animation a press started.
- *
- * The three melee forms cycle, so holding down the attack never plays the same animation twice in a
- * row and the third of every three lands as the heavy one.
- */
-export type DemoSwingKind = "slash" | "backhand" | "chop" | "thrust" | "throw";
+/** Which arm animation a press started: one of the eight cuts, or the throw, which is not a cut. */
+export type DemoSwingKind = MeleeAttackId | "throw";
 
-export const MELEE_CYCLE: readonly DemoSwingKind[] = ["slash", "backhand", "chop", "thrust"];
+/**
+ * How long one swing holds the arm.
+ *
+ * Owned by the drawing, not by this file, and that direction is the point. The eight cuts are a
+ * three-pose illusion tuned at this pace; playing them faster does not make a fast attack, it makes
+ * an unreadable one. So the world takes the animation's number rather than the animation being
+ * squeezed into the world's.
+ *
+ * The bill is real and worth writing down: a swing was 0.32s and could be mashed as fast as a mouse
+ * allows, so the same damage now lands at a little over half the old rate. Melee damage itself is
+ * untouched — one knob, `BASE_MELEE_DAMAGE` in `actions.ts`, closes that gap whenever it is judged to
+ * matter.
+ */
+export const SWING_SECONDS = MELEE_SWING_SECONDS;
+
+/**
+ * A throw is shorter, because a throw is the other hand's.
+ *
+ * The sword arm has no cut to play for it — it only dips out of the way — and holding the player for
+ * three quarters of a second to watch that would be charging swing money for a shrug.
+ */
+export const THROW_SWING_SECONDS = 0.26;
 
 /** Where in the world a swing was aimed, so the arc can be drawn through it. */
 export type DemoSwingTarget = { x: number; y: number; z: number; connected: boolean } | undefined;
@@ -248,10 +265,26 @@ export type DemoWorld = {
   enemiesPaused: boolean;
   status: DemoStatus;
   elapsedSeconds: number;
+  /**
+   * Seconds left of the animation, counting down from `swingTotal`. Presentation reads these two.
+   *
+   * Also the whole of the input gate: a press while this is above zero is ignored outright. There is
+   * no queue and no buffer, because there is no chain to be early for — eight cuts, each its own
+   * press, and the one thing a player can do wrong is press during a swing, which costs them nothing.
+   */
   swing: number;
+  swingTotal: number;
   swingKind: DemoSwingKind;
-  /** Index into `MELEE_CYCLE`; advanced on every bare-handed press. */
-  swingStep: number;
+  /**
+   * Whether this swing has already reached the thing it was aimed at.
+   *
+   * A cut lands at `MELEE_CUT_START` through the animation rather than on the press. Without that the
+   * enemy dies while the sword is still going up, and the three quarters of a second that follows is
+   * a picture drawn over something already settled.
+   */
+  swingResolved: boolean;
+  /** What just left the hand, so the viewmodel can show it leaving rather than vanishing. */
+  thrownKind: DemoThrowKind | undefined;
   swingTarget: DemoSwingTarget;
   /** Rises when a swing connects, decays fast. Drives the impact hitch on the arm and the camera. */
   impact: number;
@@ -288,8 +321,6 @@ export const ENEMY_RADIUS = 0.3;
 export const PLAYER_SPEED = 3.4;
 export const REACH = 1.45;
 export const ALTAR_HITS = 3;
-/** How long one swing of the viewmodel takes; `world.swing` counts this down to zero. */
-export const SWING_SECONDS = 0.32;
 
 const BASE_ENEMY_COUNT = 14;
 /** The dungeon keeps producing: one every five seconds until twenty are walking around. */
@@ -473,8 +504,10 @@ export function createDemoWorld(): DemoWorld {
     status: "playing",
     elapsedSeconds: 0,
     swing: 0,
-    swingKind: "slash",
-    swingStep: 0,
+    swingTotal: 0,
+    swingKind: "horizontal-left",
+    swingResolved: true,
+    thrownKind: undefined,
     swingTarget: undefined,
     impact: 0,
     shake: 0,

@@ -1,35 +1,48 @@
 /**
- * The demo's own first-person hands and melee flourish.
+ * The demo's own first-person arm and whatever the other hand is carrying.
  *
- * The shipped viewmodel is one baked image of a torch in the left hand and a sword in the right,
- * with a pre-drawn slash sprite over it. The demo needs the left hand free to show whatever is being
- * carried, so it turns that whole layer off in the renderer and paints this instead: the right half
- * of the shipped artwork for the sword arm, the carried object where the torch used to be, and a
- * slash drawn live rather than blitted. A throw gets an arm motion and no slash at all.
+ * The shipped viewmodel is one baked image of a torch in the left hand and a sword in the right, with
+ * a pre-drawn slash sprite over it. The demo turns that whole layer off and paints this instead: the
+ * drawn eight-cut sword arm from `@/content/viewmodel/melee-viewmodel`, and the carried object where
+ * the torch used to be.
+ *
+ * The arm itself is not this module's work — it is authored against a 720x405 stage and previewed at
+ * `/debug/melee-viewmodel-lab`. What is here is the join: scaling that stage onto the backing store,
+ * converting the point a swing landed on into stage coordinates so the arc chases it, and the second
+ * hand, which the stage knows nothing about.
+ *
+ * Two things it deliberately does not draw. There is no hand on the carried object: what the player
+ * needs from that corner is what they are holding, not whose hand is holding it, and every attempt at
+ * a second fist has read as a lump of meat rather than as a hand. And a throw plays no cut, because
+ * the throw is the *other* hand's — the sword arm only dips, and what animates is the object leaving.
  */
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import {
+  drawMeleeAttack,
+  drawMeleeViewmodel,
+  MELEE_ATTACKS_BY_ID,
+  MELEE_IDLE_POSE,
+  MELEE_VIEW_HEIGHT,
+  MELEE_VIEW_WIDTH,
+  type MeleeViewPoint,
+  type MeleeViewmodelPose,
+} from "@/content/viewmodel/melee-viewmodel";
 import { slimeBody } from "@/demo/demo-scene";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
-import { SWING_SECONDS, type DemoWorld } from "@/demo/world";
+import type { DemoWorld } from "@/demo/world";
 import type { PresentationImages } from "@/presentation/presentation-image-loader";
 
-/** The shipped viewmodel is 512 square with the torch arm left of centre and the sword arm right. */
-const VIEWMODEL_SOURCE_SIZE = 512;
-
 /**
- * Where each melee form's arc begins and ends, in radians around a centre below the screen.
+ * How much of the frame the sword stage covers, and where its bottom edge sits.
  *
- * Four shapes rather than one, cycled by the caller. A single arc replayed at every press is the
- * thing that made the attack read as a twitch: the eye learns it in two swings and then stops
- * seeing it. These differ in direction, length and speed, and the chop and thrust barely arc at all.
+ * The stage is anchored bottom-centre and scaled off its width, so the arm keeps the proportions it
+ * was authored with whatever shape the backing store happens to be. Anything the stage draws below
+ * its own bottom edge — the sleeve running back to the shoulder — leaves the frame, which is what
+ * makes it an arm rather than a sword hanging in the air.
  */
-const SWING_ARCS: Readonly<Record<string, Readonly<{ from: number; to: number; sweep: number }>>> = {
-  slash: { from: -Math.PI * 0.12, to: -Math.PI * 0.9, sweep: 0.42 },
-  backhand: { from: -Math.PI * 0.92, to: -Math.PI * 0.08, sweep: 0.38 },
-  chop: { from: -Math.PI * 0.72, to: -Math.PI * 0.34, sweep: 0.62 },
-  thrust: { from: -Math.PI * 0.54, to: -Math.PI * 0.46, sweep: 0.2 },
-};
+const STAGE_WIDTH_FRACTION = 0.94;
+const STAGE_HEIGHT_FRACTION = 1.45;
 
 function easeOut(progress: number): number {
   return 1 - (1 - progress) * (1 - progress);
@@ -90,143 +103,89 @@ function drawHeldSlime(
   context.restore();
 }
 
-function drawSlash(
-  context: CanvasRenderingContext2D,
-  progress: number,
-  kind: string,
-  aim: Readonly<{ x: number; y: number }> | undefined,
-  impact: number,
-): void {
-  const width = context.canvas.width;
-  const height = context.canvas.height;
-  const shape = SWING_ARCS[kind] ?? SWING_ARCS.slash;
+/**
+ * The sword arm has nothing authored for a throw, so it gets out of the way.
+ *
+ * A dip and a slight push toward the eye, over the resting pose. The throw itself is the object
+ * leaving the other hand, and anything more than this from the sword arm competes with it.
+ */
+function throwPose(arc: number): MeleeViewmodelPose {
+  return {
+    ...MELEE_IDLE_POSE,
+    handY: MELEE_IDLE_POSE.handY + arc * 34,
+    scale: MELEE_IDLE_POSE.scale * (1 + arc * 0.05),
+  };
+}
 
-  if (!shape) {
+/**
+ * Places the 720x405 sword stage on the backing store.
+ *
+ * Bottom-centre anchored and uniformly scaled, so the arm is never stretched by the window's shape.
+ *
+ * The stage does not lean toward what is being hit, and used to. That lean was worth having when the
+ * arc could not move: it was the only thing that made a swing to the left look like one. Now the arc
+ * goes to the target itself, and the lean is left with one job it cannot do — the point it leaned
+ * toward does not exist until the blade lands, so it snapped into place mid-swing and snapped back on
+ * the next press. Two pops to buy a tilt the arc already conveys.
+ */
+function placeStage(
+  context: CanvasRenderingContext2D,
+  viewSize: number,
+  bob: number,
+): Readonly<{ originX: number; originY: number; scale: number }> {
+  const scale = viewSize / MELEE_VIEW_WIDTH;
+  const originX = context.canvas.width * 0.5;
+  const originY = context.canvas.height + bob;
+  context.translate(originX, originY);
+  context.scale(scale, scale);
+  context.translate(-MELEE_VIEW_WIDTH * 0.5, -MELEE_VIEW_HEIGHT);
+  return { originX, originY, scale };
+}
+
+/** The inverse of {@link placeStage}, for turning a projected world point into a stage coordinate. */
+function toStageSpace(
+  aim: MeleeViewPoint,
+  placement: Readonly<{ originX: number; originY: number; scale: number }>,
+): MeleeViewPoint {
+  return {
+    x: (aim.x - placement.originX) / placement.scale + MELEE_VIEW_WIDTH * 0.5,
+    y: (aim.y - placement.originY) / placement.scale + MELEE_VIEW_HEIGHT,
+  };
+}
+
+function drawArm(
+  context: CanvasRenderingContext2D,
+  world: DemoWorld,
+  viewSize: number,
+  bob: number,
+  aim: MeleeViewPoint | undefined,
+): void {
+  const active = world.swing > 0;
+  const progress = active ? 1 - world.swing / Math.max(0.0001, world.swingTotal) : 0;
+
+  context.save();
+  const placement = placeStage(context, viewSize, bob);
+
+  if (!active) {
+    drawMeleeViewmodel(context, MELEE_IDLE_POSE);
+    context.restore();
     return;
   }
 
-  // The arc is hung off the point the swing actually landed on. Without this every attack sweeps
-  // the same patch of screen no matter where the thing you hit was standing.
-  const aimX = aim ? clamp(aim.x, width * 0.1, width * 0.9) : width * 0.5;
-  const aimY = aim ? clamp(aim.y, height * 0.1, height * 0.86) : height * 0.42;
-  const centreX = width * 0.52 + (aimX - width * 0.5) * 0.55;
-  const centreY = height * 1.22 + (aimY - height * 0.45) * 0.4;
-  const radius = Math.max(height * 0.42, Math.hypot(aimX - centreX, aimY - centreY));
-  const sweep = shape.to - shape.from;
-  const head = shape.from + sweep * easeOut(progress);
-  // Bright the moment it lands, gone almost immediately after — a slash that lingers reads as a
-  // held pose rather than a strike.
-  const envelope = Math.sin(Math.PI * Math.min(1, progress * 1.15)) * (1 + impact * 0.5);
-
-  context.save();
-  context.globalCompositeOperation = "lighter";
-  context.lineCap = "round";
-
-  for (let layer = 0; layer < 5; layer += 1) {
-    const spread = layer / 4;
-    // The tail trails the head whichever way the sweep runs, so the two angles are ordered rather
-    // than assumed: an unordered pair draws the long way round the circle.
-    const tail = head - sweep * shape.sweep * (0.3 + 0.7 * spread);
-    context.beginPath();
-    context.arc(centreX, centreY, radius * (1 - 0.06 * spread), Math.min(head, tail), Math.max(head, tail));
-    context.lineWidth = height * (0.03 - 0.023 * spread);
-    context.strokeStyle = `rgba(255, ${Math.round(244 - 70 * spread)}, ${Math.round(214 - 160 * spread)}, ${
-      envelope * (0.92 - 0.66 * spread)
-    })`;
-    context.stroke();
+  if (world.swingKind === "throw") {
+    drawMeleeViewmodel(context, throwPose(Math.sin(progress * Math.PI)));
+    context.restore();
+    return;
   }
 
-  const sparkX = centreX + Math.cos(head) * radius;
-  const sparkY = centreY + Math.sin(head) * radius;
-  const spark = context.createRadialGradient(sparkX, sparkY, 0, sparkX, sparkY, height * 0.1);
-  spark.addColorStop(0, `rgba(255, 250, 224, ${envelope * 0.85})`);
-  spark.addColorStop(1, "rgba(255, 160, 60, 0)");
-  context.fillStyle = spark;
-  context.beginPath();
-  context.arc(sparkX, sparkY, height * 0.1, 0, Math.PI * 2);
-  context.fill();
+  // A swing that connected burns brighter than one that hit air. `impact` is already the demo's
+  // measure of that and it decays on its own, so the arc inherits the hitch the camera gets.
+  const strength = (world.swingTarget?.connected ? 1 : 0.7) + world.impact * 0.5;
+  drawMeleeAttack(context, MELEE_ATTACKS_BY_ID[world.swingKind], progress, {
+    aim: aim ? toStageSpace(aim, placement) : undefined,
+    strength,
+  });
   context.restore();
-}
-
-/**
- * A gloved left fist, drawn rather than cropped.
- *
- * The shipped artwork has no free left hand — its left hand is wrapped around a torch, and any crop
- * of it brings the torch along. The palette is matched to the shipped glove so the two arms read as
- * one character.
- */
-function drawFist(context: CanvasRenderingContext2D, centreX: number, centreY: number, unit: number): void {
-  context.save();
-  context.translate(centreX, centreY);
-  context.rotate(0.34);
-
-  context.fillStyle = "#8a5a30";
-  context.beginPath();
-  context.roundRect(-unit * 0.1, -unit * 0.05, unit * 0.2, unit * 1.1, unit * 0.06);
-  context.fill();
-
-  context.fillStyle = "#4f6b3a";
-  context.beginPath();
-  context.roundRect(-unit * 0.12, -unit * 0.08, unit * 0.24, unit * 0.2, unit * 0.05);
-  context.fill();
-
-  context.fillStyle = "#c8814a";
-  context.beginPath();
-  context.ellipse(0, -unit * 0.2, unit * 0.145, unit * 0.13, 0, 0, Math.PI * 2);
-  context.fill();
-
-  context.strokeStyle = "rgb(122 68 32 / 65%)";
-  context.lineWidth = Math.max(1, unit * 0.014);
-
-  for (let finger = 0; finger < 3; finger += 1) {
-    const y = -unit * 0.26 + finger * unit * 0.06;
-    context.beginPath();
-    context.moveTo(-unit * 0.1, y);
-    context.lineTo(unit * 0.1, y);
-    context.stroke();
-  }
-
-  context.restore();
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.max(minimum, Math.min(maximum, value));
-}
-
-/**
- * How the sword arm moves for each form.
- *
- * Rotation, lateral travel and lift, all as fractions of the frame — one row per form, so adding a
- * fifth is a line here rather than another branch in the drawing code.
- */
-function armPose(
-  kind: string,
-  arc: number,
-  aimBias: number,
-): Readonly<{ rotate: number; shiftX: number; shiftY: number; scale: number }> {
-  if (kind === "throw") {
-    return { rotate: arc * 0.05, shiftX: 0, shiftY: arc * 0.09, scale: 1 + arc * 0.06 };
-  }
-
-  if (kind === "backhand") {
-    return { rotate: arc * 0.2, shiftX: arc * -0.1 + aimBias * 0.04, shiftY: arc * 0.01, scale: 1 };
-  }
-
-  if (kind === "chop") {
-    // Rises first, then comes down hard: the lift is what tells you the heavy one is coming.
-    return {
-      rotate: arc * -0.06,
-      shiftX: aimBias * 0.05,
-      shiftY: arc * 0.12 - Math.sin(arc * Math.PI) * 0.04,
-      scale: 1 + arc * 0.05,
-    };
-  }
-
-  if (kind === "thrust") {
-    return { rotate: arc * -0.02, shiftX: aimBias * 0.03, shiftY: arc * 0.05, scale: 1 + arc * 0.16 };
-  }
-
-  return { rotate: arc * -0.16, shiftX: arc * 0.07 + aimBias * 0.04, shiftY: 0, scale: 1 };
 }
 
 /** Paints the demo hands over an already-rendered frame. */
@@ -238,63 +197,32 @@ export function drawDemoViewmodel(
 ): void {
   const width = context.canvas.width;
   const height = context.canvas.height;
-  const viewSize = Math.min(width * 0.94, height * 1.45);
-  const progress = world.swing > 0 ? 1 - world.swing / SWING_SECONDS : 0;
+  const viewSize = Math.min(width * STAGE_WIDTH_FRACTION, height * STAGE_HEIGHT_FRACTION);
   const active = world.swing > 0;
-  const arc = active ? Math.sin(progress * Math.PI) : 0;
+  const progress = active ? 1 - world.swing / Math.max(0.0001, world.swingTotal) : 0;
   const bob = Math.sin(world.elapsedSeconds * 2.2) * height * 0.006 + world.walkBob * height * 0.017;
-  const throwing = world.swingKind === "throw";
-  const arm = images.get("presentation.playerViewmodel");
-  // A connected hit stops the arm dead for an instant rather than following through.
-  const hitch = world.impact * 0.4;
-  const aimBias = aim ? clamp((aim.x - width * 0.5) / (width * 0.5), -1, 1) : 0;
-  const pose = armPose(world.swingKind, arc * (1 - hitch), aimBias);
-
-  if (arm) {
-    context.save();
-    context.translate(width / 2 + pose.shiftX * width, height + bob + pose.shiftY * height);
-    context.rotate(pose.rotate);
-    context.drawImage(
-      arm,
-      VIEWMODEL_SOURCE_SIZE / 2,
-      0,
-      VIEWMODEL_SOURCE_SIZE / 2,
-      VIEWMODEL_SOURCE_SIZE,
-      0,
-      -viewSize * 0.8 * pose.scale,
-      (viewSize / 2) * pose.scale,
-      viewSize * pose.scale,
-    );
-    context.restore();
-  }
+  // The arm draws its own arc and its own sparks, inside the stage, so this one call is the whole
+  // swing. There is no separate slash pass any more: the trail is part of the drawing it belongs to.
+  drawArm(context, world, viewSize, bob, aim);
 
   const held = world.held;
+  const unit = viewSize * 0.34;
+  const carriedX = width * 0.215;
+  const carriedY = height * 0.86 + bob * 1.6;
 
   if (held) {
-    const unit = viewSize * 0.34;
     const sway = Math.sin(world.elapsedSeconds * 1.7) * 0.025;
-    const centreX = width * 0.215;
-    const centreY = height * 0.92 + bob * 1.6;
-    drawFist(context, centreX, centreY, unit);
 
     if (held.kind === "enemy") {
-      drawHeldSlime(
-        context,
-        centreX + unit * 0.02,
-        centreY - unit * 0.34,
-        unit,
-        held.enemy.appearance,
-        world.elapsedSeconds,
-      );
+      drawHeldSlime(context, carriedX, carriedY, unit, held.enemy.appearance, world.elapsedSeconds);
     } else {
       const carried = images.get(DEMO_ASSET_IDS[held.prop]);
 
       if (carried) {
         context.save();
-        context.translate(centreX + unit * 0.02, centreY - unit * 0.34);
+        context.translate(carriedX, carriedY);
         context.rotate(-0.18 + sway);
-        // Matched to how dark the shipped viewmodel already reads, so the carried thing does not
-        // glow against the arm holding it.
+        // Matched to how dark the arm beside it reads, so the carried thing does not glow next to it.
         context.filter = "brightness(0.86) saturate(0.92)";
         context.drawImage(carried, -unit * 0.5, -unit * 0.5, unit, unit);
         context.restore();
@@ -302,22 +230,25 @@ export function drawDemoViewmodel(
     }
   }
 
-  // A thrust has no arc worth drawing — the whole read is the arm going forward — so it gets a
-  // flash at the aim point instead of a sweep.
-  if (active && !throwing && world.swingKind !== "thrust") {
-    drawSlash(context, progress, world.swingKind, aim, world.impact);
-  }
+  // What was just thrown, on its way out of the hand.
+  //
+  // Without this the object simply stopped being drawn the moment the button went down, which is the
+  // one thing a throw must never look like: the whole read of a throw is that the weight left. The
+  // body of a thrown enemy is not drawn here — it is already in the world, in flight, and large.
+  if (active && world.swingKind === "throw" && world.thrownKind && world.thrownKind !== "enemy") {
+    const leaving = images.get(DEMO_ASSET_IDS[world.thrownKind]);
 
-  if (active && world.swingKind === "thrust" && aim) {
-    const punch = Math.sin(progress * Math.PI) * (0.4 + world.impact * 0.6);
-    const flash = context.createRadialGradient(aim.x, aim.y, 0, aim.x, aim.y, height * 0.16);
-    flash.addColorStop(0, `rgba(255, 248, 214, ${punch * 0.7})`);
-    flash.addColorStop(1, "rgba(255, 150, 60, 0)");
-    context.save();
-    context.globalCompositeOperation = "lighter";
-    context.fillStyle = flash;
-    context.fillRect(0, 0, width, height);
-    context.restore();
+    if (leaving) {
+      const flight = easeOut(progress);
+      context.save();
+      context.globalAlpha = Math.max(0, 1 - flight * 1.2);
+      context.translate(carriedX + (width * 0.5 - carriedX) * flight * 0.7, carriedY - height * 0.42 * flight);
+      context.rotate(-0.18 - flight * 2.4);
+      context.filter = "brightness(0.86) saturate(0.92)";
+      const shrunk = unit * (1 - flight * 0.55);
+      context.drawImage(leaving, -shrunk * 0.5, -shrunk * 0.5, shrunk, shrunk);
+      context.restore();
+    }
   }
 
   drawCarriedLight(context, world.elapsedSeconds);

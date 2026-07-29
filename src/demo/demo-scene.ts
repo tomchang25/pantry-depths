@@ -19,14 +19,7 @@ import { blocksWalk, DEMO_GRID_SIZE, DEMO_WALL_HEIGHT, holdsStains, tileIndex } 
 import type { DemoParticleKind } from "@/demo/particles";
 import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
-import {
-  projectileHeight,
-  SWING_SECONDS,
-  type DemoDeath,
-  type DemoDeathCause,
-  type DemoEnemy,
-  type DemoWorld,
-} from "@/demo/world";
+import { projectileHeight, type DemoDeath, type DemoDeathCause, type DemoEnemy, type DemoWorld } from "@/demo/world";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
   RenderBeam,
@@ -1734,7 +1727,7 @@ export function createDemoEffects(world: DemoWorld): PresentationRenderEffects {
     // corpse animation included — so the sprite-side effect channels stay empty here.
     enemies: [],
     deaths: [],
-    swing: world.swing > 0 ? 1 - world.swing / SWING_SECONDS : 0,
+    swing: world.swing > 0 ? 1 - world.swing / Math.max(0.0001, world.swingTotal) : 0,
     playerHit: world.hitFlash,
     walkBob: world.walkBob,
     rejectionTorch: 1,
