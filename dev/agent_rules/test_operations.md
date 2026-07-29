@@ -14,16 +14,24 @@ Run `npm run check:governance` as well whenever a governance, startup, or planni
 
 The repository is not uniform, and the contract should not pretend otherwise.
 
-| Half                                                                              | Discipline                                                                                |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **The demo** — `src/demo/`, `src/presentation/`                                   | Verified by playing it. No new automated tests are expected or required.                  |
-| **Everything else** — `src/core/`, `src/content/`, `src/app/debug/`, `dev/tools/` | Keeps its existing unit coverage. A behaviour change here updates or adds a focused test. |
+| Half                                                                              | Discipline                                                                                        |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **The demo** — `src/demo/`, `src/presentation/`                                   | Verified by playing it. No automated tests, ever.                                                 |
+| **Everything else** — `src/core/`, `src/content/`, `src/app/debug/`, `dev/tools/` | Keeps the coverage it already has. Growing that coverage needs permission — see the next section. |
 
 Every test in `test/` today covers the second half. That is deliberate, not an omission: the demo is a real-time surface whose value is how it feels, and the cheapest honest check on it is a person playing it. Do not add tests to `src/demo/` or `src/presentation/` to satisfy a coverage instinct.
 
 That paragraph was prose for as long as it was ignored. It is now enforced by `test/unit/repository/demo-half-is-untested.test.ts`, which fails the unit stage — and therefore `verify` — when any test file imports `@/demo/` or `@/presentation/`. The guard holds one frozen exemption, the presentation asset loader, and it does not grow. Do not add yourself to it, and do not move a banned test somewhere the guard cannot see it; the check is on what a test imports, not where it sits.
 
 What the ban costs is worth naming, because the temptation returns every time: the presentation suite that prompted the guard asserted that a skeleton facing world `+Y`, seen from a camera looking east, renders its direction row 2. That was true of the code and wrong in the game — the direction wheel was mirrored — so the test had taken a rendering bug and written it down as the specification. A test against the demo does not catch that class of error; it preserves it.
+
+## No New Test Without Being Asked For One
+
+Adding a test is forbidden by default. A new test file, or a new case inside an existing one, requires the user to ask for it explicitly and in as many words, for that change. Nothing else grants it: not a rule elsewhere in this document that reads as though some layer ought to be covered, not a boundary that has no other observer, not the cheapness of the test, not the risk of the change. Absent the sentence, the answer is no — say what is untested and move on.
+
+Updating or deleting a test whose subject a change moved is not adding one and needs no permission. That is the section below.
+
+This section exists because the opposite reading produced three browser specs for the workbenches, each written from a line here that said `src/app/debug/` had no cheaper observing layer. They are deleted. A workbench is verified by opening it, which is the only way its actual subject — whether the thing on screen looks right — can be judged at all.
 
 ## When A Test Breaks
 
@@ -62,11 +70,13 @@ Expected noise: `vitest` prints its include/exclude summary when no test file ma
 
 ## Browser Acceptance Scope
 
-The browser layer exists for one reason: parts of `src/app/debug/` have no cheaper observing layer, because unit tests run in a Node environment with no DOM. That is its whole mandate — a debug tool's rendering, its event wiring, and its round trip to the development authoring endpoint.
+One spec, `test/e2e/debug-route.spec.ts`: the debug hub boots and opens a lazily loaded tool through a full-document navigation. That is the entire browser layer and it is not a template for a second one.
 
-A full `npm run test:e2e` is the closeout gate for a change that touches `src/app/debug/`, the authoring endpoint, or the development server wiring. Every other change uses a targeted selection (`npx playwright test <file>.spec.ts`) or nothing at all. A browser-launch failure is an environment problem, not an application failure, and must be reported as such.
+`npm run test:e2e` runs it, outside `verify`. A browser-launch failure is an environment problem, not an application failure, and must be reported as such.
 
-No spec may press **Save Canonical JSON** in the Floor Set Workbench, or otherwise invoke the authoring endpoint's `save` operation: it overwrites `src/content/floors/provisional-floor-set.json` in the working tree.
+Nothing else in `src/app/debug/` is a browser-test subject. A workbench is verified by opening it and looking, for the same reason the demo is: what it is for is whether the picture is right, and an assertion about a picture records whatever the renderer happened to be doing that day.
+
+Should a spec ever be asked for, it may not press **Save Canonical JSON** or otherwise invoke the authoring endpoint's `save` operation: it overwrites authored content in the working tree.
 
 The demo is not, and is not expected to become, a browser-test subject.
 

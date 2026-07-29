@@ -54,7 +54,7 @@ Not scheduled. What forces the question is the second authored enemy, not this o
 
 ### Browser Acceptance Coverage For Gameplay
 
-`test/e2e/` now covers the development console only — the parts of `src/app/debug/` that a DOM-less unit environment cannot observe. Presentation, input feel, VFX, and audio remain deliberate manual-playtest boundaries; `dev/agent_rules/test_operations.md` owns that scope line.
+`test/e2e/` is one spec: the debug hub boots and opens a tool. The workbench specs that grew beside it are deleted, and a new test of any kind now needs asking for. Presentation, input feel, VFX, and audio were always manual-playtest boundaries; so are the workbenches. `dev/agent_rules/test_operations.md` owns that line.
 
 ### Playtest Questions
 
