@@ -14,6 +14,16 @@ This supersedes only the foundation's default expectation that a probe is the no
 
 No probe currently exists in this repository, so adopting this narrowing costs no migration.
 
+## Declared Deviation: The Demo Tool-Chain Plan Carries Code Coordinates
+
+`dev/foundation/core/workflows/plan_standard.md` requires a plan to be written in English and to name no file paths, line numbers, function names, or class names. `dev/docs/plans/pantry_demo_workbench.plan.md` conforms to neither requirement, deliberately and with no expiry.
+
+**Why:** that plan's subject is the tooling built around an existing codebase, and most of its decisions are statements about specific modules — which one is kept as a skeleton, which one is written beside its predecessor rather than edited in place, which import boundary forces an authored file into one directory rather than another. Rewritten to refer to systems by role, those decisions stop being checkable: "the offline generator" and "the authoring endpoint" name nothing a reader can open. The standard's stated purpose for the ban is that a plan should stay valid as the codebase changes, and this plan accepts the opposite trade — it goes stale when the code moves, and that is the signal it is meant to give.
+
+The language follows the same reasoning: it is the author's working document, and the audience is one person who writes in Chinese.
+
+This deviation is scoped to that one document. Every other plan in this repository follows the standard as written, and a new plan does not inherit the exemption by pointing at this section.
+
 ## Practical Routing
 
 | Situation                                                                                | Artifact                              |
