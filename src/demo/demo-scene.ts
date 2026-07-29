@@ -102,6 +102,29 @@ const SWORD_SPIN = 8.4;
 /** Radians of tumble per cell travelled, for a prop drawn as a picture rather than as a rod. */
 const PROP_TUMBLE = 5.6;
 
+/**
+ * A barricade's iron, sized against the cell it refuses to let anyone walk into.
+ *
+ * The reach is the number that matters: walking is blocked across the whole cell, so anything short
+ * of the edge is floor a player can see and cannot use. A twentieth is left at each end so the bar
+ * reads as a thing standing in the cell rather than as a seam running into the next one.
+ *
+ * Nothing stands above 0.7, which is the height a lob has to clear to cross a barricade — the rule
+ * lives in `@/demo/maze`, and iron poking through the line it draws would be the art contradicting it.
+ */
+const BARRICADE_REACH = 0.46;
+const BARRICADE_RAIL_WIDTH = 0.05;
+const BARRICADE_RAIL_TOP = 0.12;
+const BARRICADE_SPIKE_WIDTH = 0.05;
+/** Where the arms cross, and one spike out along each of them. The arm offset is the rail's own. */
+const BARRICADE_SPIKES = [
+  { id: "middle", alongX: 0, alongY: 0, top: 0.68 },
+  { id: "west", alongX: -0.33, alongY: 0, top: 0.58 },
+  { id: "east", alongX: 0.33, alongY: 0, top: 0.58 },
+  { id: "north", alongX: 0, alongY: -0.33, top: 0.58 },
+  { id: "south", alongX: 0, alongY: 0.33, top: 0.58 },
+] as const;
+
 const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   stick: DEMO_ASSET_IDS.stick,
   rock: DEMO_ASSET_IDS.rock,
@@ -1174,6 +1197,16 @@ function boxes(world: DemoWorld): RenderBox[] {
 
   // Iron caltrops: two crossed rails carrying a row of upright spikes. Deliberately sparse and open
   // — you have to be able to see through one to whatever is standing behind it.
+  //
+  // Sparse, but it has to reach the edges of its cell, and for a long time it did neither of the two
+  // things this comment claims. The rails were built from one set of half-extents and offset sideways
+  // twice, so they came out parallel rather than crossed — half the object was simply never there —
+  // and the spikes ran on a shallow diagonal that put every one of them in the gap between the rails
+  // instead of on top of one. What was left covered four tenths of the cell across, while walking
+  // into the cell is refused across all of it, so a player was stopped two thirds of a cell short of
+  // any visible iron with clear floor in between. Nothing can be done about that from the collision
+  // side: every blocker in the demo is a whole cell, and a barricade is the only one whose art chose
+  // not to fill one.
   for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
     for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
       const tile = world.maze.tiles[tileIndex(x, y)];
@@ -1187,29 +1220,43 @@ function boxes(world: DemoWorld): RenderBox[] {
       const iron: readonly [number, number, number] = [128 - wear * 44, 132 - wear * 46, 146 - wear * 50];
       const edge: readonly [number, number, number] = [196 - wear * 70, 204 - wear * 74, 220 - wear * 80];
 
-      for (const along of [-0.28, 0, 0.28]) {
-        built.push({
-          id: `spike-${x}-${y}-${along}`,
-          x: x + 0.5 + along,
-          y: y + 0.5 + along * 0.35,
-          halfX: 0.045,
-          halfY: 0.045,
-          bottom: 0.1,
-          top: 0.66 - wear * 0.18,
-          color: iron,
-          topColor: edge,
-        });
-      }
+      // The cross: one rail the width of the cell, one the depth of it, both reaching within a
+      // twentieth of the edge. A box cannot be turned, so the X is two perpendicular bars rather than
+      // two diagonal ones — which is the same silhouette from above and the only one available here.
+      built.push({
+        id: `rail-${x}-${y}-east`,
+        x: x + 0.5,
+        y: y + 0.5,
+        halfX: BARRICADE_REACH,
+        halfY: BARRICADE_RAIL_WIDTH,
+        bottom: 0,
+        top: BARRICADE_RAIL_TOP,
+        color: iron,
+        topColor: edge,
+      });
+      built.push({
+        id: `rail-${x}-${y}-north`,
+        x: x + 0.5,
+        y: y + 0.5,
+        halfX: BARRICADE_RAIL_WIDTH,
+        halfY: BARRICADE_REACH,
+        bottom: 0,
+        top: BARRICADE_RAIL_TOP,
+        color: iron,
+        topColor: edge,
+      });
 
-      for (const cross of [-1, 1]) {
+      // Five spikes standing on the rails: one where they meet and one out along each arm, so every
+      // approach has iron in front of it and the gaps stay wide enough to see a body through.
+      for (const spike of BARRICADE_SPIKES) {
         built.push({
-          id: `rail-${x}-${y}-${cross}`,
-          x: x + 0.5,
-          y: y + 0.5 + cross * 0.16,
-          halfX: 0.42,
-          halfY: 0.04,
-          bottom: 0.06,
-          top: 0.14,
+          id: `spike-${x}-${y}-${spike.id}`,
+          x: x + 0.5 + spike.alongX,
+          y: y + 0.5 + spike.alongY,
+          halfX: BARRICADE_SPIKE_WIDTH,
+          halfY: BARRICADE_SPIKE_WIDTH,
+          bottom: BARRICADE_RAIL_TOP,
+          top: spike.top - wear * 0.18,
           color: iron,
           topColor: edge,
         });
