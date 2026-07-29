@@ -188,6 +188,15 @@ export type RenderSprite = Readonly<{
   appearanceId?: EnemyAppearanceId;
   wallFace?: Facing;
   /**
+   * 0..1 white laid over the drawn picture — the sprite side of `RenderBlob.flash`.
+   *
+   * A blob can express a hit with its whole body; a billboard has only the frame it was authored
+   * with, so without this an enemy drawn from artwork takes a blow and changes nothing but which
+   * drawing is on screen. Carried on the sprite rather than through the effects channel because
+   * that is where every other piece of per-entity state moved.
+   */
+  flash?: number;
+  /**
    * Draws a second, glowing silhouette of this sprite that ignores what is in front of it, so the
    * thing stays locatable through walls. Only the demo surface marks anything this way.
    */

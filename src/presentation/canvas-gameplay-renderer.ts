@@ -1887,9 +1887,13 @@ export class CanvasGameplayRenderer {
       const variant = spriteVariant(projected.sprite);
       const source = this.#litImage(assetId, projected.depth, scene, projected.sprite.x, projected.sprite.y, variant);
       this.#drawProjectedImage(scene, projected, source, 1);
+      // Either source of white will do; whichever is asking for more of it wins. The effects channel
+      // is the sprite pipeline's original one, and `flash` is the same value carried on the sprite
+      // itself, which is how a surface that keeps its entity state in the scene reaches this.
+      const white = Math.max(enemyEffect?.whiteFlash ?? 0, clamp(projected.sprite.flash ?? 0, 0, 1));
 
-      if (enemyEffect && enemyEffect.whiteFlash > 0) {
-        this.#drawProjectedImage(scene, projected, this.#whiteImage(assetId, variant), enemyEffect.whiteFlash);
+      if (white > 0) {
+        this.#drawProjectedImage(scene, projected, this.#whiteImage(assetId, variant), white);
       }
     }
 
@@ -2434,10 +2438,16 @@ export class CanvasGameplayRenderer {
     const ringStyle = (h: number): string => {
       // Lit from above: the crown takes most of the light, the skirt sits in its own shadow.
       const shade = (0.5 + 0.5 * h) * fade;
-      const red = (blob.color[0] + (255 - blob.color[0]) * flash) * shade + warmColor[0] * warmth * 0.3;
-      const green = (blob.color[1] + (255 - blob.color[1]) * flash) * shade + warmColor[1] * warmth * 0.3;
-      const blue = (blob.color[2] + (255 - blob.color[2]) * flash) * shade + warmColor[2] * warmth * 0.3;
-      return `rgb(${Math.min(255, red) | 0}, ${Math.min(255, green) | 0}, ${Math.min(255, blue) | 0})`;
+      // The flash goes on top of the light, not into the body colour underneath it. Mixed in before
+      // shading it was then dimmed by depth and by the skirt's own shadow, so the one thing that has
+      // to read from across an unlit room — something taking a hit — came out as a paler blob at the
+      // exact distance the player needed to see it from.
+      const channel = (base: number, warm: number): number => {
+        const lit = base * shade + warm * warmth * 0.3;
+        return Math.min(255, lit + (255 - lit) * flash) | 0;
+      };
+
+      return `rgb(${channel(blob.color[0], warmColor[0])}, ${channel(blob.color[1], warmColor[1])}, ${channel(blob.color[2], warmColor[2])})`;
     };
 
     const ringZ = (h: number): number => h * heightWorld - blob.droop * h * h;

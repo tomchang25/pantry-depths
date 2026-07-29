@@ -2,7 +2,7 @@
  * What happens where a thrown thing lands.
  *
  * Throwing is not a damage button. A rock stops where it lands and scatters whoever is near it; a
- * bomb does the obvious; a stick pierces, which is what pinning a line of enemies to a wall means.
+ * bomb does the obvious; a stick pierces, which is what pinning one enemy to a wall means.
  *
  * A thrown body is the odd one out: it does not stop for anyone. It runs down whoever is in its two
  * tiles — hurting, stunning, and shoving them aside — and then takes a swing's worth of damage

@@ -116,8 +116,10 @@ export type DemoProjectile = {
   /** Recent positions, newest last. Presentation only — the trail is drawn from it. */
   trail: { x: number; y: number; z: number }[];
   /**
-   * Bodies a javelin is carrying. They leave the world the moment they are run through and come back
-   * only as corpses, at the wall — being skewered is not a state anything is expected to survive.
+   * The body a javelin is carrying — one, per `JAVELIN_CAPACITY`. It leaves the world the moment it
+   * is run through and comes back only as a corpse, at the wall: being skewered is not a state
+   * anything is expected to survive. Still a list because the shaft is drawn from it, and the entity
+   * workbench previews a loaded shaft with more than one on it.
    */
   skewered: DemoEnemy[];
   /** Victims an axe has already cleaved, which is what limits it to three. */

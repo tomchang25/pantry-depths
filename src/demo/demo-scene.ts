@@ -355,6 +355,18 @@ function animationFrame(animation: SkeletonSwordsmanAnimationId, progress: numbe
   return Math.min(definition.frames - 1, Math.max(0, Math.floor(progress * definition.frames)));
 }
 
+/**
+ * The white an enemy takes on being hit, from one down to zero.
+ *
+ * Full white first and then gone, rather than fading out across the whole recoil the way the squash
+ * does. A white that leaves at the speed of the body's own wobble reads as a colour the thing turned;
+ * a white that is simply there and then away reads as the moment the blade arrived. Shared by both
+ * kinds of enemy so a bone body and a boneless one answer a hit identically.
+ */
+function enemyHitFlash(enemy: DemoEnemy): number {
+  return enemy.hurtSeconds > 0 ? Math.min(1, enemy.hurtSeconds / 0.16) : 0;
+}
+
 function skeletonAnimation(
   context: DemoEntityProjectionContext,
   enemy: DemoEnemy,
@@ -408,6 +420,9 @@ function skeletonSprite(
     assetId: definition.assetId,
     scale: SKELETON_DISPLAY_SCALE,
     verticalAnchor: 0,
+    // The same white a slime takes, on the same curve. A skeleton had only its hurt frames to say it
+    // had been hit, and against a crowd at speed a frame swap is not an answer to "did that land?".
+    flash: enemyHitFlash(enemy),
     submerged: drownStage(enemy),
     frame: {
       column: selected.frame,
@@ -840,7 +855,9 @@ function enemyBlob(context: DemoEntityProjectionContext, enemy: DemoEnemy): Rend
     squash = 0.82 - progress * 0.08;
     leanX = -towardX * 0.1;
     leanY = -towardY * 0.1;
-    flash = 0.25 + 0.35 * Math.abs(Math.sin(t * (10 + 14 * (1 - enemy.windupSeconds))));
+    // Held well under the hit flash. Both are the same white channel, and a telegraph that pulses up
+    // near full white leaves nothing for a landed blow to say.
+    flash = 0.14 + 0.2 * Math.abs(Math.sin(t * (10 + 14 * (1 - enemy.windupSeconds))));
     face = "attack";
   } else if (enemy.chargeSeconds > 0) {
     // Mid-charge: stretched flat out along its committed lane.
@@ -861,7 +878,7 @@ function enemyBlob(context: DemoEntityProjectionContext, enemy: DemoEnemy): Rend
     squash *= 0.78 + 0.22 * (1 - hurt);
     wobbleAmp = 0.16 * hurt;
     wobblePhase = t * 40;
-    flash = Math.max(flash, hurt);
+    flash = Math.max(flash, enemyHitFlash(enemy));
     face = "hurt";
   }
 
@@ -1853,10 +1870,17 @@ export function createDemoScene(world: DemoWorld): RenderScene {
   };
 }
 
-/** A short downward camera hitch while a melee impact decays. */
+/**
+ * A short downward camera hitch while a melee impact decays.
+ *
+ * Kept small on purpose. This fires on every connected swing, which in a room worth clearing is most
+ * of the seconds the player is alive for, and at the amplitude it used to have the view was still
+ * settling from one cut when the next one landed — a floor cleared at speed read as a shaking screen
+ * rather than as a series of hits.
+ */
 export function demoMeleeImpactPitch(impact: number): number {
   const strength = Math.max(0, Math.min(1, impact));
-  return -Math.sin((1 - strength) * Math.PI) * strength * 0.028;
+  return -Math.sin((1 - strength) * Math.PI) * strength * 0.011;
 }
 
 export function createDemoEffects(world: DemoWorld): PresentationRenderEffects {

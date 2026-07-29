@@ -79,8 +79,14 @@ function throwRange(world: DemoWorld, base: number): number {
   return Math.min(base, Math.max(THROW_SPAWN_AHEAD, aimDistance - THROW_SPAWN_AHEAD));
 }
 
-/** How many victims a piercing throw is allowed: the javelin carries them, the blades kill them. */
-export const JAVELIN_CAPACITY = 3;
+/**
+ * How many victims a piercing throw is allowed: the javelin carries them, the blades kill them.
+ *
+ * A stake takes one. Carrying three turned a thrown stick into the room-clearing weapon — one throw
+ * down a corridor took most of what was in it — and the throw that reads best is the single body
+ * lifted off its feet and nailed to the far wall, which three bodies bunched on one shaft obscured.
+ */
+export const JAVELIN_CAPACITY = 1;
 export const CLEAVE_CAPACITY = 3;
 
 export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {

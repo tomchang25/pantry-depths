@@ -265,9 +265,9 @@ function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall:
 /**
  * The javelin running someone through.
  *
- * Nobody dies here. Up to three bodies are lifted out of the world and carried on the shaft, and the
- * kill is resolved against whatever the javelin finally buries itself in — which is the point of the
- * weapon: the wall is what does it, not the throw.
+ * Nobody dies here. The body is lifted out of the world and carried on the shaft, and the kill is
+ * resolved against whatever the javelin finally buries itself in — which is the point of the weapon:
+ * the wall is what does it, not the throw.
  */
 function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
   if (projectile.skewered.length >= JAVELIN_CAPACITY) {
@@ -291,7 +291,7 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
     projectile.struck.add(enemy.id);
     world.enemies.splice(world.enemies.indexOf(enemy), 1);
     projectile.skewered.push(enemy);
-    announce(world, `Skewered ${projectile.skewered.length}!`, 1.2);
+    announce(world, "Skewered!", 1.2);
 
     if (projectile.skewered.length >= JAVELIN_CAPACITY) {
       return;
@@ -328,37 +328,21 @@ function cleaveThrough(world: DemoWorld, projectile: DemoProjectile): boolean {
   return false;
 }
 
-/** How far apart bodies are spread across the face they hit, so three marks are not one mark. */
-const WALL_MARK_SPREAD = 0.24;
-
 /**
- * Nails everything the javelin was carrying to whatever stopped it, and leaves them there dead.
+ * Nails what the javelin was carrying to whatever stopped it, and leaves it there dead.
  *
- * The bodies are spread sideways across the face rather than strung out back along the shaft. They
- * used to be a row of corpses slumped around it, which was the best a standing body could do — and a
- * body driven into masonry at that speed is not standing. What is left of each is a mark on the wall,
- * and three of those in a line into the wall would be three in the same place. The scene puts each
- * one onto the plane itself; what is decided here is only which part of the face it took.
+ * It goes in where the shaft did. The body used to be a corpse slumped around the shaft, which was
+ * the best a standing body could do — and a body driven into masonry at that speed is not standing.
+ * What is left of it is a mark on the wall; the scene puts that onto the plane itself.
  */
 function pinToWall(world: DemoWorld, projectile: DemoProjectile): void {
-  if (projectile.skewered.length === 0) {
-    return;
-  }
-
-  projectile.skewered.forEach((enemy, index) => {
-    // Alternating either side of where the shaft went in: the middle, then one across, then one back.
-    const across = (index % 2 === 0 ? 1 : -1) * Math.ceil(index / 2) * WALL_MARK_SPREAD;
-    const markX = projectile.x - projectile.directionY * across;
-    const markY = projectile.y + projectile.directionX * across;
-    // A corner can put the spread into the wall beside it, where a mark would hang off nothing. The
-    // middle of the face is always sound, so that is where a crowded one goes.
-    const clear = !blocksProjectile(world.maze, Math.floor(markX), Math.floor(markY));
-    enemy.x = clear ? markX : projectile.x;
-    enemy.y = clear ? markY : projectile.y;
+  for (const enemy of projectile.skewered) {
+    enemy.x = projectile.x;
+    enemy.y = projectile.y;
     world.enemies.push(enemy);
     killEnemy(world, enemy, "splattered", { x: projectile.directionX, y: projectile.directionY });
-  });
-  announce(world, `${projectile.skewered.length} pinned to the wall!`);
+    announce(world, "Pinned to the wall!");
+  }
 }
 
 /**
