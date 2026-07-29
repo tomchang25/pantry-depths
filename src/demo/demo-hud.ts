@@ -5,6 +5,28 @@ export type DemoHudBlessIcon = Readonly<{
   detail: string;
   glyph: string;
   name: string;
+  /**
+   * Whether the run has this one yet.
+   *
+   * The whole roster is sent, not only what is owned. A blessing you do not have is worth a slot: the
+   * empty ones are what tell you there is something left to go and get, and the row keeps its shape
+   * as they fill in rather than growing a chip at a time.
+   */
+  owned: boolean;
+}>;
+
+/**
+ * What is in the left hand, and how many are left of it.
+ *
+ * Structured rather than a formatted line, because the picture of the thing is already on screen —
+ * `demo-viewmodel` paints the carried object down in the corner. What the bar adds is which one it is
+ * and the count that decides whether to throw the next one.
+ */
+export type DemoHudHeld = Readonly<{
+  color: string;
+  count?: number;
+  glyph: string;
+  name: string;
 }>;
 
 export type DemoHudCard = Readonly<{
@@ -34,6 +56,7 @@ export type DemoHudMinimap = Readonly<{
 export type DemoHudModel = Readonly<{
   blessIcons: readonly DemoHudBlessIcon[];
   card?: DemoHudCard;
+  held?: DemoHudHeld;
   hp: number;
   maxHp: number;
   message?: string;
@@ -97,14 +120,27 @@ function drawMinimap(context: CanvasRenderingContext2D, model: DemoHudMinimap): 
   context.stroke();
 }
 
-/** Mounts the complete DOM HUD; callers provide only immutable display data. */
+/**
+ * Mounts the complete DOM HUD; callers provide only immutable display data.
+ *
+ * The player's own state sits bottom-centre, in the gap between the two things `demo-viewmodel`
+ * paints: the carried object goes into the bottom left at roughly a fifth across, and the sword arm
+ * swings up the right. The middle of the floor is the one part of the lower frame nothing occupies,
+ * which is why a full-width bar cannot go there and a narrow cluster can.
+ */
 export function mountDemoHud(): MountedDemoHud {
   const root = element("div", "demo-hud");
-  const panel = element("section", "demo__panel");
-  const bar = element("div", "demo__bar");
-  const barFill = document.createElement("span");
-  const readout = element("div", "demo__readout");
+  const status = element("section", "demo__status");
+  const heldSlot = element("div", "demo__slot demo__slot--held");
+  const blessSlot = element("div", "demo__slot demo__slot--bless");
+  const healthSlot = element("div", "demo__slot demo__slot--health");
   const blessBar = element("div", "demo__blessbar");
+  const heldGlyph = element("span", "demo__held-glyph");
+  const heldName = element("span", "demo__held-name");
+  const heldCount = element("span", "demo__held-count");
+  const hp = element("span", "demo__hp");
+  const health = element("div", "demo__health");
+  const healthFill = document.createElement("span");
   const minimap = element("canvas", "demo__minimap");
   const crosshair = element("div", "demo__crosshair");
   const message = element("p", "demo__message");
@@ -121,34 +157,46 @@ export function mountDemoHud(): MountedDemoHud {
   minimap.width = 168;
   minimap.height = 168;
   minimap.setAttribute("aria-label", "Dungeon minimap");
-  bar.setAttribute("role", "progressbar");
-  bar.setAttribute("aria-label", "Health");
+  health.setAttribute("role", "progressbar");
+  health.setAttribute("aria-label", "Health");
   message.setAttribute("role", "status");
   overlayButton.type = "button";
   overlayButton.append(overlayTitle, overlayBody);
-  bar.append(barFill);
-  panel.append(bar, readout, blessBar);
-  root.append(panel, minimap, crosshair, message, card, overlayButton);
+  health.append(healthFill);
+  heldSlot.append(element("h3", "demo__slottitle", "Held"), heldGlyph, heldName, heldCount);
+  blessSlot.append(element("h3", "demo__slottitle", "Bless"), blessBar);
+  healthSlot.append(hp, health);
+  status.append(heldSlot, blessSlot, healthSlot);
+  root.append(status, minimap, crosshair, message, card, overlayButton);
 
   const update = (model: DemoHudModel): void => {
     const healthShare = model.maxHp > 0 ? Math.max(0, Math.min(1, model.hp / model.maxHp)) : 0;
-    barFill.style.width = `${healthShare * 100}%`;
-    bar.setAttribute("aria-valuemin", "0");
-    bar.setAttribute("aria-valuemax", String(model.maxHp));
-    bar.setAttribute("aria-valuenow", String(Math.max(0, model.hp)));
-    // Depth, enemy count, kills, walls broken, the altar and the wall ahead were all here, and all of
-    // them were a number to read rather than something to look at. The frame counter went to the dev
-    // overlay, because how the machine is doing is not something the player is being told.
-    readout.textContent = `${Math.ceil(model.hp)} / ${model.maxHp}`;
+    healthFill.style.width = `${healthShare * 100}%`;
+    health.setAttribute("aria-valuemin", "0");
+    health.setAttribute("aria-valuemax", String(model.maxHp));
+    health.setAttribute("aria-valuenow", String(Math.max(0, model.hp)));
+    // The bar says how much is left at a glance; the number says how many more hits that is. Depth,
+    // enemy count, kills, walls broken, the altar and the wall ahead were all here once and were all
+    // a number to read rather than a thing to look at. The frame counter is the dev overlay's.
+    hp.replaceChildren(String(Math.ceil(Math.max(0, model.hp))), element("small", "", `/${model.maxHp}`));
     blessBar.replaceChildren();
 
     for (const icon of model.blessIcons) {
       const item = element("span", "demo__blessicon", icon.glyph);
       item.style.setProperty("--bless", icon.color);
+      item.dataset.owned = String(icon.owned);
       item.title = `${icon.name} — ${icon.detail}`;
-      item.setAttribute("aria-label", `${icon.name}: ${icon.detail}`);
+      item.setAttribute("aria-label", `${icon.name}: ${icon.detail}${icon.owned ? "" : " (not taken)"}`);
       blessBar.append(item);
     }
+
+    // Empty-handed is a state the slot shows rather than a reason to collapse it. The cluster has to
+    // be the same shape whatever is in it, or picking something up looks like the layout breaking.
+    heldSlot.dataset.empty = String(model.held === undefined);
+    heldGlyph.style.setProperty("--held", model.held?.color ?? "#8a7a86");
+    heldGlyph.textContent = model.held?.glyph ?? "·";
+    heldName.textContent = model.held?.name ?? "Empty-handed";
+    heldCount.textContent = model.held?.count === undefined ? "" : `×${model.held.count}`;
 
     message.textContent = model.message ?? "";
     message.classList.toggle("demo__message--visible", Boolean(model.message));

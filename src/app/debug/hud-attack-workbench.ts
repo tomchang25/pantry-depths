@@ -122,9 +122,12 @@ function defaultHudModel(): DemoHudModel {
 
   return {
     blessIcons: [
-      { color: "#f2c96b", detail: "A sample authored blessing", glyph: "✦", name: "Ember" },
-      { color: "#83d0a4", detail: "A second icon for contrast", glyph: "♢", name: "Moss" },
+      { color: "#f2c96b", detail: "A sample authored blessing", glyph: "✦", name: "Ember", owned: true },
+      { color: "#83d0a4", detail: "A second icon for contrast", glyph: "♢", name: "Moss", owned: true },
+      { color: "#8fb6f0", detail: "A slot the run has not filled", glyph: "⚡", name: "Squall", owned: false },
+      { color: "#e0857f", detail: "A second empty slot", glyph: "✦", name: "Cinder", owned: false },
     ],
+    held: { color: "#c9c2b4", count: 3, glyph: "●", name: "Rocks" },
     card: { color: "#f2c96b", detail: "Live card layout preview", glyph: "✦", name: "Ember" },
     hp: 72,
     maxHp: 100,
@@ -249,6 +252,38 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
       hudModel = Object.assign({}, hudModel, { [key]: Number(input.value) });
       refreshHud();
     });
+    hudGrid.append(field(label, input));
+  }
+
+  /**
+   * The left hand, driven by two fields.
+   *
+   * Clearing the name is how the cell goes empty-handed, and a count of zero is how it becomes a
+   * carried body — the one thing held that has no number.
+   */
+  const heldName = textInput(hudModel.held?.name ?? "");
+  const heldCount = numberInput(hudModel.held?.count ?? 3);
+  const refreshHeld = (): void => {
+    const { held: _held, ...withoutHeld } = hudModel;
+    hudModel = heldName.value
+      ? {
+          ...withoutHeld,
+          held: {
+            color: "#c9c2b4",
+            glyph: "●",
+            name: heldName.value,
+            ...(Number(heldCount.value) > 0 ? { count: Number(heldCount.value) } : {}),
+          },
+        }
+      : withoutHeld;
+    refreshHud();
+  };
+
+  for (const [label, input] of [
+    ["Held name", heldName],
+    ["Held count", heldCount],
+  ] as const) {
+    input.addEventListener("input", refreshHeld);
     hudGrid.append(field(label, input));
   }
 

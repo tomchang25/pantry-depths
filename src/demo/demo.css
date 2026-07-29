@@ -6,58 +6,104 @@
   pointer-events: none;
 }
 
-.demo__panel {
+/*
+ * The player's own state, bottom-centre.
+ *
+ * Which is the one part of the lower frame nothing else is in: `demo-viewmodel` paints the carried
+ * object at roughly a fifth across and the sword arm swings up the right, and the middle of the floor
+ * between them is empty. A full-width bar down here would cut the arm off from its own shoulder — the
+ * sleeve leaving the bottom edge is what makes it an arm — so this is a narrow cluster instead.
+ */
+.demo__status {
   position: absolute;
-  inset: 0.9rem auto auto 0.9rem;
-  min-width: 13rem;
-  padding: 0.7rem 0.9rem;
+  inset: auto auto 1.1rem 50%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1px;
+  width: min(34rem, calc(100% - 3rem));
+  padding: 1px;
   color: #f4dfc7;
-  font-size: 0.86rem;
-  line-height: 1.55;
-  border: 1px solid rgb(203 151 105 / 35%);
-  border-radius: 0.25rem;
-  background: rgb(19 10 25 / 78%);
+  border: 1px solid rgb(203 151 105 / 45%);
+  border-radius: 0.3rem;
+  background: rgb(203 151 105 / 20%);
+  transform: translateX(-50%);
   pointer-events: none;
 }
 
-.demo__bar {
-  width: 100%;
-  height: 0.55rem;
-  margin: 0.15rem 0 0.5rem;
-  border: 1px solid rgb(203 151 105 / 45%);
-  background: rgb(0 0 0 / 55%);
+.demo__slot {
+  display: grid;
+  gap: 0.25rem;
+  align-content: center;
+  padding: 0.45rem 0.7rem;
+  background: rgb(19 10 25 / 86%);
 }
 
-.demo__bar span {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, #b8324c, #e8845c);
-  transition: width 140ms linear;
+.demo__slottitle {
+  margin: 0;
+  color: #9d8794;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.58rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
-.demo__readout {
+/* Held, bottom left of the cluster: the glyph is the identity, the count decides the next throw. */
+.demo__slot--held {
+  grid-template-columns: 2.3rem auto;
+  align-items: center;
+  column-gap: 0.55rem;
+  min-width: 11rem;
+}
+
+.demo__slot--held .demo__slottitle {
+  grid-column: 1 / -1;
+}
+
+.demo__held-glyph {
+  grid-row: 2 / span 2;
+  display: grid;
+  place-content: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  color: var(--held, #f4dfc7);
+  font-size: 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--held, #f4dfc7) 55%, transparent);
+  border-radius: 0.2rem;
+  background: color-mix(in srgb, var(--held, #f4dfc7) 12%, transparent);
+}
+
+.demo__held-name {
+  align-self: end;
+  font-size: 0.86rem;
+}
+
+.demo__held-count {
+  align-self: start;
   color: #ffd79a;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 1.15rem;
+  line-height: 1;
 }
 
+.demo__slot--held[data-empty="true"] {
+  color: #8a7a86;
+}
+
+/* The blessing roster: every slot present, the ones not taken left standing empty. */
 .demo__blessbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-top: 0.55rem;
+  display: grid;
+  grid-auto-flow: column;
+  gap: 0.26rem;
+  justify-content: start;
   pointer-events: auto;
-}
-
-.demo__blessbar:empty {
-  display: none;
 }
 
 .demo__blessicon {
   display: grid;
   place-content: center;
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.6rem;
+  height: 1.6rem;
   color: var(--bless, #f4dfc7);
   font-size: 0.95rem;
   font-style: normal;
@@ -67,9 +113,63 @@
   cursor: help;
 }
 
+.demo__blessicon[data-owned="false"] {
+  color: #5b4a52;
+  border-color: rgb(255 255 255 / 10%);
+  background: transparent;
+}
+
+/* Health spans the cluster: a bar for how much is left, a numeral for how many hits that is. */
+.demo__slot--health {
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.8rem;
+}
+
+.demo__hp {
+  color: #ff8f6a;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 1.7rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.demo__hp small {
+  color: #cdb69c;
+  font-size: 0.78rem;
+}
+
+.demo__health {
+  height: 0.6rem;
+  border: 1px solid rgb(203 151 105 / 45%);
+  background: rgb(0 0 0 / 55%);
+}
+
+.demo__health span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #b8324c, #e8845c);
+  transition: width 140ms linear;
+}
+
+/* Back to the top right corner, and larger: nothing up there competes for the space. */
+.demo__minimap {
+  position: absolute;
+  inset: 0.9rem 0.9rem auto auto;
+  width: 14rem;
+  height: 14rem;
+  border: 1px solid rgb(203 151 105 / 35%);
+  border-radius: 0.25rem;
+  background: rgb(10 6 15 / 82%);
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
 .demo__card {
   position: absolute;
-  inset: auto auto 18% 50%;
+  inset: auto auto 22% 50%;
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: auto auto;
@@ -120,18 +220,6 @@
   line-height: 1.45;
 }
 
-.demo__minimap {
-  position: absolute;
-  inset: 0.9rem 0.9rem auto auto;
-  width: 11rem;
-  height: 11rem;
-  border: 1px solid rgb(203 151 105 / 35%);
-  border-radius: 0.25rem;
-  background: rgb(10 6 15 / 82%);
-  image-rendering: pixelated;
-  pointer-events: none;
-}
-
 .demo__crosshair {
   position: absolute;
   inset: 50% auto auto 50%;
@@ -160,7 +248,7 @@
 
 .demo__message {
   position: absolute;
-  inset: auto auto 8% 50%;
+  inset: auto auto 33% 50%;
   max-width: min(34rem, calc(100% - 2rem));
   margin: 0;
   padding: 0.45rem 1rem;

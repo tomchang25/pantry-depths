@@ -8,16 +8,17 @@
 
 import "@/demo/demo-surface.css";
 
-import { grabAction, primaryAction } from "@/demo/actions";
-import { findBless, type BlessDefinition } from "@/demo/bless";
+import { grabAction, primaryAction, PROP_LABELS } from "@/demo/actions";
+import { BLESS_CATALOG, hasBless, findBless, type BlessDefinition } from "@/demo/bless";
 import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
-import { mountDemoHud, type DemoHudCard, type DemoHudModel } from "@/demo/demo-hud";
+import { mountDemoHud, type DemoHudCard, type DemoHudHeld, type DemoHudModel } from "@/demo/demo-hud";
 import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { DEMO_GRID_SIZE } from "@/demo/maze";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
+import type { DemoPropKind } from "@/demo/throw-weight";
 import { announce, createDemoWorld, flattenFloorForTesting, type DemoWorld } from "@/demo/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
 
@@ -89,23 +90,74 @@ function cardModel(token: string): DemoHudCard {
   };
 }
 
+/**
+ * A mark per kind for the left hand.
+ *
+ * Provisional and deliberately local: the moment authored decor presets can carry a HUD glyph, the
+ * table belongs with them rather than beside the frame loop.
+ */
+const PROP_GLYPHS: Readonly<Record<DemoPropKind, string>> = {
+  stick: "↑",
+  rock: "●",
+  bomb: "✸",
+  axe: "⚒",
+  skeletonSword: "†",
+  skeletonSkull: "☠",
+  skeletonFemur: "⌇",
+  skeletonFemurCracked: "⌇",
+};
+
+/** Ammunition by what it is made of, explosives apart, so a stack reads before it is named. */
+const PROP_COLORS: Readonly<Record<DemoPropKind, string>> = {
+  stick: "#e6d3a6",
+  rock: "#c9c2b4",
+  bomb: "#e2585f",
+  axe: "#cfd8e2",
+  skeletonSword: "#cfd8e2",
+  skeletonSkull: "#dcd0b4",
+  skeletonFemur: "#dcd0b4",
+  skeletonFemurCracked: "#dcd0b4",
+};
+
+function heldModel(world: DemoWorld): DemoHudHeld | undefined {
+  const held = world.held;
+
+  if (!held) {
+    return undefined;
+  }
+
+  // A carried body is one body, so it has no count. Only a stack of ammunition does.
+  if (held.kind === "enemy") {
+    return {
+      color: ENEMY_DOT_COLORS[held.enemy.archetype.id],
+      glyph: "✦",
+      name: held.enemy.archetype.name,
+    };
+  }
+
+  return {
+    color: PROP_COLORS[held.prop] ?? "#e6d3a6",
+    count: held.count,
+    glyph: PROP_GLYPHS[held.prop] ?? "●",
+    name: PROP_LABELS[held.prop] ?? held.prop,
+  };
+}
+
 function createHudModel(
   world: DemoWorld,
   cardToken: string | undefined,
   overlay: DemoHudModel["overlay"],
 ): DemoHudModel {
-  const blessIcons = world.bless.owned
-    .map((id) => findBless(id))
-    .filter((definition): definition is BlessDefinition => Boolean(definition))
-    .map((definition) => ({
-      color: definition.color,
-      detail: definition.detail,
-      glyph: definition.glyph,
-      name: definition.name,
-    }));
+  const blessIcons = BLESS_CATALOG.map((definition) => ({
+    color: definition.color,
+    detail: definition.detail,
+    glyph: definition.glyph,
+    name: definition.name,
+    owned: hasBless(world.bless, definition.id),
+  }));
 
   if (world.bless.overflowMaxHp > 0) {
-    blessIcons.push({ color: "#f0f0d0", detail: "Extra max HP", glyph: "+", name: "Vitality" });
+    blessIcons.push({ color: "#f0f0d0", detail: "Extra max HP", glyph: "+", name: "Vitality", owned: true });
   }
 
   const points = [
@@ -121,9 +173,11 @@ function createHudModel(
     })),
   ];
 
+  const held = heldModel(world);
   return {
     blessIcons,
     ...(cardToken ? { card: cardModel(cardToken) } : {}),
+    ...(held ? { held } : {}),
     hp: world.player.hp,
     maxHp: world.player.maxHp,
     ...(world.messageSeconds > 0 && world.message ? { message: world.message } : {}),
