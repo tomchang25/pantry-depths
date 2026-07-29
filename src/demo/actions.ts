@@ -173,6 +173,42 @@ function nearestEnemyAhead(
   return best;
 }
 
+/**
+ * Everything one swing sweeps through, nearest first.
+ *
+ * The blade does not stop at the first body it meets. A sword swung through a doorway full of slimes
+ * that killed exactly one of them was the demo's most reliable disappointment: the arc visibly passes
+ * through all of them, so hitting one is the drawing calling the rules a liar.
+ *
+ * Nearest ends up at the front without a sort — each strictly closer find is moved there — because
+ * that one is what the arc is drawn through. The order of the rest is arbitrary and nothing reads it.
+ */
+function sweepAhead(world: DemoWorld, reach: number, arc: number): readonly DemoEnemy[] {
+  const struck: DemoEnemy[] = [];
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const enemy of world.enemies) {
+    if (enemy.drowningSeconds > 0) {
+      continue;
+    }
+
+    const distance = inFront(world, enemy.x, enemy.y, reach, arc);
+
+    if (distance === undefined) {
+      continue;
+    }
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      struck.unshift(enemy);
+    } else {
+      struck.push(enemy);
+    }
+  }
+
+  return struck;
+}
+
 function nearestPropAhead(world: DemoWorld): DemoProp | undefined {
   let best: DemoProp | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
@@ -451,33 +487,52 @@ function strikeAltar(world: DemoWorld): boolean {
 }
 
 /**
- * One swing.
+ * One swing, against everything in front of it.
  *
- * Also records where it landed. The arm animation and the arc are drawn through that point, so a
- * swing at something on your left visibly goes left — which is the difference between an attack
- * animation and a canned one.
+ * Full damage and a full shove to every body in the arc, with no falloff and no cap on how many. The
+ * swing already costs the player the whole of its animation whether it meets one enemy or six, so
+ * charging the same time for a sixth of the result is what made a crowd the thing to back away from
+ * rather than the thing to swing into.
+ *
+ * Also records where it landed. The arc is drawn through the nearest of them, so a swing at something
+ * on the left visibly goes left — the difference between an attack animation and a canned one.
  */
 function melee(world: DemoWorld): void {
   const reach = meleeReach(world);
-  const enemy = nearestEnemyAhead(world, reach, MELEE_ARC);
+  const struck = sweepAhead(world, reach, MELEE_ARC);
+  const nearest = struck[0];
 
-  if (enemy) {
+  if (nearest) {
     const direction = facing(world);
     const knockback = hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_KNOCKBACK : 3;
-    enemy.pushX += direction.x * knockback;
-    enemy.pushY += direction.y * knockback;
-    damageEnemy(world, enemy, meleeDamage(world), "cleaved");
-    world.swingTarget = { x: enemy.x, y: enemy.y, z: 0.34, connected: true };
+    const damage = meleeDamage(world);
+    // Read before the loop: a body that dies in it is spliced out of the world, and the arc still
+    // has to be drawn through where the swing actually went.
+    const targetX = nearest.x;
+    const targetY = nearest.y;
+
+    for (const enemy of struck) {
+      enemy.pushX += direction.x * knockback;
+      enemy.pushY += direction.y * knockback;
+      damageEnemy(world, enemy, damage, "cleaved");
+      burst(world.particles, "blood", enemy.x, enemy.y, 0.36, 6, {
+        speed: 2,
+        spreadZ: 2.2,
+        size: 0.055,
+        life: 0.9,
+        directionX: direction.x,
+        directionY: direction.y,
+        focus: 0.4,
+      });
+    }
+
+    world.swingTarget = { x: targetX, y: targetY, z: 0.34, connected: true };
     world.impact = 1;
-    burst(world.particles, "blood", enemy.x, enemy.y, 0.36, 6, {
-      speed: 2,
-      spreadZ: 2.2,
-      size: 0.055,
-      life: 0.9,
-      directionX: direction.x,
-      directionY: direction.y,
-      focus: 0.4,
-    });
+
+    if (struck.length > 1) {
+      announce(world, `Cleaves ${struck.length}!`, 1.2);
+    }
+
     return;
   }
 
