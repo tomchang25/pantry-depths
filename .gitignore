@@ -14,3 +14,7 @@ playwright-report/
 .claude\worktrees
 
 /assets/
+
+# Python bytecode from the offline Blender tools, which import each other as modules.
+__pycache__/
+*.pyc
