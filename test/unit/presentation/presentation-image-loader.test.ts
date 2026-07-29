@@ -50,6 +50,16 @@ describe("presentation image loader", () => {
     );
   });
 
+  it("accepts an explicitly sized animation atlas without weakening the default sprite contract", async () => {
+    const images = await loadPresentationImages(
+      { "enemy.skeletonSwordsman.atlas.walk": "/skeleton-walk.png" },
+      fakeImageFactory(1024, 1024),
+      { width: 1024, height: 1024 },
+    );
+
+    expect([...images.keys()]).toEqual(["enemy.skeletonSwordsman.atlas.walk"]);
+  });
+
   it("keeps load failures retryable by rejecting without retaining partial state", async () => {
     await expect(
       loadPresentationImages({ "key.red": "/missing.png" }, fakeImageFactory(512, 512, true)),

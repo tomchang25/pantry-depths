@@ -24,6 +24,10 @@ export type LoadableImage = CanvasImageSource &
 
 export type ImageFactory = () => LoadableImage;
 
+export type ExpectedImageDimensions = Readonly<{ width: number; height: number }>;
+
+const DEFAULT_IMAGE_DIMENSIONS: ExpectedImageDimensions = { width: 512, height: 512 };
+
 function defaultImageFactory(): LoadableImage {
   return new Image() as LoadableImage;
 }
@@ -32,6 +36,7 @@ function loadOne(
   assetId: string,
   url: string,
   imageFactory: ImageFactory,
+  expectedDimensions: ExpectedImageDimensions,
 ): Promise<readonly [string, CanvasImageSource]> {
   return new Promise((resolve, reject) => {
     const image = imageFactory();
@@ -39,11 +44,11 @@ function loadOne(
     image.addEventListener(
       "load",
       () => {
-        if (image.naturalWidth !== 512 || image.naturalHeight !== 512) {
+        if (image.naturalWidth !== expectedDimensions.width || image.naturalHeight !== expectedDimensions.height) {
           reject(
             new PresentationAssetError(
               assetId,
-              `expected a 512 x 512 image, received ${image.naturalWidth} x ${image.naturalHeight}`,
+              `expected a ${expectedDimensions.width} x ${expectedDimensions.height} image, received ${image.naturalWidth} x ${image.naturalHeight}`,
             ),
           );
           return;
@@ -64,9 +69,10 @@ function loadOne(
 export async function loadPresentationImages(
   manifest: Readonly<Record<string, string>> = REQUIRED_PRESENTATION_ASSETS,
   imageFactory: ImageFactory = defaultImageFactory,
+  expectedDimensions: ExpectedImageDimensions = DEFAULT_IMAGE_DIMENSIONS,
 ): Promise<PresentationImages> {
   const loaded = await Promise.all(
-    Object.entries(manifest).map(([assetId, url]) => loadOne(assetId, url, imageFactory)),
+    Object.entries(manifest).map(([assetId, url]) => loadOne(assetId, url, imageFactory, expectedDimensions)),
   );
   return new Map(loaded);
 }

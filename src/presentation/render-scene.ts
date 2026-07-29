@@ -192,6 +192,16 @@ export type RenderSprite = Readonly<{
    * thing stays locatable through walls. Only the demo surface marks anything this way.
    */
   xray?: Readonly<{ color: readonly [number, number, number]; alpha: number }>;
+  /** One cell inside a sprite atlas. Omitted when the asset is already one complete image. */
+  frame?: Readonly<{ column: number; row: number; columns: number; rows: number }>;
+  /**
+   * Radians to turn the picture about its own centre, for a thing that tumbles as it flies.
+   *
+   * Quantised and cached by the renderer, so a spinning sprite costs a fixed set of pre-turned copies
+   * rather than a transform per frame. The turn happens inside the sprite's own square: authored art
+   * that reaches into the corners will lose them, and everything that spins today sits well inside.
+   */
+  spin?: number;
 }>;
 
 /** A world-space point, where `z` is height above the floor in cell units — eye level is 0.5. */

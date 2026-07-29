@@ -42,9 +42,16 @@ const TEXTURE_SIZE = 64;
  * A variant exists per asset, per depth step, per warmth step. With eight depth steps and five
  * warmth steps a dozen enemies at mixed distances generated more variants than the cache held, so it
  * evicted and rebuilt continuously. Fewer steps and smaller canvases mean the working set fits.
+ *
+ * The size is the ceiling on how much of an authored sprite ever reaches the eye, and it was the real
+ * reason the skeleton looked like a different game to the walls behind it: the backing store is up to
+ * 650 pixels tall and a body a couple of cells away covers half of it, so a sprite held at 160 was
+ * being magnified two or three times with smoothing off. It now matches the authored frame size, so
+ * the atlas is used at its own resolution and the 512 props shrink to it rather than past it. Each
+ * variant costs four bytes a pixel, which is what the count is traded against.
  */
-const LIT_SPRITE_CACHE_LIMIT = 160;
-const LIT_SPRITE_SIZE = 160;
+const LIT_SPRITE_CACHE_LIMIT = 128;
+const LIT_SPRITE_SIZE = 256;
 const LIT_DEPTH_STEPS = 5;
 const LIT_WARMTH_STEPS = 3;
 /**
@@ -297,6 +304,26 @@ function along(start: RenderPoint, end: RenderPoint, t: number): RenderPoint {
     y: start.y + (end.y - start.y) * t,
     z: start.z + (end.z - start.z) * t,
   };
+}
+
+/**
+ * Which picture inside an asset a draw wants: an atlas cell, a rotation of it, or neither.
+ *
+ * Carried as one value because it is the cache key for every derived copy of a sprite — lit, white,
+ * outlined — and those three had already grown a `frame` parameter each. One more picture-selecting
+ * dimension would have been three more parameters and three more places to forget one.
+ */
+type SpriteVariant = Readonly<{ frame?: RenderSprite["frame"] | undefined; spin?: number | undefined }>;
+
+/** How many turns a spinning sprite is quantised to; a continuous angle cannot be a cache key. */
+const SPIN_STEPS = 16;
+
+function spinStep(spin: number): number {
+  return ((Math.round((spin / (Math.PI * 2)) * SPIN_STEPS) % SPIN_STEPS) + SPIN_STEPS) % SPIN_STEPS;
+}
+
+function spriteVariant(sprite: RenderSprite): SpriteVariant {
+  return { frame: sprite.frame, spin: sprite.spin };
 }
 
 function imageDimensions(image: CanvasImageSource): Readonly<{ width: number; height: number }> {
@@ -1866,11 +1893,12 @@ export class CanvasGameplayRenderer {
       const assetId = projected.sprite.appearanceId
         ? `enemy.${projected.sprite.appearanceId}.${enemyEffect?.state ?? "normal"}`
         : projected.sprite.assetId;
-      const source = this.#litImage(assetId, projected.depth, scene, projected.sprite.x, projected.sprite.y);
+      const variant = spriteVariant(projected.sprite);
+      const source = this.#litImage(assetId, projected.depth, scene, projected.sprite.x, projected.sprite.y, variant);
       this.#drawProjectedImage(scene, projected, source, 1);
 
       if (enemyEffect && enemyEffect.whiteFlash > 0) {
-        this.#drawProjectedImage(scene, projected, this.#whiteImage(assetId), enemyEffect.whiteFlash);
+        this.#drawProjectedImage(scene, projected, this.#whiteImage(assetId, variant), enemyEffect.whiteFlash);
       }
     }
 
@@ -1894,7 +1922,7 @@ export class CanvasGameplayRenderer {
     const assetId = projected.sprite.appearanceId
       ? `enemy.${projected.sprite.appearanceId}.normal`
       : projected.sprite.assetId;
-    const source = this.#outlineImage(assetId, xray.color);
+    const source = this.#outlineImage(assetId, xray.color, spriteVariant(projected.sprite));
     const dimensions = imageDimensions(source);
     // A slow pulse, so a marker sitting still behind a wall still reads as a live cue rather than
     // as a smear baked into the wall texture.
@@ -1923,37 +1951,42 @@ export class CanvasGameplayRenderer {
    * embedded in the masonry, while a rim reads as a thing marked behind it. The margin is enlarged
    * to hold the stroke, since the dilation would otherwise be clipped at the source's own edge.
    */
-  #outlineImage(assetId: string, color: readonly [number, number, number]): CanvasImageSource {
-    const key = `${assetId}:${color.join()}`;
+  #outlineImage(assetId: string, color: readonly [number, number, number], variant: SpriteVariant): CanvasImageSource {
+    const key = `${this.#frameKey(assetId, variant)}:${color.join()}`;
     const cached = this.#tintedSpriteCache.get(key);
 
     if (cached) {
       return cached;
     }
 
-    const source = requireImage(this.images, assetId);
-    const dimensions = imageDimensions(source);
-    const stroke = Math.max(2, Math.round(Math.min(dimensions.width, dimensions.height) / 42));
+    const inner = this.#litSurface(assetId, variant);
+    const stroke = Math.max(2, Math.round(Math.min(inner.width, inner.height) / 42));
     const surface = this.canvas.ownerDocument.createElement("canvas");
-    surface.width = dimensions.width + stroke * 2;
-    surface.height = dimensions.height + stroke * 2;
+    surface.width = inner.width + stroke * 2;
+    surface.height = inner.height + stroke * 2;
     const context = surface.getContext("2d");
 
     if (!context) {
-      return source;
+      return requireImage(this.images, assetId);
     }
 
     for (let step = 0; step < 8; step += 1) {
       const angle = (step / 8) * Math.PI * 2;
-      context.drawImage(
-        source,
-        stroke + Math.round(Math.cos(angle) * stroke),
-        stroke + Math.round(Math.sin(angle) * stroke),
-      );
+      this.#drawVariant(context, assetId, variant, {
+        x: stroke + Math.round(Math.cos(angle) * stroke),
+        y: stroke + Math.round(Math.sin(angle) * stroke),
+        width: inner.width,
+        height: inner.height,
+      });
     }
 
     context.globalCompositeOperation = "destination-out";
-    context.drawImage(source, stroke, stroke);
+    this.#drawVariant(context, assetId, variant, {
+      x: stroke,
+      y: stroke,
+      width: inner.width,
+      height: inner.height,
+    });
     context.globalCompositeOperation = "source-in";
     context.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
     context.fillRect(0, 0, surface.width, surface.height);
@@ -2630,7 +2663,14 @@ export class CanvasGameplayRenderer {
     this.#context.restore();
   }
 
-  #litImage(assetId: string, depth: number, scene: RenderScene, x: number, y: number): CanvasImageSource {
+  #litImage(
+    assetId: string,
+    depth: number,
+    scene: RenderScene,
+    x: number,
+    y: number,
+    variant: SpriteVariant,
+  ): CanvasImageSource {
     const darknessBucket = Math.round(clamp(depth / MAX_DEPTH, 0, 0.82) * LIT_DEPTH_STEPS) / LIT_DEPTH_STEPS;
     let warmth = clamp(1 - depth / 7, 0, 0.42);
     let warmColor = DEFAULT_TORCH_COLOR;
@@ -2658,7 +2698,7 @@ export class CanvasGameplayRenderer {
     }
 
     const warmthBucket = Math.round(warmth * LIT_WARMTH_STEPS) / LIT_WARMTH_STEPS;
-    const key = `${assetId}:${darknessBucket}:${warmthBucket}:${warmColor.join()}`;
+    const key = `${this.#frameKey(assetId, variant)}:${darknessBucket}:${warmthBucket}:${warmColor.join()}`;
     const cached = this.#litSpriteCache.get(key);
 
     if (cached) {
@@ -2667,23 +2707,14 @@ export class CanvasGameplayRenderer {
       return cached;
     }
 
-    const source = requireImage(this.images, assetId);
-    const dimensions = imageDimensions(source);
-    // Cached at a fraction of the source resolution. These are only ever drawn a column at a time at
-    // whatever size perspective gives them, almost always far under the source's own 512 — and the
-    // full-size version cost a megabyte to allocate and clear, which is what made the cache missing
-    // so expensive that a crowd of enemies halved the frame rate.
-    const scale = Math.min(1, LIT_SPRITE_SIZE / Math.max(dimensions.width, dimensions.height));
-    const surface = this.canvas.ownerDocument.createElement("canvas");
-    surface.width = Math.max(1, Math.round(dimensions.width * scale));
-    surface.height = Math.max(1, Math.round(dimensions.height * scale));
+    const surface = this.#litSurface(assetId, variant);
     const context = surface.getContext("2d");
 
     if (!context) {
-      return source;
+      return requireImage(this.images, assetId);
     }
 
-    context.drawImage(source, 0, 0, surface.width, surface.height);
+    this.#drawVariant(context, assetId, variant, { x: 0, y: 0, width: surface.width, height: surface.height });
     context.globalCompositeOperation = "source-atop";
     context.fillStyle = `rgba(13, 5, 24, ${darknessBucket})`;
     context.fillRect(0, 0, surface.width, surface.height);
@@ -2705,29 +2736,115 @@ export class CanvasGameplayRenderer {
     }
   }
 
-  #whiteImage(assetId: string): CanvasImageSource {
-    const cached = this.#whiteSpriteCache.get(assetId);
+  #frameKey(assetId: string, variant: SpriteVariant): string {
+    const cell = variant.frame
+      ? `:${variant.frame.column},${variant.frame.row}/${variant.frame.columns}x${variant.frame.rows}`
+      : "";
+    const turn = variant.spin === undefined ? "" : `:t${spinStep(variant.spin)}`;
+    return `${assetId}${cell}${turn}`;
+  }
+
+  /** The size of the one picture a variant selects, before any cache decides to shrink it. */
+  #variantSize(assetId: string, variant: SpriteVariant): Readonly<{ width: number; height: number }> {
+    const dimensions = imageDimensions(requireImage(this.images, assetId));
+    const frame = variant.frame;
+
+    if (!frame) {
+      return dimensions;
+    }
+
+    return {
+      width: Math.floor(dimensions.width / frame.columns),
+      height: Math.floor(dimensions.height / frame.rows),
+    };
+  }
+
+  /**
+   * A blank surface at the size a derived copy of a sprite is worth keeping.
+   *
+   * A cap, not the source's own size. These are only ever drawn a column at a time at whatever size
+   * perspective gives them, and a full-size copy cost a megabyte to allocate and clear — which is
+   * what made a cache miss expensive enough that a crowd of enemies halved the frame rate. The cap
+   * sits above the largest a body reaches on screen at the backing store's own height, so authored
+   * resolution above it is the part that would never have arrived at the eye anyway.
+   */
+  #litSurface(assetId: string, variant: SpriteVariant): HTMLCanvasElement {
+    const cell = this.#variantSize(assetId, variant);
+    const scale = Math.min(1, LIT_SPRITE_SIZE / Math.max(cell.width, cell.height));
+    const surface = this.canvas.ownerDocument.createElement("canvas");
+    surface.width = Math.max(1, Math.round(cell.width * scale));
+    surface.height = Math.max(1, Math.round(cell.height * scale));
+    return surface;
+  }
+
+  /**
+   * Draws the one picture a variant selects into a target box, cut out of its atlas and turned.
+   *
+   * Deliberately not a cache of its own. An earlier version kept every cut-out cell as a canvas, which
+   * for a ten-clip eight-way sheet is six hundred and forty full-resolution copies of a thing that is
+   * about to be shrunk to the lit cache's size anyway — an unbounded second copy of the whole atlas
+   * set, in memory, to save a `drawImage` argument. Both the crop and the turn are arguments to the
+   * draw that has to happen regardless, so they cost nothing here and every derived surface below
+   * pays for one copy at the size it actually uses.
+   */
+  #drawVariant(
+    context: CanvasRenderingContext2D,
+    assetId: string,
+    variant: SpriteVariant,
+    box: Readonly<{ x: number; y: number; width: number; height: number }>,
+  ): void {
+    const source = requireImage(this.images, assetId);
+    const dimensions = imageDimensions(source);
+    const frame = variant.frame;
+    const cellWidth = frame ? Math.floor(dimensions.width / frame.columns) : dimensions.width;
+    const cellHeight = frame ? Math.floor(dimensions.height / frame.rows) : dimensions.height;
+    context.save();
+
+    if (variant.spin !== undefined) {
+      // Turned about the middle of its own box, which loses whatever reaches the corners. Every
+      // authored prop that spins is drawn well inside that circle; art that is not must be padded
+      // where it is authored, not here, or the sprite would silently change size on screen.
+      const centreX = box.x + box.width / 2;
+      const centreY = box.y + box.height / 2;
+      context.translate(centreX, centreY);
+      context.rotate((spinStep(variant.spin) / SPIN_STEPS) * Math.PI * 2);
+      context.translate(-centreX, -centreY);
+    }
+
+    context.drawImage(
+      source,
+      frame ? frame.column * cellWidth : 0,
+      frame ? frame.row * cellHeight : 0,
+      cellWidth,
+      cellHeight,
+      box.x,
+      box.y,
+      box.width,
+      box.height,
+    );
+    context.restore();
+  }
+
+  #whiteImage(assetId: string, variant: SpriteVariant): CanvasImageSource {
+    const key = this.#frameKey(assetId, variant);
+    const cached = this.#whiteSpriteCache.get(key);
 
     if (cached) {
       return cached;
     }
 
-    const source = requireImage(this.images, assetId);
-    const dimensions = imageDimensions(source);
-    const surface = this.canvas.ownerDocument.createElement("canvas");
-    surface.width = dimensions.width;
-    surface.height = dimensions.height;
+    const surface = this.#litSurface(assetId, variant);
     const context = surface.getContext("2d");
 
     if (!context) {
-      return source;
+      return requireImage(this.images, assetId);
     }
 
-    context.drawImage(source, 0, 0);
+    this.#drawVariant(context, assetId, variant, { x: 0, y: 0, width: surface.width, height: surface.height });
     context.globalCompositeOperation = "source-in";
     context.fillStyle = "#fff8e8";
     context.fillRect(0, 0, surface.width, surface.height);
-    this.#whiteSpriteCache.set(assetId, surface);
+    this.#whiteSpriteCache.set(key, surface);
     return surface;
   }
 
@@ -2748,7 +2865,7 @@ export class CanvasGameplayRenderer {
       return;
     }
 
-    const source = this.#litImage(sprite.assetId, projected.depth, scene, sprite.x, sprite.y);
+    const source = this.#litImage(sprite.assetId, projected.depth, scene, sprite.x, sprite.y, spriteVariant(sprite));
     const dimensions = imageDimensions(source);
     const progress = clamp(death.progress, 0, 1);
     const alpha = 1 - progress;
