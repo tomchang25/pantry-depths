@@ -235,6 +235,31 @@ export const THROW_SWING_SECONDS = 0.26;
 /** Where in the world a swing was aimed, so the arc can be drawn through it. */
 export type DemoSwingTarget = { x: number; y: number; z: number; connected: boolean } | undefined;
 
+/**
+ * A hit the player took, remembered long enough to point at where it came from.
+ *
+ * The world position is the whole design. Storing the screen angle instead would nail the mark to the
+ * frame, so turning to face the attacker would drag the warning around with the view and leave it
+ * pointing somewhere the threat is not — which is worse than drawing nothing, because it answers the
+ * question wrongly rather than leaving it open.
+ *
+ * Severity scales how loud the mark is and never how long it lasts. A heavy hit should be louder, not
+ * still on screen after the thing that landed it has been dealt with.
+ */
+export type DemoDamageMark = {
+  x: number;
+  y: number;
+  age: number;
+  life: number;
+  severity: number;
+};
+
+/** How long a direction mark stays up, and how many can be on screen before the oldest is dropped. */
+export const DAMAGE_MARK_SECONDS = 1.3;
+export const MAX_DAMAGE_MARKS = 8;
+/** The hit size that fills a mark out completely; anything heavier is already at full strength. */
+const DAMAGE_MARK_FULL = 20;
+
 export type DemoStatus = "playing" | "dead";
 
 export type DemoAltar = {
@@ -316,6 +341,8 @@ export type DemoWorld = {
   shake: number;
   spawnSeconds: number;
   hitFlash: number;
+  /** Recent hits with a known origin, newest last. Presentation points at them; nothing else reads them. */
+  damageMarks: DemoDamageMark[];
   walkBob: number;
   message: string;
   messageSeconds: number;
@@ -451,6 +478,8 @@ export function populateFloor(world: DemoWorld): void {
   world.projectiles = [];
   world.hazards = [];
   world.vfx = [];
+  // Pointing at a body on the floor above is worse than pointing nowhere.
+  world.damageMarks = [];
   world.particles = createParticleField();
   world.stains = new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE);
   world.stainsVersion += 1;
@@ -535,6 +564,7 @@ export function createDemoWorld(): DemoWorld {
     shake: 0,
     spawnSeconds: SPAWN_INTERVAL_SECONDS,
     hitFlash: 0,
+    damageMarks: [],
     walkBob: 0,
     message: "WASD to move - mouse to look - left click attacks - right click grabs - find the altar and the stairs",
     messageSeconds: 6,
@@ -651,6 +681,21 @@ export function stainFloor(world: DemoWorld, x: number, y: number, amount: numbe
 
 export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
   world.vfx.push({ ...effect, id: nextId(world, "vfx") });
+}
+
+/** Records where a hit came from, so the frame can point at it until it fades. */
+export function markDamageFrom(world: DemoWorld, amount: number, fromX: number, fromY: number): void {
+  world.damageMarks.push({
+    x: fromX,
+    y: fromY,
+    age: 0,
+    life: DAMAGE_MARK_SECONDS,
+    severity: Math.max(0.25, Math.min(1, amount / DAMAGE_MARK_FULL)),
+  });
+
+  if (world.damageMarks.length > MAX_DAMAGE_MARKS) {
+    world.damageMarks.shift();
+  }
 }
 
 function skeletonDrop(cause: DemoDeathCause): DemoPropKind {

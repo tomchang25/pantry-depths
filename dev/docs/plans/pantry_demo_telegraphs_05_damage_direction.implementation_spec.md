@@ -2,8 +2,6 @@
 
 Parent Plan: `pantry_demo_telegraphs.plan.md`
 
-Status: Draft implementation spec
-
 ## Goal
 
 Turn "I am losing health" into "turn left": a soft arc around the crosshair pointing at the world position a hit came from, for every hit with a known source. Today the only feedback is a full-screen red flash, which in a room with twenty enemies and shots arriving from off screen says something happened and nothing about what to do next.

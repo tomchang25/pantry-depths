@@ -47,8 +47,77 @@ const STAGE_HEIGHT_FRACTION = 1.45;
 
 export type DemoViewmodelModel = Pick<
   DemoWorld,
-  "elapsedSeconds" | "held" | "impact" | "swing" | "swingKind" | "swingTarget" | "swingTotal" | "thrownKind" | "walkBob"
+  | "damageMarks"
+  | "elapsedSeconds"
+  | "held"
+  | "impact"
+  | "player"
+  | "swing"
+  | "swingKind"
+  | "swingTarget"
+  | "swingTotal"
+  | "thrownKind"
+  | "walkBob"
 >;
+
+/** Where the direction arcs sit around the crosshair, and how much of the ring each one covers. */
+const MARK_RADIUS_FRACTION = 0.17;
+const MARK_HALF_ANGLE = 0.4;
+const MARK_THICKNESS_FRACTION = 0.028;
+
+/**
+ * Arcs around the crosshair pointing at what just hit you.
+ *
+ * The screen used to answer a hit with a full-frame red flash, which in a room with twenty bodies in
+ * it and shots arriving from off-camera says that something happened and nothing about what to do
+ * next. Every damage path already knows where the blow came from — a rule about frontal hits needed
+ * it first — so the only thing missing was keeping it for a moment and drawing it.
+ *
+ * The bearing is recomputed from the stored world position every frame, which is the entire point:
+ * turning towards the attacker has to sweep the arc up to the top of the ring and off it. A mark
+ * pinned to the screen would keep pointing over the player's shoulder after they had already turned.
+ *
+ * Drawn here rather than in the HUD because this is the pass that runs every frame; the HUD is DOM
+ * and updates when discrete state changes, which is the wrong shape for something continuously fading.
+ */
+function drawDamageMarks(context: CanvasRenderingContext2D, world: DemoViewmodelModel): void {
+  if (world.damageMarks.length === 0) {
+    return;
+  }
+
+  const width = context.canvas.width;
+  const height = context.canvas.height;
+  const centreX = width / 2;
+  const centreY = height / 2;
+  const radius = Math.min(width, height) * MARK_RADIUS_FRACTION;
+  context.save();
+  context.lineCap = "round";
+
+  for (const mark of world.damageMarks) {
+    const dx = mark.x - world.player.x;
+    const dy = mark.y - world.player.y;
+
+    if (Math.hypot(dx, dy) < 0.0001) {
+      continue;
+    }
+
+    // Shortest turn from where the player is looking to where the blow came from, then a quarter turn
+    // because screen-up is straight ahead while the canvas measures its angles from screen-right.
+    const turn = Math.atan2(dy, dx) - world.player.angle;
+    const bearing = Math.atan2(Math.sin(turn), Math.cos(turn)) - Math.PI / 2;
+    const spent = Math.min(1, mark.age / Math.max(0.0001, mark.life));
+    // Full strength for most of its life and then gone. A linear fade spends half its time too faint
+    // to read, which turns a warning into a smudge.
+    const strength = (1 - spent) ** 1.6 * mark.severity;
+    context.strokeStyle = `rgb(255 74 66 / ${strength * 92}%)`;
+    context.lineWidth = Math.min(width, height) * MARK_THICKNESS_FRACTION * (0.55 + mark.severity * 0.65);
+    context.beginPath();
+    context.arc(centreX, centreY, radius, bearing - MARK_HALF_ANGLE, bearing + MARK_HALF_ANGLE);
+    context.stroke();
+  }
+
+  context.restore();
+}
 
 function easeOut(progress: number): number {
   return 1 - (1 - progress) * (1 - progress);
@@ -261,6 +330,9 @@ export function drawDemoViewmodel(
   }
 
   drawCarriedLight(context, world.elapsedSeconds);
+  // Last, over everything including the arm. A warning that the thing in your hand can hide is not
+  // one you can rely on in the moment it matters.
+  drawDamageMarks(context, world);
 }
 
 /**

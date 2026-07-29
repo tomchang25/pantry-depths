@@ -502,6 +502,10 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
       );
       const projected = renderer.project(scene, target);
       const model: DemoViewmodelModel = {
+        // The workbench previews the arm, not being hit: no marks, and a pose the bearing maths can
+        // read without meaning anything, since nothing here ever records a hit to point at.
+        damageMarks: [],
+        player: { ...CAMERA, pitch: 0, pushX: 0, pushY: 0, hp: 1, maxHp: 1 },
         elapsedSeconds: timing.elapsedSeconds,
         held: undefined,
         impact,

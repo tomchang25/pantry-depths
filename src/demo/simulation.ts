@@ -540,6 +540,17 @@ function stepVfx(world: DemoWorld, deltaSeconds: number): void {
   }
 }
 
+/** Ages the direction marks and drops the ones that have said what they had to say. */
+function stepDamageMarks(world: DemoWorld, deltaSeconds: number): void {
+  for (const mark of world.damageMarks.slice()) {
+    mark.age += deltaSeconds;
+
+    if (mark.age >= mark.life) {
+      world.damageMarks.splice(world.damageMarks.indexOf(mark), 1);
+    }
+  }
+}
+
 function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
   for (const death of world.deaths.slice()) {
     death.progress += deltaSeconds / DEATH_SECONDS;
@@ -591,6 +602,7 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
 
   world.shake = Math.max(0, world.shake - step * SHAKE_DECAY);
   world.hitFlash = Math.max(0, world.hitFlash - step * 2.4);
+  stepDamageMarks(world, step);
   world.messageSeconds = Math.max(0, world.messageSeconds - step);
   stepDeaths(world, step);
   stepVfx(world, step);

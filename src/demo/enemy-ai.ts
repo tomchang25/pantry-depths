@@ -31,6 +31,7 @@ import {
   announce,
   ENEMY_RADIUS,
   hasLineOfSight,
+  markDamageFrom,
   nextId,
   randomAmmo,
   type DemoEnemy,
@@ -363,6 +364,14 @@ function stepCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
  */
 export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fromY?: number): void {
   world.hitFlash = 1;
+
+  // Beside the flash, and for the same reasons it is here rather than further down: this fires for a
+  // hit the hostage eats and for one god mode pays for, because in both cases something out there
+  // just took a shot at you and the direction is the useful half of knowing that.
+  if (fromX !== undefined && fromY !== undefined) {
+    markDamageFrom(world, amount, fromX, fromY);
+  }
+
   const hostage = world.held?.kind === "enemy" ? world.held.enemy : undefined;
   const frontal =
     fromX === undefined || fromY === undefined
