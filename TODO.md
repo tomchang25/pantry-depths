@@ -13,6 +13,7 @@ This tracker is the forward-work authority.
 ## Active
 
 [editor] `dev/docs/plans/pantry_demo_workbench.plan.md`
+[telegraphs] `dev/docs/plans/pantry_demo_telegraphs.plan.md`
 
 ---
 
