@@ -14,6 +14,9 @@ import slimeRedNormal from "@/content/enemies/assets/slime-red-normal.png";
 import slimeYellowAttack from "@/content/enemies/assets/slime-yellow-attack.png";
 import slimeYellowHurt from "@/content/enemies/assets/slime-yellow-hurt.png";
 import slimeYellowNormal from "@/content/enemies/assets/slime-yellow-normal.png";
+import skeletonSwordsmanAttack from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-attack.png";
+import skeletonSwordsmanHurt from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-hurt.png";
+import skeletonSwordsmanNormal from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-normal.png";
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import blockPlaceholder from "@/content/presentation/assets/block-placeholder.png";
 import bones from "@/content/presentation/assets/bones.png";
@@ -36,6 +39,11 @@ export const ENEMY_SPRITE_URLS = {
   blueSlime: { normal: slimeBlueNormal, attack: slimeBlueAttack, hurt: slimeBlueHurt },
   redSlime: { normal: slimeRedNormal, attack: slimeRedAttack, hurt: slimeRedHurt },
   purpleSlime: { normal: slimePurpleNormal, attack: slimePurpleAttack, hurt: slimePurpleHurt },
+  skeletonSwordsman: {
+    normal: skeletonSwordsmanNormal,
+    attack: skeletonSwordsmanAttack,
+    hurt: skeletonSwordsmanHurt,
+  },
   // Stands in for the retained creature archetypes until their own artwork is authored.
   placeholder: { normal: entityPlaceholder, attack: entityPlaceholder, hurt: entityPlaceholder },
 } as const satisfies Readonly<Record<EnemyAppearanceId, Readonly<Record<EnemySpriteState, string>>>>;

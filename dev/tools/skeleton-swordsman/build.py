@@ -1,0 +1,793 @@
+"""Blender-side model, rig, animation, and sprite-frame authoring."""
+
+from __future__ import annotations
+
+import argparse
+import math
+import sys
+from pathlib import Path
+from typing import Iterable
+
+import bpy
+from mathutils import Vector
+
+
+# The frame size is the caller's: it is rendered above the atlas cell it will be filtered down into,
+# and the entry point owns both numbers so they cannot drift apart. EEVEE's sampling smooths an edge
+# inside a pixel; it cannot do anything about the pixel being too big, and at the 128 this started at
+# a skeleton two cells away was magnified three times with smoothing off while the masonry behind it
+# was drawn per pixel. That gap was the whole complaint.
+PICKUP_SIZE = 512
+DIRECTIONS = 8
+SAMPLES = 8
+CLIP_DURATIONS = {
+    "idle": 24,
+    "walk": 24,
+    "attack": 24,
+    "hurt": 16,
+    "block": 20,
+    "death": 24,
+    "death-sever-right": 24,
+    "death-blasted": 24,
+    "death-impaled": 24,
+    "death-drowned": 24,
+}
+PoseTransform = dict[str, dict[str, tuple[float, float, float]]]
+
+
+def parse_arguments() -> argparse.Namespace:
+    arguments = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repository-root", type=Path, required=True)
+    parser.add_argument("--frames-root", type=Path, required=True)
+    parser.add_argument("--frame-size", type=int, required=True)
+    return parser.parse_args(arguments)
+
+
+def clear_scene() -> None:
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.delete(use_global=False)
+
+    for datablocks in (bpy.data.meshes, bpy.data.curves, bpy.data.armatures, bpy.data.materials):
+        for datablock in list(datablocks):
+            if datablock.users == 0:
+                datablocks.remove(datablock)
+
+
+def material(name: str, color: tuple[float, float, float, float], metallic: float = 0.0, roughness: float = 0.6):
+    created = bpy.data.materials.new(name)
+    created.diffuse_color = color
+    created.use_nodes = True
+    shader = created.node_tree.nodes.get("Principled BSDF")
+
+    if shader:
+        shader.inputs["Base Color"].default_value = color
+        shader.inputs["Roughness"].default_value = roughness
+        shader.inputs["Metallic"].default_value = metallic
+
+    return created
+
+
+def apply_transform(obj: bpy.types.Object) -> None:
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    obj.select_set(False)
+
+
+def assign(obj: bpy.types.Object, assigned_material: bpy.types.Material) -> None:
+    obj.data.materials.append(assigned_material)
+
+
+def bind(obj: bpy.types.Object, rig: bpy.types.Object, bone_name: str, part: str) -> bpy.types.Object:
+    obj["skeleton_part"] = part
+    group = obj.vertex_groups.new(name=bone_name)
+    group.add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+    modifier = obj.modifiers.new(name="SkeletonRig", type="ARMATURE")
+    modifier.object = rig
+    obj.parent = rig
+    return obj
+
+
+def cylinder_between(
+    name: str,
+    start: tuple[float, float, float],
+    end: tuple[float, float, float],
+    radius: float,
+    assigned_material: bpy.types.Material,
+    rig: bpy.types.Object | None = None,
+    bone_name: str | None = None,
+    part: str | None = None,
+) -> bpy.types.Object:
+    start_vector = Vector(start)
+    end_vector = Vector(end)
+    delta = end_vector - start_vector
+    midpoint = (start_vector + end_vector) / 2
+    bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=radius, depth=delta.length, location=midpoint)
+    obj = bpy.context.object
+    obj.name = name
+    obj.rotation_euler = delta.to_track_quat("Z", "Y").to_euler()
+    assign(obj, assigned_material)
+    apply_transform(obj)
+
+    if rig and bone_name and part:
+        bind(obj, rig, bone_name, part)
+
+    return obj
+
+
+def ellipsoid(
+    name: str,
+    location: tuple[float, float, float],
+    scale: tuple[float, float, float],
+    assigned_material: bpy.types.Material,
+    rig: bpy.types.Object | None = None,
+    bone_name: str | None = None,
+    part: str | None = None,
+) -> bpy.types.Object:
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=location)
+    obj = bpy.context.object
+    obj.name = name
+    obj.scale = scale
+    assign(obj, assigned_material)
+    apply_transform(obj)
+
+    if rig and bone_name and part:
+        bind(obj, rig, bone_name, part)
+
+    return obj
+
+
+def box(
+    name: str,
+    location: tuple[float, float, float],
+    scale: tuple[float, float, float],
+    assigned_material: bpy.types.Material,
+    rig: bpy.types.Object | None = None,
+    bone_name: str | None = None,
+    part: str | None = None,
+) -> bpy.types.Object:
+    bpy.ops.mesh.primitive_cube_add(size=1, location=location)
+    obj = bpy.context.object
+    obj.name = name
+    obj.scale = scale
+    assign(obj, assigned_material)
+    apply_transform(obj)
+
+    if rig and bone_name and part:
+        bind(obj, rig, bone_name, part)
+
+    return obj
+
+
+def torus(
+    name: str,
+    location: tuple[float, float, float],
+    scale: tuple[float, float, float],
+    assigned_material: bpy.types.Material,
+    rig: bpy.types.Object,
+    bone_name: str,
+    part: str,
+) -> bpy.types.Object:
+    bpy.ops.mesh.primitive_torus_add(
+        major_segments=12,
+        minor_segments=4,
+        location=location,
+        major_radius=0.2,
+        minor_radius=0.022,
+    )
+    obj = bpy.context.object
+    obj.name = name
+    obj.scale = scale
+    assign(obj, assigned_material)
+    apply_transform(obj)
+    bind(obj, rig, bone_name, part)
+    return obj
+
+
+def create_rig() -> bpy.types.Object:
+    armature = bpy.data.armatures.new("SkeletonSwordsmanArmature")
+    rig = bpy.data.objects.new("SkeletonSwordsmanRig", armature)
+    bpy.context.collection.objects.link(rig)
+    bpy.context.view_layer.objects.active = rig
+    rig.select_set(True)
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    bones: dict[str, bpy.types.EditBone] = {}
+
+    def add_bone(
+        name: str,
+        head: tuple[float, float, float],
+        tail: tuple[float, float, float],
+        parent: str | None = None,
+    ) -> None:
+        bone = armature.edit_bones.new(name)
+        bone.head = head
+        bone.tail = tail
+
+        if parent:
+            bone.parent = bones[parent]
+
+        bones[name] = bone
+
+    add_bone("root", (0, 0, 0.92), (0, 0, 1.08))
+    add_bone("spine", (0, 0, 1.05), (0, 0, 1.68), "root")
+    add_bone("head", (0, 0, 1.68), (0, 0, 2.08), "spine")
+    add_bone("upper_arm.L", (-0.2, 0, 1.62), (-0.46, 0.02, 1.38), "spine")
+    add_bone("forearm.L", (-0.46, 0.02, 1.38), (-0.55, 0.14, 1.08), "upper_arm.L")
+    add_bone("hand.L", (-0.55, 0.14, 1.08), (-0.54, 0.25, 0.98), "forearm.L")
+    add_bone("upper_arm.R", (0.2, 0, 1.62), (0.46, 0.08, 1.4), "spine")
+    add_bone("forearm.R", (0.46, 0.08, 1.4), (0.45, 0.33, 1.15), "upper_arm.R")
+    add_bone("hand.R", (0.45, 0.33, 1.15), (0.44, 0.5, 1.08), "forearm.R")
+    add_bone("thigh.L", (-0.13, 0, 0.98), (-0.15, 0.02, 0.55), "root")
+    add_bone("shin.L", (-0.15, 0.02, 0.55), (-0.16, 0.05, 0.13), "thigh.L")
+    add_bone("foot.L", (-0.16, 0.05, 0.13), (-0.16, 0.28, 0.07), "shin.L")
+    add_bone("thigh.R", (0.13, 0, 0.98), (0.15, 0.02, 0.55), "root")
+    add_bone("shin.R", (0.15, 0.02, 0.55), (0.16, 0.05, 0.13), "thigh.R")
+    add_bone("foot.R", (0.16, 0.05, 0.13), (0.16, 0.28, 0.07), "shin.R")
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    rig.select_set(False)
+    rig.show_in_front = True
+    return rig
+
+
+def create_sword(
+    prefix: str,
+    assigned: dict[str, bpy.types.Material],
+    rig: bpy.types.Object | None = None,
+    bone_name: str | None = None,
+    offset: tuple[float, float, float] = (0.44, 0.48, 1.08),
+) -> list[bpy.types.Object]:
+    x, y, z = offset
+    part = "sword"
+    blade = box(f"{prefix}SwordBlade", (x, y, z + 0.48), (0.07, 0.036, 0.92), assigned["steel"], rig, bone_name, part)
+    tip = ellipsoid(f"{prefix}SwordTip", (x, y, z + 0.98), (0.04, 0.025, 0.09), assigned["steel"], rig, bone_name, part)
+    guard = box(f"{prefix}SwordGuard", (x, y, z), (0.36, 0.07, 0.07), assigned["brass"], rig, bone_name, part)
+    grip = cylinder_between(
+        f"{prefix}SwordGrip",
+        (x, y, z - 0.05),
+        (x, y, z - 0.28),
+        0.042,
+        assigned["leather"],
+        rig,
+        bone_name,
+        part,
+    )
+    pommel = ellipsoid(f"{prefix}SwordPommel", (x, y, z - 0.31), (0.065, 0.05, 0.065), assigned["brass"], rig, bone_name, part)
+    return [blade, tip, guard, grip, pommel]
+
+
+def create_character(rig: bpy.types.Object, assigned: dict[str, bpy.types.Material]) -> list[bpy.types.Object]:
+    built: list[bpy.types.Object] = []
+
+    def add(obj: bpy.types.Object) -> None:
+        built.append(obj)
+
+    add(ellipsoid("Pelvis.L", (-0.11, 0, 0.98), (0.16, 0.12, 0.16), assigned["bone"], rig, "root", "pelvis"))
+    add(ellipsoid("Pelvis.R", (0.11, 0, 0.98), (0.16, 0.12, 0.16), assigned["bone"], rig, "root", "pelvis"))
+    add(cylinder_between("Spine", (0, 0, 1.02), (0, 0, 1.68), 0.045, assigned["bone"], rig, "spine", "torso"))
+    add(box("Sternum", (0, 0.18, 1.46), (0.055, 0.035, 0.25), assigned["bone"], rig, "spine", "torso"))
+
+    for index, z in enumerate((1.24, 1.36, 1.48, 1.6)):
+        add(torus(f"Rib.{index}", (0, 0, z), (1.22 - index * 0.08, 0.68, 1), assigned["bone"], rig, "spine", "torso"))
+
+    add(cylinder_between("Clavicle", (-0.27, 0, 1.64), (0.27, 0, 1.64), 0.035, assigned["bone"], rig, "spine", "torso"))
+    add(ellipsoid("Cranium", (0, 0, 1.91), (0.19, 0.16, 0.22), assigned["bone"], rig, "head", "head"))
+    add(box("Jaw", (0, 0.08, 1.72), (0.135, 0.1, 0.075), assigned["bone"], rig, "head", "head"))
+    add(ellipsoid("EyeSocket.L", (-0.072, 0.145, 1.94), (0.052, 0.025, 0.06), assigned["socket"], rig, "head", "head"))
+    add(ellipsoid("EyeSocket.R", (0.072, 0.145, 1.94), (0.052, 0.025, 0.06), assigned["socket"], rig, "head", "head"))
+    add(ellipsoid("NoseSocket", (0, 0.158, 1.86), (0.035, 0.02, 0.045), assigned["socket"], rig, "head", "head"))
+    add(box("HelmetBand", (0, -0.005, 2.035), (0.215, 0.175, 0.045), assigned["iron"], rig, "head", "head"))
+
+    limb_specs = (
+        ("upper_arm.L", (-0.2, 0, 1.62), (-0.46, 0.02, 1.38), 0.052, "arm.L"),
+        ("forearm.L", (-0.46, 0.02, 1.38), (-0.55, 0.14, 1.08), 0.046, "arm.L"),
+        ("hand.L", (-0.55, 0.14, 1.08), (-0.54, 0.25, 0.98), 0.06, "hand.L"),
+        ("upper_arm.R", (0.2, 0, 1.62), (0.46, 0.08, 1.4), 0.052, "arm.R"),
+        ("forearm.R", (0.46, 0.08, 1.4), (0.45, 0.33, 1.15), 0.046, "arm.R"),
+        ("hand.R", (0.45, 0.33, 1.15), (0.44, 0.5, 1.08), 0.06, "hand.R"),
+        ("thigh.L", (-0.13, 0, 0.98), (-0.15, 0.02, 0.55), 0.065, "leg.L"),
+        ("shin.L", (-0.15, 0.02, 0.55), (-0.16, 0.05, 0.13), 0.055, "leg.L"),
+        ("foot.L", (-0.16, 0.05, 0.13), (-0.16, 0.28, 0.07), 0.065, "foot.L"),
+        ("thigh.R", (0.13, 0, 0.98), (0.15, 0.02, 0.55), 0.065, "leg.R"),
+        ("shin.R", (0.15, 0.02, 0.55), (0.16, 0.05, 0.13), 0.055, "leg.R"),
+        ("foot.R", (0.16, 0.05, 0.13), (0.16, 0.28, 0.07), 0.065, "foot.R"),
+    )
+
+    for bone_name, start, end, radius, part in limb_specs:
+        add(cylinder_between(bone_name, start, end, radius, assigned["bone"], rig, bone_name, part))
+        add(ellipsoid(f"{bone_name}.joint", end, (radius * 1.25,) * 3, assigned["bone"], rig, bone_name, part))
+
+    add(box("ShoulderGuard.L", (-0.25, -0.01, 1.64), (0.16, 0.13, 0.07), assigned["iron"], rig, "upper_arm.L", "armour"))
+    add(box("ShoulderGuard.R", (0.25, -0.01, 1.64), (0.16, 0.13, 0.07), assigned["iron"], rig, "upper_arm.R", "armour"))
+    add(box("WaistCloth", (0, -0.02, 0.9), (0.23, 0.11, 0.18), assigned["cloth"], rig, "root", "armour"))
+    built.extend(create_sword("", assigned, rig, "hand.R"))
+    return built
+
+
+def create_actions(rig: bpy.types.Object) -> dict[str, bpy.types.Action]:
+    if not rig.animation_data:
+        rig.animation_data_create()
+
+    def create(name: str, keys: Iterable[tuple[int, PoseTransform]]) -> bpy.types.Action:
+        action = bpy.data.actions.new(name=f"SkeletonSwordsman.{name}")
+        action.use_fake_user = True
+        rig.animation_data.action = action
+
+        for frame, transforms in keys:
+            bpy.context.scene.frame_set(frame)
+
+            for pose_bone in rig.pose.bones:
+                pose_bone.rotation_mode = "XYZ"
+                pose_bone.location = (0, 0, 0)
+                pose_bone.rotation_euler = (0, 0, 0)
+                pose_bone.scale = (1, 1, 1)
+
+            for bone_name, transform in transforms.items():
+                pose_bone = rig.pose.bones[bone_name]
+
+                if "rotation" in transform:
+                    pose_bone.rotation_euler = transform["rotation"]
+
+                if "location" in transform:
+                    pose_bone.location = transform["location"]
+
+                if "scale" in transform:
+                    pose_bone.scale = transform["scale"]
+
+            for pose_bone in rig.pose.bones:
+                pose_bone.keyframe_insert("location", frame=frame, group=pose_bone.name)
+                pose_bone.keyframe_insert("rotation_euler", frame=frame, group=pose_bone.name)
+                pose_bone.keyframe_insert("scale", frame=frame, group=pose_bone.name)
+
+        for curve in action.fcurves:
+            for point in curve.keyframe_points:
+                point.interpolation = "BEZIER"
+
+        return action
+
+    walk_a = {
+        "root": {"location": (0, 0, 0.035)},
+        "thigh.L": {"rotation": (0.58, 0, 0)},
+        "shin.L": {"rotation": (-0.35, 0, 0)},
+        "thigh.R": {"rotation": (-0.5, 0, 0)},
+        "upper_arm.L": {"rotation": (-0.42, 0, 0)},
+        "upper_arm.R": {"rotation": (0.28, 0, 0)},
+    }
+    walk_b = {
+        "root": {"location": (0, 0, -0.015)},
+        "thigh.L": {"rotation": (-0.5, 0, 0)},
+        "thigh.R": {"rotation": (0.58, 0, 0)},
+        "shin.R": {"rotation": (-0.35, 0, 0)},
+        "upper_arm.L": {"rotation": (0.42, 0, 0)},
+        "upper_arm.R": {"rotation": (-0.28, 0, 0)},
+    }
+
+    actions = {
+        "idle": create(
+            "idle",
+            (
+                (1, {"root": {"location": (0, 0, 0)}, "head": {"rotation": (0, 0, -0.05)}}),
+                (12, {"root": {"location": (0, 0, 0.025)}, "head": {"rotation": (0.04, 0, 0.05)}}),
+                (24, {"root": {"location": (0, 0, 0)}, "head": {"rotation": (0, 0, -0.05)}}),
+            ),
+        ),
+        "walk": create("walk", ((1, walk_a), (7, {}), (13, walk_b), (19, {}), (24, walk_a))),
+        "attack": create(
+            "attack",
+            (
+                (1, {}),
+                (
+                    8,
+                    {
+                        "root": {"rotation": (0, 0, -0.28)},
+                        "spine": {"rotation": (-0.12, 0, -0.35)},
+                        "upper_arm.R": {"rotation": (-1.0, 0.15, -0.45)},
+                        "forearm.R": {"rotation": (-0.65, 0, -0.2)},
+                    },
+                ),
+                (
+                    13,
+                    {
+                        "root": {"rotation": (0, 0, 0.34)},
+                        "spine": {"rotation": (0.18, 0, 0.52)},
+                        "upper_arm.R": {"rotation": (0.75, -0.2, 0.8)},
+                        "forearm.R": {"rotation": (0.3, 0, 0.5)},
+                    },
+                ),
+                (18, {"spine": {"rotation": (0.08, 0, 0.12)}, "upper_arm.R": {"rotation": (0.3, 0, 0.2)}}),
+                (24, {}),
+            ),
+        ),
+        "hurt": create(
+            "hurt",
+            (
+                (1, {}),
+                (
+                    5,
+                    {
+                        "root": {"rotation": (-0.22, 0, -0.18), "location": (0, -0.06, 0)},
+                        "spine": {"rotation": (-0.3, 0.12, 0.18)},
+                        "head": {"rotation": (-0.35, 0, -0.22)},
+                        "upper_arm.L": {"rotation": (0.45, 0, -0.45)},
+                    },
+                ),
+                (10, {"root": {"rotation": (0.08, 0, 0.08)}}),
+                (16, {}),
+            ),
+        ),
+        "block": create(
+            "block",
+            (
+                (1, {}),
+                (
+                    7,
+                    {
+                        "spine": {"rotation": (-0.12, 0, -0.12)},
+                        "upper_arm.R": {"rotation": (-1.15, 0.25, -0.72)},
+                        "forearm.R": {"rotation": (-0.55, 0, -0.65)},
+                        "upper_arm.L": {"rotation": (-0.45, 0, 0.35)},
+                    },
+                ),
+                (
+                    14,
+                    {
+                        "spine": {"rotation": (-0.1, 0, -0.08)},
+                        "upper_arm.R": {"rotation": (-1.08, 0.2, -0.64)},
+                        "forearm.R": {"rotation": (-0.5, 0, -0.6)},
+                    },
+                ),
+                (20, {}),
+            ),
+        ),
+        "death": create(
+            "death",
+            (
+                (1, {}),
+                (7, {"root": {"rotation": (-0.25, 0, 0.18)}, "spine": {"rotation": (-0.3, 0, -0.2)}}),
+                (
+                    15,
+                    {
+                        "root": {"rotation": (-1.0, 0, 0.28), "location": (0, -0.12, -0.48)},
+                        "spine": {"rotation": (-0.4, 0.2, 0.25)},
+                        "head": {"rotation": (-0.5, 0.3, -0.35)},
+                        "upper_arm.L": {"rotation": (0.55, 0, -0.6)},
+                        "upper_arm.R": {"rotation": (-0.35, 0, 0.65)},
+                    },
+                ),
+                (
+                    24,
+                    {
+                        "root": {"rotation": (-1.42, 0, 0.3), "location": (0, -0.18, -0.72)},
+                        "spine": {"rotation": (-0.55, 0.2, 0.25)},
+                        "head": {"rotation": (-0.7, 0.3, -0.4)},
+                    },
+                ),
+            ),
+        ),
+        "death-sever-right": create(
+            "death-sever-right",
+            (
+                (1, {}),
+                (
+                    7,
+                    {
+                        "root": {"rotation": (-0.22, 0, -0.2)},
+                        "spine": {"rotation": (-0.35, 0.1, 0.3)},
+                        "upper_arm.R": {"rotation": (0.9, 0.4, 0.8)},
+                        "forearm.R": {"rotation": (0.75, 0.1, 0.7)},
+                    },
+                ),
+                (
+                    15,
+                    {
+                        "root": {"rotation": (-1.05, 0, -0.18), "location": (0, 0, -0.5)},
+                        "upper_arm.R": {"rotation": (1.2, 0.3, 0.9)},
+                        "forearm.R": {"rotation": (0.9, 0, 0.8)},
+                    },
+                ),
+                (24, {"root": {"rotation": (-1.4, 0, -0.2), "location": (0, 0, -0.72)}}),
+            ),
+        ),
+        "death-blasted": create(
+            "death-blasted",
+            (
+                (1, {}),
+                (5, {"root": {"scale": (1.12, 1.12, 1.12)}, "spine": {"rotation": (-0.2, 0.1, 0.2)}}),
+                (
+                    13,
+                    {
+                        "root": {"location": (0, 0, 0.15), "scale": (1.08, 1.08, 1.08)},
+                        "head": {"location": (0.2, 0, 0.32), "rotation": (0.8, 0.5, 0.7)},
+                        "upper_arm.L": {"rotation": (1.7, 0.4, -1.2)},
+                        "upper_arm.R": {"rotation": (-1.6, -0.5, 1.3)},
+                        "thigh.L": {"rotation": (0.9, 0.5, -0.8)},
+                        "thigh.R": {"rotation": (-0.9, -0.5, 0.8)},
+                    },
+                ),
+                (
+                    24,
+                    {
+                        "root": {"location": (0, 0, -0.55), "scale": (0.9, 0.9, 0.9)},
+                        "head": {"location": (0.35, 0.15, 0.45), "rotation": (1.5, 0.8, 1.4)},
+                        "upper_arm.L": {"rotation": (2.2, 0.8, -1.6)},
+                        "upper_arm.R": {"rotation": (-2.0, -0.8, 1.8)},
+                        "thigh.L": {"rotation": (1.5, 0.6, -1.2)},
+                        "thigh.R": {"rotation": (-1.5, -0.6, 1.2)},
+                    },
+                ),
+            ),
+        ),
+        "death-impaled": create(
+            "death-impaled",
+            (
+                (1, {}),
+                (7, {"root": {"location": (0, -0.08, 0.12)}, "spine": {"rotation": (-0.3, 0, 0)}}),
+                (
+                    15,
+                    {
+                        "root": {"location": (0, -0.12, 0.02)},
+                        "spine": {"rotation": (0.45, 0.12, 0.08)},
+                        "head": {"rotation": (0.6, 0.2, -0.2)},
+                        "upper_arm.L": {"rotation": (0.8, 0, -0.6)},
+                        "upper_arm.R": {"rotation": (0.7, 0, 0.6)},
+                    },
+                ),
+                (
+                    24,
+                    {
+                        "root": {"location": (0, -0.12, -0.04)},
+                        "spine": {"rotation": (0.6, 0.15, 0.1)},
+                        "head": {"rotation": (0.85, 0.2, -0.25)},
+                        "upper_arm.L": {"rotation": (1.0, 0, -0.75)},
+                        "upper_arm.R": {"rotation": (0.9, 0, 0.75)},
+                    },
+                ),
+            ),
+        ),
+        "death-drowned": create(
+            "death-drowned",
+            (
+                (1, {}),
+                (8, {"root": {"location": (0, 0, -0.2)}, "upper_arm.L": {"rotation": (0.5, 0, -0.4)}}),
+                (
+                    16,
+                    {
+                        "root": {"location": (0, 0, -0.68), "rotation": (-0.3, 0, 0.15)},
+                        "head": {"rotation": (0.4, 0.1, -0.2)},
+                    },
+                ),
+                (24, {"root": {"location": (0, 0, -1.25), "rotation": (-0.55, 0, 0.2)}}),
+            ),
+        ),
+    }
+    rig.animation_data.action = actions["idle"]
+    return actions
+
+
+def look_at(obj: bpy.types.Object, target: tuple[float, float, float]) -> None:
+    direction = Vector(target) - obj.location
+    obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+
+
+def configure_render(frame_size: int) -> tuple[bpy.types.Object, bpy.types.Object, bpy.types.Object]:
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_EEVEE"
+    scene.eevee.taa_render_samples = 64
+    scene.eevee.use_gtao = True
+    scene.eevee.gtao_distance = 3
+    scene.eevee.gtao_factor = 1.4
+    scene.render.film_transparent = True
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.image_settings.color_mode = "RGBA"
+    scene.render.resolution_x = frame_size
+    scene.render.resolution_y = frame_size
+    scene.render.resolution_percentage = 100
+    scene.render.film_transparent = True
+    # Lit for the room it stands in. The first pass keyed this at 620W with a contrast look on top,
+    # which drove aged bone to near white — and a white figure against a dark purple dungeon lit by
+    # torchlight reads as pasted on no matter how good the silhouette is. The renderer darkens and
+    # warms a sprite by depth and by lamp, so what is baked has to sit below the range it will be
+    # pushed into, not at the top of it.
+    scene.view_settings.view_transform = "Standard"
+    scene.view_settings.look = "Medium Contrast"
+    scene.view_settings.exposure = -0.45
+    scene.view_settings.gamma = 1
+
+    camera_data = bpy.data.cameras.new("SpriteCamera")
+    camera = bpy.data.objects.new("SpriteCamera", camera_data)
+    bpy.context.collection.objects.link(camera)
+    camera.data.type = "ORTHO"
+    camera.data.ortho_scale = 2.5
+    scene.camera = camera
+
+    key_data = bpy.data.lights.new("KeyLight", type="AREA")
+    key_data.energy = 430
+    key_data.size = 4
+    key = bpy.data.objects.new("KeyLight", key_data)
+    bpy.context.collection.objects.link(key)
+
+    fill_data = bpy.data.lights.new("FillLight", type="AREA")
+    fill_data.energy = 190
+    fill_data.size = 5
+    fill = bpy.data.objects.new("FillLight", fill_data)
+    bpy.context.collection.objects.link(fill)
+
+    scene.world.color = (0.015, 0.01, 0.025)
+    return camera, key, fill
+
+
+def aim_camera(camera: bpy.types.Object, key: bpy.types.Object, fill: bpy.types.Object, direction: int) -> None:
+    # The wheel turns clockwise, and the minus sign is the whole reason the walk cycle reads at all.
+    #
+    # The game's projection is left-handed: facing +X it puts world +Y on the right of the screen
+    # (`#projectSprite` computes `transformX` from `relY` with an inverse that carries the sign), and
+    # a Blender camera looking the same way puts +Y on the left. The game world is therefore a mirror
+    # image of this one, so mapping game coordinates onto Blender's directly and stepping the camera
+    # counter-clockwise baked a wheel that is correct at the front and back and reversed at both
+    # profiles. On screen that is a skeleton whose feet walk one way while its body points the other.
+    #
+    # Row `d` is selected at runtime from `viewerAngle - facingAngle` in game space; negating the step
+    # here is the same map applied to the bake, which puts the camera where that row's viewer actually
+    # stands. Nothing is flipped afterwards: a reflection is not a rotation, so the skeleton on screen
+    # is a mirrored one and holds its sword in what looks like its left hand. It is a skeleton. Nobody
+    # can tell, and every clip mirrors with it, so the swing and the pose stay consistent.
+    angle = math.pi / 2 - (direction / DIRECTIONS) * math.pi * 2
+    outward = Vector((math.cos(angle), math.sin(angle), 0))
+    sideways = Vector((-outward.y, outward.x, 0))
+    camera.location = outward * 5.8 + Vector((0, 0, 1.15))
+    look_at(camera, (0, 0, 1.08))
+    key.location = outward * 3.2 - sideways * 2.2 + Vector((0, 0, 4.4))
+    look_at(key, (0, 0, 1.1))
+    fill.location = -outward * 2.2 + sideways * 1.5 + Vector((0, 0, 2.7))
+    look_at(fill, (0, 0, 1.0))
+
+
+def set_sever_visibility(character: list[bpy.types.Object], clip: str, sample: int) -> None:
+    severed = clip == "death-sever-right" and sample >= 3
+
+    for obj in character:
+        part = obj.get("skeleton_part")
+        obj.hide_render = severed and part in {"hand.R", "sword"}
+
+
+def render_frames(
+    frames_root: Path,
+    rig: bpy.types.Object,
+    character: list[bpy.types.Object],
+    actions: dict[str, bpy.types.Action],
+    camera: bpy.types.Object,
+    key: bpy.types.Object,
+    fill: bpy.types.Object,
+) -> None:
+    scene = bpy.context.scene
+    frames_root.mkdir(parents=True, exist_ok=True)
+
+    for clip, duration in CLIP_DURATIONS.items():
+        rig.animation_data.action = actions[clip]
+
+        for direction in range(DIRECTIONS):
+            aim_camera(camera, key, fill, direction)
+
+            for sample in range(SAMPLES):
+                frame = 1 + round((duration - 1) * sample / (SAMPLES - 1))
+                scene.frame_set(frame)
+                set_sever_visibility(character, clip, sample)
+                scene.render.filepath = str(frames_root / f"{clip}-{direction}-{sample}.png")
+                bpy.ops.render.render(write_still=True)
+
+    set_sever_visibility(character, "idle", 0)
+
+
+def render_pickups(
+    runtime_root: Path,
+    rig: bpy.types.Object,
+    character: list[bpy.types.Object],
+    assigned: dict[str, bpy.types.Material],
+    camera: bpy.types.Object,
+    key: bpy.types.Object,
+    fill: bpy.types.Object,
+    frame_size: int,
+) -> None:
+    scene = bpy.context.scene
+    scene.render.resolution_x = PICKUP_SIZE
+    scene.render.resolution_y = PICKUP_SIZE
+    camera.data.ortho_scale = 1.35
+    camera.location = (0, 4.8, 0.72)
+    look_at(camera, (0, 0, 0.52))
+    key.location = (-2.2, 3.2, 3.4)
+    look_at(key, (0, 0, 0.45))
+    fill.location = (2.1, -1.6, 2.2)
+    look_at(fill, (0, 0, 0.4))
+    rig.hide_render = True
+
+    for obj in character:
+        obj.hide_render = True
+
+    def render(objects: list[bpy.types.Object], filename: str) -> None:
+        for obj in objects:
+            obj.hide_render = False
+
+        scene.render.filepath = str(runtime_root / filename)
+        bpy.ops.render.render(write_still=True)
+
+        for obj in objects:
+            obj.hide_render = True
+
+    sword = create_sword("Pickup", assigned, offset=(0, 0, 0.32))
+    root = bpy.data.objects.new("PickupSwordRoot", None)
+    bpy.context.collection.objects.link(root)
+
+    for obj in sword:
+        obj.parent = root
+
+    root.rotation_euler[1] = -0.62
+    render(sword, "skeleton-sword.png")
+
+    skull = [
+        ellipsoid("PickupSkull", (0, 0, 0.52), (0.24, 0.2, 0.26), assigned["bone"]),
+        box("PickupJaw", (0, 0.1, 0.31), (0.17, 0.12, 0.09), assigned["bone"]),
+        ellipsoid("PickupEye.L", (-0.085, 0.19, 0.55), (0.06, 0.025, 0.07), assigned["socket"]),
+        ellipsoid("PickupEye.R", (0.085, 0.19, 0.55), (0.06, 0.025, 0.07), assigned["socket"]),
+    ]
+    render(skull, "skeleton-skull.png")
+
+    femur = [
+        cylinder_between("PickupFemur", (-0.27, 0, 0.22), (0.27, 0, 0.82), 0.065, assigned["bone"]),
+        ellipsoid("PickupFemurEnd.A", (-0.27, 0, 0.22), (0.1, 0.08, 0.1), assigned["bone"]),
+        ellipsoid("PickupFemurEnd.B", (0.27, 0, 0.82), (0.1, 0.08, 0.1), assigned["bone"]),
+    ]
+    render(femur, "skeleton-femur.png")
+
+    rig.hide_render = False
+    scene.render.resolution_x = frame_size
+    scene.render.resolution_y = frame_size
+
+
+def main() -> None:
+    args = parse_arguments()
+    source_root = args.repository_root / "assets" / "enemies" / "skeleton-swordsman"
+    runtime_root = args.repository_root / "src" / "content" / "enemies" / "assets" / "skeleton-swordsman"
+    source_root.mkdir(parents=True, exist_ok=True)
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    clear_scene()
+
+    assigned = {
+        "bone": material("AgedBone", (0.72, 0.63, 0.45, 1), roughness=0.78),
+        "socket": material("DeepSocket", (0.035, 0.018, 0.028, 1), roughness=1),
+        "steel": material("NotchedSteel", (0.28, 0.31, 0.34, 1), metallic=0.72, roughness=0.34),
+        "iron": material("BlackenedIron", (0.11, 0.12, 0.14, 1), metallic=0.62, roughness=0.52),
+        "brass": material("OldBrass", (0.42, 0.28, 0.08, 1), metallic=0.55, roughness=0.42),
+        "leather": material("GripLeather", (0.12, 0.045, 0.025, 1), roughness=0.9),
+        "cloth": material("BurialCloth", (0.22, 0.055, 0.065, 1), roughness=0.95),
+    }
+    rig = create_rig()
+    character = create_character(rig, assigned)
+    actions = create_actions(rig)
+    camera, key, fill = configure_render(args.frame_size)
+
+    bpy.context.scene.frame_set(1)
+    bpy.ops.wm.save_as_mainfile(filepath=str(source_root / "skeleton-swordsman.blend"))
+
+    bpy.ops.object.select_all(action="DESELECT")
+    rig.select_set(True)
+
+    for obj in character:
+        obj.select_set(True)
+
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.export_scene.gltf(
+        filepath=str(source_root / "skeleton-swordsman.glb"),
+        export_format="GLB",
+        use_selection=True,
+        export_animations=True,
+        export_nla_strips=False,
+    )
+
+    render_frames(args.frames_root, rig, character, actions, camera, key, fill)
+    render_pickups(runtime_root, rig, character, assigned, camera, key, fill, args.frame_size)
+
+
+if __name__ == "__main__":
+    main()
