@@ -11,6 +11,7 @@ import {
   type MeleeViewmodelPose,
 } from "@/content/viewmodel/melee-viewmodel";
 import { MELEE_HALF_ANGLE } from "@/demo/actions";
+import { mountDemoDevOverlay, type DemoDevOverlayModel } from "@/demo/demo-dev-overlay";
 import { mountDemoHud, type DemoHudModel } from "@/demo/demo-hud";
 import { demoMeleeImpactPitch } from "@/demo/demo-scene";
 import { drawDemoViewmodel, type DemoViewmodelModel } from "@/demo/demo-viewmodel";
@@ -125,7 +126,6 @@ function defaultHudModel(): DemoHudModel {
       { color: "#83d0a4", detail: "A second icon for contrast", glyph: "♢", name: "Moss" },
     ],
     card: { color: "#f2c96b", detail: "Live card layout preview", glyph: "✦", name: "Ember" },
-    fps: 60,
     hp: 72,
     maxHp: 100,
     message: "The pantry answers from below.",
@@ -229,7 +229,16 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   const hudGrid = document.createElement("div");
   hudGrid.className = "debug-form-grid";
   const hud = mountDemoHud();
+  const dev = mountDemoDevOverlay();
   const refreshHud = (): void => hud.update(hudModel);
+  /**
+   * The dev overlay is previewed beside the HUD, not inside its model.
+   *
+   * It is a separate module with a separate subject — what the machine is doing — and the only reason
+   * it is on this tab at all is that its corner has to be checked against the picture behind it.
+   */
+  let devModel: DemoDevOverlayModel = { enemiesPaused: false, fps: 60, godMode: false };
+  const refreshDev = (): void => dev.update(devModel);
 
   for (const [label, key] of [
     ["HP", "hp"],
@@ -260,12 +269,33 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
     refreshHud();
   });
   hudGrid.append(field("Show blessing card", showCard));
+
+  const devFps = numberInput(devModel.fps);
+  devFps.addEventListener("input", () => {
+    devModel = { ...devModel, fps: Number(devFps.value) };
+    refreshDev();
+  });
+  hudGrid.append(field("FPS", devFps));
+
+  for (const [label, key] of [
+    ["God mode", "godMode"],
+    ["Enemy pause", "enemiesPaused"],
+  ] as const) {
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.addEventListener("change", () => {
+      devModel = { ...devModel, [key]: input.checked };
+      refreshDev();
+    });
+    hudGrid.append(field(label, input));
+  }
+
   hudControls.body.append(hudGrid);
   const hudRender = createRenderPanel({
     ariaLabel: "HUD preview dungeon",
     frame: () => ({ scene: roomScene(CAMERA) }),
   });
-  hudRender.element.append(hud.element);
+  hudRender.element.append(hud.element, dev.element);
   hudSection.append(hudControls.panel, hudRender.element);
 
   let attacks = cloneAttacks();
@@ -467,6 +497,7 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   mount.replaceChildren(page);
   renderPoseControls();
   refreshHud();
+  refreshDev();
   updateAttackStatus();
   selectTab("hud");
 }

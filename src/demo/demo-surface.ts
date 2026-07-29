@@ -10,6 +10,7 @@ import "@/demo/demo-surface.css";
 
 import { grabAction, primaryAction } from "@/demo/actions";
 import { findBless, type BlessDefinition } from "@/demo/bless";
+import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
 import { mountDemoHud, type DemoHudCard, type DemoHudModel } from "@/demo/demo-hud";
 import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
@@ -90,7 +91,6 @@ function cardModel(token: string): DemoHudCard {
 
 function createHudModel(
   world: DemoWorld,
-  fps: number,
   cardToken: string | undefined,
   overlay: DemoHudModel["overlay"],
 ): DemoHudModel {
@@ -124,7 +124,6 @@ function createHudModel(
   return {
     blessIcons,
     ...(cardToken ? { card: cardModel(cardToken) } : {}),
-    fps,
     hp: world.player.hp,
     maxHp: world.player.maxHp,
     ...(world.messageSeconds > 0 && world.message ? { message: world.message } : {}),
@@ -145,9 +144,12 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   const surface = document.createElement("main");
   const canvas = document.createElement("canvas");
   const hud = mountDemoHud();
+  // After the HUD, never before it: the pause overlay is a full-surface button, and anything
+  // painted under it has its clicks taken by the thing that re-locks the pointer.
+  const dev = mountDemoDevOverlay();
   surface.className = "demo";
   canvas.className = "demo__canvas";
-  surface.append(canvas, hud.element);
+  surface.append(canvas, hud.element, dev.element);
   mount.replaceChildren(surface);
 
   const images = await loadDemoImages();
@@ -235,7 +237,9 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     return undefined;
   };
 
-  const refreshHud = (): void => hud.update(createHudModel(world, smoothedFps, activeCardToken, overlayModel()));
+  const refreshHud = (): void => hud.update(createHudModel(world, activeCardToken, overlayModel()));
+  const refreshDev = (): void =>
+    dev.update({ enemiesPaused: world.enemiesPaused, fps: smoothedFps, godMode: world.godMode });
 
   /**
    * Shows the award card for a few seconds.
@@ -258,12 +262,22 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   };
 
   const restart = (): void => {
+    // A cheat is a property of the session, not of the run. Losing god mode on every R would make it
+    // useless for exactly the thing it is for: dying repeatedly on purpose.
+    const carriedGodMode = world.godMode;
     world = createDemoWorld();
+    world.godMode = carriedGodMode;
     paused = false;
     clearInput();
     publish();
     activeCardToken = undefined;
     refreshHud();
+  };
+
+  const toggleGodMode = (): void => {
+    world.godMode = !world.godMode;
+    announce(world, world.godMode ? "God mode on (G to turn it off)" : "God mode off", 2.5);
+    refreshDev();
   };
 
   const tick = (now: number): void => {
@@ -312,6 +326,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
       world.pendingCard = undefined;
     }
     refreshHud();
+    refreshDev();
   };
 
   const handleKeyDown = (event: KeyboardEvent): void => {
@@ -364,6 +379,15 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
       event.preventDefault();
       world.enemiesPaused = !world.enemiesPaused;
       announce(world, world.enemiesPaused ? "Enemies frozen (P to resume)" : "Enemies moving again", 2.5);
+      refreshDev();
+      return;
+    }
+
+    // Takes every hit and keeps every point. The key is the one that matters — the overlay's button
+    // cannot be reached while the pointer is locked, which is most of the time.
+    if (key === "g") {
+      event.preventDefault();
+      toggleGodMode();
       return;
     }
 
@@ -480,6 +504,17 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     beginRelock();
   };
 
+  /**
+   * The toggle, for when the pointer is free.
+   *
+   * The click is kept off the surface underneath so it cannot double as a request to go back in,
+   * which is what a click anywhere else means while the overlay is up.
+   */
+  const handleGodModeClick = (event: MouseEvent): void => {
+    event.stopPropagation();
+    toggleGodMode();
+  };
+
   const handleLockChange = (): void => {
     if (!locked()) {
       clearInput();
@@ -499,9 +534,11 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   document.addEventListener("contextmenu", suppressContextMenu);
   document.addEventListener("pointerlockchange", handleLockChange);
   hud.overlayButton.addEventListener("click", handleOverlayClick);
+  dev.godModeButton.addEventListener("click", handleGodModeClick);
 
   publish();
   refreshHud();
+  refreshDev();
   frame = window.requestAnimationFrame(tick);
 
   return {
@@ -524,6 +561,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
       document.removeEventListener("mousedown", handleMouseDown);
       document.removeEventListener("contextmenu", suppressContextMenu);
       document.removeEventListener("pointerlockchange", handleLockChange);
+      dev.godModeButton.removeEventListener("click", handleGodModeClick);
       hud.overlayButton.removeEventListener("click", handleOverlayClick);
       surface.remove();
     },

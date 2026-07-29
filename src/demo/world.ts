@@ -263,6 +263,13 @@ export type DemoWorld = {
   held: DemoHeld;
   /** Debug: freezes enemy thinking, movement, and reinforcement while true. Toggled by the P key. */
   enemiesPaused: boolean;
+  /**
+   * Debug: the player still takes every hit and shows it, and simply does not lose the points.
+   *
+   * The flash, the shove, and the announcement all fire, because a run spent invulnerable has to
+   * still tell you what would have killed you. Toggled by the G key.
+   */
+  godMode: boolean;
   status: DemoStatus;
   elapsedSeconds: number;
   /**
@@ -501,6 +508,7 @@ export function createDemoWorld(): DemoWorld {
     terrainVersion: 0,
     held: undefined,
     enemiesPaused: false,
+    godMode: false,
     status: "playing",
     elapsedSeconds: 0,
     swing: 0,

@@ -34,7 +34,6 @@ export type DemoHudMinimap = Readonly<{
 export type DemoHudModel = Readonly<{
   blessIcons: readonly DemoHudBlessIcon[];
   card?: DemoHudCard;
-  fps: number;
   hp: number;
   maxHp: number;
   message?: string;
@@ -138,9 +137,9 @@ export function mountDemoHud(): MountedDemoHud {
     bar.setAttribute("aria-valuemax", String(model.maxHp));
     bar.setAttribute("aria-valuenow", String(Math.max(0, model.hp)));
     // Depth, enemy count, kills, walls broken, the altar and the wall ahead were all here, and all of
-    // them were a number to read rather than something to look at. What is left is the two numbers
-    // that change what the player does next.
-    readout.textContent = `${Math.ceil(model.hp)} / ${model.maxHp} · ${Math.round(model.fps)} FPS`;
+    // them were a number to read rather than something to look at. The frame counter went to the dev
+    // overlay, because how the machine is doing is not something the player is being told.
+    readout.textContent = `${Math.ceil(model.hp)} / ${model.maxHp}`;
     blessBar.replaceChildren();
 
     for (const icon of model.blessIcons) {

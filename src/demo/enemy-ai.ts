@@ -324,6 +324,12 @@ export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fro
     return;
   }
 
+  // The only place the player loses points, which is why one gate is the whole cheat. Everything
+  // above this line has already happened: the hit reads exactly as it would without it.
+  if (world.godMode) {
+    return;
+  }
+
   world.player.hp -= amount;
 
   if (world.player.hp <= 0) {
