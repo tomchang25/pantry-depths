@@ -19,7 +19,14 @@ import { blocksWalk, DEMO_GRID_SIZE, DEMO_WALL_HEIGHT, holdsStains, tileIndex } 
 import type { DemoParticleKind } from "@/demo/particles";
 import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
-import { projectileHeight, type DemoDeath, type DemoDeathCause, type DemoEnemy, type DemoWorld } from "@/demo/world";
+import {
+  projectileHeight,
+  type DemoDeath,
+  type DemoDeathCause,
+  type DemoEnemy,
+  type DemoProjectile,
+  type DemoWorld,
+} from "@/demo/world";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
   RenderBeam,
@@ -68,6 +75,27 @@ const NIGHT_SKY = {
 
 const EXIT_XRAY = { color: [138, 255, 190] as const, alpha: 0.95 };
 const ALTAR_XRAY = { color: [255, 208, 118] as const, alpha: 0.8 };
+
+export type DemoEntityProjectionContext = Readonly<{
+  elapsedSeconds: number;
+  camera: Readonly<{ x: number; y: number; angle: number }>;
+}>;
+
+export type DemoEntityProjection = Readonly<{
+  blobs: readonly RenderBlob[];
+  sprites: readonly RenderSprite[];
+}>;
+
+export type DemoEntityProjectionOptions = Readonly<{
+  skeletonAnimation?: Readonly<{ animation: SkeletonSwordsmanAnimationId; progress: number }>;
+}>;
+
+function entityProjectionContext(world: DemoWorld): DemoEntityProjectionContext {
+  return {
+    elapsedSeconds: world.elapsedSeconds,
+    camera: { x: world.player.x, y: world.player.y, angle: world.player.angle },
+  };
+}
 /** How many spark billboards a lightning arc is drawn with. */
 const ARC_SEGMENTS = 7;
 
@@ -117,6 +145,53 @@ const BARRICADE_SPIKES = [
   { id: "north", alongX: 0, alongY: -0.33, top: 0.58 },
   { id: "south", alongX: 0, alongY: 0.33, top: 0.58 },
 ] as const;
+
+/** Projects the exact iron obstacle used by hazard checks and the entity workbench. */
+export function projectDemoBarricade(cell: Readonly<{ x: number; y: number }>, wearValue = 0): RenderBox[] {
+  const wear = Math.min(1, Math.max(0, wearValue));
+  const iron: readonly [number, number, number] = [128 - wear * 44, 132 - wear * 46, 146 - wear * 50];
+  const edge: readonly [number, number, number] = [196 - wear * 70, 204 - wear * 74, 220 - wear * 80];
+  const built: RenderBox[] = [
+    {
+      id: `rail-${cell.x}-${cell.y}-east`,
+      x: cell.x + 0.5,
+      y: cell.y + 0.5,
+      halfX: BARRICADE_REACH,
+      halfY: BARRICADE_RAIL_WIDTH,
+      bottom: 0,
+      top: BARRICADE_RAIL_TOP,
+      color: iron,
+      topColor: edge,
+    },
+    {
+      id: `rail-${cell.x}-${cell.y}-north`,
+      x: cell.x + 0.5,
+      y: cell.y + 0.5,
+      halfX: BARRICADE_RAIL_WIDTH,
+      halfY: BARRICADE_REACH,
+      bottom: 0,
+      top: BARRICADE_RAIL_TOP,
+      color: iron,
+      topColor: edge,
+    },
+  ];
+
+  for (const spike of BARRICADE_SPIKES) {
+    built.push({
+      id: `spike-${cell.x}-${cell.y}-${spike.id}`,
+      x: cell.x + 0.5 + spike.alongX,
+      y: cell.y + 0.5 + spike.alongY,
+      halfX: BARRICADE_SPIKE_WIDTH,
+      halfY: BARRICADE_SPIKE_WIDTH,
+      bottom: BARRICADE_RAIL_TOP,
+      top: spike.top - wear * 0.18,
+      color: iron,
+      topColor: edge,
+    });
+  }
+
+  return built;
+}
 
 const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   stick: DEMO_ASSET_IDS.stick,
@@ -245,7 +320,7 @@ function animationFrame(animation: SkeletonSwordsmanAnimationId, progress: numbe
 }
 
 function skeletonAnimation(
-  world: DemoWorld,
+  context: DemoEntityProjectionContext,
   enemy: DemoEnemy,
 ): Readonly<{
   animation: SkeletonSwordsmanAnimationId;
@@ -272,12 +347,15 @@ function skeletonAnimation(
   const animation: SkeletonSwordsmanAnimationId = enemy.moving ? "walk" : "idle";
   const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
   const phase = enemyPhase(enemy.id) / (Math.PI * 2);
-  const frame = Math.floor((world.elapsedSeconds * definition.framesPerSecond + phase) % definition.frames);
+  const frame = Math.floor((context.elapsedSeconds * definition.framesPerSecond + phase) % definition.frames);
   return { animation, frame };
 }
 
-function skeletonSprite(world: DemoWorld, enemy: DemoEnemy): RenderSprite {
-  const selected = skeletonAnimation(world, enemy);
+function skeletonSprite(
+  context: DemoEntityProjectionContext,
+  enemy: DemoEnemy,
+  selected = skeletonAnimation(context, enemy),
+): RenderSprite {
   const definition = SKELETON_SWORDSMAN_ANIMATIONS[selected.animation];
   return {
     id: enemy.id,
@@ -289,7 +367,7 @@ function skeletonSprite(world: DemoWorld, enemy: DemoEnemy): RenderSprite {
     verticalAnchor: 0,
     frame: {
       column: selected.frame,
-      row: skeletonDirection(world.player.angle, enemy.facingAngle),
+      row: skeletonDirection(context.camera.angle, enemy.facingAngle),
       columns: SKELETON_SWORDSMAN_FRAMES,
       rows: SKELETON_SWORDSMAN_DIRECTIONS,
     },
@@ -325,7 +403,7 @@ function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonSwordsmanAnimati
   throw new Error("unknown skeleton death cause");
 }
 
-function skeletonDeathSprite(world: DemoWorld, death: DemoDeath): RenderSprite {
+function skeletonDeathSprite(context: DemoEntityProjectionContext, death: DemoDeath): RenderSprite {
   const animation = skeletonDeathAnimation(death.cause);
   const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
   return {
@@ -338,7 +416,7 @@ function skeletonDeathSprite(world: DemoWorld, death: DemoDeath): RenderSprite {
     verticalAnchor: 0,
     frame: {
       column: animationFrame(animation, Math.min(0.999, death.progress)),
-      row: skeletonDirection(world.player.angle, death.facingAngle),
+      row: skeletonDirection(context.camera.angle, death.facingAngle),
       columns: SKELETON_SWORDSMAN_FRAMES,
       rows: SKELETON_SWORDSMAN_DIRECTIONS,
     },
@@ -347,8 +425,8 @@ function skeletonDeathSprite(world: DemoWorld, death: DemoDeath): RenderSprite {
 
 /** One authored skeleton riding a javelin, replacing the slime-shaped fallback used by blobs. */
 function carriedSkeletonSprite(
-  world: DemoWorld,
-  projectile: DemoWorld["projectiles"][number],
+  context: DemoEntityProjectionContext,
+  projectile: DemoProjectile,
   enemy: DemoEnemy,
   index: number,
 ): RenderSprite {
@@ -370,7 +448,7 @@ function carriedSkeletonSprite(
     verticalAnchor: -(projectileHeight(projectile) - 0.5) / SKELETON_DISPLAY_SCALE,
     frame: {
       column: animationFrame(animation, 0.62),
-      row: skeletonDirection(world.player.angle, enemy.facingAngle),
+      row: skeletonDirection(context.camera.angle, enemy.facingAngle),
       columns: SKELETON_SWORDSMAN_FRAMES,
       rows: SKELETON_SWORDSMAN_DIRECTIONS,
     },
@@ -434,6 +512,7 @@ function vfxSprites(world: DemoWorld, built: RenderSprite[]): void {
 
 function sprites(world: DemoWorld): RenderSprite[] {
   const built: RenderSprite[] = [];
+  const projectionContext = entityProjectionContext(world);
 
   // The rune hanging over the altar and the shaft over the stairs are what carry the x-ray outline,
   // because they sit above the structure and so are what you want to see over a wall.
@@ -488,9 +567,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
   }
 
   for (const enemy of world.enemies) {
-    if (enemy.archetype.id === "swordsman") {
-      built.push(skeletonSprite(world, enemy));
-    }
+    built.push(...projectDemoEnemy(projectionContext, enemy).sprites);
 
     // Slimes stay blobs; authored enemies and all telegraphs share this depth-sorted sprite pass.
     telegraph(world, enemy, built);
@@ -532,9 +609,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
 
     if (projectile.kind === "stick") {
       projectile.skewered.forEach((enemy, index) => {
-        if (enemy.archetype.id === "swordsman") {
-          built.push(carriedSkeletonSprite(world, projectile, enemy, index));
-        }
+        built.push(...projectCarriedDemoEnemy(projectionContext, projectile, enemy, index).sprites);
       });
     }
 
@@ -569,11 +644,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
   }
 
   for (const death of world.deaths) {
-    if (death.archetypeId === "swordsman") {
-      built.push(skeletonDeathSprite(world, death));
-    } else if (death.cause === "splattered") {
-      built.push(wallMark(death));
-    }
+    built.push(...projectDemoDeath(projectionContext, death).sprites);
   }
 
   vfxSprites(world, built);
@@ -678,12 +749,12 @@ function enemyPhase(id: string): number {
  * looks, not new state of its own. Later clauses override earlier ones, so being hurt interrupts a
  * lunge visually the same way it reads in play.
  */
-function enemyBlob(world: DemoWorld, enemy: DemoEnemy): RenderBlob {
+function enemyBlob(context: DemoEntityProjectionContext, enemy: DemoEnemy): RenderBlob {
   const body = SLIME_BODIES[enemy.appearance] ?? FALLBACK_BODY;
-  const t = world.elapsedSeconds;
+  const t = context.elapsedSeconds;
   const phase = enemyPhase(enemy.id);
-  const toPlayerX = world.player.x - enemy.x;
-  const toPlayerY = world.player.y - enemy.y;
+  const toPlayerX = context.camera.x - enemy.x;
+  const toPlayerY = context.camera.y - enemy.y;
   const distance = Math.max(0.0001, Math.hypot(toPlayerX, toPlayerY));
   const towardX = toPlayerX / distance;
   const towardY = toPlayerY / distance;
@@ -952,38 +1023,84 @@ function carriedBlob(
   };
 }
 
+/** Projects one living body without adding combat telegraphs or hit particles around it. */
+export function projectDemoEnemy(
+  context: DemoEntityProjectionContext,
+  enemy: DemoEnemy,
+  options: DemoEntityProjectionOptions = {},
+): DemoEntityProjection {
+  if (enemy.archetype.id === "swordsman") {
+    const selected = options.skeletonAnimation
+      ? {
+          animation: options.skeletonAnimation.animation,
+          frame: animationFrame(options.skeletonAnimation.animation, options.skeletonAnimation.progress),
+        }
+      : undefined;
+    return { blobs: [], sprites: [skeletonSprite(context, enemy, selected)] };
+  }
+
+  return { blobs: [enemyBlob(context, enemy)], sprites: [] };
+}
+
+/** Projects one corpse, including the wall decal that replaces a splattered blob body. */
+export function projectDemoDeath(context: DemoEntityProjectionContext, death: DemoDeath): DemoEntityProjection {
+  if (death.archetypeId === "swordsman") {
+    return { blobs: [], sprites: [skeletonDeathSprite(context, death)] };
+  }
+
+  if (death.cause === "splattered") {
+    return { blobs: [], sprites: [wallMark(death)] };
+  }
+
+  return { blobs: deathBlobs(death), sprites: [] };
+}
+
+/** Projects a body carried on a flying stick at the same offset used by the live demo. */
+export function projectCarriedDemoEnemy(
+  context: DemoEntityProjectionContext,
+  projectile: DemoProjectile,
+  enemy: DemoEnemy,
+  index: number,
+): DemoEntityProjection {
+  if (enemy.archetype.id === "swordsman") {
+    return { blobs: [], sprites: [carriedSkeletonSprite(context, projectile, enemy, index)] };
+  }
+
+  const back = 0.3 + index * 0.3;
+  return {
+    blobs: [
+      carriedBlob(
+        `${projectile.id}-run-${index}`,
+        enemy.appearance,
+        projectile.x - projectile.directionX * back,
+        projectile.y - projectile.directionY * back,
+        projectile.directionX,
+        projectile.directionY,
+        context.elapsedSeconds,
+        0.3,
+        true,
+      ),
+    ],
+    sprites: [],
+  };
+}
+
 function blobs(world: DemoWorld): RenderBlob[] {
-  const built: RenderBlob[] = world.enemies
-    .filter((enemy) => enemy.archetype.id !== "swordsman")
-    .map((enemy) => enemyBlob(world, enemy));
+  const built: RenderBlob[] = [];
+  const projectionContext = entityProjectionContext(world);
+
+  for (const enemy of world.enemies) {
+    built.push(...projectDemoEnemy(projectionContext, enemy).blobs);
+  }
 
   for (const death of world.deaths) {
-    if (death.archetypeId !== "swordsman") {
-      built.push(...deathBlobs(death));
-    }
+    built.push(...projectDemoDeath(projectionContext, death).blobs);
   }
 
   for (const projectile of world.projectiles) {
     if (projectile.kind === "stick") {
       projectile.skewered.forEach((enemy, index) => {
-        if (enemy.archetype.id === "swordsman") {
-          return;
-        }
-
-        const back = 0.3 + index * 0.3;
-        built.push(
-          carriedBlob(
-            `${projectile.id}-run-${index}`,
-            enemy.appearance,
-            projectile.x - projectile.directionX * back,
-            projectile.y - projectile.directionY * back,
-            projectile.directionX,
-            projectile.directionY,
-            world.elapsedSeconds,
-            0.3,
-            true,
-          ),
-        );
+        built.push(...projectCarriedDemoEnemy(projectionContext, projectile, enemy, index).blobs);
       });
       continue;
     }
@@ -1210,50 +1327,7 @@ function boxes(world: DemoWorld): RenderBox[] {
 
       // Bent and darkened as it takes damage, so how close one is to being cleared is visible.
       const wear = tile.maxHp > 0 ? 1 - tile.hp / tile.maxHp : 0;
-      const iron: readonly [number, number, number] = [128 - wear * 44, 132 - wear * 46, 146 - wear * 50];
-      const edge: readonly [number, number, number] = [196 - wear * 70, 204 - wear * 74, 220 - wear * 80];
-
-      // The cross: one rail the width of the cell, one the depth of it, both reaching within a
-      // twentieth of the edge. A box cannot be turned, so the X is two perpendicular bars rather than
-      // two diagonal ones — which is the same silhouette from above and the only one available here.
-      built.push({
-        id: `rail-${x}-${y}-east`,
-        x: x + 0.5,
-        y: y + 0.5,
-        halfX: BARRICADE_REACH,
-        halfY: BARRICADE_RAIL_WIDTH,
-        bottom: 0,
-        top: BARRICADE_RAIL_TOP,
-        color: iron,
-        topColor: edge,
-      });
-      built.push({
-        id: `rail-${x}-${y}-north`,
-        x: x + 0.5,
-        y: y + 0.5,
-        halfX: BARRICADE_RAIL_WIDTH,
-        halfY: BARRICADE_REACH,
-        bottom: 0,
-        top: BARRICADE_RAIL_TOP,
-        color: iron,
-        topColor: edge,
-      });
-
-      // Five spikes standing on the rails: one where they meet and one out along each arm, so every
-      // approach has iron in front of it and the gaps stay wide enough to see a body through.
-      for (const spike of BARRICADE_SPIKES) {
-        built.push({
-          id: `spike-${x}-${y}-${spike.id}`,
-          x: x + 0.5 + spike.alongX,
-          y: y + 0.5 + spike.alongY,
-          halfX: BARRICADE_SPIKE_WIDTH,
-          halfY: BARRICADE_SPIKE_WIDTH,
-          bottom: BARRICADE_RAIL_TOP,
-          top: spike.top - wear * 0.18,
-          color: iron,
-          topColor: edge,
-        });
-      }
+      built.push(...projectDemoBarricade({ x, y }, wear));
     }
   }
 

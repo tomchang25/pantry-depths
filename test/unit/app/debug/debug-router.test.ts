@@ -35,6 +35,20 @@ describe("resolveDebugRoute", () => {
     }
   });
 
+  it("resolves the Entity Workbench from the shared debug catalog", () => {
+    const route = resolveDebugRoute("/debug/entity-workbench");
+
+    expect(route.kind).toBe("tool");
+
+    if (route.kind === "tool") {
+      expect(route.tool).toMatchObject({
+        id: "entity-workbench",
+        path: "/debug/entity-workbench",
+        title: "Entity Workbench",
+      });
+    }
+  });
+
   it.each(["/debug/unknown", "/debug/floor-workbench/"])(
     "falls back to the hub for an unknown exact path: %s",
     (pathname) => {

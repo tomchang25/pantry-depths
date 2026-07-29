@@ -13,6 +13,16 @@ export type DebugTool = {
 /** The single registry for future development tools. */
 export const DEBUG_TOOLS: readonly DebugTool[] = [
   {
+    id: "entity-workbench",
+    path: "/debug/entity-workbench",
+    title: "Entity Workbench",
+    description: "Scrub every entity clip and reproduce carried, wall, barricade, and drowning deaths.",
+    load: () =>
+      import("@/app/debug/entity-workbench").then(({ renderEntityWorkbench }) => ({
+        render: renderEntityWorkbench,
+      })),
+  },
+  {
     id: "melee-viewmodel-lab",
     path: "/debug/melee-viewmodel-lab",
     title: "First-person Melee Viewmodel Lab",
