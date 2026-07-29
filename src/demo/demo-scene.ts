@@ -15,7 +15,7 @@ import {
   type SkeletonSwordsmanAnimationId,
 } from "@/content/enemies/skeleton-swordsman-definitions";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
-import { RANGED_SHOT_RANGE } from "@/demo/enemy-archetypes";
+import { CHARGE_DISTANCE, RANGED_SHOT_RANGE } from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
 import { blocksProjectile, blocksWalk, DEMO_GRID_SIZE, DEMO_WALL_HEIGHT, holdsStains, tileIndex } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
@@ -344,29 +344,55 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
     scale: 0.44 + progress * 0.3,
     verticalAnchor: -0.85,
   });
+}
 
-  if (enemy.intent !== "charge") {
+/** How far apart the blots of a charger's lane sit, and how wide each one is drawn. */
+const LANE_SPACING = 0.3;
+const LANE_BLOT_SCALE = 0.82;
+
+/**
+ * The strip a charger paints down the lane it has committed to.
+ *
+ * One object answering two questions. It is laid dim along its whole length the moment the lane locks,
+ * which is where the charge is going; and a bright fill sweeps out from the charger as the wind-up
+ * runs down, which is when it arrives. Three seconds is long enough that both are worth reading, and
+ * a player who has read them has already stepped off the strip.
+ *
+ * It stops where the charge will stop. Painting through a wall would promise a lane the charger
+ * cannot use, and would hide the best thing a player can do with one — line it up on the masonry and
+ * get out of the way.
+ */
+function chargeLane(world: DemoWorld, enemy: DemoEnemy, built: RenderSprite[]): void {
+  if (enemy.windupSeconds <= 0 || enemy.intent !== "charge") {
     return;
   }
 
-  // The lane the charger committed to, not the one to wherever the player is now. Drawing the live
-  // line was honest only while the charge itself re-aimed at the last instant; now that it does not,
-  // this is the difference between a warning and a decoration.
   const dx = enemy.aimX - enemy.x;
   const dy = enemy.aimY - enemy.y;
-  const length = Math.max(0.0001, Math.hypot(dx, dy));
+  const length = Math.hypot(dx, dy);
 
-  for (let step = 1; step <= 5; step += 1) {
+  if (length < 0.0001) {
+    return;
+  }
+
+  // The lane runs the charge's own distance, not the distance to the locked point: the charge does
+  // not stop where it was aimed, it runs its full length past it.
+  const blots = beadLine(world, enemy.x, enemy.y, dx / length, dy / length, CHARGE_DISTANCE, LANE_SPACING);
+  const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+  const filled = progress * CHARGE_DISTANCE;
+
+  blots.forEach((blot, index) => {
+    const reached = (index + 1) * LANE_SPACING <= filled;
     built.push(
       ground(
-        `${enemy.id}-lane-${step}`,
-        enemy.x + (dx / length) * step,
-        enemy.y + (dy / length) * step,
-        DEMO_ASSET_IDS.laneMarker,
-        0.8,
+        `${enemy.id}-lane-${index}`,
+        blot.x,
+        blot.y,
+        reached ? DEMO_ASSET_IDS.laneHot : DEMO_ASSET_IDS.laneDim,
+        LANE_BLOT_SCALE,
       ),
     );
-  }
+  });
 }
 
 function skeletonDirection(cameraAngle: number, facingAngle: number): number {
@@ -671,6 +697,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
 
     // Slimes stay blobs; authored enemies and all telegraphs share this depth-sorted sprite pass.
     telegraph(enemy, built);
+    chargeLane(world, enemy, built);
 
     // A short spark at the point of contact. The white flash on the sprite says something landed;
     // this says where, which is what makes a crowded melee readable.
@@ -1696,10 +1723,11 @@ function beadLine(
   directionX: number,
   directionY: number,
   maxDistance: number,
+  spacing = BEAD_SPACING,
 ): { x: number; y: number }[] {
   const points: { x: number; y: number }[] = [];
 
-  for (let travelled = BEAD_SPACING; travelled <= maxDistance; travelled += BEAD_SPACING) {
+  for (let travelled = spacing; travelled <= maxDistance; travelled += spacing) {
     const x = fromX + directionX * travelled;
     const y = fromY + directionY * travelled;
 
@@ -1806,22 +1834,41 @@ function lights(world: DemoWorld): RenderLight[] {
   }
 
   for (const enemy of world.enemies) {
-    if (enemy.windupSeconds <= 0 || enemy.intent !== "shoot") {
+    if (enemy.windupSeconds <= 0) {
       continue;
     }
 
-    // The shot gathering inside the body. Small and close, so it lights the ground the shooter is
-    // standing on rather than the room — enough to catch the eye off to one side of the view without
-    // competing with the torch.
     const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-    built.push({
-      id: `${enemy.id}-windup-light`,
-      x: enemy.x,
-      y: enemy.y,
-      radius: 1.4 + progress * 1.1,
-      color: [255, 108, 96],
-      intensity: 0.35 + progress * 0.75,
-    });
+
+    if (enemy.intent === "shoot") {
+      // The shot gathering inside the body. Small and close, so it lights the ground the shooter is
+      // standing on rather than the room — enough to catch the eye off to one side of the view
+      // without competing with the torch.
+      built.push({
+        id: `${enemy.id}-windup-light`,
+        x: enemy.x,
+        y: enemy.y,
+        radius: 1.4 + progress * 1.1,
+        color: [255, 108, 96],
+        intensity: 0.35 + progress * 0.75,
+      });
+      continue;
+    }
+
+    if (enemy.intent === "charge") {
+      // Deliberately the loudest light in the room besides the torch. A charger holds still for three
+      // seconds, which is long enough to miss entirely if the only thing saying so is a mark over its
+      // head — so it lights the walls around it instead, and a charge being stoked somewhere behind
+      // you is something the room tells you about.
+      built.push({
+        id: `${enemy.id}-windup-light`,
+        x: enemy.x,
+        y: enemy.y,
+        radius: 2 + progress * 3,
+        color: [255, 96, 48],
+        intensity: (0.4 + progress * 1.5) * (0.9 + Math.sin(world.elapsedSeconds * (7 + progress * 12)) * 0.1),
+      });
+    }
   }
 
   for (const effect of world.vfx) {

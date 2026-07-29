@@ -8,12 +8,14 @@
  * that window.
  */
 
+import { damageWall } from "@/demo/actions";
 import {
   CHARGE_DAMAGE,
   CHARGE_DISTANCE,
   CHARGE_KNOCKBACK,
   CHARGE_SPEED,
   CHARGE_TRIGGER_DISTANCE,
+  CHARGE_WALL_DAMAGE,
   CHARGE_WALL_STUN,
   RANGED_SHOT_DAMAGE,
   RANGED_SHOT_RANGE,
@@ -23,6 +25,7 @@ import {
 import { hasBless } from "@/demo/bless";
 import { checkHazards } from "@/demo/impacts";
 import { breadthFirstStep } from "@/demo/maze";
+import { burst } from "@/demo/particles";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import {
   announce,
@@ -260,6 +263,37 @@ function launchCharge(enemy: DemoEnemy): void {
   enemy.attackCooldown = enemy.archetype.attackCooldown;
 }
 
+/**
+ * Embers off a charger while it winds itself up, at a rate that climbs as it nears launch.
+ *
+ * Three seconds is a long time to stand still, and a body that only crouches for it reads as one that
+ * has lost interest. The embers are what say it is stoking rather than stalling — and they carry to
+ * the edge of the screen, so a charge being prepared behind you is something you can notice.
+ *
+ * Rate-gated rather than burst every frame: at sixty frames a second a per-frame burst would bury the
+ * particle field under one enemy.
+ */
+function stokeCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+  if (enemy.intent !== "charge") {
+    return;
+  }
+
+  const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+
+  if (Math.random() > (4 + progress * 26) * deltaSeconds) {
+    return;
+  }
+
+  burst(world.particles, "ember", enemy.x, enemy.y, 0.3, 1 + Math.round(progress * 2), {
+    speed: 0.7 + progress * 1.4,
+    spreadZ: 1.6 + progress * 1.8,
+    gravity: -1.4,
+    drag: 1.6,
+    size: 0.045,
+    life: 0.55,
+  });
+}
+
 /** Runs a charge already in flight. Missing costs the charger the stun that makes it punishable. */
 function stepCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
   enemy.chargeSeconds -= deltaSeconds;
@@ -290,6 +324,26 @@ function stepCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
   const stalled = Math.hypot(enemy.x - before.x, enemy.y - before.y) < CHARGE_SPEED * deltaSeconds * 0.5;
 
   if (stalled) {
+    // Whatever it just failed to get through, at full speed. The cell is probed a body's width along
+    // the lane rather than under the charger, because a stalled body is stopped just short of what
+    // stopped it. Spending the wall before the stun matters: a charge that breaks through should
+    // leave the charger lying in the opening, not against masonry that is no longer there.
+    const cell = {
+      x: Math.floor(enemy.x + enemy.chargeX * (ENEMY_RADIUS + 0.3)),
+      y: Math.floor(enemy.y + enemy.chargeY * (ENEMY_RADIUS + 0.3)),
+    };
+    damageWall(world, cell, CHARGE_WALL_DAMAGE);
+    burst(world.particles, "dust", enemy.x, enemy.y, 0.4, 10, {
+      speed: 2.6,
+      spreadZ: 1.6,
+      directionX: enemy.chargeX,
+      directionY: enemy.chargeY,
+      focus: 0.5,
+      gravity: 2.4,
+      drag: 2.2,
+      size: 0.14,
+      life: 0.7,
+    });
     enemy.chargeSeconds = 0;
     enemy.intent = "none";
     enemy.stunSeconds = CHARGE_WALL_STUN;
@@ -384,6 +438,7 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
     }
 
     if (enemy.windupSeconds > 0) {
+      stokeCharge(world, enemy, deltaSeconds);
       const turnRate = enemy.archetype.turnRate;
 
       if (turnRate !== undefined) {

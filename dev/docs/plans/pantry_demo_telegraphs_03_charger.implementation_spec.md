@@ -2,8 +2,6 @@
 
 Parent Plan: `pantry_demo_telegraphs.plan.md`
 
-Status: Draft implementation spec
-
 ## Goal
 
 Stretch the charger's wind-up to three seconds, make it unmistakable while it gathers, replace its floor chevrons with one red strip that carries both the lane and the countdown, and make a charge that reaches masonry break it while leaving the charger stunned for five seconds.

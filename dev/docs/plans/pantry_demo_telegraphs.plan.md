@@ -104,7 +104,7 @@ Stone walls take 4 damage to break and wood takes 2, so a charge is worth half a
 | ----- | ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | 01    | Lock every wind-up's target at the moment it begins         | `pantry_demo_telegraphs_01_locked_aim.implementation_spec.md`                 |
 | 02    | Three red attack symbols, the shooter's sight line and body | `pantry_demo_telegraphs_02_shooter_telegraph.implementation_spec.md`          |
-| 03    | Charger wind-up, lane strip, burn, wall break, longer stun  | `pantry_demo_telegraphs_03_charger.implementation_spec.md` (draft)            |
+| 03    | Charger wind-up, lane strip, burn, wall break, longer stun  | `pantry_demo_telegraphs_03_charger.implementation_spec.md`                    |
 | 04    | Stun stars, and the swordsman's wind-up arc                 | `pantry_demo_telegraphs_04_enemy_cues.implementation_spec.md` (draft)         |
 | 05    | Directional damage marks around the crosshair               | `pantry_demo_telegraphs_05_damage_direction.implementation_spec.md` (draft)   |
 | 06    | Fixed mortar emplacement that shells everyone alike         | `pantry_demo_telegraphs_06_mortar_emplacement.implementation_spec.md` (draft) |

@@ -121,7 +121,11 @@ const CHARGER: DemoEnemyArchetype = {
   rushSpeed: 2.2,
   rushDistance: 5,
   attackCooldown: 3.5,
-  windup: 0.8,
+  // Three seconds is long enough that a charger is no longer a thing that hits you — you can walk
+  // away, come back, and land several swings before it launches. That is the intent: what it becomes
+  // instead is a battering ram you position, which is what the wall damage and the long stall stun
+  // below are for. Without those two this number would only be a nerf.
+  windup: 3,
   contactDamage: 6,
   contactRange: 0.86,
   canGrab: true,
@@ -169,4 +173,13 @@ export const CHARGE_DISTANCE = 6;
 export const CHARGE_DAMAGE = 18;
 export const CHARGE_KNOCKBACK = 11;
 /** What a charger costs itself for missing: the window the whole attack is balanced around. */
-export const CHARGE_WALL_STUN = 1.6;
+export const CHARGE_WALL_STUN = 5;
+/**
+ * What a charge does to the masonry it fails against.
+ *
+ * Stone takes four and wood two, so one charge is half a stone wall and a whole wooden one — worth
+ * baiting, and still well short of a bomb, which flattens stone in a single throw. This is the half
+ * of the charger's rework that makes the three-second wind-up a gift rather than a subtraction: the
+ * player lines it up on a wall they want gone and steps aside.
+ */
+export const CHARGE_WALL_DAMAGE = 2;

@@ -43,7 +43,8 @@ export const DEMO_ASSET_IDS = {
   warnShoot: "demo.warnShoot",
   warnCharge: "demo.warnCharge",
   warnMelee: "demo.warnMelee",
-  laneMarker: "demo.laneMarker",
+  laneDim: "demo.laneDim",
+  laneHot: "demo.laneHot",
   bubble: "demo.bubble",
   wallSplat: "demo.wallSplat",
   skeletonSword: SKELETON_PICKUP_ASSETS.skeletonSword.assetId,
@@ -563,19 +564,24 @@ function warnBlade(): HTMLCanvasElement {
   return canvas;
 }
 
-/** One chevron of the strip a charger paints down the lane it is about to run. */
-function laneMarker(): HTMLCanvasElement {
+/**
+ * One blot of the strip a charger paints down the lane it is about to run.
+ *
+ * A soft round blot rather than the chevron this replaced, because the strip is laid by overlapping
+ * many of these along the lane and a chevron only points the right way when the lane happens to run
+ * along an axis. Sprites cannot be rotated per instance and carry no per-instance opacity either,
+ * which is why the dim length and the bright fill are two baked images rather than one at two
+ * strengths.
+ */
+function laneBlot(color: string): HTMLCanvasElement {
   const [canvas, context] = surface();
-  context.fillStyle = "rgb(226 88 95 / 72%)";
+  const glow = context.createRadialGradient(256, 256, 40, 256, 256, 236);
+  glow.addColorStop(0, color);
+  glow.addColorStop(0.62, color);
+  glow.addColorStop(1, "#00000000");
+  context.fillStyle = glow;
   context.beginPath();
-  context.moveTo(256, 96);
-  context.lineTo(430, 300);
-  context.lineTo(340, 300);
-  context.lineTo(340, 420);
-  context.lineTo(172, 420);
-  context.lineTo(172, 300);
-  context.lineTo(82, 300);
-  context.closePath();
+  context.arc(256, 256, 236, 0, Math.PI * 2);
   context.fill();
   return canvas;
 }
@@ -730,6 +736,7 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.warnShoot, warnReticle());
   merged.set(DEMO_ASSET_IDS.warnCharge, warnFlame());
   merged.set(DEMO_ASSET_IDS.warnMelee, warnBlade());
-  merged.set(DEMO_ASSET_IDS.laneMarker, laneMarker());
+  merged.set(DEMO_ASSET_IDS.laneDim, laneBlot("rgb(190 54 62 / 42%)"));
+  merged.set(DEMO_ASSET_IDS.laneHot, laneBlot("rgb(255 122 96 / 88%)"));
   return merged;
 }
