@@ -283,6 +283,46 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
   announce(world, "The barricade is torn down!");
 }
 
+/**
+ * Breaking down the floor's own artillery.
+ *
+ * Iron and timber rather than masonry, and it leaves nothing behind: ammunition already comes off
+ * walls and bodies, and a hazard that paid out would turn "should I go and smash that" from a choice
+ * into an errand. Its own branch rather than the masonry one below, which would have given it stone
+ * chips, a wall's debris direction, and the wall-broken announcement.
+ */
+function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: number): void {
+  tile.hp = Math.max(0, tile.hp - damage);
+  world.terrainVersion += 1;
+  burst(world.particles, "ember", cell.x + 0.5, cell.y + 0.5, 0.5, 8, {
+    speed: 2.4,
+    spreadZ: 2,
+    size: 0.05,
+    life: 0.6,
+  });
+
+  if (tile.hp > 0) {
+    announce(world, `Mortar HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    return;
+  }
+
+  tile.kind = "open";
+  tile.maxHp = 0;
+  burst(world.particles, "stoneChip", cell.x + 0.5, cell.y + 0.5, 0.55, 20, {
+    speed: 3.2,
+    spreadZ: 2.8,
+    size: 0.06,
+    life: 1.3,
+  });
+  burst(world.particles, "woodChip", cell.x + 0.5, cell.y + 0.5, 0.5, 12, {
+    speed: 2.6,
+    spreadZ: 2.2,
+    size: 0.07,
+    life: 1.1,
+  });
+  announce(world, "The mortar is wrecked - it fires no more");
+}
+
 export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): void {
   const tile = tileAt(world.maze, cell.x, cell.y);
 
@@ -297,6 +337,11 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
 
   if (tile.kind === "barricade") {
     damageBarricade(world, cell, tile, damage);
+    return;
+  }
+
+  if (tile.kind === "mortar") {
+    damageMortar(world, cell, tile, damage);
     return;
   }
 

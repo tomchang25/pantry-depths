@@ -16,8 +16,17 @@ import {
   thrownWallDamage,
 } from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
-import { bargeInto, bodyLanding, checkHazards, detonate, knockBack, rockImpact, stepDrowning } from "@/demo/impacts";
-import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell } from "@/demo/maze";
+import {
+  bargeInto,
+  bodyLanding,
+  checkHazards,
+  detonate,
+  knockBack,
+  rockImpact,
+  shellImpact,
+  stepDrowning,
+} from "@/demo/impacts";
+import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell, tileAt } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
 import { propBehaviour, type DemoPropFlightHit, type DemoPropLanding } from "@/demo/throw-weight";
@@ -28,15 +37,22 @@ import {
   dropProp,
   killEnemy,
   MAX_ENEMIES,
+  MORTAR_DEAD_ZONE,
+  MORTAR_IDLE_SECONDS,
+  MORTAR_LOCK_SECONDS,
+  nextId,
   PLAYER_RADIUS,
   PLAYER_SPEED,
   populateFloor,
   projectileHeight,
+  SHELL_BLAST_RADIUS,
+  SHELL_DAMAGE,
   SPAWN_INTERVAL_SECONDS,
   spawnReinforcement,
   stainFloor,
   type DemoCellLike,
   type DemoEnemy,
+  type DemoMortar,
   type DemoProjectile,
   type DemoWorld,
 } from "@/demo/world";
@@ -489,6 +505,23 @@ function stepHazards(world: DemoWorld, deltaSeconds: number): void {
     const steps = Math.max(1, Math.ceil(distance / 0.15));
     let finished = false;
 
+    // A shell is genuinely in the air: it clears the walls it passes over and the heads it passes
+    // above, and concerns nobody at all until it comes down. Running it through the checks below
+    // would stop it in the first wall between the emplacement and its mark, which is the one thing
+    // an arcing shot is for getting past.
+    if (hazard.kind === "shell") {
+      hazard.x += hazard.directionX * distance;
+      hazard.y += hazard.directionY * distance;
+      hazard.travelled += distance;
+
+      if (hazard.travelled >= hazard.range) {
+        shellImpact(world, hazard.x, hazard.y, hazard.damage, hazard.blastRadius, hurtPlayer);
+        world.hazards.splice(world.hazards.indexOf(hazard), 1);
+      }
+
+      continue;
+    }
+
     for (let step = 0; step < steps && !finished; step += 1) {
       const advance = distance / steps;
       hazard.x += hazard.directionX * advance;
@@ -537,6 +570,109 @@ function stepVfx(world: DemoWorld, deltaSeconds: number): void {
     if (effect.age >= effect.life) {
       world.vfx.splice(world.vfx.indexOf(effect), 1);
     }
+  }
+}
+
+/** How high a shell rises, per cell of range, and how fast it travels. */
+const SHELL_ARC_PER_CELL = 0.34;
+const SHELL_SPEED = 6;
+
+/**
+ * Picks what an emplacement shells next, from everything on the floor that is far enough away.
+ *
+ * The player is one candidate among the enemies with no weighting of any kind, which is the whole
+ * character of the thing: with most of a floor's population being enemies, it spends the bulk of its
+ * time thinning them, and being shelled yourself is the uncommon case. It is a hazard to fight beside
+ * rather than another thing hunting you.
+ */
+function pickMortarTarget(world: DemoWorld, centreX: number, centreY: number): DemoCellLike | undefined {
+  const candidates: DemoCellLike[] = [];
+
+  if (Math.hypot(world.player.x - centreX, world.player.y - centreY) > MORTAR_DEAD_ZONE) {
+    candidates.push({ x: world.player.x, y: world.player.y });
+  }
+
+  for (const enemy of world.enemies) {
+    if (enemy.drowningSeconds > 0 || Math.hypot(enemy.x - centreX, enemy.y - centreY) <= MORTAR_DEAD_ZONE) {
+      continue;
+    }
+
+    candidates.push({ x: enemy.x, y: enemy.y });
+  }
+
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function fireShell(world: DemoWorld, mortar: DemoMortar, centreX: number, centreY: number): void {
+  const dx = mortar.aimX - centreX;
+  const dy = mortar.aimY - centreY;
+  const range = Math.max(0.0001, Math.hypot(dx, dy));
+  const arc = SHELL_ARC_PER_CELL * range;
+  world.hazards.push({
+    id: nextId(world, "shell"),
+    kind: "shell",
+    x: centreX,
+    y: centreY,
+    directionX: dx / range,
+    directionY: dy / range,
+    speed: SHELL_SPEED,
+    travelled: 0,
+    range,
+    damage: SHELL_DAMAGE,
+    // The fall that brings the curve back to the floor exactly where the range runs out, which is
+    // exactly where the circle has been painted for the last five seconds.
+    arc,
+    fall: arc + 0.5,
+    plunge: 1,
+    blastRadius: SHELL_BLAST_RADIUS,
+  });
+}
+
+/**
+ * Runs every emplacement's cycle: hold a mark, fire, stand a moment, pick again.
+ *
+ * The tiles decide which emplacements exist, so an entry whose cell has been broken open simply
+ * leaves. A shell already in the air is not its emplacement's any more and completes regardless.
+ */
+function stepMortars(world: DemoWorld, deltaSeconds: number): void {
+  for (const mortar of world.mortars.slice()) {
+    if (tileAt(world.maze, mortar.cellX, mortar.cellY)?.kind !== "mortar") {
+      world.mortars.splice(world.mortars.indexOf(mortar), 1);
+      continue;
+    }
+
+    if (world.status !== "playing") {
+      continue;
+    }
+
+    mortar.seconds -= deltaSeconds;
+
+    if (mortar.seconds > 0) {
+      continue;
+    }
+
+    const centreX = mortar.cellX + 0.5;
+    const centreY = mortar.cellY + 0.5;
+
+    if (mortar.phase === "locked") {
+      fireShell(world, mortar, centreX, centreY);
+      mortar.phase = "idle";
+      mortar.seconds = MORTAR_IDLE_SECONDS;
+      continue;
+    }
+
+    const target = pickMortarTarget(world, centreX, centreY);
+
+    if (!target) {
+      // Nothing in range: stay idle and ask again next tick rather than locking onto nowhere.
+      mortar.seconds = 0;
+      continue;
+    }
+
+    mortar.phase = "locked";
+    mortar.seconds = MORTAR_LOCK_SECONDS;
+    mortar.aimX = target.x;
+    mortar.aimY = target.y;
   }
 }
 
@@ -626,10 +762,12 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
 
   stepPlayer(world, input, step);
 
-  // The debug pause freezes thinking, movement, and reinforcement together, so what remains on
-  // screen while it is held is exactly the frame's non-enemy cost.
+  // The debug pause freezes thinking, movement, reinforcement, and the floor's artillery together.
+  // The emplacements are terrain rather than enemies and could defensibly keep running, but a pause
+  // held to look at something is not much use if a shell lands on you halfway through it.
   if (!world.enemiesPaused) {
     stepEnemies(world, step);
+    stepMortars(world, step);
     world.spawnSeconds -= step;
 
     if (world.spawnSeconds <= 0) {

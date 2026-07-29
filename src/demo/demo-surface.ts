@@ -67,6 +67,7 @@ const MINIMAP_TILE_COLORS: Readonly<Record<string, string>> = {
   wood: "#7a5029",
   water: "#1c3f5e",
   barricade: "#6b4526",
+  mortar: "#b8863c",
   open: "#241a2e",
 };
 

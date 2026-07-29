@@ -2,8 +2,6 @@
 
 Parent Plan: `pantry_demo_telegraphs.plan.md`
 
-Status: Draft implementation spec
-
 ## Goal
 
 Add a fixed, breakable emplacement to the floor that picks a random body more than two tiles away — the player or any enemy, without preference — locks onto where it stands, paints a red circle there, and shells it five seconds later. It is the floor's own weapon rather than any creature's, and it fights everyone.
@@ -28,7 +26,8 @@ It occupies its cell as a solid block, and it can be broken down like a barricad
 - The barricade is the working template for nearly all of that: placement by the generator into open floor and spread apart, health, destruction, drawn as boxes rather than as a wall face, its own minimap colour. Follow it rather than inventing a second pattern.
 - Targeting reads live positions to _choose_, then stores a position. Everything after the lock reads the stored point. An emplacement that re-aims during the five seconds would make the circle a lie, which is the failure this whole plan exists to remove.
 - The shell's flight uses the same height curve the player's throws use; extract that formula so both callers share one rather than writing a second that drifts.
-- Blast resolution belongs to the impacts module beside the bomb and the rock. The blast hurts the player and every enemy in radius with no distinction, which is the only place in the demo where one damage call must reach both.
+- Blast resolution belongs to the impacts module beside the bomb and the rock. The blast hurts the player and every enemy in radius with no distinction, which is the only place in the demo where one damage call must reach both. Settled at promotion: the player's half arrives as an injected function rather than an import, because the impacts module and enemy behaviour already point at each other and importing player damage directly closes the loop into a cycle the boundary check rejects. The blast path already takes its wall damage the same way, so this is the established shape rather than a new one.
+- Settled at promotion: the debug enemy pause freezes the emplacements along with the enemies. They are terrain and could defensibly keep running, but a pause held in order to look at something is worth little if a shell lands during it.
 - The shell is airborne: it ignores walls and passes over bodies, resolving only on arrival. It must not be run through the enemy-fire stepping that terminates on the first blocking cell.
 - **Scene sprites carry no per-instance alpha.** The circle's ring and its growing fill are two separate baked assets; the fill expresses time through scale.
 - The centre bead column reuses child 02's helper, walked upward instead of along a line.

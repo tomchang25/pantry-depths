@@ -166,9 +166,13 @@ function shatterWalls(
     for (let cellX = minX; cellX <= maxX; cellX += 1) {
       const tile = world.maze.tiles[cellY * world.maze.size + cellX];
 
-      // Barricades included: a blast that flattens a stone wall but leaves the iron spikes in
-      // front of it standing would read as the spikes being scenery.
-      if (!tile || (tile.kind !== "wood" && tile.kind !== "stone" && tile.kind !== "barricade")) {
+      // Barricades and mortars included: a blast that flattens a stone wall but leaves the iron
+      // spikes in front of it standing would read as the spikes being scenery, and the same goes for
+      // an emplacement that shrugs off a bomb dropped at its feet.
+      if (
+        !tile ||
+        (tile.kind !== "wood" && tile.kind !== "stone" && tile.kind !== "barricade" && tile.kind !== "mortar")
+      ) {
         continue;
       }
 
@@ -201,6 +205,53 @@ export function detonate(
   }
 
   shatterWalls(world, x, y, BOMB_CORE_RADIUS, damageWall);
+}
+
+/** How hard a shell scatters what it does not kill. Well under a bomb's, which is enough near a pool. */
+export const SHELL_PUSH = 7;
+
+/**
+ * A shell coming down, and the one damage call in the demo that does not care whose side anyone is on.
+ *
+ * Deliberately no test for which body this is. The emplacement picked its mark from everything on the
+ * floor without a preference, and the blast has to honour that or the whole point of it — a hazard
+ * the player can position themselves against and bait a crowd onto — quietly becomes another enemy.
+ *
+ * Anything it kills counts as the player's kill, because it goes out through the same exit every
+ * other death does. Lining a crowd up under a mark is a way of playing this, not a way around it.
+ *
+ * The player's half of that arrives as a parameter rather than an import, for the same reason the
+ * blast takes its wall damage that way: enemy behaviour owns what a hit does to the player and this
+ * module owns what a radius does to a crowd, and having each reach into the other makes a cycle the
+ * boundary check refuses.
+ */
+export function shellImpact(
+  world: DemoWorld,
+  x: number,
+  y: number,
+  damage: number,
+  radius: number,
+  hurtPlayer: (world: DemoWorld, amount: number, fromX: number, fromY: number) => void,
+): void {
+  addVfx(world, { kind: "blast", x, y, radius, age: 0, life: 0.36 });
+  burst(world.particles, "dust", x, y, 0.2, 14, {
+    speed: 3,
+    spreadZ: 2.2,
+    gravity: 2.6,
+    drag: 2.4,
+    size: 0.15,
+    life: 0.8,
+  });
+  burst(world.particles, "ember", x, y, 0.25, 10, { speed: 3.4, spreadZ: 2.8, size: 0.05, life: 0.6 });
+
+  for (const enemy of enemiesWithin(world, x, y, radius)) {
+    knockBack(enemy, x, y, SHELL_PUSH);
+    damageEnemy(world, enemy, damage, "blasted");
+  }
+
+  if (Math.hypot(world.player.x - x, world.player.y - y) <= radius) {
+    hurtPlayer(world, damage, x, y);
+  }
 }
 
 /** A rock landing: everyone in a small radius takes a swing's worth and gets scattered. */

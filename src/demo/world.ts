@@ -136,9 +136,18 @@ export type DemoProjectile = {
   cleaved: number;
 };
 
-/** An enemy's projectile, which only ever concerns the player. */
+/**
+ * Incoming fire, and what kind of thing is arriving.
+ *
+ * A bolt is a shooter's flat spit: it stops at the first thing in its way and hurts whoever it hits
+ * on the way past. A shell is the emplacement's, and behaves like nothing else in the demo — it is
+ * genuinely airborne, so it passes over walls and over heads and concerns nobody until it lands.
+ */
+export type DemoHazardKind = "bolt" | "shell";
+
 export type DemoHazard = {
   id: string;
+  kind: DemoHazardKind;
   x: number;
   y: number;
   directionX: number;
@@ -147,6 +156,38 @@ export type DemoHazard = {
   travelled: number;
   range: number;
   damage: number;
+  /** Flight curve, for a shell. A bolt leaves these flat and never consults them. */
+  arc: number;
+  fall: number;
+  plunge: number;
+  /** Radius the arrival covers. Zero for a bolt, which hurts only what it touches. */
+  blastRadius: number;
+};
+
+/**
+ * What an emplacement is doing right now.
+ *
+ * Two beats and nothing else: holding a locked mark while the fuse burns, or standing between shots.
+ * Which one it is decides everything drawn on the floor around it.
+ */
+export type DemoMortarPhase = "idle" | "locked";
+
+/**
+ * The floor's own artillery, as a behaviour.
+ *
+ * Deliberately not the same object as the block it stands on. The maze tile owns whether an
+ * emplacement exists, how solid it is, and how much breaking it has left in it; this owns only what
+ * it is doing about it. Merging the two would put a firing timer on every tile in the dungeon.
+ */
+export type DemoMortar = {
+  cellX: number;
+  cellY: number;
+  phase: DemoMortarPhase;
+  /** Seconds left of the current phase. */
+  seconds: number;
+  /** The spot the current lock is on. Meaningless while idle. */
+  aimX: number;
+  aimY: number;
 };
 
 /**
@@ -279,6 +320,8 @@ export type DemoWorld = {
   props: DemoProp[];
   projectiles: DemoProjectile[];
   hazards: DemoHazard[];
+  /** One per standing emplacement, rebuilt from the floor whenever the floor is. */
+  mortars: DemoMortar[];
   vfx: DemoVfx[];
   particles: DemoParticleField;
   /**
@@ -434,6 +477,49 @@ function pickArchetype(): DemoEnemyArchetype {
   return ENEMY_ARCHETYPES.walker;
 }
 
+/** How long an emplacement holds a mark before firing, and how long it stands between shots. */
+export const MORTAR_LOCK_SECONDS = 5;
+export const MORTAR_IDLE_SECONDS = 3;
+/**
+ * How close to an emplacement a body has to be for it to be unable to fire at it.
+ *
+ * The counter to the whole thing, and the reason it can afford to range across the entire floor:
+ * walking up to one is always safe, so smashing it is always available.
+ */
+export const MORTAR_DEAD_ZONE = 2;
+export const SHELL_DAMAGE = 24;
+/** Two tiles across: the radius is half of that. */
+export const SHELL_BLAST_RADIUS = 1;
+
+/**
+ * Finds every emplacement standing on a floor and gives each one a cycle to run.
+ *
+ * The tiles are the authority on which exist; this list only carries what they are doing. Staggering
+ * the opening idle means a fresh floor does not fire every mortar it has on the same beat.
+ */
+export function collectMortars(maze: DemoMaze): DemoMortar[] {
+  const built: DemoMortar[] = [];
+
+  for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
+    for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
+      if (maze.tiles[tileIndex(x, y)]?.kind !== "mortar") {
+        continue;
+      }
+
+      built.push({
+        cellX: x,
+        cellY: y,
+        phase: "idle",
+        seconds: Math.random() * MORTAR_IDLE_SECONDS,
+        aimX: x + 0.5,
+        aimY: y + 0.5,
+      });
+    }
+  }
+
+  return built;
+}
+
 export function createEnemy(world: DemoWorld, x: number, y: number, archetype = pickArchetype()): DemoEnemy {
   return {
     id: nextId(world, "enemy"),
@@ -478,6 +564,7 @@ export function populateFloor(world: DemoWorld): void {
   world.projectiles = [];
   world.hazards = [];
   world.vfx = [];
+  world.mortars = collectMortars(maze);
   // Pointing at a body on the floor above is worse than pointing nowhere.
   world.damageMarks = [];
   world.particles = createParticleField();
@@ -543,6 +630,7 @@ export function createDemoWorld(): DemoWorld {
     props: [],
     projectiles: [],
     hazards: [],
+    mortars: [],
     vfx: [],
     particles: createParticleField(),
     stains: new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE),
@@ -771,6 +859,18 @@ function dropNearEnemy(world: DemoWorld, enemy: DemoEnemy, kind: DemoPropKind): 
 }
 
 /**
+ * The one flight curve in the demo, shared by everything that leaves the ground.
+ *
+ * Split out of the throw so the emplacement's shell can use it rather than growing a second version
+ * that starts identical and drifts. The mortar case is exactly what the `fall` term was written for:
+ * given a range, choose a fall that brings the curve back to the floor precisely at the end of it.
+ */
+export function flightHeight(travelled: number, range: number, arc: number, fall: number, plunge: number): number {
+  const s = Math.min(1, Math.max(0, travelled / Math.max(0.0001, range)));
+  return Math.max(0, 0.5 + arc * s - fall * s ** (2 * plunge));
+}
+
+/**
  * Height of a projectile above the floor, in cells — simulation truth, not decoration.
  *
  * Every throw leaves the hand *along the aim line*, which is what makes an upward throw read as
@@ -786,8 +886,12 @@ function dropNearEnemy(world: DemoWorld, enemy: DemoEnemy, kind: DemoPropKind): 
  * which is a stone.
  */
 export function projectileHeight(projectile: DemoProjectile): number {
-  const s = Math.min(1, Math.max(0, projectile.travelled / Math.max(0.0001, projectile.range)));
-  return Math.max(0, 0.5 + projectile.arc * s - projectile.fall * s ** (2 * projectile.plunge));
+  return flightHeight(projectile.travelled, projectile.range, projectile.arc, projectile.fall, projectile.plunge);
+}
+
+/** Height of a shell above the floor. A bolt's curve is flat, so this answers its fixed carry height. */
+export function hazardHeight(hazard: DemoHazard): number {
+  return flightHeight(hazard.travelled, hazard.range, hazard.arc, hazard.fall, hazard.plunge);
 }
 
 /**

@@ -46,6 +46,8 @@ export const DEMO_ASSET_IDS = {
   laneDim: "demo.laneDim",
   laneHot: "demo.laneHot",
   stunStar: "demo.stunStar",
+  aoeRing: "demo.aoeRing",
+  aoeFill: "demo.aoeFill",
   bubble: "demo.bubble",
   wallSplat: "demo.wallSplat",
   skeletonSword: SKELETON_PICKUP_ASSETS.skeletonSword.assetId,
@@ -619,6 +621,42 @@ function stunStar(): HTMLCanvasElement {
   return canvas;
 }
 
+/** The fixed outer edge of where a shell is going to land. */
+function aoeRing(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  context.strokeStyle = "rgb(255 78 66 / 88%)";
+  context.lineWidth = 30;
+  context.beginPath();
+  context.arc(256, 256, 226, 0, Math.PI * 2);
+  context.stroke();
+  context.strokeStyle = "rgb(255 168 120 / 42%)";
+  context.lineWidth = 10;
+  context.beginPath();
+  context.arc(256, 256, 196, 0, Math.PI * 2);
+  context.stroke();
+  return canvas;
+}
+
+/**
+ * The disc that grows out to meet the ring as a shell comes down.
+ *
+ * Its own image rather than the ring at another size, because sprites carry no per-instance opacity —
+ * the only thing that can be animated per frame is scale, so "how close is it" has to be a second
+ * picture that grows rather than the same picture fading up.
+ */
+function aoeFill(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const glow = context.createRadialGradient(256, 256, 20, 256, 256, 236);
+  glow.addColorStop(0, "rgb(255 128 88 / 62%)");
+  glow.addColorStop(0.7, "rgb(255 88 66 / 40%)");
+  glow.addColorStop(1, "rgb(255 78 66 / 0%)");
+  context.fillStyle = glow;
+  context.beginPath();
+  context.arc(256, 256, 236, 0, Math.PI * 2);
+  context.fill();
+  return canvas;
+}
+
 function spikePile(): HTMLCanvasElement {
   const [canvas, context] = surface();
   context.fillStyle = "#3a2413";
@@ -770,6 +808,8 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.warnCharge, warnFlame());
   merged.set(DEMO_ASSET_IDS.warnMelee, warnBlade());
   merged.set(DEMO_ASSET_IDS.stunStar, stunStar());
+  merged.set(DEMO_ASSET_IDS.aoeRing, aoeRing());
+  merged.set(DEMO_ASSET_IDS.aoeFill, aoeFill());
   merged.set(DEMO_ASSET_IDS.laneDim, laneBlot("rgb(190 54 62 / 42%)"));
   merged.set(DEMO_ASSET_IDS.laneHot, laneBlot("rgb(255 122 96 / 88%)"));
   return merged;

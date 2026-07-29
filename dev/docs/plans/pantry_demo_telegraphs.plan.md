@@ -100,14 +100,14 @@ Stone walls take 4 damage to break and wood takes 2, so a charge is worth half a
 
 ### Child overview
 
-| Child | Focus                                                       | Current form                                                                  |
-| ----- | ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 01    | Lock every wind-up's target at the moment it begins         | `pantry_demo_telegraphs_01_locked_aim.implementation_spec.md`                 |
-| 02    | Three red attack symbols, the shooter's sight line and body | `pantry_demo_telegraphs_02_shooter_telegraph.implementation_spec.md`          |
-| 03    | Charger wind-up, lane strip, burn, wall break, longer stun  | `pantry_demo_telegraphs_03_charger.implementation_spec.md`                    |
-| 04    | Stun stars, and the swordsman's wind-up arc                 | `pantry_demo_telegraphs_04_enemy_cues.implementation_spec.md`                 |
-| 05    | Directional damage marks around the crosshair               | `pantry_demo_telegraphs_05_damage_direction.implementation_spec.md`           |
-| 06    | Fixed mortar emplacement that shells everyone alike         | `pantry_demo_telegraphs_06_mortar_emplacement.implementation_spec.md` (draft) |
+| Child | Focus                                                       | Current form                                                          |
+| ----- | ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| 01    | Lock every wind-up's target at the moment it begins         | `pantry_demo_telegraphs_01_locked_aim.implementation_spec.md`         |
+| 02    | Three red attack symbols, the shooter's sight line and body | `pantry_demo_telegraphs_02_shooter_telegraph.implementation_spec.md`  |
+| 03    | Charger wind-up, lane strip, burn, wall break, longer stun  | `pantry_demo_telegraphs_03_charger.implementation_spec.md`            |
+| 04    | Stun stars, and the swordsman's wind-up arc                 | `pantry_demo_telegraphs_04_enemy_cues.implementation_spec.md`         |
+| 05    | Directional damage marks around the crosshair               | `pantry_demo_telegraphs_05_damage_direction.implementation_spec.md`   |
+| 06    | Fixed mortar emplacement that shells everyone alike         | `pantry_demo_telegraphs_06_mortar_emplacement.implementation_spec.md` |
 
 Landing order is 01 through 06 as numbered. Child 01 is a hard prerequisite for 02 and 03 — the warnings those two draw are only true once the aim is locked. Child 02 bakes the whole symbol set, including the charger's flame, so the vocabulary lands as one piece rather than a shape at a time; it also introduces the bead helper that 04 and 06 both reuse. Child 05 is independent and could land anywhere. Child 04 follows 03 because the five-second stall stun is what makes the stun picture worth having. Child 06 owns no enemy behavior at all and lands last because it is the largest and reaches furthest into the floor generator.
 

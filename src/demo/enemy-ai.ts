@@ -235,6 +235,7 @@ function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
   const length = Math.max(0.0001, Math.hypot(dx, dy));
   world.hazards.push({
     id: nextId(world, "hazard"),
+    kind: "bolt",
     x: enemy.x,
     y: enemy.y,
     directionX: dx / length,
@@ -243,6 +244,11 @@ function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
     travelled: 0,
     range: RANGED_SHOT_RANGE,
     damage: RANGED_SHOT_DAMAGE,
+    // A bolt flies flat and hits what it touches: no curve, and no radius beyond its own body.
+    arc: 0,
+    fall: 0,
+    plunge: 1,
+    blastRadius: 0,
   });
   enemy.attackCooldown = enemy.archetype.attackCooldown;
 }

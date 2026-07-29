@@ -9,7 +9,7 @@
 
 export const DEMO_GRID_SIZE = 21;
 
-export type DemoTileKind = "open" | "border" | "stone" | "wood" | "water" | "barricade" | "filled";
+export type DemoTileKind = "open" | "border" | "stone" | "wood" | "water" | "barricade" | "filled" | "mortar";
 
 export type DemoCell = Readonly<{ x: number; y: number }>;
 
@@ -50,6 +50,19 @@ export const WOOD_WALL_HP = 2;
  */
 export const BARRICADE_HP = 8;
 const BARRICADE_COUNT = { minimum: 4, maximum: 7 };
+
+/**
+ * The floor's own artillery: a squat mortar on a carriage that shells whatever is standing in the open.
+ *
+ * As tough as a barricade, and worth the trip for the same reason one is worth avoiding. Its two-tile
+ * dead zone means it can never fire at anything standing next to it, so walking up and breaking it
+ * down is always available and always safe — which is the counter, and the reason it can afford to
+ * range across the whole floor.
+ */
+export const MORTAR_HP = 8;
+const MORTAR_COUNT = { minimum: 2, maximum: 3 };
+/** How high a thrown thing has to be flying to sail over a mortar rather than into it. */
+const MORTAR_CLEAR_HEIGHT = 0.85;
 
 /** Fraction of surviving interior walls knocked out after carving, to make loops and small rooms. */
 const PERFORATION_CHANCE = 0.16;
@@ -212,6 +225,39 @@ function scatterBarricades(tiles: DemoTile[], open: DemoCell[]): void {
   }
 }
 
+/**
+ * Drops mortar emplacements into open floor, well apart from each other.
+ *
+ * Spread harder than the barricades are, because two adjacent mortars would put two circles on the
+ * same patch of floor and turn a readable hazard into a coin flip. The floor is small enough that a
+ * handful of them reach everywhere between them.
+ */
+function scatterMortars(tiles: DemoTile[], open: DemoCell[]): void {
+  const wanted = between(MORTAR_COUNT.minimum, MORTAR_COUNT.maximum);
+  const placed: DemoCell[] = [];
+
+  for (const cell of shuffled(open)) {
+    if (placed.length >= wanted) {
+      return;
+    }
+
+    if (placed.some((other) => Math.abs(other.x - cell.x) <= 3 && Math.abs(other.y - cell.y) <= 3)) {
+      continue;
+    }
+
+    const tile = tiles[tileIndex(cell.x, cell.y)];
+
+    if (!tile || tile.kind !== "open") {
+      continue;
+    }
+
+    tile.kind = "mortar";
+    tile.hp = MORTAR_HP;
+    tile.maxHp = MORTAR_HP;
+    placed.push(cell);
+  }
+}
+
 function walkableCells(tiles: readonly DemoTile[]): DemoCell[] {
   const cells: DemoCell[] = [];
 
@@ -265,6 +311,7 @@ export function generateDemoMaze(): DemoMaze {
 
   floodPools(tiles, walkableCells(tiles));
   scatterBarricades(tiles, walkableCells(tiles));
+  scatterMortars(tiles, walkableCells(tiles));
   const open = walkableCells(tiles);
   const entrance = pick(open) ?? { x: 1, y: 1 };
   const away = open.filter((cell) => cell.x !== entrance.x || cell.y !== entrance.y);
@@ -366,6 +413,13 @@ export function blocksProjectileAt(maze: DemoMaze, x: number, y: number, z: numb
     return z < BARRICADE_CLEAR_HEIGHT;
   }
 
+  // Stands taller than the caltrops and shorter than a wall, so a flat throw buries itself in the
+  // carriage and a lob still clears the muzzle. Without this branch it would inherit the fallthrough
+  // below and stop nothing at all, which no solid object should.
+  if (tile.kind === "mortar") {
+    return z < MORTAR_CLEAR_HEIGHT;
+  }
+
   return false;
 }
 
@@ -392,7 +446,7 @@ export function isWaterCell(maze: DemoMaze, x: number, y: number): boolean {
  */
 export function holdsStains(maze: DemoMaze, x: number, y: number): boolean {
   const kind = tileAt(maze, x, y)?.kind;
-  return kind !== "water" && kind !== "filled";
+  return kind !== "water" && kind !== "filled" && kind !== "mortar";
 }
 
 /**

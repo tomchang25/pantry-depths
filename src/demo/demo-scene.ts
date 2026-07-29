@@ -22,7 +22,11 @@ import type { DemoParticleKind } from "@/demo/particles";
 import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
 import {
+  hazardHeight,
+  MORTAR_LOCK_SECONDS,
   projectileHeight,
+  SHELL_BLAST_RADIUS,
+  type DemoCellLike,
   type DemoDeath,
   type DemoDeathCause,
   type DemoEnemy,
@@ -262,15 +266,16 @@ function surfaces(world: DemoWorld): RenderSurface[] {
     for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
       const tile = world.maze.tiles[tileIndex(x, y)];
 
-      // A barricade is boxes, not a wall face. Leaving it in here is what made a broken wood wall
-      // render as a cracked stone one: the cell was still emitting a surface, and with its hit
-      // points spent the damage ladder picked its most ruined texture.
+      // A barricade is boxes, not a wall face, and so is a mortar. Leaving either in here is what
+      // made a broken wood wall render as a cracked stone one: the cell was still emitting a
+      // surface, and with its hit points spent the damage ladder picked its most ruined texture.
       if (
         !tile ||
         tile.kind === "open" ||
         tile.kind === "water" ||
         tile.kind === "filled" ||
-        tile.kind === "barricade"
+        tile.kind === "barricade" ||
+        tile.kind === "mortar"
       ) {
         continue;
       }
@@ -344,6 +349,63 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
     scale: 0.44 + progress * 0.3,
     verticalAnchor: -0.85,
   });
+}
+
+/**
+ * Where a shell is going to land, painted on the floor from the moment the mark is taken.
+ *
+ * The outer ring is the blast, and it never moves — the emplacement locked a spot, not a body, so
+ * walking off it is the whole answer. The inner disc grows out to meet the ring as the shell comes
+ * in, which is the clock. The pair covers the five seconds of lock and the flight in one object.
+ */
+function landingCircles(world: DemoWorld, built: RenderSprite[]): void {
+  for (const mortar of world.mortars) {
+    if (mortar.phase !== "locked") {
+      continue;
+    }
+
+    const closing = 1 - mortar.seconds / MORTAR_LOCK_SECONDS;
+    built.push(
+      ground(
+        `mortar-ring-${mortar.cellX}-${mortar.cellY}`,
+        mortar.aimX,
+        mortar.aimY,
+        DEMO_ASSET_IDS.aoeRing,
+        SHELL_BLAST_RADIUS * 2,
+      ),
+    );
+    built.push(
+      ground(
+        `mortar-fill-${mortar.cellX}-${mortar.cellY}`,
+        mortar.aimX,
+        mortar.aimY,
+        DEMO_ASSET_IDS.aoeFill,
+        SHELL_BLAST_RADIUS * 2 * Math.max(0.08, closing),
+      ),
+    );
+  }
+
+  for (const hazard of world.hazards) {
+    if (hazard.kind !== "shell") {
+      continue;
+    }
+
+    // Once the shell is in the air the circle stays put and the disc keeps closing on it, so the
+    // mark is continuous from the lock through to the landing rather than blinking out at launch.
+    const landingX = hazard.x + hazard.directionX * (hazard.range - hazard.travelled);
+    const landingY = hazard.y + hazard.directionY * (hazard.range - hazard.travelled);
+    const closing = Math.min(1, hazard.travelled / Math.max(0.0001, hazard.range));
+    built.push(ground(`${hazard.id}-ring`, landingX, landingY, DEMO_ASSET_IDS.aoeRing, hazard.blastRadius * 2));
+    built.push(
+      ground(
+        `${hazard.id}-fill`,
+        landingX,
+        landingY,
+        DEMO_ASSET_IDS.aoeFill,
+        hazard.blastRadius * 2 * Math.max(0.08, closing),
+      ),
+    );
+  }
 }
 
 /** Where the top of an enemy sits, so anything worn over its head is worn over *its* head. */
@@ -766,6 +828,22 @@ function sprites(world: DemoWorld): RenderSprite[] {
   }
 
   for (const hazard of world.hazards) {
+    if (hazard.kind === "shell") {
+      // Drawn at the height it is actually at, the way a thrown prop is. A shell pinned to a fixed
+      // carry height would read as a bolt sliding through the walls it is meant to be sailing over.
+      const scale = 0.44;
+      built.push({
+        id: hazard.id,
+        x: hazard.x,
+        y: hazard.y,
+        placement: "billboard",
+        assetId: DEMO_ASSET_IDS.hazardOrb,
+        scale,
+        verticalAnchor: 0.5 - hazardHeight(hazard) / scale,
+      });
+      continue;
+    }
+
     built.push({
       id: hazard.id,
       x: hazard.x,
@@ -776,6 +854,8 @@ function sprites(world: DemoWorld): RenderSprite[] {
       verticalAnchor: -0.42,
     });
   }
+
+  landingCircles(world, built);
 
   for (const projectile of world.projectiles) {
     // Anything lobbed marks where it is coming down; the shadow is the aiming feedback. Keyed on
@@ -1517,6 +1597,12 @@ function boxes(world: DemoWorld): RenderBox[] {
     for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
       const tile = world.maze.tiles[tileIndex(x, y)];
 
+      if (tile?.kind === "mortar") {
+        const wear = tile.maxHp > 0 ? 1 - tile.hp / tile.maxHp : 0;
+        built.push(...mortarBoxes(world, { x, y }, wear));
+        continue;
+      }
+
       if (tile?.kind !== "barricade") {
         continue;
       }
@@ -1525,6 +1611,95 @@ function boxes(world: DemoWorld): RenderBox[] {
       const wear = tile.maxHp > 0 ? 1 - tile.hp / tile.maxHp : 0;
       built.push(...projectDemoBarricade({ x, y }, wear));
     }
+  }
+
+  return built;
+}
+
+/** How many stacked rings the barrel is drawn from, widest at the muzzle. */
+const MORTAR_BARREL_RINGS = 4;
+
+/** How hot an emplacement's muzzle is running, from cold between shots to white at launch. */
+function mortarGlow(world: DemoWorld, cell: DemoCellLike): number {
+  const mortar = world.mortars.find((entry) => entry.cellX === cell.x && entry.cellY === cell.y);
+
+  if (!mortar || mortar.phase !== "locked") {
+    return 0;
+  }
+
+  return 1 - mortar.seconds / MORTAR_LOCK_SECONDS;
+}
+
+/**
+ * A squat mortar on a timber carriage, pointing straight up.
+ *
+ * Vertical for two reasons that agree. Boxes in this scene are axis-aligned and cannot be turned, so
+ * an angled barrel is not buildable from them at all — and a weapon that shells every direction
+ * around itself has no business being angled anyway. Pointing up, it is rotationally symmetric: it
+ * looks the same from every approach and tells no lie about which way it is about to fire.
+ *
+ * Darkens as it is broken down, so how close one is to being wrecked is readable from across a room.
+ */
+function mortarBoxes(world: DemoWorld, cell: DemoCellLike, wear: number): RenderBox[] {
+  const centreX = cell.x + 0.5;
+  const centreY = cell.y + 0.5;
+  const dim = 1 - wear * 0.42;
+  const built: RenderBox[] = [];
+
+  // The carriage: a low frame with a cheek either side, in timber against the barrel's iron.
+  built.push({
+    id: `mortar-${cell.x}-${cell.y}-frame`,
+    x: centreX,
+    y: centreY,
+    halfX: 0.4,
+    halfY: 0.4,
+    bottom: 0,
+    top: 0.14,
+    color: [Math.round(96 * dim), Math.round(64 * dim), Math.round(36 * dim)],
+    topColor: [Math.round(132 * dim), Math.round(92 * dim), Math.round(54 * dim)],
+  });
+
+  for (const side of [-1, 1]) {
+    built.push({
+      id: `mortar-${cell.x}-${cell.y}-cheek-${side}`,
+      x: centreX + side * 0.3,
+      y: centreY,
+      halfX: 0.08,
+      halfY: 0.34,
+      bottom: 0.14,
+      top: 0.44,
+      color: [Math.round(84 * dim), Math.round(56 * dim), Math.round(32 * dim)],
+      topColor: [Math.round(118 * dim), Math.round(80 * dim), Math.round(46 * dim)],
+    });
+  }
+
+  // The barrel, widest at the muzzle so the silhouette tapers instead of reading as a post. The
+  // muzzle takes the charging glow, which is where the shell leaves from.
+  const glow = mortarGlow(world, cell);
+
+  for (let ring = 0; ring < MORTAR_BARREL_RINGS; ring += 1) {
+    const up = ring / (MORTAR_BARREL_RINGS - 1);
+    const half = 0.16 + up * 0.1;
+    const heat = glow * up;
+    built.push({
+      id: `mortar-${cell.x}-${cell.y}-barrel-${ring}`,
+      x: centreX,
+      y: centreY,
+      halfX: half,
+      halfY: half,
+      bottom: 0.12 + ring * 0.17,
+      top: 0.12 + (ring + 1) * 0.17,
+      color: [
+        Math.round(Math.min(255, 62 * dim + heat * 190)),
+        Math.round(Math.min(255, 66 * dim + heat * 62)),
+        Math.round(Math.min(255, 74 * dim + heat * 40)),
+      ],
+      topColor: [
+        Math.round(Math.min(255, 94 * dim + heat * 160)),
+        Math.round(Math.min(255, 98 * dim + heat * 80)),
+        Math.round(Math.min(255, 108 * dim + heat * 56)),
+      ],
+    });
   }
 
   return built;
@@ -1746,7 +1921,59 @@ function particles(world: DemoWorld): RenderParticle[] {
   }
 
   sightLines(world, built);
+  landingBeacons(world, built);
   return built;
+}
+
+/** How tall the column at the centre of a landing circle stands, and how many dots it is made of. */
+const BEACON_HEIGHT = 1.3;
+const BEACON_BEADS = 9;
+
+/**
+ * A column of light standing in the middle of a landing circle.
+ *
+ * The circle alone is not enough, and the reason is the camera: it sits at eye height looking roughly
+ * level, so a flat ring painted around the player's own feet is almost entirely below the frame. The
+ * one place the mark absolutely has to be legible is the place the player is standing in it, so the
+ * mark also has to exist above the floor.
+ */
+function landingBeacons(world: DemoWorld, built: RenderParticle[]): void {
+  const columns: { x: number; y: number; closing: number }[] = [];
+
+  for (const mortar of world.mortars) {
+    if (mortar.phase === "locked") {
+      columns.push({ x: mortar.aimX, y: mortar.aimY, closing: 1 - mortar.seconds / MORTAR_LOCK_SECONDS });
+    }
+  }
+
+  for (const hazard of world.hazards) {
+    if (hazard.kind !== "shell") {
+      continue;
+    }
+
+    const left = hazard.range - hazard.travelled;
+    columns.push({
+      x: hazard.x + hazard.directionX * left,
+      y: hazard.y + hazard.directionY * left,
+      closing: Math.min(1, hazard.travelled / Math.max(0.0001, hazard.range)),
+    });
+  }
+
+  for (const column of columns) {
+    for (let bead = 0; bead < BEACON_BEADS; bead += 1) {
+      const up = bead / (BEACON_BEADS - 1);
+      const shimmer = 0.8 + 0.2 * Math.sin(world.elapsedSeconds * 12 - up * 6);
+      built.push({
+        x: column.x,
+        y: column.y,
+        z: up * BEACON_HEIGHT,
+        size: 0.07 * (1 - up * 0.45),
+        color: [255, 104, 78],
+        alpha: (0.3 + column.closing * 0.6) * (1 - up * 0.55) * shimmer,
+        additive: true,
+      });
+    }
+  }
 }
 
 /** How far apart the dots of a drawn line sit, and how big each one is at rest. */
@@ -1925,6 +2152,25 @@ function lights(world: DemoWorld): RenderLight[] {
       radius: 2.6,
       color: [255, 96, 72],
       intensity: 0.8,
+    });
+  }
+
+  for (const mortar of world.mortars) {
+    if (mortar.phase !== "locked") {
+      continue;
+    }
+
+    // The muzzle coming up to heat. It is the only cue an emplacement gives about itself — the circle
+    // it paints is somewhere else entirely — so a player who has learned the glow can tell which one
+    // is about to fire without following the mark back to it.
+    const closing = 1 - mortar.seconds / MORTAR_LOCK_SECONDS;
+    built.push({
+      id: `mortar-light-${mortar.cellX}-${mortar.cellY}`,
+      x: mortar.cellX + 0.5,
+      y: mortar.cellY + 0.5,
+      radius: 1.4 + closing * 2.2,
+      color: [255, 138, 74],
+      intensity: 0.25 + closing * 1.15,
     });
   }
 
