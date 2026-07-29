@@ -1,16 +1,20 @@
 /**
- * The three things that come after you, and how each one announces itself.
+ * The four things that come after you, and how each one announces itself.
  *
  * Every attack in this demo is telegraphed before it lands, because every attack is avoidable if you
  * read it: the shooter can be broken line-of-sight on, and the charger commits to a straight lane
  * you can step out of — and beats itself against the wall if you do. The wind-up numbers below are
  * the whole difficulty knob; the damage numbers barely matter next to them.
+ *
+ * The swordsman is the first of them with a front. That costs it the freedom the slimes have — it
+ * must turn before it can go, and it swings at what it is looking at — and buys the only thing that
+ * makes an authored eight-way body readable: where it is pointed is where it is about to be.
  */
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { DEFAULT_BODY_WEIGHT, type DemoThrowWeight } from "@/demo/throw-weight";
 
-export type DemoArchetypeId = "walker" | "ranged" | "charger";
+export type DemoArchetypeId = "walker" | "ranged" | "charger" | "swordsman";
 
 export type DemoEnemyArchetype = Readonly<{
   id: DemoArchetypeId;
@@ -36,6 +40,19 @@ export type DemoEnemyArchetype = Readonly<{
   windup: number;
   contactDamage: number;
   contactRange: number;
+  /** Whether the living body can be carried whole in the player's left hand. */
+  canGrab: boolean;
+  /** Whether a contact attack commits through a visible wind-up instead of landing on touch. */
+  meleeWindup: boolean;
+  /**
+   * Radians per second the body may swing its facing, for a body that has a front.
+   *
+   * Omitted means the body has no front and moves freely in any direction, which is what a blob does
+   * — it is drawn identically from every angle, so a turn would cost it pace and show nothing for it.
+   * Set it and the archetype steers instead: `walk` turns toward its heading at this rate and travels
+   * along its facing, which is what keeps an eight-way sprite's feet pointed at where it is going.
+   */
+  turnRate?: number;
 }>;
 
 const WALKER: DemoEnemyArchetype = {
@@ -52,6 +69,8 @@ const WALKER: DemoEnemyArchetype = {
   windup: 0,
   contactDamage: 6,
   contactRange: 0.86,
+  canGrab: true,
+  meleeWindup: false,
 };
 
 const RANGED: DemoEnemyArchetype = {
@@ -77,6 +96,8 @@ const RANGED: DemoEnemyArchetype = {
   windup: 1,
   contactDamage: 4,
   contactRange: 0.8,
+  canGrab: true,
+  meleeWindup: false,
 };
 
 const CHARGER: DemoEnemyArchetype = {
@@ -103,9 +124,38 @@ const CHARGER: DemoEnemyArchetype = {
   windup: 0.8,
   contactDamage: 6,
   contactRange: 0.86,
+  canGrab: true,
+  meleeWindup: false,
 };
 
-export const ENEMY_ARCHETYPES = { walker: WALKER, ranged: RANGED, charger: CHARGER } as const;
+const SWORDSMAN: DemoEnemyArchetype = {
+  id: "swordsman",
+  name: "Skeleton Swordsman",
+  appearance: "skeletonSwordsman",
+  health: 46,
+  weight: {
+    speed: 7.2,
+    range: 3.4,
+    lobbed: true,
+    drag: 0.72,
+    plunge: 0.76,
+    recoil: 1.2,
+    thud: 1.3,
+    carrySlow: 0.7,
+  },
+  speed: 1.65,
+  rushSpeed: 2.35,
+  rushDistance: 4.5,
+  attackCooldown: 1.8,
+  windup: 0.55,
+  contactDamage: 11,
+  contactRange: 0.95,
+  canGrab: false,
+  meleeWindup: true,
+  turnRate: 4.4,
+};
+
+export const ENEMY_ARCHETYPES = { walker: WALKER, ranged: RANGED, charger: CHARGER, swordsman: SWORDSMAN } as const;
 
 /** The band a shooter tries to hold: it backs off inside the near edge and closes outside the far one. */
 export const RANGED_STANDOFF = { near: 4, far: 7 } as const;

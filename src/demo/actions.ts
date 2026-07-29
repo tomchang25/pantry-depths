@@ -9,6 +9,7 @@ import { hasBless } from "@/demo/bless";
 import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
 import { burst } from "@/demo/particles";
 import {
+  propBehaviour,
   propWeight,
   throwWeight,
   type DemoPropKind,
@@ -39,12 +40,12 @@ const GRAB_ARC = Math.cos(1);
 /**
  * What each way of hitting a wall costs it, against the hit points in `@/demo/maze`.
  *
- * A bare swing is the unit, so the swing counts are unchanged: two for wood, four for stone. A
- * thrown stick hits for two; a thrown rock hits for four, which opens either wall in one throw.
+ * A bare swing is the unit, so the swing counts are unchanged: two for wood, four for stone. What a
+ * thrown prop is worth is its own row in `propBehaviour`; a thrown body is the one throw with no prop
+ * row to read, so its number is here.
  */
 export const MELEE_WALL_DAMAGE = 1;
 const THROWN_WALL_DAMAGE = 2;
-const ROCK_WALL_DAMAGE = 4;
 export const BLAST_WALL_DAMAGE = 4;
 /** How often a broken wall drops a stack of its own material as ammunition. */
 const WALL_DROP_CHANCE = 0.2;
@@ -84,6 +85,9 @@ export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
   rock: "Rocks",
   bomb: "Bombs",
   axe: "Axe",
+  skeletonSword: "Skeleton Sword",
+  skeletonSkull: "Skull",
+  skeletonFemur: "Femur",
 };
 
 const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
@@ -91,6 +95,9 @@ const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
   rock: "Rock away!",
   bomb: "Bomb away!",
   axe: "Axe away!",
+  skeletonSword: "Sword away!",
+  skeletonSkull: "Skull away!",
+  skeletonFemur: "Bone away!",
 };
 
 export function meleeReach(world: DemoWorld): number {
@@ -107,7 +114,7 @@ export function thrownImpactDamage(world: DemoWorld): number {
 }
 
 export function thrownWallDamage(kind: DemoThrowKind): number {
-  return kind === "rock" ? ROCK_WALL_DAMAGE : THROWN_WALL_DAMAGE;
+  return kind === "enemy" ? THROWN_WALL_DAMAGE : propBehaviour(kind).wallDamage;
 }
 
 /** What the hands are currently carrying weighs, for whatever wants to charge the player for it. */
@@ -138,12 +145,17 @@ function inFront(world: DemoWorld, x: number, y: number, reach: number, arc: num
   return (toX / distance) * direction.x + (toY / distance) * direction.y >= arc ? distance : undefined;
 }
 
-function nearestEnemyAhead(world: DemoWorld, reach: number, arc: number): DemoEnemy | undefined {
+function nearestEnemyAhead(
+  world: DemoWorld,
+  reach: number,
+  arc: number,
+  accepts: (enemy: DemoEnemy) => boolean = () => true,
+): DemoEnemy | undefined {
   let best: DemoEnemy | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const enemy of world.enemies) {
-    if (enemy.drowningSeconds > 0) {
+    if (enemy.drowningSeconds > 0 || !accepts(enemy)) {
       continue;
     }
 
@@ -549,7 +561,7 @@ export function grabAction(world: DemoWorld): void {
     return;
   }
 
-  const enemy = nearestEnemyAhead(world, REACH, GRAB_ARC);
+  const enemy = nearestEnemyAhead(world, REACH, GRAB_ARC, (candidate) => candidate.archetype.canGrab);
 
   if (enemy) {
     world.enemies.splice(world.enemies.indexOf(enemy), 1);

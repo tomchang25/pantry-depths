@@ -7,7 +7,7 @@
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { createBlessState, grantBless, hasBless, OVERFLOW_MAX_HP, type BlessState } from "@/demo/bless";
-import { ENEMY_ARCHETYPES, type DemoEnemyArchetype } from "@/demo/enemy-archetypes";
+import { ENEMY_ARCHETYPES, type DemoArchetypeId, type DemoEnemyArchetype } from "@/demo/enemy-archetypes";
 import {
   blocksProjectile,
   blocksWalk,
@@ -27,7 +27,7 @@ import type { DemoPropKind, DemoThrowKind } from "@/demo/throw-weight";
 export type DemoCellLike = Readonly<{ x: number; y: number }>;
 
 /** What an enemy is currently committed to. A wind-up is visible to the player before it resolves. */
-export type DemoIntent = "none" | "shoot" | "charge";
+export type DemoIntent = "none" | "shoot" | "charge" | "melee";
 
 export type DemoEnemy = {
   id: string;
@@ -54,6 +54,10 @@ export type DemoEnemy = {
   chargeY: number;
   /** Above zero while the body is sinking into a pool; it stops acting and dies when this expires. */
   drowningSeconds: number;
+  /** World-space direction the authored eight-way sprite faces. */
+  facingAngle: number;
+  /** Recomputed by enemy movement each simulation step; presentation reads it for walk animation. */
+  moving: boolean;
 };
 
 /**
@@ -167,6 +171,8 @@ export type DemoDeath = {
   /** Direction the killing blow travelled, for deaths with an axis — currently only pinning. */
   directionX: number;
   directionY: number;
+  archetypeId: DemoArchetypeId;
+  facingAngle: number;
 };
 
 export type DemoHeld =
@@ -332,7 +338,7 @@ function takeRandom<T>(pool: T[]): T | undefined {
   return pool.splice(index, 1)[0];
 }
 
-/** Three in five are the plain green kind; the two specialists split the rest evenly. */
+/** The ordinary slime remains common; the three specialists split the rest of the floor. */
 function pickArchetype(): DemoEnemyArchetype {
   const roll = Math.random();
 
@@ -342,6 +348,10 @@ function pickArchetype(): DemoEnemyArchetype {
 
   if (roll < 0.4) {
     return ENEMY_ARCHETYPES.charger;
+  }
+
+  if (roll < 0.65) {
+    return ENEMY_ARCHETYPES.swordsman;
   }
 
   return ENEMY_ARCHETYPES.walker;
@@ -371,6 +381,8 @@ export function createEnemy(world: DemoWorld, x: number, y: number, archetype = 
     chargeX: 0,
     chargeY: 0,
     drowningSeconds: 0,
+    facingAngle: Math.random() * Math.PI * 2,
+    moving: false,
   };
 }
 
@@ -586,6 +598,78 @@ export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
   world.vfx.push({ ...effect, id: nextId(world, "vfx") });
 }
 
+function skeletonDrop(cause: DemoDeathCause): DemoPropKind {
+  if (cause === "cleaved") {
+    return "skeletonSword";
+  }
+
+  if (cause === "blasted") {
+    return "skeletonFemur";
+  }
+
+  if (cause === "impaled") {
+    return "skeletonSword";
+  }
+
+  if (cause === "splattered") {
+    return "skeletonFemur";
+  }
+
+  if (cause === "drowned") {
+    return "skeletonSkull";
+  }
+
+  if (cause === "slain") {
+    return "skeletonSkull";
+  }
+
+  cause satisfies never;
+  throw new Error("unknown skeleton death cause");
+}
+
+/**
+ * Puts one loose prop on the floor, at the point asked for or the nearest side of it that is not
+ * masonry.
+ *
+ * A throw that ends against a wall ends *in* the cell it struck, so a prop that survives its landing
+ * has to be walked back out of the stonework before it can be picked up again — otherwise the thing
+ * you were promised you could retrieve is embedded in a wall a step out of reach.
+ */
+export function dropProp(world: DemoWorld, kind: DemoPropKind, x: number, y: number): void {
+  let placedX = x;
+  let placedY = y;
+
+  if (blocksWalk(world.maze, Math.floor(x), Math.floor(y))) {
+    for (const offset of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      const candidateX = x + Math.cos(offset) * 0.55;
+      const candidateY = y + Math.sin(offset) * 0.55;
+
+      if (!blocksWalk(world.maze, Math.floor(candidateX), Math.floor(candidateY))) {
+        placedX = candidateX;
+        placedY = candidateY;
+        break;
+      }
+    }
+  }
+
+  world.props.push({ id: nextId(world, "prop"), kind, count: 1, x: placedX, y: placedY });
+}
+
+/** The piece a body leaves behind, put down beside it rather than under it. */
+function dropNearEnemy(world: DemoWorld, enemy: DemoEnemy, kind: DemoPropKind): void {
+  for (const offset of [Math.PI / 2, -Math.PI / 2, Math.PI, 0]) {
+    const candidateX = enemy.x + Math.cos(enemy.facingAngle + offset) * 0.42;
+    const candidateY = enemy.y + Math.sin(enemy.facingAngle + offset) * 0.42;
+
+    if (!blocksWalk(world.maze, Math.floor(candidateX), Math.floor(candidateY))) {
+      dropProp(world, kind, candidateX, candidateY);
+      return;
+    }
+  }
+
+  dropProp(world, kind, enemy.x, enemy.y);
+}
+
 /**
  * Height of a projectile above the floor, in cells — simulation truth, not decoration.
  *
@@ -672,19 +756,43 @@ export function killEnemy(
     cause,
     directionX: direction?.x ?? 0,
     directionY: direction?.y ?? 0,
+    archetypeId: enemy.archetype.id,
+    facingAngle: enemy.facingAngle,
   });
   world.kills += 1;
-  burst(world.particles, "blood", enemy.x, enemy.y, 0.34, 18, {
-    speed: 2.6,
-    spreadZ: 2.9,
-    gravity: 11,
-    drag: 1.1,
-    size: 0.07,
-    life: 1.4,
-  });
-  // A pool directly under the body as well as the spray, so a kill always marks the spot even when
-  // every droplet happens to fly off somewhere else.
-  stainFloor(world, enemy.x, enemy.y, 0.5);
+
+  if (enemy.archetype.id === "swordsman") {
+    burst(world.particles, "stoneChip", enemy.x, enemy.y, 0.7, 16, {
+      speed: 2.8,
+      spreadZ: 2.6,
+      gravity: 10,
+      drag: 1,
+      size: 0.055,
+      life: 1.2,
+    });
+    burst(world.particles, "dust", enemy.x, enemy.y, 0.55, 5, {
+      speed: 1.1,
+      spreadZ: 1.4,
+      gravity: 2,
+      drag: 2,
+      size: 0.12,
+      life: 0.8,
+    });
+    dropNearEnemy(world, enemy, skeletonDrop(cause));
+  } else {
+    burst(world.particles, "blood", enemy.x, enemy.y, 0.34, 18, {
+      speed: 2.6,
+      spreadZ: 2.9,
+      gravity: 11,
+      drag: 1.1,
+      size: 0.07,
+      life: 1.4,
+    });
+    // A pool directly under the body as well as the spray, so a kill always marks the spot even when
+    // every droplet happens to fly off somewhere else.
+    stainFloor(world, enemy.x, enemy.y, 0.5);
+  }
+
   swallowIntoPool(world, enemy);
 
   if (hasBless(world.bless, "lifesteal")) {
@@ -692,6 +800,10 @@ export function killEnemy(
   }
 
   if (blocksWalk(world.maze, Math.floor(enemy.x), Math.floor(enemy.y))) {
+    return;
+  }
+
+  if (enemy.archetype.id === "swordsman") {
     return;
   }
 

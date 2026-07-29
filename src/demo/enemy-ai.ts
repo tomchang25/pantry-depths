@@ -129,6 +129,39 @@ function pathHeading(world: DemoWorld, enemy: DemoEnemy): Readonly<{ x: number; 
   return { x: toX / length, y: toY / length };
 }
 
+/** Radians wrapped to (-π, π], which is the only form a shortest turn can be measured in. */
+function shortestTurn(angle: number): number {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
+
+/**
+ * Swings a body's facing toward where it wants to go, and answers how much of its pace it keeps.
+ *
+ * The cosine is what makes this turn-then-move rather than turn-while-moving: a body already pointed
+ * the right way keeps all of its speed, one facing across its heading keeps almost none, and one
+ * facing backwards pivots on the spot until it is pointed at something. That is the whole mechanism
+ * that stops a steered body from ever travelling sideways.
+ */
+function steerToward(enemy: DemoEnemy, desiredAngle: number, turnRate: number, deltaSeconds: number): number {
+  const error = shortestTurn(desiredAngle - enemy.facingAngle);
+  const step = turnRate * deltaSeconds;
+  enemy.facingAngle = shortestTurn(enemy.facingAngle + Math.max(-step, Math.min(step, error)));
+  return Math.max(0, Math.cos(shortestTurn(desiredAngle - enemy.facingAngle)));
+}
+
+/**
+ * One step of walking, and the seam where a body with a front differs from one without.
+ *
+ * A slime is a point that moves in whatever direction the sum of pathing and crowd pressure gives it,
+ * which is free because nothing about a blob says which way it is pointed. An eight-way sprite is not
+ * free: its walk cycle only depicts travel along its own nose, so the moment the simulation moves it
+ * in a direction its facing does not agree with, the picture and the position disagree and it reads
+ * as a crab scuttling. Wall sliding, crowd separation and a re-path all produce exactly that.
+ *
+ * So an archetype that declares a `turnRate` does not get to move freely. It turns toward where it
+ * wants to go at a bounded rate and travels along its facing, which is the same constraint a thing
+ * with legs has. Everything else keeps the old behaviour.
+ */
 function walk(
   world: DemoWorld,
   enemy: DemoEnemy,
@@ -138,11 +171,31 @@ function walk(
   deltaSeconds: number,
 ): void {
   const avoid = separate(world, enemy);
+  let moveX = headingX * speed + avoid.x * 1.4;
+  let moveY = headingY * speed + avoid.y * 1.4;
+  const pace = Math.hypot(moveX, moveY);
+  // Wanting to advance is what the walk cycle depicts, not succeeding at it. A body shoved into a
+  // wall keeps walking on the spot, which is what a body does; one standing still does not.
+  enemy.moving = pace > 0.0001;
+
+  if (enemy.moving) {
+    const desired = Math.atan2(moveY, moveX);
+    const turnRate = enemy.archetype.turnRate;
+
+    if (turnRate === undefined) {
+      enemy.facingAngle = desired;
+    } else {
+      const advance = steerToward(enemy, desired, turnRate, deltaSeconds);
+      moveX = Math.cos(enemy.facingAngle) * pace * advance;
+      moveY = Math.sin(enemy.facingAngle) * pace * advance;
+    }
+  }
+
   const moved = slideMove(
     world.maze,
     { x: enemy.x, y: enemy.y },
-    (headingX * speed + avoid.x * 1.4) * deltaSeconds,
-    (headingY * speed + avoid.y * 1.4) * deltaSeconds,
+    moveX * deltaSeconds,
+    moveY * deltaSeconds,
     ENEMY_RADIUS,
     WALKING,
   );
@@ -258,6 +311,8 @@ export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fro
         cause: "slain",
         directionX: 0,
         directionY: 0,
+        archetypeId: hostage.archetype.id,
+        facingAngle: hostage.facingAngle,
       });
       world.kills += 1;
       announce(
@@ -279,6 +334,7 @@ export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fro
 
 export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
   for (const enemy of world.enemies) {
+    enemy.moving = false;
     decayTimers(enemy, deltaSeconds);
     applyPush(world, enemy, deltaSeconds);
 
@@ -300,15 +356,49 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
     }
 
     if (enemy.windupSeconds > 0) {
+      const turnRate = enemy.archetype.turnRate;
+
+      if (turnRate !== undefined) {
+        // Committed to the attack, but not blind through it. A body with a front keeps tracking the
+        // player at the same bounded rate it walks at, so the swing lands from a pose that is looking
+        // at what it hits. It cannot spin, which is what leaves stepping around it as an answer.
+        steerToward(enemy, Math.atan2(world.player.y - enemy.y, world.player.x - enemy.x), turnRate, deltaSeconds);
+      }
+
       enemy.windupSeconds -= deltaSeconds;
 
       if (enemy.windupSeconds <= 0) {
-        if (enemy.intent === "shoot") {
+        const intent = enemy.intent;
+
+        if (intent === "shoot") {
           fireShot(world, enemy);
           enemy.intent = "none";
-        } else if (enemy.intent === "charge") {
-          launchCharge(world, enemy);
+          continue;
         }
+
+        if (intent === "charge") {
+          launchCharge(world, enemy);
+          continue;
+        }
+
+        if (intent === "melee") {
+          const distance = Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y);
+
+          if (distance <= enemy.archetype.contactRange + 0.16) {
+            hurtPlayer(world, enemy.archetype.contactDamage, enemy.x, enemy.y);
+          }
+
+          enemy.attackCooldown = enemy.archetype.attackCooldown;
+          enemy.intent = "none";
+          continue;
+        }
+
+        if (intent === "none") {
+          continue;
+        }
+
+        intent satisfies never;
+        throw new Error("unknown enemy intent");
       }
 
       continue;
@@ -339,6 +429,11 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
 function stepMelee(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSeconds: number): void {
   if (distance <= enemy.archetype.contactRange) {
     if (enemy.attackCooldown <= 0) {
+      if (enemy.archetype.meleeWindup) {
+        beginWindup(enemy, "melee");
+        return;
+      }
+
       enemy.attackCooldown = enemy.archetype.attackCooldown;
       enemy.attackPoseSeconds = 0.3;
       hurtPlayer(world, enemy.archetype.contactDamage, enemy.x, enemy.y);

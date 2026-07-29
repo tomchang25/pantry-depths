@@ -71,6 +71,7 @@ const ENEMY_DOT_COLORS: Readonly<Record<DemoArchetypeId, string>> = {
   walker: "#7fc46a",
   ranged: "#5aa8e0",
   charger: "#e2585f",
+  swordsman: "#d8c69a",
 };
 
 const MINIMAP_TILE_COLORS: Readonly<Record<string, string>> = {

@@ -6,6 +6,12 @@
  * which the renderer accepts because it only ever needs a `CanvasImageSource`.
  */
 
+import {
+  SKELETON_PICKUP_ASSETS,
+  SKELETON_PICKUP_URLS,
+  SKELETON_SWORDSMAN_ATLAS_SIZE,
+  SKELETON_SWORDSMAN_ATLAS_URLS,
+} from "@/content/enemies/skeleton-swordsman-definitions";
 import { loadPresentationImages, type PresentationImages } from "@/presentation/presentation-image-loader";
 
 const SPRITE_SIZE = 512;
@@ -39,6 +45,9 @@ export const DEMO_ASSET_IDS = {
   laneMarker: "demo.laneMarker",
   bubble: "demo.bubble",
   wallSplat: "demo.wallSplat",
+  skeletonSword: SKELETON_PICKUP_ASSETS.skeletonSword.assetId,
+  skeletonSkull: SKELETON_PICKUP_ASSETS.skeletonSkull.assetId,
+  skeletonFemur: SKELETON_PICKUP_ASSETS.skeletonFemur.assetId,
 } as const;
 
 function surface(): readonly [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -602,8 +611,20 @@ function marker(inner: string, outer: string, glyph: string): HTMLCanvasElement 
 
 /** Loads the shipped manifest and folds the demo-only procedural sprites in beside it. */
 export async function loadDemoImages(): Promise<PresentationImages> {
-  const shipped = await loadPresentationImages();
+  const [shipped, skeletonAtlases, skeletonPickups] = await Promise.all([
+    loadPresentationImages(),
+    loadPresentationImages(SKELETON_SWORDSMAN_ATLAS_URLS, undefined, {
+      width: SKELETON_SWORDSMAN_ATLAS_SIZE,
+      height: SKELETON_SWORDSMAN_ATLAS_SIZE,
+    }),
+    loadPresentationImages(SKELETON_PICKUP_URLS),
+  ]);
   const merged = new Map<string, CanvasImageSource>(shipped);
+
+  for (const [assetId, image] of [...skeletonAtlases, ...skeletonPickups]) {
+    merged.set(assetId, image);
+  }
+
   merged.set(DEMO_ASSET_IDS.stick, stick());
   merged.set(DEMO_ASSET_IDS.rock, rock(150));
   merged.set(DEMO_ASSET_IDS.bomb, bomb());

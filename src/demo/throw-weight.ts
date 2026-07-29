@@ -18,7 +18,7 @@
  * not depend on either of them.
  */
 
-export type DemoPropKind = "stick" | "rock" | "bomb" | "axe";
+export type DemoPropKind = "stick" | "rock" | "bomb" | "axe" | "skeletonSword" | "skeletonSkull" | "skeletonFemur";
 export type DemoThrowKind = DemoPropKind | "enemy";
 
 export type DemoThrowWeight = Readonly<{
@@ -98,6 +98,39 @@ const PROP_WEIGHTS: Readonly<Record<DemoPropKind, DemoThrowWeight>> = {
     thud: 0.25,
     carrySlow: 0.96,
   },
+  skeletonSword: {
+    // Thrown flat, but it is a sword rather than a tracer round: the drag is what stops it reading as
+    // a straight line drawn instantly across the room, which is all the first pass at these numbers
+    // ever managed.
+    speed: 15,
+    range: 8.5,
+    lobbed: false,
+    drag: 0.22,
+    plunge: 1,
+    recoil: 0.2,
+    thud: 0.32,
+    carrySlow: 0.97,
+  },
+  skeletonSkull: {
+    speed: 12,
+    range: 7,
+    lobbed: true,
+    drag: 0.18,
+    plunge: 1.05,
+    recoil: 0.24,
+    thud: 0.42,
+    carrySlow: 0.98,
+  },
+  skeletonFemur: {
+    speed: 17,
+    range: 10,
+    lobbed: true,
+    drag: 0.08,
+    plunge: 0.98,
+    recoil: 0.18,
+    thud: 0.28,
+    carrySlow: 0.98,
+  },
 };
 
 /**
@@ -119,6 +152,54 @@ export const DEFAULT_BODY_WEIGHT: DemoThrowWeight = {
   thud: 1,
   carrySlow: 0.82,
 };
+
+/** What a throw does to the bodies it reaches while it is still in the air. */
+export type DemoPropFlightHit = "stop" | "skewer" | "cleave";
+
+/** What it does where it stops, whether that is a wall, a body, or the end of its range. */
+export type DemoPropLanding = "spend" | "burst" | "detonate" | "pin" | "strike";
+
+/** How it is drawn on the way there. */
+export type DemoPropForm = "billboard" | "tumbling" | "rod";
+
+export type DemoPropBehaviour = Readonly<{
+  flightHit: DemoPropFlightHit;
+  landing: DemoPropLanding;
+  /** Against the hit points in `@/demo/maze`: a bare swing is one, and a rock opens either wall. */
+  wallDamage: number;
+  /** Whether it is still an object when it stops, lying where it landed to be picked up again. */
+  recovers: boolean;
+  form: DemoPropForm;
+}>;
+
+/**
+ * What each throw does, in one place, because it used to be in three.
+ *
+ * Flight behaviour was a branch chain in the projectile step, landing behaviour was a second chain in
+ * `finishProjectile`, and how the thing was drawn on the way was a third in the scene. Adding the
+ * skeleton's three props meant adding a case to each — and the sword got a case in only two of them,
+ * so a thrown sword passed the hit test, ended its flight, and then did nothing at all: no damage, no
+ * impact, no object left on the floor. It was a weapon that deleted itself on contact.
+ *
+ * A row per prop is the fix. A kind that is missing something is now missing it visibly, in a table
+ * where the thing beside it has one.
+ */
+const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
+  // The javelin: it runs bodies through and nails them to whatever stops it.
+  stick: { flightHit: "skewer", landing: "pin", wallDamage: 2, recovers: false, form: "rod" },
+  rock: { flightHit: "stop", landing: "burst", wallDamage: 4, recovers: false, form: "billboard" },
+  bomb: { flightHit: "stop", landing: "detonate", wallDamage: 2, recovers: false, form: "billboard" },
+  axe: { flightHit: "cleave", landing: "spend", wallDamage: 2, recovers: false, form: "rod" },
+  // The three that come off a skeleton are the only ones you get back. That is the whole loop they
+  // exist for: it dies, you take the piece it dropped, you throw it, you walk over and take it again.
+  skeletonSword: { flightHit: "stop", landing: "strike", wallDamage: 3, recovers: true, form: "rod" },
+  skeletonSkull: { flightHit: "stop", landing: "burst", wallDamage: 2, recovers: true, form: "tumbling" },
+  skeletonFemur: { flightHit: "stop", landing: "strike", wallDamage: 2, recovers: true, form: "tumbling" },
+};
+
+export function propBehaviour(kind: DemoPropKind): DemoPropBehaviour {
+  return PROP_BEHAVIOURS[kind];
+}
 
 export function propWeight(kind: DemoPropKind): DemoThrowWeight {
   return PROP_WEIGHTS[kind];

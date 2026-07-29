@@ -8,12 +8,25 @@
  */
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import {
+  SKELETON_SWORDSMAN_ANIMATIONS,
+  SKELETON_SWORDSMAN_DIRECTIONS,
+  SKELETON_SWORDSMAN_FRAMES,
+  type SkeletonSwordsmanAnimationId,
+} from "@/content/enemies/skeleton-swordsman-definitions";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
 import { blocksWalk, DEMO_GRID_SIZE, DEMO_WALL_HEIGHT, holdsStains, tileIndex } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
-import type { DemoPropKind } from "@/demo/throw-weight";
+import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
-import { projectileHeight, SWING_SECONDS, type DemoDeath, type DemoEnemy, type DemoWorld } from "@/demo/world";
+import {
+  projectileHeight,
+  SWING_SECONDS,
+  type DemoDeath,
+  type DemoDeathCause,
+  type DemoEnemy,
+  type DemoWorld,
+} from "@/demo/world";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
   RenderBeam,
@@ -80,14 +93,36 @@ const AXE_WIDTH = 0.12;
 /** Radians of tumble per cell travelled. An axe is defined by turning over.  */
 const AXE_SPIN = 7.2;
 
+/** A thrown sword shares the axe's end-over-end language, but stays long and visibly thinner. */
+const SWORD_LENGTH = 0.72;
+const SWORD_WIDTH = 0.055;
+const SWORD_GUARD_LENGTH = 0.2;
+const SWORD_GUARD_WIDTH = 0.045;
+const SWORD_SPIN = 8.4;
+/** Radians of tumble per cell travelled, for a prop drawn as a picture rather than as a rod. */
+const PROP_TUMBLE = 5.6;
+
 const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   stick: DEMO_ASSET_IDS.stick,
   rock: DEMO_ASSET_IDS.rock,
   bomb: DEMO_ASSET_IDS.bomb,
   axe: DEMO_ASSET_IDS.axe,
+  skeletonSword: DEMO_ASSET_IDS.skeletonSword,
+  skeletonSkull: DEMO_ASSET_IDS.skeletonSkull,
+  skeletonFemur: DEMO_ASSET_IDS.skeletonFemur,
 };
 
-const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = { stick: 0.5, rock: 0.42, bomb: 0.4, axe: 0.5 };
+const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
+  stick: 0.5,
+  rock: 0.42,
+  bomb: 0.4,
+  axe: 0.5,
+  skeletonSword: 0.58,
+  skeletonSkull: 0.42,
+  skeletonFemur: 0.48,
+};
+
+const SKELETON_DISPLAY_SCALE = 1.16;
 
 function surfaces(world: DemoWorld): RenderSurface[] {
   const built: RenderSurface[] = [];
@@ -170,6 +205,158 @@ function telegraph(world: DemoWorld, enemy: DemoEnemy, built: RenderSprite[]): v
       ),
     );
   }
+}
+
+function skeletonDirection(cameraAngle: number, facingAngle: number): number {
+  // Every raycaster billboard is parallel to the camera plane. Using the line from this particular
+  // enemy to the player instead makes off-centre enemies progressively turn towards the viewer,
+  // even while their projected motion stays horizontal — the crab-walk visible at screen edges.
+  // The virtual viewer is opposite the camera's forward direction for every sprite on the plane.
+  const viewerAngle = cameraAngle + Math.PI;
+  const turn = (viewerAngle - facingAngle) / (Math.PI * 2);
+  return (
+    ((Math.round(turn * SKELETON_SWORDSMAN_DIRECTIONS) % SKELETON_SWORDSMAN_DIRECTIONS) +
+      SKELETON_SWORDSMAN_DIRECTIONS) %
+    SKELETON_SWORDSMAN_DIRECTIONS
+  );
+}
+
+function animationFrame(animation: SkeletonSwordsmanAnimationId, progress: number): number {
+  const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
+  return Math.min(definition.frames - 1, Math.max(0, Math.floor(progress * definition.frames)));
+}
+
+function skeletonAnimation(
+  world: DemoWorld,
+  enemy: DemoEnemy,
+): Readonly<{
+  animation: SkeletonSwordsmanAnimationId;
+  frame: number;
+}> {
+  if (enemy.hurtSeconds > 0) {
+    return { animation: "hurt", frame: animationFrame("hurt", 1 - enemy.hurtSeconds / 0.28) };
+  }
+
+  if (enemy.windupSeconds > 0 && enemy.intent === "melee") {
+    const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+    return { animation: "attack", frame: animationFrame("attack", progress * 0.68) };
+  }
+
+  if (enemy.attackPoseSeconds > 0) {
+    const progress = 1 - enemy.attackPoseSeconds / 0.22;
+    return { animation: "attack", frame: animationFrame("attack", 0.68 + Math.max(0, progress) * 0.32) };
+  }
+
+  if (enemy.stunSeconds > 0) {
+    return { animation: "block", frame: animationFrame("block", 0.72) };
+  }
+
+  const animation: SkeletonSwordsmanAnimationId = enemy.moving ? "walk" : "idle";
+  const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
+  const phase = enemyPhase(enemy.id) / (Math.PI * 2);
+  const frame = Math.floor((world.elapsedSeconds * definition.framesPerSecond + phase) % definition.frames);
+  return { animation, frame };
+}
+
+function skeletonSprite(world: DemoWorld, enemy: DemoEnemy): RenderSprite {
+  const selected = skeletonAnimation(world, enemy);
+  const definition = SKELETON_SWORDSMAN_ANIMATIONS[selected.animation];
+  return {
+    id: enemy.id,
+    x: enemy.x,
+    y: enemy.y,
+    placement: "billboard",
+    assetId: definition.assetId,
+    scale: SKELETON_DISPLAY_SCALE,
+    verticalAnchor: 0,
+    frame: {
+      column: selected.frame,
+      row: skeletonDirection(world.player.angle, enemy.facingAngle),
+      columns: SKELETON_SWORDSMAN_FRAMES,
+      rows: SKELETON_SWORDSMAN_DIRECTIONS,
+    },
+  };
+}
+
+function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonSwordsmanAnimationId {
+  if (cause === "cleaved") {
+    return "deathSeverRight";
+  }
+
+  if (cause === "blasted") {
+    return "deathBlasted";
+  }
+
+  if (cause === "impaled") {
+    return "deathImpaled";
+  }
+
+  if (cause === "splattered") {
+    return "deathImpaled";
+  }
+
+  if (cause === "drowned") {
+    return "deathDrowned";
+  }
+
+  if (cause === "slain") {
+    return "death";
+  }
+
+  cause satisfies never;
+  throw new Error("unknown skeleton death cause");
+}
+
+function skeletonDeathSprite(world: DemoWorld, death: DemoDeath): RenderSprite {
+  const animation = skeletonDeathAnimation(death.cause);
+  const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
+  return {
+    id: `${death.id}-corpse`,
+    x: death.x,
+    y: death.y,
+    placement: "billboard",
+    assetId: definition.assetId,
+    scale: SKELETON_DISPLAY_SCALE,
+    verticalAnchor: 0,
+    frame: {
+      column: animationFrame(animation, Math.min(0.999, death.progress)),
+      row: skeletonDirection(world.player.angle, death.facingAngle),
+      columns: SKELETON_SWORDSMAN_FRAMES,
+      rows: SKELETON_SWORDSMAN_DIRECTIONS,
+    },
+  };
+}
+
+/** One authored skeleton riding a javelin, replacing the slime-shaped fallback used by blobs. */
+function carriedSkeletonSprite(
+  world: DemoWorld,
+  projectile: DemoWorld["projectiles"][number],
+  enemy: DemoEnemy,
+  index: number,
+): RenderSprite {
+  const animation: SkeletonSwordsmanAnimationId = "deathImpaled";
+  const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
+  const back = 0.3 + index * 0.3;
+  const x = projectile.x - projectile.directionX * back;
+  const y = projectile.y - projectile.directionY * back;
+
+  return {
+    id: `${projectile.id}-run-${index}`,
+    x,
+    y,
+    placement: "billboard",
+    assetId: definition.assetId,
+    scale: SKELETON_DISPLAY_SCALE,
+    // Level flight crosses the torso at half a cell, leaving the feet at their normal screen base.
+    // A pitched throw raises or lowers the complete skeleton with the same trajectory as the shaft.
+    verticalAnchor: -(projectileHeight(projectile) - 0.5) / SKELETON_DISPLAY_SCALE,
+    frame: {
+      column: animationFrame(animation, 0.62),
+      row: skeletonDirection(world.player.angle, enemy.facingAngle),
+      columns: SKELETON_SWORDSMAN_FRAMES,
+      rows: SKELETON_SWORDSMAN_DIRECTIONS,
+    },
+  };
 }
 
 function vfxSprites(world: DemoWorld, built: RenderSprite[]): void {
@@ -283,7 +470,11 @@ function sprites(world: DemoWorld): RenderSprite[] {
   }
 
   for (const enemy of world.enemies) {
-    // The body itself is a blob now, not a billboard; only the telegraphs and sparks stay sprites.
+    if (enemy.archetype.id === "swordsman") {
+      built.push(skeletonSprite(world, enemy));
+    }
+
+    // Slimes stay blobs; authored enemies and all telegraphs share this depth-sorted sprite pass.
     telegraph(world, enemy, built);
 
     // A short spark at the point of contact. The white flash on the sprite says something landed;
@@ -321,9 +512,24 @@ function sprites(world: DemoWorld): RenderSprite[] {
       built.push(ground(`${projectile.id}-shadow`, projectile.x, projectile.y, DEMO_ASSET_IDS.dropShadow, 0.5));
     }
 
-    // A javelin or an axe in flight is a beam, not a picture of one; see `beams`. Bodies riding a
-    // projectile — skewered on the shaft or thrown whole — are blobs now, built in `blobs`.
-    if (projectile.kind === "stick" || projectile.kind === "axe" || projectile.kind === "enemy") {
+    if (projectile.kind === "stick") {
+      projectile.skewered.forEach((enemy, index) => {
+        if (enemy.archetype.id === "swordsman") {
+          built.push(carriedSkeletonSprite(world, projectile, enemy, index));
+        }
+      });
+    }
+
+    // Bodies riding a projectile are built beside their own presentation kind: authored skeleton
+    // sprites here, soft blobs in `blobs` below.
+    if (projectile.kind === "enemy") {
+      continue;
+    }
+
+    const form = propBehaviour(projectile.kind).form;
+
+    // Long flying weapons are beams, not pictures of one; see `beams`.
+    if (form === "rod") {
       continue;
     }
 
@@ -337,11 +543,17 @@ function sprites(world: DemoWorld): RenderSprite[] {
       scale,
       // Centred on the display arc, so a lob rises and a slam drops with the curve.
       verticalAnchor: 0.5 - projectileHeight(projectile) / scale,
+      // A bone turns end over end as it goes. A rock does not, and a picture of one sliding flat
+      // through the air with its shading pinned to the wall behind it is the tell that it is a
+      // picture — which is exactly what the skeleton's parts looked like before this.
+      ...(form === "tumbling" ? { spin: projectile.travelled * PROP_TUMBLE } : {}),
     });
   }
 
   for (const death of world.deaths) {
-    if (death.cause === "splattered") {
+    if (death.archetypeId === "swordsman") {
+      built.push(skeletonDeathSprite(world, death));
+    } else if (death.cause === "splattered") {
       built.push(wallMark(death));
     }
   }
@@ -723,15 +935,23 @@ function carriedBlob(
 }
 
 function blobs(world: DemoWorld): RenderBlob[] {
-  const built: RenderBlob[] = world.enemies.map((enemy) => enemyBlob(world, enemy));
+  const built: RenderBlob[] = world.enemies
+    .filter((enemy) => enemy.archetype.id !== "swordsman")
+    .map((enemy) => enemyBlob(world, enemy));
 
   for (const death of world.deaths) {
-    built.push(...deathBlobs(death));
+    if (death.archetypeId !== "swordsman") {
+      built.push(...deathBlobs(death));
+    }
   }
 
   for (const projectile of world.projectiles) {
     if (projectile.kind === "stick") {
       projectile.skewered.forEach((enemy, index) => {
+        if (enemy.archetype.id === "swordsman") {
+          return;
+        }
+
         const back = 0.3 + index * 0.3;
         built.push(
           carriedBlob(
@@ -1107,6 +1327,39 @@ function beams(world: DemoWorld): RenderBeam[] {
           AXE_WIDTH,
           [88, 58, 32],
           [214, 222, 232],
+        ),
+      );
+      continue;
+    }
+
+    if (projectile.kind === "skeletonSword") {
+      const spin = projectile.travelled * SWORD_SPIN;
+      built.push(
+        rodBeam(
+          `${projectile.id}-blade`,
+          projectile.x,
+          projectile.y,
+          projectile.directionX,
+          projectile.directionY,
+          spin,
+          projectileHeight(projectile),
+          SWORD_LENGTH,
+          SWORD_WIDTH,
+          [162, 171, 182],
+          [238, 242, 248],
+        ),
+        rodBeam(
+          `${projectile.id}-guard`,
+          projectile.x,
+          projectile.y,
+          projectile.directionX,
+          projectile.directionY,
+          spin + Math.PI / 2,
+          projectileHeight(projectile),
+          SWORD_GUARD_LENGTH,
+          SWORD_GUARD_WIDTH,
+          [92, 62, 28],
+          [196, 150, 70],
         ),
       );
     }
