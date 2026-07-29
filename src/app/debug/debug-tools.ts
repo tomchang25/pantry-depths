@@ -13,6 +13,16 @@ export type DebugTool = {
 /** The single registry for future development tools. */
 export const DEBUG_TOOLS: readonly DebugTool[] = [
   {
+    id: "melee-viewmodel-lab",
+    path: "/debug/melee-viewmodel-lab",
+    title: "First-person Melee Viewmodel Lab",
+    description: "Preview eight non-combo sword attacks with random and locked debug selection.",
+    load: () =>
+      import("@/app/debug/melee-viewmodel-lab").then(({ renderMeleeViewmodelLab }) => ({
+        render: renderMeleeViewmodelLab,
+      })),
+  },
+  {
     id: "floor-workbench",
     path: "/debug/floor-workbench",
     title: "Floor Set Workbench",

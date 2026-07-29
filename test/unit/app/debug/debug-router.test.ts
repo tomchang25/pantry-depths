@@ -21,6 +21,20 @@ describe("resolveDebugRoute", () => {
     }
   });
 
+  it("resolves the melee viewmodel comparison from the shared debug catalog", () => {
+    const route = resolveDebugRoute("/debug/melee-viewmodel-lab");
+
+    expect(route.kind).toBe("tool");
+
+    if (route.kind === "tool") {
+      expect(route.tool).toMatchObject({
+        id: "melee-viewmodel-lab",
+        path: "/debug/melee-viewmodel-lab",
+        title: "First-person Melee Viewmodel Lab",
+      });
+    }
+  });
+
   it.each(["/debug/unknown", "/debug/floor-workbench/"])(
     "falls back to the hub for an unknown exact path: %s",
     (pathname) => {

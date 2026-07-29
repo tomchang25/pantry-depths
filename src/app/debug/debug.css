@@ -870,6 +870,101 @@ textarea {
   color: var(--debug-text-muted);
 }
 
+.melee-lab-status {
+  margin-bottom: 0;
+}
+
+.melee-prototype-stage {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--debug-border-soft);
+  border-radius: var(--debug-radius);
+  box-shadow: 0 12px 34px rgb(0 0 0 / 20%);
+}
+
+.melee-prototype-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #10111b;
+  cursor: crosshair;
+}
+
+.melee-prototype-canvas:focus-visible {
+  outline: 4px solid var(--debug-info);
+  outline-offset: -4px;
+}
+
+.melee-prototype-hint {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  min-width: min(80%, 22rem);
+  box-sizing: border-box;
+  padding: 0.65rem 1rem;
+  margin: 0;
+  border: 1px solid rgb(245 196 81 / 45%);
+  border-radius: 999px;
+  background: rgb(15 12 20 / 82%);
+  color: #fff3d4;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.melee-prototype-modes,
+.melee-prototype-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.melee-prototype-modes li {
+  margin: 0;
+}
+
+.debug-page .melee-prototype-modes button,
+.melee-prototype-history li {
+  min-height: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgb(118 184 255 / 30%);
+  border-radius: 999px;
+  background: rgb(31 67 105 / 26%);
+  color: #b9dcff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.debug-page .melee-prototype-modes button[aria-pressed="true"] {
+  border-color: var(--debug-accent);
+  background: var(--debug-accent);
+  color: var(--debug-accent-ink);
+}
+
+.melee-prototype-modes li[data-active] button {
+  box-shadow: 0 0 0 2px var(--debug-info);
+}
+
+.melee-prototype-history {
+  counter-reset: melee-history;
+}
+
+.melee-prototype-history li {
+  counter-increment: melee-history;
+}
+
+.melee-prototype-history li::before {
+  content: counter(melee-history) ". ";
+  color: var(--debug-accent);
+}
+
 @media (max-width: 48rem) {
   .debug-page {
     width: min(calc(100% - 1rem), 72rem);
