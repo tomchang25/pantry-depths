@@ -45,6 +45,7 @@ export const DEMO_ASSET_IDS = {
   warnMelee: "demo.warnMelee",
   laneDim: "demo.laneDim",
   laneHot: "demo.laneHot",
+  stunStar: "demo.stunStar",
   bubble: "demo.bubble",
   wallSplat: "demo.wallSplat",
   skeletonSword: SKELETON_PICKUP_ASSETS.skeletonSword.assetId,
@@ -586,6 +587,38 @@ function laneBlot(color: string): HTMLCanvasElement {
   return canvas;
 }
 
+/** One of the three that circle a dazed head. Four-pointed, because five reads as mush at this size. */
+function stunStar(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const glow = context.createRadialGradient(256, 256, 12, 256, 256, 210);
+  glow.addColorStop(0, "rgb(255 236 150 / 78%)");
+  glow.addColorStop(1, "rgb(255 210 90 / 0%)");
+  context.fillStyle = glow;
+  context.beginPath();
+  context.arc(256, 256, 210, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#fff6d2";
+  context.beginPath();
+
+  for (let point = 0; point < 8; point += 1) {
+    const angle = (point * Math.PI) / 4 - Math.PI / 2;
+    const reach = point % 2 === 0 ? 196 : 54;
+    const x = 256 + Math.cos(angle) * reach;
+    const y = 256 + Math.sin(angle) * reach;
+
+    if (point === 0) {
+      context.moveTo(x, y);
+      continue;
+    }
+
+    context.lineTo(x, y);
+  }
+
+  context.closePath();
+  context.fill();
+  return canvas;
+}
+
 function spikePile(): HTMLCanvasElement {
   const [canvas, context] = surface();
   context.fillStyle = "#3a2413";
@@ -736,6 +769,7 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.warnShoot, warnReticle());
   merged.set(DEMO_ASSET_IDS.warnCharge, warnFlame());
   merged.set(DEMO_ASSET_IDS.warnMelee, warnBlade());
+  merged.set(DEMO_ASSET_IDS.stunStar, stunStar());
   merged.set(DEMO_ASSET_IDS.laneDim, laneBlot("rgb(190 54 62 / 42%)"));
   merged.set(DEMO_ASSET_IDS.laneHot, laneBlot("rgb(255 122 96 / 88%)"));
   return merged;

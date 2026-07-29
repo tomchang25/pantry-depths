@@ -2,8 +2,6 @@
 
 Parent Plan: `pantry_demo_telegraphs.plan.md`
 
-Status: Draft implementation spec
-
 ## Goal
 
 Give stun a picture — three stars orbiting over any enemy whose stun timer is running — and give the skeleton swordsman the body cue the other two archetypes are getting, which it cannot express the way they do.
@@ -81,7 +79,7 @@ The ordinary slime is deliberately left with nothing. It has no wind-up at all �
 
 1. Any enemy with a running stun timer has three stars orbiting over its head for the duration, whatever caused the stun.
 2. Both the soft bodies and the skeleton wear the stars above their own heads.
-3. The stars appear and disappear cleanly rather than popping at full size.
+3. The stars shrink away as the stun runs out rather than vanishing at full size. They arrive at full size, which is correct and was settled at promotion: the world keeps only the stun's remaining time and not its original length, so there is nothing to ease an entrance against — and the stun itself is instant, so an eased entrance would misreport the frame the player most needs to trust.
 4. A swordsman winding up a cut shows a bright arc along the path the blade will sweep, and turning during the wind-up turns the arc with it.
 5. The ordinary slime shows neither cue, because it has no wind-up.
 6. `npm run verify` passes.

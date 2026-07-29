@@ -346,6 +346,55 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
   });
 }
 
+/** Where the top of an enemy sits, so anything worn over its head is worn over *its* head. */
+function crownHeight(enemy: DemoEnemy): number {
+  return enemy.archetype.id === "swordsman" ? SKELETON_DISPLAY_SCALE : slimeBody(enemy.appearance).height;
+}
+
+const STUN_STARS = 3;
+const STUN_ORBIT_RADIUS = 0.32;
+const STUN_STAR_SCALE = 0.3;
+
+/**
+ * Three stars circling a dazed head, for as long as it is dazed.
+ *
+ * Stun had no picture at all, which mattered little while it lasted a second and a half and matters
+ * a great deal now a stalled charge costs five. In a room with twenty bodies in it, a stopped enemy
+ * and an enemy that has not noticed you look identical, and only one of them is worth crossing the
+ * floor for.
+ *
+ * Real world positions rather than an overlay, so the far star goes behind the head and the near one
+ * in front. Sprites have no per-instance opacity, so the ring arrives and leaves on scale.
+ */
+function stunStars(enemy: DemoEnemy, elapsedSeconds: number, built: RenderSprite[]): void {
+  if (enemy.stunSeconds <= 0 || enemy.drowningSeconds > 0) {
+    return;
+  }
+
+  // Shrinks away over the last quarter second, so the window closing is something you watch happen
+  // rather than something you discover by swinging at a body that has already woken up. It arrives at
+  // full size deliberately: the stun itself is instant — a body was just slammed into something — and
+  // easing that in would misreport the one frame the player most needs to be sure about.
+  const scale = STUN_STAR_SCALE * Math.min(1, enemy.stunSeconds / 0.25);
+  const phase = enemyPhase(enemy.id);
+  const crown = crownHeight(enemy);
+
+  for (let index = 0; index < STUN_STARS; index += 1) {
+    const angle = elapsedSeconds * 3.1 + phase + (index * Math.PI * 2) / STUN_STARS;
+    // The ring is tilted, so it circles the head rather than sliding across it.
+    const z = crown + 0.16 + Math.sin(angle) * 0.06;
+    built.push({
+      id: `${enemy.id}-stun-${index}`,
+      x: enemy.x + Math.cos(angle) * STUN_ORBIT_RADIUS,
+      y: enemy.y + Math.sin(angle) * STUN_ORBIT_RADIUS * 0.6,
+      placement: "billboard",
+      assetId: DEMO_ASSET_IDS.stunStar,
+      scale,
+      verticalAnchor: 0.5 - z / Math.max(0.0001, scale),
+    });
+  }
+}
+
 /** How far apart the blots of a charger's lane sit, and how wide each one is drawn. */
 const LANE_SPACING = 0.3;
 const LANE_BLOT_SCALE = 0.82;
@@ -698,6 +747,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
     // Slimes stay blobs; authored enemies and all telegraphs share this depth-sorted sprite pass.
     telegraph(enemy, built);
     chargeLane(world, enemy, built);
+    stunStars(enemy, world.elapsedSeconds, built);
 
     // A short spark at the point of contact. The white flash on the sprite says something landed;
     // this says where, which is what makes a crowded melee readable.
@@ -1741,6 +1791,49 @@ function beadLine(
   return points;
 }
 
+/** Height a sword is carried at, and how wide a cut opens either side of where it is looking. */
+const CUT_HEIGHT = 0.62;
+const CUT_HALF_ANGLE = 0.75;
+const CUT_BEADS = 13;
+
+/**
+ * The path a committed sword cut is about to sweep.
+ *
+ * The other two archetypes announce a wind-up with their bodies, because both are soft bodies the
+ * scene deforms at will. The swordsman is an authored sheet with fixed frames and nothing to squash,
+ * so it gets the more useful half instead: the ground the blade is about to cross. Its reach is
+ * short enough that knowing the arc is knowing whether one step backwards is enough.
+ *
+ * Built from the facing on this frame, not the facing the wind-up started with — a swordsman keeps
+ * turning towards the player at a bounded rate right through its commitment, so an arc frozen at the
+ * start would point at where the player used to be while the sword went somewhere else.
+ */
+function cutArc(enemy: DemoEnemy, elapsedSeconds: number, built: RenderParticle[]): void {
+  if (enemy.windupSeconds <= 0 || enemy.intent !== "melee") {
+    return;
+  }
+
+  const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+  const reach = enemy.archetype.contactRange;
+
+  for (let index = 0; index < CUT_BEADS; index += 1) {
+    const across = index / (CUT_BEADS - 1);
+    const angle = enemy.facingAngle + (across * 2 - 1) * CUT_HALF_ANGLE;
+    const shimmer = 0.84 + 0.16 * Math.sin(elapsedSeconds * 18 + index * 1.3);
+    built.push({
+      x: enemy.x + Math.cos(angle) * reach,
+      y: enemy.y + Math.sin(angle) * reach,
+      z: CUT_HEIGHT,
+      size: 0.055 + progress * 0.03,
+      color: [255, 128, 108],
+      // Dim for most of the wind-up and bright at the end: the arc's job is to say "now", and one
+      // that starts at full strength only ever says "soon".
+      alpha: (0.1 + progress * progress * 0.8) * shimmer,
+      additive: true,
+    });
+  }
+}
+
 /** Height the beads of a shooter's line sit at: where the orb itself flies, not the floor. */
 const SIGHT_LINE_HEIGHT = 0.42;
 
@@ -1753,6 +1846,8 @@ const SIGHT_LINE_HEIGHT = 0.42;
  */
 function sightLines(world: DemoWorld, built: RenderParticle[]): void {
   for (const enemy of world.enemies) {
+    cutArc(enemy, world.elapsedSeconds, built);
+
     if (enemy.windupSeconds <= 0 || enemy.intent !== "shoot") {
       continue;
     }
@@ -1851,6 +1946,20 @@ function lights(world: DemoWorld): RenderLight[] {
         radius: 1.4 + progress * 1.1,
         color: [255, 108, 96],
         intensity: 0.35 + progress * 0.75,
+      });
+      continue;
+    }
+
+    if (enemy.intent === "melee") {
+      // The faintest of the three. A swordsman is already in your face when it commits, so the light
+      // only has to separate it from the crowd behind it — the arc on the floor does the real work.
+      built.push({
+        id: `${enemy.id}-windup-light`,
+        x: enemy.x,
+        y: enemy.y,
+        radius: 1.2 + progress * 0.8,
+        color: [255, 132, 112],
+        intensity: 0.2 + progress * 0.5,
       });
       continue;
     }
