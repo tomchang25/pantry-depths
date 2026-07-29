@@ -8,14 +8,14 @@
 
 import "@/demo/demo-surface.css";
 
-import { grabAction, meleeReach, primaryAction, PROP_LABELS, wallAhead } from "@/demo/actions";
+import { grabAction, primaryAction } from "@/demo/actions";
 import { findBless, type BlessDefinition } from "@/demo/bless";
 import { mountDemoHud, type DemoHudCard, type DemoHudModel } from "@/demo/demo-hud";
 import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
-import { DEMO_GRID_SIZE, tileAt } from "@/demo/maze";
+import { DEMO_GRID_SIZE } from "@/demo/maze";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
 import { announce, createDemoWorld, flattenFloorForTesting, type DemoWorld } from "@/demo/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
@@ -94,19 +94,6 @@ function createHudModel(
   cardToken: string | undefined,
   overlay: DemoHudModel["overlay"],
 ): DemoHudModel {
-  const held = world.held
-    ? world.held.kind === "enemy"
-      ? "Enemy"
-      : `${PROP_LABELS[world.held.prop]} x${world.held.count}`
-    : "Empty-handed";
-  const ahead = wallAhead(world, meleeReach(world));
-  const aheadTile = ahead ? tileAt(world.maze, ahead.x, ahead.y) : undefined;
-  const aheadText =
-    aheadTile === undefined
-      ? "—"
-      : aheadTile.kind === "border"
-        ? "Boundary brick (unbreakable)"
-        : `${aheadTile.kind === "wood" ? "Wood wall" : "Stone wall"} HP ${aheadTile.hp}/${aheadTile.maxHp}`;
   const blessIcons = world.bless.owned
     .map((id) => findBless(id))
     .filter((definition): definition is BlessDefinition => Boolean(definition))
@@ -135,16 +122,10 @@ function createHudModel(
   ];
 
   return {
-    ahead: aheadText,
-    altar: world.altar.hp > 0 ? `${world.altar.hp}/${world.altar.maxHp} swings` : "spent",
     blessIcons,
     ...(cardToken ? { card: cardModel(cardToken) } : {}),
-    depth: world.depth,
-    enemies: world.enemies.length,
     fps,
-    held,
     hp: world.player.hp,
-    kills: world.kills,
     maxHp: world.player.maxHp,
     ...(world.messageSeconds > 0 && world.message ? { message: world.message } : {}),
     minimap: {
@@ -157,7 +138,6 @@ function createHudModel(
       width: DEMO_GRID_SIZE,
     },
     ...(overlay ? { overlay } : {}),
-    wallsBroken: world.wallsBroken,
   };
 }
 
@@ -320,7 +300,6 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     const scene = createDemoScene(world);
     renderer.render(scene, world.elapsedSeconds, createDemoEffects(world), {
       reducedMotion: false,
-      viewmodel: false,
       grade: true,
       turnRate,
     });

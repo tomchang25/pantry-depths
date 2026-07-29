@@ -120,19 +120,13 @@ function defaultHudModel(): DemoHudModel {
   });
 
   return {
-    ahead: "Stone wall HP 2/4",
-    altar: "2/3 swings",
     blessIcons: [
       { color: "#f2c96b", detail: "A sample authored blessing", glyph: "✦", name: "Ember" },
       { color: "#83d0a4", detail: "A second icon for contrast", glyph: "♢", name: "Moss" },
     ],
     card: { color: "#f2c96b", detail: "Live card layout preview", glyph: "✦", name: "Ember" },
-    depth: 4,
-    enemies: 7,
     fps: 60,
-    held: "Rock x3",
     hp: 72,
-    kills: 14,
     maxHp: 100,
     message: "The pantry answers from below.",
     minimap: {
@@ -148,7 +142,6 @@ function defaultHudModel(): DemoHudModel {
       tiles,
       width: 12,
     },
-    wallsBroken: 9,
   };
 }
 
@@ -235,20 +228,13 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   );
   const hudGrid = document.createElement("div");
   hudGrid.className = "debug-form-grid";
-  const hudFields: Array<
-    readonly [string, keyof Pick<DemoHudModel, "depth" | "enemies" | "hp" | "kills" | "maxHp" | "wallsBroken">]
-  > = [
-    ["HP", "hp"],
-    ["Max HP", "maxHp"],
-    ["Depth", "depth"],
-    ["Enemies", "enemies"],
-    ["Kills", "kills"],
-    ["Walls broken", "wallsBroken"],
-  ];
   const hud = mountDemoHud();
   const refreshHud = (): void => hud.update(hudModel);
 
-  for (const [label, key] of hudFields) {
+  for (const [label, key] of [
+    ["HP", "hp"],
+    ["Max HP", "maxHp"],
+  ] as const) {
     const input = numberInput(hudModel[key]);
     input.addEventListener("input", () => {
       hudModel = Object.assign({}, hudModel, { [key]: Number(input.value) });
@@ -257,19 +243,12 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
     hudGrid.append(field(label, input));
   }
 
-  for (const [label, key] of [
-    ["Held", "held"],
-    ["Ahead", "ahead"],
-    ["Altar", "altar"],
-    ["Message", "message"],
-  ] as const) {
-    const input = textInput(hudModel[key] ?? "");
-    input.addEventListener("input", () => {
-      hudModel = Object.assign({}, hudModel, { [key]: input.value || undefined });
-      refreshHud();
-    });
-    hudGrid.append(field(label, input));
-  }
+  const message = textInput(hudModel.message ?? "");
+  message.addEventListener("input", () => {
+    hudModel = Object.assign({}, hudModel, { message: message.value || undefined });
+    refreshHud();
+  });
+  hudGrid.append(field("Message", message));
 
   const showCard = document.createElement("input");
   showCard.type = "checkbox";

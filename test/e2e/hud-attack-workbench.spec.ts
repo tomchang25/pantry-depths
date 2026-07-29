@@ -9,6 +9,10 @@ test("the HUD and Attack Workbench previews live model and hit-arc changes", asy
   await page.getByLabel("HP", { exact: true }).fill("31");
   await expect(page.getByRole("progressbar", { name: "Health" })).toHaveAttribute("aria-valuenow", "31");
 
+  // The readout is two numbers and nothing else. Depth, enemy count, kills, walls broken, the altar
+  // and the wall ahead were all cut from the model, not merely hidden.
+  await expect(page.locator(".demo__readout")).toHaveText("31 / 100 · 60 FPS");
+
   await page.getByRole("tab", { name: "Attack" }).click();
   await page.getByLabel("Aim target").selectOption("4");
   await page.getByRole("button", { name: "Play selected attack" }).click();

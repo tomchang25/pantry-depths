@@ -24,9 +24,7 @@ import hotSpring from "@/content/presentation/assets/hot-spring.png";
 import keyBlue from "@/content/presentation/assets/key-blue.png";
 import keyRed from "@/content/presentation/assets/key-red.png";
 import keyYellow from "@/content/presentation/assets/key-yellow.png";
-import playerViewmodel from "@/content/presentation/assets/player-viewmodel.png";
 import stair from "@/content/presentation/assets/stair.png";
-import swordSlash from "@/content/presentation/assets/sword-slash.png";
 import wallSpikes from "@/content/presentation/assets/wall-spikes.png";
 import wallTorch from "@/content/presentation/assets/wall-torch.png";
 import type { KeyColor } from "@/core/run-state";
@@ -62,8 +60,6 @@ export const PRESENTATION_SPRITE_URLS = {
   bones,
   wallTorch,
   wallSpikes,
-  playerViewmodel,
-  swordSlash,
 } as const;
 
 export const REQUIRED_PRESENTATION_ASSETS = {

@@ -35,14 +35,10 @@
   transition: width 140ms linear;
 }
 
-.demo__held {
+.demo__readout {
   color: #ffd79a;
-  font-weight: 700;
-}
-
-.demo__fps {
-  color: #8fd4a2;
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
 }
 
 .demo__blessbar {

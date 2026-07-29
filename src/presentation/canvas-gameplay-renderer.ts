@@ -161,11 +161,6 @@ export type PresentationRenderEffects = Readonly<{
 export type RendererPreferences = Readonly<{
   reducedMotion: boolean;
   /**
-   * Whether to draw the shipped torch-and-sword viewmodel. The demo surface turns it off and paints
-   * its own hands, because it has to show whatever is currently being carried.
-   */
-  viewmodel?: boolean;
-  /**
    * Turns on the lightmap: placed lights actually pool on walls and floor instead of only warming
    * nearby sprites.
    *
@@ -1030,10 +1025,6 @@ export class CanvasGameplayRenderer {
       this.#drawMotes(scene, elapsedSeconds, preferences.reducedMotion);
     } else {
       this.#drawAtmosphere(elapsedSeconds, preferences.reducedMotion);
-    }
-
-    if (preferences.viewmodel !== false) {
-      this.#drawViewmodel(elapsedSeconds, effects, preferences.reducedMotion);
     }
 
     if (preferences.grade === true) {
@@ -3163,50 +3154,5 @@ export class CanvasGameplayRenderer {
       this.#context.fillStyle = `rgba(235, 190, 145, ${0.025 + (index % 3) * 0.012})`;
       this.#context.fillRect(x, y, 1, 1);
     }
-  }
-
-  #drawViewmodel(elapsedSeconds: number, effects: PresentationRenderEffects, reducedMotion: boolean): void {
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const image = requireImage(this.images, "presentation.playerViewmodel");
-    const viewWidth = Math.min(width * 0.94, height * 1.45);
-    const viewHeight = viewWidth;
-    const idleBob = reducedMotion ? 0 : Math.sin(elapsedSeconds * 2.2) * height * 0.006;
-    const walkBob = effects.walkBob * height * 0.017;
-    const swing = clamp(effects.swing, 0, 1);
-    const swingAngle = Math.sin(swing * Math.PI) * -0.16;
-    this.#context.save();
-    this.#context.translate(width / 2, height + idleBob + walkBob);
-    this.#context.rotate(swingAngle);
-    this.#context.drawImage(image, -viewWidth / 2, -viewHeight * 0.8, viewWidth, viewHeight);
-    this.#context.restore();
-
-    if (swing > 0.3 && swing < 0.82) {
-      const slash = requireImage(this.images, "presentation.swordSlash");
-      const alpha = Math.sin(((swing - 0.3) / 0.52) * Math.PI);
-      this.#context.save();
-      this.#context.globalAlpha = alpha * 0.86;
-      this.#context.globalCompositeOperation = "screen";
-      this.#context.drawImage(slash, width * 0.34, height * 0.05, width * 0.64, height * 0.83);
-      this.#context.restore();
-    }
-
-    this.#drawPlayerFlame(elapsedSeconds, reducedMotion);
-  }
-
-  #drawPlayerFlame(elapsedSeconds: number, reducedMotion: boolean): void {
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const x = width * 0.24;
-    const y = height * 0.51;
-    const flicker = reducedMotion ? 1 : 0.9 + Math.sin(elapsedSeconds * 12.7) * 0.1;
-    const gradient = this.#context.createRadialGradient(x, y, 0, x, y, height * 0.1);
-    gradient.addColorStop(0, "rgba(255, 249, 190, 0.95)");
-    gradient.addColorStop(0.2, "rgba(255, 143, 47, 0.74)");
-    gradient.addColorStop(1, "rgba(255, 73, 20, 0)");
-    this.#context.fillStyle = gradient;
-    this.#context.beginPath();
-    this.#context.ellipse(x, y, height * 0.05 * flicker, height * 0.11 * flicker, 0, 0, Math.PI * 2);
-    this.#context.fill();
   }
 }

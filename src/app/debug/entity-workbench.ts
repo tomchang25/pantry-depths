@@ -1266,7 +1266,7 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
 
       return {
         scene: mainScene(state, playbackSeconds, scrub),
-        preferences: { viewmodel: false, grade: true },
+        preferences: { grade: true },
       };
     },
   });
@@ -1282,7 +1282,7 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
       ariaLabel: `Skeleton ${cause} death preview`,
       frame: (timing) => ({
         scene: comparisonScene(cause, "swordsman", timing.elapsedSeconds),
-        preferences: { viewmodel: false, grade: true },
+        preferences: { grade: true },
       }),
     });
     heading.textContent = cause;

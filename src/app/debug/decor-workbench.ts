@@ -321,7 +321,7 @@ export function createDecorWorkbench(): HTMLElement {
     ariaLabel: "Decor preset renderer preview",
     frame: () => ({
       scene: sceneFor(currentPreset(), wallFace),
-      preferences: { viewmodel: false, grade: true },
+      preferences: { grade: true },
     }),
   });
   root.append(controls.panel, preview.element);

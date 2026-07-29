@@ -32,21 +32,14 @@ export type DemoHudMinimap = Readonly<{
 }>;
 
 export type DemoHudModel = Readonly<{
-  ahead: string;
-  altar: string;
   blessIcons: readonly DemoHudBlessIcon[];
   card?: DemoHudCard;
-  depth: number;
-  enemies: number;
   fps: number;
-  held: string;
   hp: number;
-  kills: number;
   maxHp: number;
   message?: string;
   minimap: DemoHudMinimap;
   overlay?: Readonly<{ body: string; title: string }>;
-  wallsBroken: number;
 }>;
 
 export type MountedDemoHud = Readonly<{
@@ -105,14 +98,6 @@ function drawMinimap(context: CanvasRenderingContext2D, model: DemoHudMinimap): 
   context.stroke();
 }
 
-function readoutLine(label: string, value: string): HTMLSpanElement {
-  const line = document.createElement("span");
-  const heading = document.createElement("b");
-  heading.textContent = label;
-  line.append(heading, ` ${value}`);
-  return line;
-}
-
 /** Mounts the complete DOM HUD; callers provide only immutable display data. */
 export function mountDemoHud(): MountedDemoHud {
   const root = element("div", "demo-hud");
@@ -152,13 +137,10 @@ export function mountDemoHud(): MountedDemoHud {
     bar.setAttribute("aria-valuemin", "0");
     bar.setAttribute("aria-valuemax", String(model.maxHp));
     bar.setAttribute("aria-valuenow", String(Math.max(0, model.hp)));
-    readout.replaceChildren(
-      readoutLine(`B${model.depth} · HP`, `${Math.ceil(model.hp)} / ${model.maxHp} · ${Math.round(model.fps)} FPS`),
-      readoutLine("Holding:", model.held),
-      readoutLine("Ahead:", model.ahead),
-      readoutLine("Altar", `${model.altar} · Enemies ${model.enemies}`),
-      readoutLine("Kills", `${model.kills} · Walls broken ${model.wallsBroken}`),
-    );
+    // Depth, enemy count, kills, walls broken, the altar and the wall ahead were all here, and all of
+    // them were a number to read rather than something to look at. What is left is the two numbers
+    // that change what the player does next.
+    readout.textContent = `${Math.ceil(model.hp)} / ${model.maxHp} · ${Math.round(model.fps)} FPS`;
     blessBar.replaceChildren();
 
     for (const icon of model.blessIcons) {
