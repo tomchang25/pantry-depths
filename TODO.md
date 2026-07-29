@@ -44,6 +44,14 @@ One line, no rationale, no backing document.
 
 Not scheduled. Do not start without a decision.
 
+### A Real 3D Layer Instead Of Baked Sprite Sheets
+
+The skeleton swordsman is an eight-way authored body: ten clips, eight directions, eight frames, baked offline from Blender into ten 2048-square atlases. That is 48 MB of PNG on disk and roughly 168 MB decoded, for one enemy. The cost is per enemy and it does not amortise — a second authored body is another 50 MB, and every added clip or direction multiplies it. Cutting the atlas cell back down is the only knob the current pipeline has, and it trades directly against the resolution that made the skeleton stop looking pasted onto the room.
+
+The alternative is a GPU 3D layer — Three.js or raw WebGL — where the same body is a rigged mesh of a few hundred kilobytes, viewable from any angle, at any resolution, with no bake step between authoring and seeing it. What makes this a decision rather than an obvious win is the compositing seam: walls, floors, depth, lighting, water and the x-ray markers are all the Canvas 2D raycaster's, and a second renderer has to agree with it about depth per column or the two images cannot be layered. Answering that is the work; the enemy is the easy half.
+
+Not scheduled. What forces the question is the second authored enemy, not this one.
+
 ### Browser Acceptance Coverage For Gameplay
 
 `test/e2e/` now covers the development console only — the parts of `src/app/debug/` that a DOM-less unit environment cannot observe. Presentation, input feel, VFX, and audio remain deliberate manual-playtest boundaries; `dev/agent_rules/test_operations.md` owns that scope line.
