@@ -1399,7 +1399,7 @@ function boxes(world: DemoWorld): RenderBox[] {
  * the surface, and a sprite under a floor is a sprite the renderer has no way to cut off at the
  * waterline for anything but the sinking animation itself.
  */
-const POOL_FILL: readonly RenderFloorMaterial[] = ["water", "waterFouled", "waterChoked"];
+export const POOL_FILL: readonly RenderFloorMaterial[] = ["water", "waterFouled", "waterChoked"];
 
 /**
  * Every walkable cell names its floor.

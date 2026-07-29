@@ -48,7 +48,8 @@ export type DemoInput = Readonly<{
   strafeRight: boolean;
 }>;
 
-const DEATH_SECONDS = 0.75;
+/** How long a corpse animation runs. Exported so a workbench replays a death at its real length. */
+export const DEATH_SECONDS = 0.75;
 const PROJECTILE_HIT_RADIUS = 0.45;
 /** What a point weapon adds for landing all of itself in one place, and the shove that comes with it. */
 const STRIKE_DAMAGE_SCALE = 1.6;

@@ -936,7 +936,45 @@ textarea {
   text-align: right;
 }
 
+.entity-range-field--direction output {
+  width: 8.5rem;
+  min-width: 8.5rem;
+}
+
+.entity-situation-panel {
+  padding: 0.85rem;
+  margin-top: 1rem;
+  border: 1px solid var(--debug-border-soft);
+  border-radius: 0.55rem;
+  background: rgb(16 13 22 / 32%);
+}
+
+.entity-situation-panel h3 {
+  margin-bottom: 0.75rem;
+  color: var(--debug-accent);
+}
+
+/*
+ * A control that does not apply to the current situation recedes; it never leaves.
+ *
+ * Removing it would take its grid row with it, and everything below would move — which is how the
+ * playback button ended up in a different place every time the situation changed.
+ */
+.entity-workbench-controls .debug-field[data-inert="true"] {
+  opacity: 0.38;
+}
+
+.entity-playback-row {
+  margin-top: 0.95rem;
+}
+
+/* Fixed width, so the label swapping between pause and play cannot resize the button. */
+.entity-play-button {
+  min-width: 11rem;
+}
+
 .entity-workbench-status {
+  margin-top: 0.85rem;
   margin-bottom: 0;
 }
 
@@ -965,6 +1003,13 @@ textarea {
   font-weight: 800;
 }
 
+/* Present, but reached by borrowing another state's artwork. Neither a gap nor a clean answer. */
+.debug-page td[data-state="shared"] {
+  background: repeating-linear-gradient(-45deg, rgb(255 205 125 / 9%) 0 0.4rem, transparent 0.4rem 0.8rem);
+  color: var(--debug-warning);
+  font-weight: 800;
+}
+
 .workbench-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -985,13 +1030,12 @@ textarea {
   color: var(--debug-accent-ink);
 }
 
-.workbench-tabs + [role="tabpanel"],
-.workbench-tabs + [role="tabpanel"] + [role="tabpanel"] {
+.workbench-tabs ~ [role="tabpanel"] {
   display: grid;
   gap: 1rem;
 }
 
-[role="tabpanel"][hidden] {
+.workbench-tabs ~ [role="tabpanel"][hidden] {
   display: none;
 }
 

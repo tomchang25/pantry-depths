@@ -3,9 +3,10 @@ import { createDecorWorkbench } from "@/app/debug/decor-workbench";
 import { createRenderPanel } from "@/app/debug/render-panel";
 import {
   SKELETON_SWORDSMAN_ANIMATIONS,
-  type SkeletonSwordsmanAnimationId,
+  SKELETON_SWORDSMAN_FRAMES,
 } from "@/content/enemies/skeleton-swordsman-definitions";
 import {
+  POOL_FILL,
   projectCarriedDemoEnemy,
   projectDemoBarricade,
   projectDemoDeath,
@@ -14,6 +15,8 @@ import {
   type DemoEntityProjectionContext,
 } from "@/demo/demo-scene";
 import { ENEMY_ARCHETYPES, type DemoArchetypeId } from "@/demo/enemy-archetypes";
+import { DROWN_SECONDS } from "@/demo/impacts";
+import { DEATH_SECONDS } from "@/demo/simulation";
 import {
   projectileHeight,
   type DemoDeath,
@@ -25,53 +28,93 @@ import type {
   CameraPose,
   RenderBeam,
   RenderBox,
+  RenderEmitter,
   RenderFloorPatch,
   RenderScene,
   RenderSurface,
 } from "@/presentation/render-scene";
 
-type EntityScenario = "clip" | "death" | "carried" | "wall" | "barricade" | "drowning";
+/**
+ * Where the body is. Owns the floor, the props, the camera, and its own parameters — nothing else.
+ *
+ * Separate from what the body is doing, because they are separate questions: the first version of
+ * this tool collapsed archetype, situation and state into one `Scenario` enum, which meant a
+ * situation could only be reached through a preset that also reset every other control on the page.
+ */
+type EntitySituation = "room" | "water" | "barricade" | "wall" | "skewered";
+
+/** What the body is doing. `dying` opens the cause; everything else is a living clip. */
+type EntityBodyState = "idle" | "walk" | "attack" | "hurt" | "block" | "dying";
+
 type WallFace = "north" | "east" | "south" | "west";
+
+type CoverageState = "available" | "shared" | "missing";
 
 type EntityWorkbenchState = {
   archetypeId: DemoArchetypeId;
-  clip: SkeletonSwordsmanAnimationId;
+  situation: EntitySituation;
+  bodyState: EntityBodyState;
   deathCause: DemoDeathCause;
   direction: number;
-  frame: number;
   playing: boolean;
-  scenario: EntityScenario;
   speed: number;
+  poolBodies: number;
+  barricadeWear: number;
+  wallFace: WallFace;
   carriedCount: number;
   flightPitch: number;
   flightSpeed: number;
-  wallFace: WallFace;
 };
 
-const SCENARIOS: readonly Readonly<{ id: EntityScenario; label: string }>[] = [
-  { id: "clip", label: "Clip turntable" },
-  { id: "death", label: "Death cause" },
-  { id: "carried", label: "Skewered flight" },
-  { id: "wall", label: "Wall splatter" },
-  { id: "barricade", label: "Barricade impale" },
-  { id: "drowning", label: "1.1 second drowning" },
+const SITUATIONS: readonly Readonly<{ id: EntitySituation; label: string; settings: string }>[] = [
+  { id: "room", label: "Open room", settings: "Open room" },
+  { id: "water", label: "Water", settings: "Water" },
+  { id: "barricade", label: "Barricade", settings: "Barricade" },
+  { id: "wall", label: "Against a wall", settings: "Wall" },
+  { id: "skewered", label: "Skewered flight (broken)", settings: "Skewered flight" },
 ];
 
-const DEATH_CAUSES: readonly DemoDeathCause[] = ["slain", "cleaved", "drowned", "splattered", "blasted", "impaled"];
+const BODY_STATES: readonly Readonly<{ id: EntityBodyState; label: string }>[] = [
+  { id: "idle", label: "Idle" },
+  { id: "walk", label: "Walk" },
+  { id: "attack", label: "Attack" },
+  { id: "hurt", label: "Hurt" },
+  // Named for the atlas, not for a mechanic. Nothing in the demo blocks an attack: this is the pose
+  // a body holds while `stunSeconds` is running — slammed by a thrown body, or a charger that beat
+  // itself against a wall — and the clip happens to be the one baked under the name `block`.
+  { id: "block", label: "Stunned (block clip)" },
+  { id: "dying", label: "Dying" },
+];
 
-const CLIP_DEATH_CAUSES: Partial<Record<SkeletonSwordsmanAnimationId, DemoDeathCause>> = {
-  death: "slain",
-  deathSeverRight: "cleaved",
-  deathBlasted: "blasted",
-  deathImpaled: "impaled",
-  deathDrowned: "drowned",
-};
+const LIVING_STATES = ["idle", "walk", "attack", "hurt", "block"] as const;
+const DEATH_CAUSES: readonly DemoDeathCause[] = ["slain", "cleaved", "drowned", "splattered", "blasted", "impaled"];
+const WALL_FACES: readonly WallFace[] = ["north", "east", "south", "west"];
+const POOL_BODY_LABELS = ["Clear water", "One body in it", "Two bodies in it"];
 
 const DIRECTION_LABELS = ["front", "front-right", "right", "back-right", "back", "back-left", "left", "front-left"];
+const DIRECTIONS = 8;
+
+/**
+ * Where in the block clip a stunned authored body is held.
+ *
+ * The demo picks one frame and stays on it for the whole stun rather than playing the clip, so seven
+ * of the eight frames the scrubber can reach never appear in the game. The scrubber still reaches
+ * them — checking that a baked sheet is right is a reason to see all of it — but the status line says
+ * which one is the only one that ships.
+ */
+const STUN_HELD_AT = 0.72;
+
 const ROOM_SIZE = 9;
-const ENTITY_X = 4.5;
-const ENTITY_Y = 4.25;
-const DEFAULT_CAMERA: CameraPose = { x: 4.5, y: 7.35, angle: -Math.PI / 2 };
+const ROOM_CENTRE = 4.5;
+const BODY_Y = 4.25;
+const ROOM_CAMERA: CameraPose = { x: ROOM_CENTRE, y: 7.35, angle: -Math.PI / 2 };
+/** Where a body flung into masonry comes to rest: the radius `unstick` settles a projectile with. */
+const BODY_STANDOFF = 0.3;
+/** How far behind the subject the camera stands. */
+const INSPECTION_BACK = 2.6;
+/** The pool, wide enough that the body is surrounded by water rather than standing in a puddle. */
+const POOL_FROM = 3;
+const POOL_TO = 5;
 
 function roomSurfaces(): RenderSurface[] {
   const surfaces: RenderSurface[] = [];
@@ -89,7 +132,26 @@ function roomSurfaces(): RenderSurface[] {
   return surfaces;
 }
 
+/**
+ * Every cell names its floor, the way `demo-scene` does it.
+ *
+ * Without this the room stands on the shipped game's default flagstone rather than the demo's own,
+ * so every body was being judged against a floor it never appears on.
+ */
+function roomFloor(): RenderFloorPatch[] {
+  const built: RenderFloorPatch[] = [];
+
+  for (let y = 0; y < ROOM_SIZE; y += 1) {
+    for (let x = 0; x < ROOM_SIZE; x += 1) {
+      built.push({ cell: { x, y }, material: "demoFlagstone" });
+    }
+  }
+
+  return built;
+}
+
 const ROOM_SURFACES = roomSurfaces();
+const ROOM_FLOOR = roomFloor();
 const ROOM_TILES = Array.from({ length: ROOM_SIZE }, (_rowValue, y) =>
   Array.from({ length: ROOM_SIZE }, (_columnValue, x) =>
     x === 0 || y === 0 || x === ROOM_SIZE - 1 || y === ROOM_SIZE - 1 ? "#" : ".",
@@ -102,8 +164,8 @@ function createEnemy(archetypeId: DemoArchetypeId, id = "workbench-enemy"): Demo
     id,
     archetype,
     appearance: archetype.appearance,
-    x: ENTITY_X,
-    y: ENTITY_Y,
+    x: ROOM_CENTRE,
+    y: BODY_Y,
     hp: archetype.health,
     maxHp: archetype.health,
     stunSeconds: 0,
@@ -121,7 +183,7 @@ function createEnemy(archetypeId: DemoArchetypeId, id = "workbench-enemy"): Demo
     chargeX: 0,
     chargeY: -1,
     drowningSeconds: 0,
-    facingAngle: DEFAULT_CAMERA.angle + Math.PI,
+    facingAngle: ROOM_CAMERA.angle + Math.PI,
     moving: false,
   };
 }
@@ -131,22 +193,38 @@ function createDeath(archetypeId: DemoArchetypeId, cause: DemoDeathCause, progre
   return {
     id: `workbench-${archetypeId}-${cause}`,
     appearance: archetype.appearance,
-    x: ENTITY_X,
-    y: ENTITY_Y,
+    x: ROOM_CENTRE,
+    y: BODY_Y,
     progress,
     cause,
     directionX: 0,
     directionY: -1,
     archetypeId,
-    facingAngle: DEFAULT_CAMERA.angle + Math.PI,
+    facingAngle: ROOM_CAMERA.angle + Math.PI,
   };
 }
 
-function createContext(elapsedSeconds: number, camera: CameraPose = DEFAULT_CAMERA): DemoEntityProjectionContext {
-  return {
-    elapsedSeconds,
-    camera: { x: camera.x, y: camera.y, angle: camera.angle },
-  };
+function createContext(elapsedSeconds: number, camera: CameraPose = ROOM_CAMERA): DemoEntityProjectionContext {
+  return { elapsedSeconds, camera: { x: camera.x, y: camera.y, angle: camera.angle } };
+}
+
+/** Puts a living body's simulation fields where the demo puts them to reach one visible state. */
+function stateEnemy(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityBodyState, "dying">): DemoEnemy {
+  const enemy = createEnemy(archetypeId);
+
+  if (bodyState === "walk") {
+    enemy.moving = true;
+  } else if (bodyState === "attack") {
+    enemy.windupTotal = 1;
+    enemy.windupSeconds = 0.4;
+    enemy.intent = "melee";
+  } else if (bodyState === "hurt") {
+    enemy.hurtSeconds = 0.14;
+  } else if (bodyState === "block") {
+    enemy.stunSeconds = 1;
+  }
+
+  return enemy;
 }
 
 function mergeProjection(
@@ -157,90 +235,70 @@ function mergeProjection(
   target.sprites = [...target.sprites, ...next.sprites];
 }
 
+/**
+ * A body that should be here and is not.
+ *
+ * Loud on purpose, and never a fallback to `idle`. A silent empty preview is the one outcome this
+ * tool must not produce: it is indistinguishable from a renderer that has stopped.
+ */
+function missingBodyBoxes(x: number, y: number): RenderBox[] {
+  return [
+    {
+      id: "workbench-missing-body",
+      x,
+      y,
+      halfX: 0.16,
+      halfY: 0.16,
+      bottom: 0,
+      top: 1.05,
+      color: [214, 74, 148],
+      topColor: [255, 168, 214],
+    },
+  ];
+}
+
 function scene(
   projection: DemoEntityProjection,
   options: Readonly<{
     beams?: readonly RenderBeam[];
     boxes?: readonly RenderBox[];
     camera?: CameraPose;
+    emitters?: readonly RenderEmitter[];
     floorPatches?: readonly RenderFloorPatch[];
+    light?: Readonly<{ x: number; y: number }>;
     surfaces?: readonly RenderSurface[];
   }> = {},
 ): RenderScene {
+  const light = options.light ?? { x: ROOM_CENTRE, y: BODY_Y + 1 };
   return {
     floorId: "entity-workbench",
     theme: "demo",
     width: ROOM_SIZE,
     height: ROOM_SIZE,
     tiles: ROOM_TILES,
-    camera: options.camera ?? DEFAULT_CAMERA,
+    camera: options.camera ?? ROOM_CAMERA,
     ambient: [0.24, 0.2, 0.3],
     wallHeight: 1.4,
     eyeHeight: 0.5,
     surfaces: options.surfaces ?? ROOM_SURFACES,
+    floorPatches: options.floorPatches ?? ROOM_FLOOR,
     blobs: projection.blobs,
     sprites: projection.sprites,
-    ...(options.floorPatches ? { floorPatches: options.floorPatches } : {}),
     ...(options.boxes ? { boxes: options.boxes } : {}),
     ...(options.beams ? { beams: options.beams } : {}),
-    lights: [{ id: "inspection-light", x: ENTITY_X, y: ENTITY_Y + 1, radius: 5, color: [255, 178, 112], intensity: 1 }],
-    emitters: [],
+    lights: [{ id: "inspection-light", x: light.x, y: light.y, radius: 5, color: [255, 178, 112], intensity: 1 }],
+    emitters: options.emitters ?? [],
   };
 }
 
-function isClipAvailable(archetypeId: DemoArchetypeId, clip: SkeletonSwordsmanAnimationId): boolean {
-  return archetypeId === "swordsman" || clip !== "walk";
-}
+const CARRIED_RANGE = 3;
 
-function livingProjection(
-  context: DemoEntityProjectionContext,
-  state: EntityWorkbenchState,
-  progress: number,
-): DemoEntityProjection {
-  if (!isClipAvailable(state.archetypeId, state.clip)) {
-    return { blobs: [], sprites: [] };
-  }
-
-  const enemy = createEnemy(state.archetypeId);
-  enemy.facingAngle = context.camera.angle + Math.PI - (state.direction / 8) * Math.PI * 2;
-
-  if (state.clip === "walk") {
-    enemy.moving = true;
-  } else if (state.clip === "attack") {
-    enemy.windupTotal = 1;
-    enemy.windupSeconds = Math.max(0.0001, 1 - progress);
-    enemy.intent = "melee";
-  } else if (state.clip === "hurt") {
-    enemy.hurtSeconds = Math.max(0.0001, 0.28 * (1 - progress));
-  } else if (state.clip === "block") {
-    enemy.stunSeconds = 1;
-  }
-
-  return projectDemoEnemy(context, enemy, {
-    skeletonAnimation: { animation: state.clip, progress },
-  });
-}
-
-function clipProjection(
-  context: DemoEntityProjectionContext,
-  state: EntityWorkbenchState,
-  progress: number,
-): DemoEntityProjection {
-  const deathCause = CLIP_DEATH_CAUSES[state.clip];
-
-  if (deathCause) {
-    const death = createDeath(state.archetypeId, deathCause, progress);
-    death.facingAngle = context.camera.angle + Math.PI - (state.direction / 8) * Math.PI * 2;
-    return projectDemoDeath(context, death);
-  }
-
-  return livingProjection(context, state, progress);
-}
-
-function createProjectile(elapsedSeconds: number, state: EntityWorkbenchState): DemoProjectile {
-  const range = 3;
-  const travelled = (elapsedSeconds * state.flightSpeed) % range;
-  const pitchRadians = (state.flightPitch / 180) * Math.PI;
+function createProjectile(
+  elapsedSeconds: number,
+  flight: Readonly<{ flightPitch: number; flightSpeed: number }>,
+): DemoProjectile {
+  const travelled = (elapsedSeconds * flight.flightSpeed) % CARRIED_RANGE;
+  const pitchRadians = (flight.flightPitch / 180) * Math.PI;
   const directionX = 0.92;
   const directionY = -Math.sqrt(1 - directionX * directionX);
   return {
@@ -251,12 +309,12 @@ function createProjectile(elapsedSeconds: number, state: EntityWorkbenchState): 
     directionX,
     directionY,
     travelled,
-    range,
-    speed: state.flightSpeed,
+    range: CARRIED_RANGE,
+    speed: flight.flightSpeed,
     drag: 0,
     plunge: 1,
     thud: 1,
-    arc: Math.tan(pitchRadians) * range,
+    arc: Math.tan(pitchRadians) * CARRIED_RANGE,
     fall: 0,
     payload: undefined,
     struck: new Set<string>(),
@@ -266,6 +324,319 @@ function createProjectile(elapsedSeconds: number, state: EntityWorkbenchState): 
   };
 }
 
+// ---------------------------------------------------------------------------------------------------
+// Coverage, derived from the projection rather than described alongside it
+// ---------------------------------------------------------------------------------------------------
+
+/** A fixed instant, so two probes of the same body differ only by the state being probed. */
+const PROBE_SECONDS = 0.37;
+const PROBE_PROGRESS = 0.5;
+const PROBE_CONTEXT = createContext(PROBE_SECONDS);
+
+/**
+ * What a projection looks like, ignoring the identity of what produced it.
+ *
+ * Two states that project to the same shape are the same state as far as anyone looking at the
+ * screen is concerned, which is the whole question this table answers. Comparing shapes is also why
+ * the coverage table cannot be a list of clip names: the names always exist, and the answer for a
+ * blob is that setting `moving` changes nothing about it.
+ */
+function withoutIdentity(entry: object): string {
+  return JSON.stringify(Object.fromEntries(Object.entries(entry).filter(([key]) => key !== "id")));
+}
+
+function projectionShape(projection: DemoEntityProjection): string {
+  return [...projection.blobs.map(withoutIdentity), ...projection.sprites.map(withoutIdentity)].join("|");
+}
+
+function isEmpty(projection: DemoEntityProjection): boolean {
+  return projection.blobs.length === 0 && projection.sprites.length === 0;
+}
+
+/**
+ * One living state, projected the way the demo reaches it — no forced clip.
+ *
+ * The preview does force one, because scrubbing a named clip frame by frame is what it is for. The
+ * table must not: forcing `walk` on a slime would report a walk the game can never show.
+ */
+function livingProbe(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityBodyState, "dying">): DemoEntityProjection {
+  return projectDemoEnemy(PROBE_CONTEXT, stateEnemy(archetypeId, bodyState));
+}
+
+function livingCoverage(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityBodyState, "dying">): CoverageState {
+  const probe = livingProbe(archetypeId, bodyState);
+
+  if (isEmpty(probe)) {
+    return "missing";
+  }
+
+  if (bodyState === "idle") {
+    return "available";
+  }
+
+  return projectionShape(probe) === projectionShape(livingProbe(archetypeId, "idle")) ? "missing" : "available";
+}
+
+/** Every death cause of one body, grouped by what it actually projects to. */
+function deathCoverage(
+  archetypeId: DemoArchetypeId,
+): Map<DemoDeathCause, Readonly<{ state: CoverageState; note: string }>> {
+  const shapes = new Map<DemoDeathCause, string>();
+  const found = new Map<DemoDeathCause, Readonly<{ state: CoverageState; note: string }>>();
+
+  for (const cause of DEATH_CAUSES) {
+    const probe = projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, cause, PROBE_PROGRESS));
+    shapes.set(cause, isEmpty(probe) ? "" : projectionShape(probe));
+  }
+
+  for (const cause of DEATH_CAUSES) {
+    const shape = shapes.get(cause);
+
+    if (!shape) {
+      found.set(cause, { state: "missing", note: "Missing — placeholder" });
+      continue;
+    }
+
+    const sharedWith = DEATH_CAUSES.filter((other) => other !== cause && shapes.get(other) === shape);
+    found.set(
+      cause,
+      sharedWith.length > 0
+        ? { state: "shared", note: `Shared with ${sharedWith.join(", ")}` }
+        : { state: "available", note: "Available" },
+    );
+  }
+
+  return found;
+}
+
+function facesEightWays(archetypeId: DemoArchetypeId): boolean {
+  const front = createEnemy(archetypeId);
+  const side = createEnemy(archetypeId);
+  side.facingAngle = front.facingAngle + Math.PI / 2;
+  return (
+    projectionShape(projectDemoEnemy(PROBE_CONTEXT, front)) !== projectionShape(projectDemoEnemy(PROBE_CONTEXT, side))
+  );
+}
+
+/** Whether the body goes under the surface it is standing on rather than staying on top of it. */
+function sinksInWater(archetypeId: DemoArchetypeId): boolean {
+  const enemy = createEnemy(archetypeId);
+  enemy.drowningSeconds = DROWN_SECONDS / 2;
+  const projection = projectDemoEnemy(PROBE_CONTEXT, enemy);
+  return (
+    projection.blobs.some((blob) => blob.sink < 0) || projection.sprites.some((sprite) => (sprite.submerged ?? 0) > 0)
+  );
+}
+
+/** Whether ending against masonry leaves anything on the masonry. */
+function marksTheWall(archetypeId: DemoArchetypeId): boolean {
+  return projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, "splattered", PROBE_PROGRESS)).sprites.some(
+    (sprite) => sprite.placement === "wall",
+  );
+}
+
+/** Whether being run through holds the body off the floor instead of laying it on it. */
+function hangsOnIron(archetypeId: DemoArchetypeId): boolean {
+  const projection = projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, "impaled", PROBE_PROGRESS));
+  return (
+    projection.blobs.some((blob) => blob.sink > 0) || projection.sprites.some((sprite) => sprite.verticalAnchor < 0)
+  );
+}
+
+/** Whether a carried body follows the shaft it is on when the throw is pitched. */
+function ridesTheShaft(archetypeId: DemoArchetypeId): boolean {
+  const enemy = createEnemy(archetypeId);
+  const level = projectCarriedDemoEnemy(PROBE_CONTEXT, probeProjectile(0), enemy, 0);
+  const lobbed = projectCarriedDemoEnemy(PROBE_CONTEXT, probeProjectile(1.4), enemy, 0);
+  return projectionShape(level) !== projectionShape(lobbed);
+}
+
+function probeProjectile(arc: number): DemoProjectile {
+  return {
+    ...createProjectile(PROBE_SECONDS, { flightPitch: 0, flightSpeed: 3 }),
+    arc,
+    travelled: 1.5,
+  };
+}
+
+const SITUATION_COVERAGE: readonly Readonly<{ label: string; holds: (archetypeId: DemoArchetypeId) => boolean }>[] = [
+  { label: "Sinks in water", holds: sinksInWater },
+  { label: "Marks the wall", holds: marksTheWall },
+  { label: "Hangs on iron", holds: hangsOnIron },
+  { label: "Rides the shaft", holds: ridesTheShaft },
+];
+
+function coverageCell(state: CoverageState, note: string): HTMLTableCellElement {
+  const cell = document.createElement("td");
+  cell.dataset.state = state;
+  cell.textContent = note;
+  return cell;
+}
+
+/**
+ * The one thing this workbench knows that nothing else does: where the bodies are unfinished.
+ *
+ * Every cell is measured, not written down. The previous table was a pair of hand-written branches
+ * that reported ten clips available for the skeleton and everything but `walk` available for a slime,
+ * and it agreed with itself no matter what the projection did.
+ */
+function createCoverageMatrix(): HTMLDivElement {
+  const table = document.createElement("table");
+  const caption = document.createElement("caption");
+  const head = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  const body = document.createElement("tbody");
+  caption.textContent =
+    "Measured by projecting each body and comparing the result, so a state that silently falls back to another one reads as missing rather than as present.";
+
+  const columns = [
+    "Archetype",
+    "8-way",
+    ...LIVING_STATES,
+    ...DEATH_CAUSES.map((cause) => `death · ${cause}`),
+    ...SITUATION_COVERAGE.map((entry) => entry.label),
+  ];
+
+  for (const label of columns) {
+    const cell = document.createElement("th");
+    cell.scope = "col";
+    cell.textContent = label;
+    headerRow.append(cell);
+  }
+
+  head.append(headerRow);
+
+  for (const archetype of Object.values(ENEMY_ARCHETYPES)) {
+    const row = document.createElement("tr");
+    const heading = document.createElement("th");
+    const deaths = deathCoverage(archetype.id);
+    heading.scope = "row";
+    heading.textContent = archetype.name;
+    row.append(heading);
+    row.append(
+      facesEightWays(archetype.id)
+        ? coverageCell("available", "Available")
+        : coverageCell("missing", "Missing — placeholder"),
+    );
+
+    for (const bodyState of LIVING_STATES) {
+      const state = livingCoverage(archetype.id, bodyState);
+      row.append(coverageCell(state, state === "available" ? "Available" : "Missing — placeholder"));
+    }
+
+    for (const cause of DEATH_CAUSES) {
+      const finding = deaths.get(cause) ?? { state: "missing" as CoverageState, note: "Missing — placeholder" };
+      row.append(coverageCell(finding.state, finding.note));
+    }
+
+    for (const entry of SITUATION_COVERAGE) {
+      row.append(
+        entry.holds(archetype.id)
+          ? coverageCell("available", "Available")
+          : coverageCell("missing", "Missing — placeholder"),
+      );
+    }
+
+    body.append(row);
+  }
+
+  table.append(caption, head, body);
+  return createDebugScroller(table, "Entity animation coverage matrix");
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Scenes, one per situation
+// ---------------------------------------------------------------------------------------------------
+
+function facingFor(camera: CameraPose, direction: number): number {
+  return camera.angle + Math.PI - (direction / DIRECTIONS) * Math.PI * 2;
+}
+
+/**
+ * How long one pass of the selected timeline takes at 1×, in the seconds the game spends on it.
+ *
+ * Every clip has its own frame rate and the corpse animation has a duration of its own, so a flat
+ * one-second loop — which is what this used to do — showed no clip at the speed it actually plays.
+ */
+function timelineSeconds(state: EntityWorkbenchState): number {
+  if (state.situation === "water") {
+    return DROWN_SECONDS + DEATH_SECONDS;
+  }
+
+  if (state.situation === "skewered") {
+    return CARRIED_RANGE / Math.max(0.1, state.flightSpeed);
+  }
+
+  if (state.bodyState === "dying") {
+    return DEATH_SECONDS;
+  }
+
+  if (state.archetypeId !== "swordsman") {
+    // A blob has no frames to run out of; it deforms continuously. A second is a readable loop for
+    // the wobble, and the scrubber is a percentage rather than a frame count for the same reason.
+    return 1;
+  }
+
+  const definition = SKELETON_SWORDSMAN_ANIMATIONS[state.bodyState];
+  return definition.frames / definition.framesPerSecond;
+}
+
+/** Frames in the clip the scrubber is stepping through, or zero when there is no clip to step. */
+function timelineFrames(state: EntityWorkbenchState): number {
+  if (state.archetypeId !== "swordsman" || state.situation === "water" || state.situation === "skewered") {
+    return 0;
+  }
+
+  // Every authored clip is the same eight frames wide, so a death does not need its cause resolved
+  // to a clip name here. What differs between clips is the rate, and that is `timelineSeconds`.
+  return state.bodyState === "dying"
+    ? SKELETON_SWORDSMAN_FRAMES
+    : SKELETON_SWORDSMAN_ANIMATIONS[state.bodyState].frames;
+}
+
+function livingProjection(
+  context: DemoEntityProjectionContext,
+  state: EntityWorkbenchState,
+  progress: number,
+): DemoEntityProjection {
+  const bodyState = state.bodyState === "dying" ? "idle" : state.bodyState;
+  const enemy = stateEnemy(state.archetypeId, bodyState);
+  enemy.facingAngle = facingFor(context.camera, state.direction);
+
+  if (bodyState === "attack") {
+    enemy.windupSeconds = Math.max(0.0001, 1 - progress);
+  } else if (bodyState === "hurt") {
+    enemy.hurtSeconds = Math.max(0.0001, 0.28 * (1 - progress));
+  }
+
+  // The preview forces the named clip so it can be stepped; the coverage table deliberately does not.
+  return projectDemoEnemy(context, enemy, {
+    skeletonAnimation: { animation: bodyState, progress },
+  });
+}
+
+function bodyProjection(
+  context: DemoEntityProjectionContext,
+  state: EntityWorkbenchState,
+  progress: number,
+  placement?: Pick<DemoDeath, "directionX" | "directionY" | "x" | "y">,
+): DemoEntityProjection {
+  if (state.bodyState === "dying") {
+    const death = { ...createDeath(state.archetypeId, state.deathCause, progress), ...placement };
+    death.facingAngle = facingFor(context.camera, state.direction);
+    return projectDemoDeath(context, death);
+  }
+
+  return livingProjection(context, state, progress);
+}
+
+/**
+ * Bodies on a flying shaft.
+ *
+ * Left as it was found, and labelled `(broken)` in the situation list to say so: the flight line is
+ * an arbitrary diagonal that teleports back to its start, the shaft is a hand-rolled beam rather than
+ * the demo's own javelin, and every body faces the camera instead of the way it is travelling.
+ */
 function carriedScene(elapsedSeconds: number, state: EntityWorkbenchState): RenderScene {
   const context = createContext(elapsedSeconds);
   const projectile = createProjectile(elapsedSeconds, state);
@@ -301,89 +672,126 @@ function carriedScene(elapsedSeconds: number, state: EntityWorkbenchState): Rend
   return scene(projection, { beams });
 }
 
-function wallSetup(face: WallFace): Readonly<{
+type WallSetup = Readonly<{
   camera: CameraPose;
   death: Pick<DemoDeath, "directionX" | "directionY" | "x" | "y">;
-  surface: RenderSurface;
-}> {
-  if (face === "north") {
-    return {
-      camera: { x: 4.5, y: 2.7, angle: Math.PI / 2 },
-      death: { x: 4.5, y: 4.2, directionX: 0, directionY: 1 },
-      surface: { cell: { x: 4, y: 5 }, material: "demoAshlar" },
-    };
-  }
+  surfaces: readonly RenderSurface[];
+}>;
 
-  if (face === "east") {
-    return {
-      camera: { x: 7.3, y: 4.5, angle: Math.PI },
-      death: { x: 5.8, y: 4.5, directionX: -1, directionY: 0 },
-      surface: { cell: { x: 4, y: 4 }, material: "demoAshlar" },
-    };
-  }
+/**
+ * One face, and everything else derived from it.
+ *
+ * The wall cell, the plane the mark snaps to, where the body rests, which way it was travelling and
+ * where the camera stands are five statements of a single fact. Written out per face — which is how
+ * this started — they are five chances to disagree, and the body ended up further off the masonry
+ * than a body can come to rest. `snapToFace` in the demo puts the mark on the grid line the body was
+ * heading for, so that line is the only thing worth naming.
+ */
+function wallSetup(face: WallFace): WallSetup {
+  const acrossX = face === "east" || face === "west";
+  const towards = face === "north" || face === "west" ? 1 : -1;
+  const plane = towards > 0 ? 6 : 3;
+  const along = plane - towards * BODY_STANDOFF;
+  const back = along - towards * INSPECTION_BACK;
+  // A run of masonry rather than one block. A lone cell standing in the middle of the floor gives a
+  // decal nothing to be judged against, which is half of why the marks looked wrong.
+  const line = towards > 0 ? plane : plane - 1;
+  const surfaces: RenderSurface[] = [...ROOM_SURFACES];
 
-  if (face === "south") {
-    return {
-      camera: { x: 4.5, y: 7.3, angle: -Math.PI / 2 },
-      death: { x: 4.5, y: 5.8, directionX: 0, directionY: -1 },
-      surface: { cell: { x: 4, y: 4 }, material: "demoAshlar" },
-    };
+  for (let index = 1; index < ROOM_SIZE - 1; index += 1) {
+    surfaces.push({ cell: acrossX ? { x: line, y: index } : { x: index, y: line }, material: "demoAshlar" });
   }
 
   return {
-    camera: { x: 2.7, y: 4.5, angle: 0 },
-    death: { x: 4.2, y: 4.5, directionX: 1, directionY: 0 },
-    surface: { cell: { x: 5, y: 4 }, material: "demoAshlar" },
+    camera: acrossX
+      ? { x: back, y: ROOM_CENTRE, angle: towards > 0 ? 0 : Math.PI }
+      : { x: ROOM_CENTRE, y: back, angle: towards > 0 ? Math.PI / 2 : -Math.PI / 2 },
+    death: acrossX
+      ? { x: along, y: ROOM_CENTRE, directionX: towards, directionY: 0 }
+      : { x: ROOM_CENTRE, y: along, directionX: 0, directionY: towards },
+    surfaces,
   };
 }
 
-function mainScene(elapsedSeconds: number, progress: number, state: EntityWorkbenchState): RenderScene {
-  if (state.scenario === "carried") {
+function poolFloor(bodies: number): RenderFloorPatch[] {
+  const material = POOL_FILL[Math.min(bodies, POOL_FILL.length - 1)] ?? "water";
+  return ROOM_FLOOR.map((patch) =>
+    patch.cell.x >= POOL_FROM && patch.cell.x <= POOL_TO && patch.cell.y >= POOL_FROM && patch.cell.y <= POOL_TO
+      ? { cell: patch.cell, material }
+      : patch,
+  );
+}
+
+/**
+ * The whole drowning on one timeline: one point one seconds of a living body, then its corpse.
+ *
+ * Both halves have to be on the same scrubber. Split across a private loop of its own — which is
+ * what this was — the frame control could only ever reach the first half, so the corpse was
+ * unreachable and the 1.1 seconds the acceptance list asks for could not be stepped through.
+ */
+function waterScene(state: EntityWorkbenchState, elapsedSeconds: number, scrub: number): RenderScene {
+  const at = scrub * (DROWN_SECONDS + DEATH_SECONDS);
+  const context = createContext(elapsedSeconds);
+  const floorPatches = poolFloor(state.poolBodies);
+
+  if (at < DROWN_SECONDS) {
+    const enemy = createEnemy(state.archetypeId);
+    enemy.facingAngle = facingFor(context.camera, state.direction);
+    enemy.drowningSeconds = Math.max(0.0001, DROWN_SECONDS - at);
+    return scene(projectDemoEnemy(context, enemy), {
+      floorPatches,
+      // The bubbles the demo puts over anything going under. Without them the water gives back no
+      // sign that something is in it, which is most of why this read as nothing happening.
+      emitters: [{ id: "workbench-drown", x: enemy.x, y: enemy.y, kind: "steam", density: 9 }],
+    });
+  }
+
+  const death = createDeath(state.archetypeId, "drowned", (at - DROWN_SECONDS) / DEATH_SECONDS);
+  death.facingAngle = facingFor(context.camera, state.direction);
+  return scene(projectDemoDeath(context, death), { floorPatches });
+}
+
+function mainScene(state: EntityWorkbenchState, elapsedSeconds: number, scrub: number): RenderScene {
+  if (state.situation === "skewered") {
     return carriedScene(elapsedSeconds, state);
   }
 
-  if (state.scenario === "wall") {
+  if (state.situation === "water") {
+    return waterScene(state, elapsedSeconds, scrub);
+  }
+
+  if (state.bodyState !== "dying" && livingCoverage(state.archetypeId, state.bodyState) === "missing") {
+    return scene({ blobs: [], sprites: [] }, { boxes: missingBodyBoxes(ROOM_CENTRE, BODY_Y) });
+  }
+
+  if (state.situation === "wall") {
     const setup = wallSetup(state.wallFace);
-    const death = { ...createDeath(state.archetypeId, "splattered", progress), ...setup.death };
-    return scene(projectDemoDeath(createContext(elapsedSeconds, setup.camera), death), {
+    const context = createContext(elapsedSeconds, setup.camera);
+    return scene(bodyProjection(context, state, scrub, setup.death), {
       camera: setup.camera,
-      surfaces: [...ROOM_SURFACES, setup.surface],
+      surfaces: setup.surfaces,
+      light: { x: setup.death.x, y: setup.death.y },
     });
   }
 
-  if (state.scenario === "barricade") {
-    const death = createDeath(state.archetypeId, "impaled", progress);
-    death.x = 4.5;
-    death.y = 4.5;
-    return scene(projectDemoDeath(createContext(elapsedSeconds), death), {
-      boxes: projectDemoBarricade({ x: 4, y: 4 }),
-    });
-  }
-
-  if (state.scenario === "drowning") {
-    const cycle = (elapsedSeconds * state.speed) % 2.1;
+  if (state.situation === "barricade") {
     const context = createContext(elapsedSeconds);
-    let projection: DemoEntityProjection;
-
-    if (cycle < 1.1) {
-      const enemy = createEnemy(state.archetypeId);
-      enemy.drowningSeconds = Math.max(0.0001, 1.1 - cycle);
-      projection = projectDemoEnemy(context, enemy);
-    } else {
-      projection = projectDemoDeath(context, createDeath(state.archetypeId, "drowned", cycle - 1.1));
-    }
-
-    return scene(projection, { floorPatches: [{ cell: { x: 4, y: 4 }, material: "water" }] });
+    const placement = { x: 4.5, y: 4.5, directionX: 0, directionY: -1 };
+    return scene(bodyProjection(context, state, scrub, placement), {
+      boxes: projectDemoBarricade({ x: 4, y: 4 }, state.barricadeWear),
+    });
   }
 
-  const context = createContext(elapsedSeconds);
-
-  if (state.scenario === "death") {
-    return scene(projectDemoDeath(context, createDeath(state.archetypeId, state.deathCause, progress)));
-  }
-
-  return scene(clipProjection(context, state, progress));
+  return scene(bodyProjection(createContext(elapsedSeconds), state, scrub));
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Controls
+// ---------------------------------------------------------------------------------------------------
+
+type SelectField = Readonly<{ field: HTMLLabelElement; select: HTMLSelectElement }> & {
+  setInert: (inert: boolean) => void;
+};
 
 function createSelect<T extends string>(
   id: string,
@@ -391,11 +799,11 @@ function createSelect<T extends string>(
   options: readonly Readonly<{ id: T; label: string }>[],
   value: T,
   onChange: (value: T) => void,
-): HTMLLabelElement {
-  const label = document.createElement("label");
+): SelectField {
+  const field = document.createElement("label");
   const text = document.createElement("span");
   const select = document.createElement("select");
-  label.className = "debug-field";
+  field.className = "debug-field";
   text.textContent = labelText;
   select.id = id;
 
@@ -408,9 +816,24 @@ function createSelect<T extends string>(
 
   select.value = value;
   select.addEventListener("change", () => onChange(select.value as T));
-  label.append(text, select);
-  return label;
+  field.append(text, select);
+  return {
+    field,
+    select,
+    // Inert rather than hidden. A control that disappears takes its row with it, and everything below
+    // moves — which is how the play button ended up somewhere new every time the situation changed.
+    setInert: (inert: boolean) => {
+      select.disabled = inert;
+      field.dataset.inert = String(inert);
+    },
+  };
 }
+
+type RangeField = Readonly<{ field: HTMLLabelElement; input: HTMLInputElement; output: HTMLOutputElement }> & {
+  set: (value: number) => void;
+  setBounds: (bounds: Readonly<{ max: number; step: number }>) => void;
+  setInert: (inert: boolean) => void;
+};
 
 function createRange(
   id: string,
@@ -421,7 +844,7 @@ function createRange(
   step: number,
   format: (value: number) => string,
   onInput: (value: number) => void,
-): Readonly<{ field: HTMLLabelElement; input: HTMLInputElement; output: HTMLOutputElement }> {
+): RangeField {
   const field = document.createElement("label");
   const heading = document.createElement("span");
   const row = document.createElement("span");
@@ -445,56 +868,32 @@ function createRange(
   });
   row.append(input, output);
   field.append(heading, row);
-  return { field, input, output };
+  return {
+    field,
+    input,
+    output,
+    set: (next: number) => {
+      input.value = String(next);
+      output.textContent = format(next);
+    },
+    setBounds: (bounds) => {
+      input.max = String(bounds.max);
+      input.step = String(bounds.step);
+    },
+    setInert: (inert: boolean) => {
+      input.disabled = inert;
+      field.dataset.inert = String(inert);
+    },
+  };
 }
 
-function createGapMatrix(): HTMLDivElement {
-  const table = document.createElement("table");
-  const caption = document.createElement("caption");
-  const head = document.createElement("thead");
-  const headerRow = document.createElement("tr");
-  const body = document.createElement("tbody");
-  const columns = ["8-way", ...Object.keys(SKELETON_SWORDSMAN_ANIMATIONS), "squash", "droop"];
-  caption.textContent =
-    "A visible placeholder means that archetype has no authored equivalent; the workbench never substitutes idle.";
-
-  for (const label of ["Archetype", ...columns]) {
-    const cell = document.createElement("th");
-    cell.scope = "col";
-    cell.textContent = label;
-    headerRow.append(cell);
-  }
-
-  head.append(headerRow);
-
-  for (const archetype of Object.values(ENEMY_ARCHETYPES)) {
-    const row = document.createElement("tr");
-    const heading = document.createElement("th");
-    heading.scope = "row";
-    heading.textContent = archetype.name;
-    row.append(heading);
-
-    for (const column of columns) {
-      const cell = document.createElement("td");
-      const authored =
-        archetype.id === "swordsman"
-          ? column !== "squash" && column !== "droop"
-          : column !== "8-way" && column !== "walk";
-      cell.dataset.state = authored ? "available" : "missing";
-      cell.textContent = authored ? "Available" : "Missing — placeholder";
-      row.append(cell);
-    }
-
-    body.append(row);
-  }
-
-  table.append(caption, head, body);
-  return createDebugScroller(table, "Entity animation coverage matrix");
-}
-
-function comparisonScene(cause: "splattered" | "impaled", elapsedSeconds: number): RenderScene {
-  const progress = elapsedSeconds % 1;
-  return scene(projectDemoDeath(createContext(elapsedSeconds), createDeath("swordsman", cause, progress)));
+function comparisonScene(
+  cause: "splattered" | "impaled",
+  archetypeId: DemoArchetypeId,
+  elapsedSeconds: number,
+): RenderScene {
+  const progress = (elapsedSeconds / DEATH_SECONDS) % 1;
+  return scene(projectDemoDeath(createContext(elapsedSeconds), createDeath(archetypeId, cause, progress)));
 }
 
 /** Renders the entity and decor authoring tabs behind one shared asset-workbench route. */
@@ -534,9 +933,14 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   };
   entityTab.addEventListener("click", () => selectTab("entity"));
   decorTab.addEventListener("click", () => selectTab("decor"));
-  const controls = createDebugPanel(
-    "Entity and playback",
-    "Choose a reproducible scene, then scrub or loop its presentation state.",
+
+  const bodyPanel = createDebugPanel(
+    "Body",
+    "Three axes that do not reset each other: which body, where it is, and what it is doing.",
+  );
+  const playbackPanel = createDebugPanel(
+    "Playback",
+    "How the body is being looked at and where in its own timeline it is. 1× is the rate the game runs the selected clip at, not a flat one-second loop.",
   );
   const previewPanel = createDebugPanel(
     "Live entity projection",
@@ -550,46 +954,51 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     "Entities Animation Check",
     "Every unsupported archetype × state pairing stays explicit.",
   );
+
   const state: EntityWorkbenchState = {
     archetypeId: "swordsman",
-    clip: "idle",
+    situation: "room",
+    bodyState: "idle",
     deathCause: "slain",
     direction: 0,
-    frame: 0,
     playing: true,
-    scenario: "clip",
     speed: 1,
+    poolBodies: 0,
+    barricadeWear: 0,
+    wallFace: "north",
     carriedCount: 3,
     flightPitch: 12,
     flightSpeed: 3.5,
-    wallFace: "north",
   };
-  const form = document.createElement("div");
+
+  const axes = document.createElement("div");
+  const settings = document.createElement("section");
+  const settingsHeading = document.createElement("h3");
+  const settingsGrid = document.createElement("div");
+  const playbackGrid = document.createElement("div");
   const playbackRow = document.createElement("div");
   const status = document.createElement("p");
   const playButton = document.createElement("button");
-  form.className = "debug-form-grid entity-workbench-controls";
-  playbackRow.className = "debug-button-row";
+  axes.className = "debug-form-grid entity-workbench-controls";
+  settings.className = "entity-situation-panel";
+  settingsGrid.className = "debug-form-grid entity-workbench-controls";
+  settings.append(settingsHeading, settingsGrid);
+  playbackGrid.className = "debug-form-grid entity-workbench-controls";
+  playbackRow.className = "debug-button-row entity-playback-row";
   status.className = "entity-workbench-status";
   status.setAttribute("role", "status");
   playButton.type = "button";
+  playButton.className = "entity-play-button";
   playButton.textContent = "Pause playback";
 
-  const refreshStatus = (): void => {
-    const archetype = ENEMY_ARCHETYPES[state.archetypeId];
+  let playbackSeconds = 0;
+  let shownFrame = -1;
 
-    if (state.scenario === "clip" && !isClipAvailable(state.archetypeId, state.clip)) {
-      status.textContent = `${archetype.name} has no ${state.clip} state. The preview is intentionally empty instead of falling back to idle.`;
-      return;
-    }
-
-    status.textContent = `${archetype.name} · ${SCENARIOS.find((scenario) => scenario.id === state.scenario)?.label ?? state.scenario}`;
+  const scrubOf = (): number => {
+    const timeline = timelineSeconds(state);
+    return (playbackSeconds % timeline) / timeline;
   };
 
-  const scenario = createSelect("entity-scenario", "Scenario", SCENARIOS, state.scenario, (value) => {
-    state.scenario = value;
-    refreshStatus();
-  });
   const archetype = createSelect(
     "entity-archetype",
     "Archetype",
@@ -597,19 +1006,20 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     state.archetypeId,
     (value) => {
       state.archetypeId = value;
-      refreshStatus();
+      refreshControls();
     },
   );
-  const clip = createSelect(
-    "entity-clip",
-    "Clip / body state",
-    Object.keys(SKELETON_SWORDSMAN_ANIMATIONS).map((id) => ({ id: id as SkeletonSwordsmanAnimationId, label: id })),
-    state.clip,
-    (value) => {
-      state.clip = value;
-      refreshStatus();
-    },
-  );
+  const situation = createSelect("entity-situation", "Situation", SITUATIONS, state.situation, (value) => {
+    state.situation = value;
+    // Only this situation's own parameters go back to their defaults. The body, the state, the
+    // turntable and the playback speed are three other axes and are not this one's to clear.
+    resetSituationSettings();
+    refreshControls();
+  });
+  const bodyState = createSelect("entity-state", "State", BODY_STATES, state.bodyState, (value) => {
+    state.bodyState = value;
+    refreshControls();
+  });
   const deathCause = createSelect(
     "entity-death-cause",
     "Death cause",
@@ -617,53 +1027,41 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     state.deathCause,
     (value) => {
       state.deathCause = value;
+      refreshControls();
+    },
+  );
+
+  const poolBodies = createRange(
+    "entity-pool-bodies",
+    "Bodies in the pool",
+    state.poolBodies,
+    0,
+    POOL_FILL.length - 1,
+    1,
+    (value) => POOL_BODY_LABELS[value] ?? String(value),
+    (value) => {
+      state.poolBodies = value;
+    },
+  );
+  const barricadeWear = createRange(
+    "entity-barricade-wear",
+    "Barricade wear",
+    state.barricadeWear,
+    0,
+    1,
+    0.05,
+    (value) => `${Math.round(value * 100)}%`,
+    (value) => {
+      state.barricadeWear = value;
     },
   );
   const wallFace = createSelect(
     "entity-wall-face",
     "Wall face",
-    (["north", "east", "south", "west"] as const).map((face) => ({ id: face, label: face })),
+    WALL_FACES.map((face) => ({ id: face, label: face })),
     state.wallFace,
     (value) => {
       state.wallFace = value;
-    },
-  );
-  const direction = createRange(
-    "entity-direction",
-    "Direction turntable",
-    state.direction,
-    0,
-    7,
-    1,
-    (value) => `${value} · ${DIRECTION_LABELS[value] ?? "unknown"}`,
-    (value) => {
-      state.direction = value;
-    },
-  );
-  const frame = createRange(
-    "entity-frame",
-    "Frame scrubber",
-    state.frame,
-    0,
-    7,
-    1,
-    (value) => `${value + 1} / 8`,
-    (value) => {
-      state.frame = value;
-      state.playing = false;
-      playButton.textContent = "Play animation";
-    },
-  );
-  const speed = createRange(
-    "entity-speed",
-    "Playback speed",
-    state.speed,
-    0.25,
-    2,
-    0.25,
-    (value) => `${value}×`,
-    (value) => {
-      state.speed = value;
     },
   );
   const carriedCount = createRange(
@@ -703,47 +1101,176 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     },
   );
 
+  const direction = createRange(
+    "entity-direction",
+    "Direction turntable",
+    state.direction,
+    0,
+    DIRECTIONS - 1,
+    1,
+    (value) => `${value} · ${DIRECTION_LABELS[value] ?? "unknown"}`,
+    (value) => {
+      state.direction = value;
+    },
+  );
+  direction.field.classList.add("entity-range-field--direction");
+  const scrubber = createRange(
+    "entity-frame",
+    "Frame scrubber",
+    0,
+    0,
+    7,
+    1,
+    (value) => scrubberLabel(value),
+    (value) => {
+      const frames = timelineFrames(state);
+      const fraction = frames > 0 ? value / frames : value / 100;
+      playbackSeconds = fraction * timelineSeconds(state);
+      state.playing = false;
+      playButton.textContent = "Play animation";
+    },
+  );
+  const speed = createRange(
+    "entity-speed",
+    "Playback speed",
+    state.speed,
+    0.25,
+    2,
+    0.25,
+    (value) => `${value}×`,
+    (value) => {
+      state.speed = value;
+    },
+  );
+
+  function scrubberLabel(value: number): string {
+    const frames = timelineFrames(state);
+    return frames > 0 ? `${Math.min(frames, value + 1)} / ${frames}` : `${value}%`;
+  }
+
+  function resetSituationSettings(): void {
+    state.poolBodies = 0;
+    state.barricadeWear = 0;
+    state.wallFace = "north";
+    state.carriedCount = 3;
+    state.flightPitch = 12;
+    state.flightSpeed = 3.5;
+    poolBodies.set(state.poolBodies);
+    barricadeWear.set(state.barricadeWear);
+    wallFace.select.value = state.wallFace;
+    carriedCount.set(state.carriedCount);
+    flightPitch.set(state.flightPitch);
+    flightSpeed.set(state.flightSpeed);
+  }
+
+  /** Which fields belong to the situation now selected. The rest stay in place, inert. */
+  function refreshSettings(): void {
+    const preset = SITUATIONS.find((entry) => entry.id === state.situation);
+    settingsHeading.textContent = `${preset?.settings ?? state.situation} settings`;
+    const owned: Readonly<Record<EntitySituation, readonly { setInert: (inert: boolean) => void }[]>> = {
+      room: [],
+      water: [poolBodies],
+      barricade: [barricadeWear],
+      wall: [wallFace],
+      skewered: [carriedCount, flightPitch, flightSpeed],
+    };
+
+    for (const control of [poolBodies, barricadeWear, wallFace, carriedCount, flightPitch, flightSpeed]) {
+      control.setInert(!owned[state.situation].includes(control));
+    }
+  }
+
+  function refreshStatus(): void {
+    const archetypeName = ENEMY_ARCHETYPES[state.archetypeId].name;
+    const situationLabel = SITUATIONS.find((entry) => entry.id === state.situation)?.label ?? state.situation;
+    const notes: string[] = [];
+
+    if (state.situation === "water") {
+      notes.push(
+        `the water owns the state: ${DROWN_SECONDS}s going under, then ${DEATH_SECONDS}s of corpse, on one scrubber`,
+      );
+    } else if (state.situation === "skewered") {
+      notes.push("state and turntable do not apply to a body frozen on a shaft, and this scene is known broken");
+    } else if (state.bodyState === "dying") {
+      const finding = deathCoverage(state.archetypeId).get(state.deathCause);
+
+      if (finding && finding.state !== "available") {
+        notes.push(finding.note.toLowerCase());
+      }
+
+      if (state.situation === "wall" && !marksTheWall(state.archetypeId)) {
+        notes.push("this body leaves no mark on masonry, so the wall stays clean by design");
+      }
+    } else if (livingCoverage(state.archetypeId, state.bodyState) === "missing") {
+      notes.push(`no ${state.bodyState} of its own — the preview shows a placeholder instead of falling back to idle`);
+    } else if (state.bodyState === "block" && state.archetypeId === "swordsman") {
+      const frames = timelineFrames(state);
+      const held = Math.min(frames, Math.floor(STUN_HELD_AT * frames) + 1);
+      notes.push(
+        `nothing in the demo blocks an attack — this is the stun pose, and the game holds frame ${held} / ${frames} for the whole stun`,
+      );
+    }
+
+    const stateLabel = state.bodyState === "dying" ? `dying · ${state.deathCause}` : state.bodyState;
+    status.textContent = `${archetypeName} · ${situationLabel} · ${stateLabel}${notes.length > 0 ? ` — ${notes.join("; ")}` : ""}`;
+  }
+
+  function refreshControls(): void {
+    const scripted = state.situation === "water" || state.situation === "skewered";
+    bodyState.setInert(scripted);
+    deathCause.setInert(scripted || state.bodyState !== "dying");
+    direction.setInert(state.situation === "skewered");
+    const frames = timelineFrames(state);
+    scrubber.setBounds(frames > 0 ? { max: frames - 1, step: 1 } : { max: 100, step: 1 });
+    shownFrame = -1;
+    refreshSettings();
+    refreshStatus();
+  }
+
   playButton.addEventListener("click", () => {
     state.playing = !state.playing;
     playButton.textContent = state.playing ? "Pause playback" : "Play animation";
   });
-  playbackRow.append(playButton);
-  form.append(
-    scenario,
-    archetype,
-    clip,
-    deathCause,
-    wallFace,
-    direction.field,
-    frame.field,
-    speed.field,
+
+  axes.append(archetype.field, situation.field, bodyState.field, deathCause.field);
+  settingsGrid.append(
+    poolBodies.field,
+    barricadeWear.field,
+    wallFace.field,
     carriedCount.field,
     flightPitch.field,
     flightSpeed.field,
   );
-  controls.body.append(form, playbackRow, status);
+  bodyPanel.body.append(axes, settings);
+  // The three sliders, then the button under them. Nothing above the button changes size: all three
+  // sliders are always present in this panel, and the situation's own controls live in another one.
+  playbackGrid.append(direction.field, scrubber.field, speed.field);
+  playbackRow.append(playButton);
+  playbackPanel.body.append(playbackGrid, playbackRow);
 
-  let visibleFrame = -1;
   const preview = createRenderPanel({
     ariaLabel: "Entity workbench live preview",
     frame: (timing) => {
-      const progress = state.playing ? (timing.elapsedSeconds * state.speed) % 1 : state.frame / 8;
-      const nextFrame = Math.min(7, Math.floor(progress * 8));
+      if (state.playing) {
+        playbackSeconds += timing.frameSeconds * state.speed;
+      }
 
-      if (state.playing && nextFrame !== visibleFrame) {
-        visibleFrame = nextFrame;
-        state.frame = nextFrame;
-        frame.input.value = String(nextFrame);
-        frame.output.textContent = `${nextFrame + 1} / 8`;
+      const scrub = scrubOf();
+      const frames = timelineFrames(state);
+      const position = frames > 0 ? Math.min(frames - 1, Math.floor(scrub * frames)) : Math.round(scrub * 100);
+
+      if (state.playing && position !== shownFrame) {
+        shownFrame = position;
+        scrubber.set(position);
       }
 
       return {
-        scene: mainScene(timing.elapsedSeconds, progress, state),
+        scene: mainScene(state, playbackSeconds, scrub),
         preferences: { viewmodel: false, grade: true },
       };
     },
   });
-  previewPanel.body.append(preview.element);
+  previewPanel.body.append(preview.element, status);
 
   const comparisonGrid = document.createElement("div");
   comparisonGrid.className = "entity-comparison-grid";
@@ -754,7 +1281,7 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     const panel = createRenderPanel({
       ariaLabel: `Skeleton ${cause} death preview`,
       frame: (timing) => ({
-        scene: comparisonScene(cause, timing.elapsedSeconds),
+        scene: comparisonScene(cause, "swordsman", timing.elapsedSeconds),
         preferences: { viewmodel: false, grade: true },
       }),
     });
@@ -764,9 +1291,9 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   }
 
   comparePanel.body.append(comparisonGrid);
-  matrixPanel.body.append(createGapMatrix());
-  refreshStatus();
-  entitySection.append(controls.panel, previewPanel.panel, comparePanel.panel, matrixPanel.panel);
+  matrixPanel.body.append(createCoverageMatrix());
+  refreshControls();
+  entitySection.append(bodyPanel.panel, playbackPanel.panel, previewPanel.panel, comparePanel.panel, matrixPanel.panel);
   decorSection.append(createDecorWorkbench());
   content.append(tabs, entitySection, decorSection);
   mount.replaceChildren(page);
