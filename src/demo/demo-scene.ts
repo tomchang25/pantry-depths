@@ -15,6 +15,7 @@ import {
   type SkeletonSwordsmanAnimationId,
 } from "@/content/enemies/skeleton-swordsman-definitions";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
+import { DROWN_SECONDS } from "@/demo/impacts";
 import { blocksWalk, DEMO_GRID_SIZE, DEMO_WALL_HEIGHT, holdsStains, tileIndex } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
 import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
@@ -217,6 +218,41 @@ const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
 
 const SKELETON_DISPLAY_SCALE = 1.16;
 
+/**
+ * How far through going under an authored body is at the moment the water finishes it.
+ *
+ * Short of all the way. The last thing visible before the kill lands is a head still above the
+ * surface, which is what makes the countdown read as a body failing to get out rather than as one
+ * that already sank; the corpse takes it the rest of the way down.
+ *
+ * The split matters because a drowning spans two kinds of thing — one point one seconds of a living
+ * enemy, then a corpse — and on screen it has to be one body going under. So the clip runs once
+ * across both, and this is where the handover falls in it.
+ *
+ * A slime does all of this with `sink` and its own body height, and the renderer has always cut a
+ * blob off at the floor line. The authored body had neither until now: it stood in the water playing
+ * `idle` for the whole countdown, because `skeletonAnimation` had no clause for drowning at all.
+ */
+const DROWN_STAGE_AT_DEATH = 0.72;
+
+/**
+ * How far through going under a body is, from either side of the handover.
+ *
+ * One number drives both the frame and the height, because for this animation they are the same
+ * statement: how far through the clip the body is *is* how far under the surface it is.
+ */
+function drownStage(enemy: DemoEnemy): number {
+  if (enemy.drowningSeconds <= 0) {
+    return 0;
+  }
+
+  return (1 - enemy.drowningSeconds / DROWN_SECONDS) * DROWN_STAGE_AT_DEATH;
+}
+
+function drownedCorpseStage(progress: number): number {
+  return DROWN_STAGE_AT_DEATH + (1 - DROWN_STAGE_AT_DEATH) * Math.min(1, Math.max(0, progress));
+}
+
 function surfaces(world: DemoWorld): RenderSurface[] {
   const built: RenderSurface[] = [];
 
@@ -326,6 +362,13 @@ function skeletonAnimation(
   animation: SkeletonSwordsmanAnimationId;
   frame: number;
 }> {
+  if (enemy.drowningSeconds > 0) {
+    // Going under outranks everything else it was doing, the same way the simulation drops its
+    // wind-up and its charge on entry. The authored drowning artwork is now on screen while the body
+    // is drowning rather than only after the water has closed over it.
+    return { animation: "deathDrowned", frame: animationFrame("deathDrowned", drownStage(enemy)) };
+  }
+
   if (enemy.hurtSeconds > 0) {
     return { animation: "hurt", frame: animationFrame("hurt", 1 - enemy.hurtSeconds / 0.28) };
   }
@@ -365,6 +408,7 @@ function skeletonSprite(
     assetId: definition.assetId,
     scale: SKELETON_DISPLAY_SCALE,
     verticalAnchor: 0,
+    submerged: drownStage(enemy),
     frame: {
       column: selected.frame,
       row: skeletonDirection(context.camera.angle, enemy.facingAngle),
@@ -406,6 +450,13 @@ function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonSwordsmanAnimati
 function skeletonDeathSprite(context: DemoEntityProjectionContext, death: DemoDeath): RenderSprite {
   const animation = skeletonDeathAnimation(death.cause);
   const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
+  // A drowned corpse picks the clip up where the countdown left it and carries on down, so the water
+  // closing over the body is one continuous performance rather than the clip restarting at frame zero
+  // the instant the kill lands. It is gone by the end: what records it after that is the pool's own
+  // fill material, not a corpse left lying on the surface. Every other death is played from the top
+  // and stays above ground where it fell.
+  const drowning = death.cause === "drowned";
+  const stage = drowning ? drownedCorpseStage(death.progress) : Math.min(0.999, death.progress);
   return {
     id: `${death.id}-corpse`,
     x: death.x,
@@ -414,8 +465,9 @@ function skeletonDeathSprite(context: DemoEntityProjectionContext, death: DemoDe
     assetId: definition.assetId,
     scale: SKELETON_DISPLAY_SCALE,
     verticalAnchor: 0,
+    submerged: drowning ? stage : 0,
     frame: {
-      column: animationFrame(animation, Math.min(0.999, death.progress)),
+      column: animationFrame(animation, stage),
       row: skeletonDirection(context.camera.angle, death.facingAngle),
       columns: SKELETON_SWORDSMAN_FRAMES,
       rows: SKELETON_SWORDSMAN_DIRECTIONS,
@@ -815,7 +867,7 @@ function enemyBlob(context: DemoEntityProjectionContext, enemy: DemoEnemy): Rend
 
   if (enemy.drowningSeconds > 0) {
     // Sinking. The bubbles above it are emitters; the body just goes under.
-    const gone = 1 - enemy.drowningSeconds / 1.1;
+    const gone = 1 - enemy.drowningSeconds / DROWN_SECONDS;
     sink = -(body.height + 0.15) * gone;
     wobbleAmp = 0.1;
     face = "hurt";
@@ -1015,7 +1067,10 @@ function carriedBlob(
     leanY: directionY * (impaled ? 0.16 : 0.1),
     wobbleAmp: impaled ? 0.05 : 0.11,
     wobblePhase: t * 30,
-    sink: lift,
+    // A skewered body has the shaft through its middle, so its base hangs half a body below the line
+    // the javelin flies along. A thrown one is on no shaft and rides the display arc itself, base on
+    // the curve, which is how every prop in the air is placed.
+    sink: impaled ? lift - body.height / 2 : lift,
     droop: impaled ? 0.1 : 0,
     flash: impaled ? 0.25 : 0,
     alpha: 1,
@@ -1077,7 +1132,10 @@ export function projectCarriedDemoEnemy(
         projectile.directionX,
         projectile.directionY,
         context.elapsedSeconds,
-        0.3,
+        // The shaft's own height, so a pitched throw carries its bodies with it. This was a flat 0.3
+        // — right only for a level throw, and detached from the javelin the moment one had an arc,
+        // while the authored body on the same shaft has always tracked it.
+        projectileHeight(projectile),
         true,
       ),
     ],

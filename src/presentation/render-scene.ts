@@ -192,6 +192,15 @@ export type RenderSprite = Readonly<{
    * thing stays locatable through walls. Only the demo surface marks anything this way.
    */
   xray?: Readonly<{ color: readonly [number, number, number]; alpha: number }>;
+  /**
+   * How much of the picture has gone under the surface it stands on, as a fraction of its own height.
+   *
+   * The sprite drops by that much and everything below the floor line is not drawn, which is the
+   * waterline cut `RenderBlob.sink` already has and the sprite pipeline did not: lowering a billboard
+   * without it paints the legs over the water in front of them, and the body reads as standing in a
+   * hole rather than as going under. One at the point there is nothing left above the surface.
+   */
+  submerged?: number;
   /** One cell inside a sprite atlas. Omitted when the asset is already one complete image. */
   frame?: Readonly<{ column: number; row: number; columns: number; rows: number }>;
   /**

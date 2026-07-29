@@ -2641,6 +2641,16 @@ export class CanvasGameplayRenderer {
    */
   #drawProjectedImage(scene: RenderScene, projected: ProjectedSprite, source: CanvasImageSource, alpha: number): void {
     const dimensions = imageDimensions(source);
+    // Under the surface, and cut at it. The picture drops by however much has gone under and loses
+    // exactly that much off its bottom, so the visible part ends on the floor line it sank through
+    // rather than being drawn across the water in front of it.
+    const submerged = clamp(projected.sprite.submerged ?? 0, 0, 1);
+    const shown = 1 - submerged;
+
+    if (shown <= 0) {
+      return;
+    }
+
     this.#context.save();
 
     if (!this.#clipToVisibleRegion(scene, projected.startX, projected.endX, projected.depth)) {
@@ -2654,11 +2664,11 @@ export class CanvasGameplayRenderer {
       0,
       0,
       dimensions.width,
-      dimensions.height,
+      dimensions.height * shown,
       projected.startX,
-      projected.startY,
+      projected.startY + projected.height * submerged,
       projected.width,
-      projected.height,
+      projected.height * shown,
     );
     this.#context.restore();
   }
