@@ -15,8 +15,9 @@ import {
   type SkeletonSwordsmanAnimationId,
 } from "@/content/enemies/skeleton-swordsman-definitions";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
+import { RANGED_SHOT_RANGE } from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
-import { blocksWalk, DEMO_GRID_SIZE, DEMO_WALL_HEIGHT, holdsStains, tileIndex } from "@/demo/maze";
+import { blocksProjectile, blocksWalk, DEMO_GRID_SIZE, DEMO_WALL_HEIGHT, holdsStains, tileIndex } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
 import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
@@ -25,6 +26,7 @@ import {
   type DemoDeath,
   type DemoDeathCause,
   type DemoEnemy,
+  type DemoIntent,
   type DemoProjectile,
   type DemoWorld,
 } from "@/demo/world";
@@ -297,6 +299,34 @@ function ground(id: string, x: number, y: number, assetId: string, scale: number
   return { id, x, y, placement: "ground", assetId, scale, verticalAnchor: 0 };
 }
 
+/** An intent that is actually being wound up, which is the only kind that has a marker. */
+type CommittedIntent = Exclude<DemoIntent, "none">;
+
+/**
+ * Which shape floats over a committed enemy.
+ *
+ * A table rather than a test, and the difference was a real defect: the marker used to be chosen by
+ * asking whether the intent was a charge, so the charge took the red mark and *everything else* took
+ * the other one — which meant a skeleton raising its sword wore the shooter's badge. Naming every
+ * member makes the compiler refuse a future intent that forgets to bring a shape.
+ */
+function warnAsset(intent: CommittedIntent): string {
+  if (intent === "shoot") {
+    return DEMO_ASSET_IDS.warnShoot;
+  }
+
+  if (intent === "charge") {
+    return DEMO_ASSET_IDS.warnCharge;
+  }
+
+  if (intent === "melee") {
+    return DEMO_ASSET_IDS.warnMelee;
+  }
+
+  intent satisfies never;
+  throw new Error("unknown enemy intent");
+}
+
 /** The wind-up marker floating over a committed enemy, and the lane a charger has claimed. */
 function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
   if (enemy.windupSeconds <= 0 || enemy.intent === "none") {
@@ -309,7 +339,7 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
     x: enemy.x,
     y: enemy.y,
     placement: "billboard",
-    assetId: enemy.intent === "charge" ? DEMO_ASSET_IDS.warnCharge : DEMO_ASSET_IDS.warnShoot,
+    assetId: warnAsset(enemy.intent),
     // Swells as the wind-up completes, so how much time is left is legible at a glance.
     scale: 0.44 + progress * 0.3,
     verticalAnchor: -0.85,
@@ -853,11 +883,22 @@ function enemyBlob(context: DemoEntityProjectionContext, enemy: DemoEnemy): Rend
   }
 
   if (enemy.windupSeconds > 0) {
-    // Anticipation: crouched and pulled back off the target, pulsing with the telegraph.
     const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-    squash = 0.82 - progress * 0.08;
-    leanX = -towardX * 0.1;
-    leanY = -towardY * 0.1;
+
+    if (enemy.intent === "shoot") {
+      // Filling, not gathering to leap: a shooter takes on the shot before spitting it, so it rises
+      // and rounds out. The crouch below belongs to the charger, and if both bodies did the same
+      // thing the marker over their heads would be the only way to tell a shot from a charge.
+      squash = 1 + progress * 0.22;
+      wobbleAmp = 0.03 + progress * 0.05;
+      wobblePhase = t * (6 + progress * 10) + phase;
+    } else {
+      // Anticipation: crouched and pulled back off the target, pulsing with the telegraph.
+      squash = 0.82 - progress * 0.08;
+      leanX = -towardX * 0.1;
+      leanY = -towardY * 0.1;
+    }
+
     // Held well under the hit flash. Both are the same white channel, and a telegraph that pulses up
     // near full white leaves nothing for a landed blow to say.
     flash = 0.14 + 0.2 * Math.abs(Math.sin(t * (10 + 14 * (1 - enemy.windupSeconds))));
@@ -1627,7 +1668,92 @@ function particles(world: DemoWorld): RenderParticle[] {
     });
   }
 
+  sightLines(world, built);
   return built;
+}
+
+/** How far apart the dots of a drawn line sit, and how big each one is at rest. */
+const BEAD_SPACING = 0.19;
+const BEAD_SIZE = 0.05;
+const BEAD_COLOR: readonly [number, number, number] = [255, 96, 88];
+
+/**
+ * Walks a straight line in world space and answers the points a drawn warning should be beaded along.
+ *
+ * Stops where the thing being warned about would stop, which is the whole reason this exists rather
+ * than a plain interpolation: a line that carries on through a barricade tells the player cover does
+ * not work, and cover is the answer the line is supposed to be teaching.
+ *
+ * A run of small additive dots rather than one rod, because a rod in this renderer is opaque and
+ * shaded down with distance — so the further away the threat, the darker its warning, which is
+ * exactly backwards. Dots are drawn through the cheap particle path, cost nothing per frame, and a
+ * dotted line happens to be what a sight line looks like anyway.
+ */
+function beadLine(
+  world: DemoWorld,
+  fromX: number,
+  fromY: number,
+  directionX: number,
+  directionY: number,
+  maxDistance: number,
+): { x: number; y: number }[] {
+  const points: { x: number; y: number }[] = [];
+
+  for (let travelled = BEAD_SPACING; travelled <= maxDistance; travelled += BEAD_SPACING) {
+    const x = fromX + directionX * travelled;
+    const y = fromY + directionY * travelled;
+
+    if (blocksProjectile(world.maze, Math.floor(x), Math.floor(y))) {
+      return points;
+    }
+
+    points.push({ x, y });
+  }
+
+  return points;
+}
+
+/** Height the beads of a shooter's line sit at: where the orb itself flies, not the floor. */
+const SIGHT_LINE_HEIGHT = 0.42;
+
+/**
+ * The line a shooter's bolt will take, drawn for as long as it is committed to taking it.
+ *
+ * Only worth anything because the aim is locked: this is a claim about the future, and before the
+ * lock there was no future to draw. It brightens as the wind-up runs out, so the line says both where
+ * the shot is going and how long there is to not be there.
+ */
+function sightLines(world: DemoWorld, built: RenderParticle[]): void {
+  for (const enemy of world.enemies) {
+    if (enemy.windupSeconds <= 0 || enemy.intent !== "shoot") {
+      continue;
+    }
+
+    const dx = enemy.aimX - enemy.x;
+    const dy = enemy.aimY - enemy.y;
+    const length = Math.hypot(dx, dy);
+
+    if (length < 0.0001) {
+      continue;
+    }
+
+    const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+    const beads = beadLine(world, enemy.x, enemy.y, dx / length, dy / length, Math.min(length, RANGED_SHOT_RANGE));
+
+    beads.forEach((bead, index) => {
+      // Each dot flickers on its own phase, so the line reads as live rather than as paint.
+      const shimmer = 0.82 + 0.18 * Math.sin(world.elapsedSeconds * 15 + index * 1.7);
+      built.push({
+        x: bead.x,
+        y: bead.y,
+        z: SIGHT_LINE_HEIGHT,
+        size: BEAD_SIZE * (0.8 + progress * 0.5),
+        color: BEAD_COLOR,
+        alpha: (0.24 + progress * 0.66) * shimmer,
+        additive: true,
+      });
+    });
+  }
 }
 
 function lights(world: DemoWorld): RenderLight[] {
@@ -1676,6 +1802,25 @@ function lights(world: DemoWorld): RenderLight[] {
       radius: 2.6,
       color: [255, 96, 72],
       intensity: 0.8,
+    });
+  }
+
+  for (const enemy of world.enemies) {
+    if (enemy.windupSeconds <= 0 || enemy.intent !== "shoot") {
+      continue;
+    }
+
+    // The shot gathering inside the body. Small and close, so it lights the ground the shooter is
+    // standing on rather than the room — enough to catch the eye off to one side of the view without
+    // competing with the torch.
+    const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+    built.push({
+      id: `${enemy.id}-windup-light`,
+      x: enemy.x,
+      y: enemy.y,
+      radius: 1.4 + progress * 1.1,
+      color: [255, 108, 96],
+      intensity: 0.35 + progress * 0.75,
     });
   }
 

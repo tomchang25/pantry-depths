@@ -42,6 +42,7 @@ export const DEMO_ASSET_IDS = {
   hazardOrb: "demo.hazardOrb",
   warnShoot: "demo.warnShoot",
   warnCharge: "demo.warnCharge",
+  warnMelee: "demo.warnMelee",
   laneMarker: "demo.laneMarker",
   bubble: "demo.bubble",
   wallSplat: "demo.wallSplat",
@@ -468,22 +469,97 @@ function bubble(): HTMLCanvasElement {
   return canvas;
 }
 
-/** The floating "it is about to do the thing" marker. Colour is the whole message. */
-function warning(color: string, glyph: string): HTMLCanvasElement {
-  const [canvas, context] = surface();
+/**
+ * The red every wind-up marker is drawn in.
+ *
+ * One colour for all three, because the colour is the part read first and it should say exactly one
+ * thing: something is about to hit you. Which of the three it is, and therefore what to do about it,
+ * is carried by the shape — which survives being small and being glimpsed, and does not require the
+ * player to have learned a palette.
+ */
+const WARN_RED = "#e2434b";
+
+/** The glow every wind-up marker floats in, so the shape reads against a dark room. */
+function warningGlow(context: CanvasRenderingContext2D): void {
   const glow = context.createRadialGradient(256, 256, 10, 256, 256, 220);
-  glow.addColorStop(0, `${color}f0`);
-  glow.addColorStop(0.5, `${color}70`);
-  glow.addColorStop(1, `${color}00`);
+  glow.addColorStop(0, `${WARN_RED}f0`);
+  glow.addColorStop(0.5, `${WARN_RED}70`);
+  glow.addColorStop(1, `${WARN_RED}00`);
   context.fillStyle = glow;
   context.beginPath();
   context.arc(256, 256, 220, 0, Math.PI * 2);
   context.fill();
-  context.fillStyle = "#fff8e8";
-  context.font = "bold 300px Georgia, serif";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText(glyph, 256, 268);
+}
+
+/** A shot is coming: a ring with ticks, which is the only shape that reads as "you are being aimed at". */
+function warnReticle(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  warningGlow(context);
+  context.strokeStyle = "#fff2ee";
+  context.lineWidth = 26;
+  context.beginPath();
+  context.arc(256, 256, 116, 0, Math.PI * 2);
+  context.stroke();
+  context.lineCap = "round";
+
+  for (let tick = 0; tick < 4; tick += 1) {
+    const angle = (tick * Math.PI) / 2;
+    const inner = 62;
+    const outer = 186;
+    context.beginPath();
+    context.moveTo(256 + Math.cos(angle) * inner, 256 + Math.sin(angle) * inner);
+    context.lineTo(256 + Math.cos(angle) * outer, 256 + Math.sin(angle) * outer);
+    context.stroke();
+  }
+
+  context.fillStyle = "#fff2ee";
+  context.beginPath();
+  context.arc(256, 256, 26, 0, Math.PI * 2);
+  context.fill();
+  return canvas;
+}
+
+/** A charge is coming: a tongue of flame, tapering upward, for the thing that is stoking itself. */
+function warnFlame(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  warningGlow(context);
+  context.fillStyle = "#fff2ee";
+  context.beginPath();
+  context.moveTo(256, 78);
+  context.bezierCurveTo(352, 196, 372, 286, 330, 358);
+  context.bezierCurveTo(300, 410, 212, 410, 182, 358);
+  context.bezierCurveTo(140, 286, 168, 210, 232, 150);
+  context.bezierCurveTo(222, 226, 250, 250, 256, 78);
+  context.fill();
+  // The cooler heart of it, so the tongue has depth instead of reading as a leaf.
+  context.fillStyle = `${WARN_RED}cc`;
+  context.beginPath();
+  context.moveTo(256, 232);
+  context.bezierCurveTo(300, 288, 300, 330, 274, 362);
+  context.bezierCurveTo(256, 382, 224, 372, 216, 340);
+  context.bezierCurveTo(208, 304, 232, 274, 256, 232);
+  context.fill();
+  return canvas;
+}
+
+/** A cut is coming: an angled edge, which is the one shape a sword makes that a flame cannot. */
+function warnBlade(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  warningGlow(context);
+  context.fillStyle = "#fff2ee";
+  context.beginPath();
+  context.moveTo(120, 392);
+  context.lineTo(360, 108);
+  context.lineTo(404, 152);
+  context.lineTo(172, 420);
+  context.closePath();
+  context.fill();
+  // A short guard across the base, so the shape is a weapon rather than a stripe.
+  context.save();
+  context.translate(150, 402);
+  context.rotate(-Math.PI / 4);
+  context.fillRect(-70, -18, 140, 36);
+  context.restore();
   return canvas;
 }
 
@@ -651,8 +727,9 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.hazardOrb, hazardOrb());
   merged.set(DEMO_ASSET_IDS.bubble, bubble());
   merged.set(DEMO_ASSET_IDS.wallSplat, wallSplat());
-  merged.set(DEMO_ASSET_IDS.warnShoot, warning("#5aa8e0", "!"));
-  merged.set(DEMO_ASSET_IDS.warnCharge, warning("#e2585f", "!"));
+  merged.set(DEMO_ASSET_IDS.warnShoot, warnReticle());
+  merged.set(DEMO_ASSET_IDS.warnCharge, warnFlame());
+  merged.set(DEMO_ASSET_IDS.warnMelee, warnBlade());
   merged.set(DEMO_ASSET_IDS.laneMarker, laneMarker());
   return merged;
 }

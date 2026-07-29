@@ -2,8 +2,6 @@
 
 Parent Plan: `pantry_demo_telegraphs.plan.md`
 
-Status: Draft implementation spec
-
 ## Goal
 
 Give every wind-up a symbol that says which attack is coming, all in one warning red, and give the shooter the two cues it is missing: a line showing where its bolt will go, and a body that visibly gathers the shot before firing it.
