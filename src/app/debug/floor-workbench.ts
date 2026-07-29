@@ -1,3 +1,4 @@
+import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
 import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
 import {
   addEnvironmentFeature,
@@ -18,21 +19,13 @@ import { renderFloorSetInspector, type FloorInspectorSelection } from "@/app/deb
 import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet, type FloorValidationResult } from "@/content/floor/floor-validation";
 
-/**
- * Client-side copy of the development authoring endpoint namespace.
- *
- * Client code must not import `dev/`, so this literal cannot be shared with the tooling owner directly.
- * A unit test holds it equal to `dev/tools/authoring/api-contract.ts`.
- */
-export const API_ROOT = "/__debug/authoring";
-
 type ApiResponse = Readonly<{
   message?: string;
   source?: unknown;
 }>;
 
 async function requestJson(path: string, init?: RequestInit): Promise<ApiResponse> {
-  const response = await fetch(`${API_ROOT}/floorSet/${path}`, init);
+  const response = await fetch(`${AUTHORING_API_ROOT}/floorSet/${path}`, init);
   const payload = (await response.json()) as ApiResponse;
 
   if (!response.ok) {

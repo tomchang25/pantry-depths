@@ -1,3 +1,4 @@
+import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
 import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
 import { createRenderPanel } from "@/app/debug/render-panel";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
@@ -18,7 +19,6 @@ import type { CameraPose, RenderBeam, RenderBox, RenderScene, RenderSurface } fr
 type WorkbenchTab = "hud" | "attack";
 type PoseName = "windup" | "follow";
 
-const AUTHORING_API_ROOT = "/__debug/authoring";
 const ROOM_SIZE = 9;
 const CAMERA: CameraPose = { x: 4.5, y: 7.1, angle: -Math.PI / 2 };
 const TARGET_OFFSETS = [-1.08, -0.7, 0, 0.7, 1.08] as const;
@@ -409,7 +409,7 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
     void fetch(`${AUTHORING_API_ROOT}/meleeAttacks/save`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ source: JSON.stringify(parseMeleeAttacks(attacks), undefined, 2) }),
+      body: JSON.stringify({ source: parseMeleeAttacks(attacks) }),
     })
       .then(async (response) => {
         const body = (await response.json()) as { error?: string; message?: string };

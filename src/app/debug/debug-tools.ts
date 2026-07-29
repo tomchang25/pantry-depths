@@ -16,7 +16,7 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
     id: "entity-workbench",
     path: "/debug/entity-workbench",
     title: "Entity Workbench",
-    description: "Scrub every entity clip and reproduce carried, wall, barricade, and drowning deaths.",
+    description: "Scrub entity clips, reproduce death states, and author named wall or tile decor variants.",
     load: () =>
       import("@/app/debug/entity-workbench").then(({ renderEntityWorkbench }) => ({
         render: renderEntityWorkbench,

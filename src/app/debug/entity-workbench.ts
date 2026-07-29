@@ -1,4 +1,5 @@
 import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
+import { createDecorWorkbench } from "@/app/debug/decor-workbench";
 import { createRenderPanel } from "@/app/debug/render-panel";
 import {
   SKELETON_SWORDSMAN_ANIMATIONS,
@@ -496,14 +497,43 @@ function comparisonScene(cause: "splattered" | "impaled", elapsedSeconds: number
   return scene(projectDemoDeath(createContext(elapsedSeconds), createDeath("swordsman", cause, progress)));
 }
 
-/** Renders every entity clip, death, hazard landing, and known authored-animation gap in one tool. */
+/** Renders the entity and decor authoring tabs behind one shared asset-workbench route. */
 export function renderEntityWorkbench(mount: HTMLElement): void {
   const { page, content } = createDebugPage({
     title: "Entity Workbench",
     description:
-      "Inspect authored skeleton clips and procedural slime bodies through the same projection functions used by the live demo.",
+      "Inspect entity animation coverage and named decor presets through the same renderer seams used by the live demo.",
     width: "wide",
   });
+  const tabs = document.createElement("div");
+  const entityTab = document.createElement("button");
+  const decorTab = document.createElement("button");
+  const entitySection = document.createElement("div");
+  const decorSection = document.createElement("div");
+  tabs.className = "workbench-tabs";
+  tabs.setAttribute("role", "tablist");
+  entityTab.type = "button";
+  entityTab.textContent = "Entities";
+  entityTab.setAttribute("role", "tab");
+  entityTab.setAttribute("aria-controls", "entity-workbench-tab");
+  decorTab.type = "button";
+  decorTab.textContent = "Decor";
+  decorTab.setAttribute("role", "tab");
+  decorTab.setAttribute("aria-controls", "decor-workbench-tab");
+  entitySection.id = "entity-workbench-tab";
+  entitySection.setAttribute("role", "tabpanel");
+  decorSection.id = "decor-workbench-tab";
+  decorSection.setAttribute("role", "tabpanel");
+  tabs.append(entityTab, decorTab);
+
+  const selectTab = (tab: "entity" | "decor"): void => {
+    entityTab.setAttribute("aria-selected", String(tab === "entity"));
+    decorTab.setAttribute("aria-selected", String(tab === "decor"));
+    entitySection.hidden = tab !== "entity";
+    decorSection.hidden = tab !== "decor";
+  };
+  entityTab.addEventListener("click", () => selectTab("entity"));
+  decorTab.addEventListener("click", () => selectTab("decor"));
   const controls = createDebugPanel(
     "Entity and playback",
     "Choose a reproducible scene, then scrub or loop its presentation state.",
@@ -736,6 +766,9 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   comparePanel.body.append(comparisonGrid);
   matrixPanel.body.append(createGapMatrix());
   refreshStatus();
-  content.append(controls.panel, previewPanel.panel, comparePanel.panel, matrixPanel.panel);
+  entitySection.append(controls.panel, previewPanel.panel, comparePanel.panel, matrixPanel.panel);
+  decorSection.append(createDecorWorkbench());
+  content.append(tabs, entitySection, decorSection);
   mount.replaceChildren(page);
+  selectTab("entity");
 }

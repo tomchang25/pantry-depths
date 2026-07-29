@@ -2,6 +2,7 @@
 export const AUTHORING_API_ROOT = "/__debug/authoring";
 
 export const CANONICAL_AUTHORING_PATHS = {
+  decor: "src/content/presentation/decor-presets.json",
   floorSet: "src/content/floors/provisional-floor-set.json",
   meleeAttacks: "src/content/viewmodel/melee-attacks.json",
 } as const;

@@ -5,6 +5,7 @@ import { AUTHORING_API_ROOT, CANONICAL_AUTHORING_PATHS, type AuthoringTargetId }
 import { generateFloorSet } from "../floor-set/generator";
 import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet } from "@/content/floor/floor-validation";
+import { parseDecorPresets } from "@/content/presentation/decor-preset-schema";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
 
 export type AuthoringRequest = Readonly<{
@@ -88,6 +89,15 @@ function parsePath(pathname: string): Readonly<{ operation: string; target: Auth
 }
 
 function validateSource(target: AuthoringTargetId, source: unknown): unknown {
+  if (target === "decor") {
+    try {
+      return parseDecorPresets(source);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Decor preset validation failed.";
+      throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
+    }
+  }
+
   if (target === "floorSet") {
     const validation = validateFloorSet(source);
     const errors = validation.findings.filter((finding) => finding.severity === "error");

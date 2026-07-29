@@ -1,11 +1,13 @@
 import { AUTHORING_API_ROOT, type AuthoringTargetId } from "../../../../../dev/tools/authoring/api-contract";
 import { handleAuthoringRequest, type AuthoringDependencies } from "../../../../../dev/tools/authoring/authoring-api";
 import { generateFloorSet } from "../../../../../dev/tools/floor-set/generator";
+import decorPresetsJson from "@/content/presentation/decor-presets.json";
 import { MELEE_ATTACKS } from "@/content/viewmodel/melee-viewmodel";
 import { describe, expect, it, vi } from "vitest";
 
 function createDependencies(): AuthoringDependencies & Readonly<{ writeCanonical: ReturnType<typeof vi.fn> }> {
   const sources: Readonly<Record<AuthoringTargetId, unknown>> = {
+    decor: decorPresetsJson,
     floorSet: generateFloorSet({ seed: 1, floorCount: 1 }),
     meleeAttacks: MELEE_ATTACKS,
   };
@@ -77,9 +79,18 @@ describe("handleAuthoringRequest", () => {
       },
       dependencies,
     );
+    const invalidDecor = await handleAuthoringRequest(
+      {
+        method: "POST",
+        pathname: `${AUTHORING_API_ROOT}/decor/save`,
+        body: { source: [] },
+      },
+      dependencies,
+    );
 
     expect(invalidFloor).toMatchObject({ status: 422 });
     expect(invalidAttacks).toMatchObject({ status: 422 });
+    expect(invalidDecor).toMatchObject({ status: 422 });
     expect(dependencies.writeCanonical).not.toHaveBeenCalled();
   });
 
@@ -100,5 +111,20 @@ describe("handleAuthoringRequest", () => {
       "meleeAttacks",
       `${JSON.stringify(MELEE_ATTACKS, null, 2)}\n`,
     );
+  });
+
+  it("validates and writes decor presets through the decor target", async () => {
+    const dependencies = createDependencies();
+    const saved = await handleAuthoringRequest(
+      {
+        method: "POST",
+        pathname: `${AUTHORING_API_ROOT}/decor/save`,
+        body: { source: decorPresetsJson },
+      },
+      dependencies,
+    );
+
+    expect(saved).toMatchObject({ status: 200 });
+    expect(dependencies.writeCanonical).toHaveBeenCalledWith("decor", `${JSON.stringify(decorPresetsJson, null, 2)}\n`);
   });
 });
