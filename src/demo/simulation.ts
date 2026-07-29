@@ -6,7 +6,7 @@
  */
 
 import {
-  AXE_CAPACITY,
+  CLEAVE_CAPACITY,
   damageWall,
   heldWeight,
   JAVELIN_CAPACITY,
@@ -209,7 +209,8 @@ function strikeWithProp(world: DemoWorld, projectile: DemoProjectile): void {
 
 /** What a throw does where it stops, dispatched from the prop's own row rather than its name. */
 function resolveLanding(world: DemoWorld, projectile: DemoProjectile, landing: DemoPropLanding): void {
-  // Spent wherever it stops — buried in a wall, out of range, or out of victims.
+  // Nothing happens where it stops, because everything it does it did on the way: the blades spend
+  // themselves through the bodies they cut. Whether the weapon itself survives is `leaves`, not this.
   if (landing === "spend") {
     return;
   }
@@ -253,8 +254,8 @@ function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall:
   const behaviour = propBehaviour(projectile.kind);
   resolveLanding(world, projectile, behaviour.landing);
 
-  if (behaviour.recovers) {
-    dropProp(world, projectile.kind, projectile.x, projectile.y);
+  if (behaviour.leaves) {
+    dropProp(world, behaviour.leaves, projectile.x, projectile.y);
   }
 }
 
@@ -295,8 +296,8 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
   }
 }
 
-/** The axe cleaving through: outright kills, and it is spent on the third one. */
-function cleaveWithAxe(world: DemoWorld, projectile: DemoProjectile): boolean {
+/** A blade cleaving through: outright kills, and it stops on the third one. */
+function cleaveThrough(world: DemoWorld, projectile: DemoProjectile): boolean {
   // Same head-height rule as everything else in flight: too high, and it passes clean over.
   if (projectileHeight(projectile) > 0.6) {
     return false;
@@ -314,9 +315,9 @@ function cleaveWithAxe(world: DemoWorld, projectile: DemoProjectile): boolean {
     projectile.struck.add(enemy.id);
     projectile.cleaved += 1;
     killEnemy(world, enemy, "cleaved");
-    announce(world, `Axe cleaves ${projectile.cleaved}!`, 1.2);
+    announce(world, `Cleaves ${projectile.cleaved}!`, 1.2);
 
-    if (projectile.cleaved >= AXE_CAPACITY) {
+    if (projectile.cleaved >= CLEAVE_CAPACITY) {
       return true;
     }
   }
@@ -409,7 +410,7 @@ function stoppedInFlight(world: DemoWorld, projectile: DemoProjectile, flightHit
   }
 
   if (flightHit === "cleave") {
-    return cleaveWithAxe(world, projectile);
+    return cleaveThrough(world, projectile);
   }
 
   if (flightHit === "stop") {

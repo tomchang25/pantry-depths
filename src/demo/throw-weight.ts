@@ -18,7 +18,8 @@
  * not depend on either of them.
  */
 
-export type DemoPropKind = "stick" | "rock" | "bomb" | "axe" | "skeletonSword" | "skeletonSkull" | "skeletonFemur";
+export type DemoPropKind =
+  "stick" | "rock" | "bomb" | "axe" | "skeletonSword" | "skeletonSkull" | "skeletonFemur" | "skeletonFemurCracked";
 export type DemoThrowKind = DemoPropKind | "enemy";
 
 export type DemoThrowWeight = Readonly<{
@@ -131,6 +132,17 @@ const PROP_WEIGHTS: Readonly<Record<DemoPropKind, DemoThrowWeight>> = {
     thud: 0.28,
     carrySlow: 0.98,
   },
+  // Half a bone throws like half a bone: shorter, and it sheds what speed it has faster.
+  skeletonFemurCracked: {
+    speed: 15,
+    range: 7,
+    lobbed: true,
+    drag: 0.16,
+    plunge: 0.98,
+    recoil: 0.14,
+    thud: 0.22,
+    carrySlow: 0.99,
+  },
 };
 
 /**
@@ -167,8 +179,14 @@ export type DemoPropBehaviour = Readonly<{
   landing: DemoPropLanding;
   /** Against the hit points in `@/demo/maze`: a bare swing is one, and a rock opens either wall. */
   wallDamage: number;
-  /** Whether it is still an object when it stops, lying where it landed to be picked up again. */
-  recovers: boolean;
+  /**
+   * What lies on the floor where it stopped, or nothing if the throw spent it.
+   *
+   * A kind rather than a flag, so wear is a thing you can see. A femur comes back cracked and the
+   * cracked one comes back as nothing, which is a two-use weapon expressed entirely in this column —
+   * no counter on the prop, no durability field, and the picture in your hand is the count.
+   */
+  leaves: DemoPropKind | undefined;
   form: DemoPropForm;
 }>;
 
@@ -186,15 +204,31 @@ export type DemoPropBehaviour = Readonly<{
  */
 const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // The javelin: it runs bodies through and nails them to whatever stops it.
-  stick: { flightHit: "skewer", landing: "pin", wallDamage: 2, recovers: false, form: "rod" },
-  rock: { flightHit: "stop", landing: "burst", wallDamage: 4, recovers: false, form: "billboard" },
-  bomb: { flightHit: "stop", landing: "detonate", wallDamage: 2, recovers: false, form: "billboard" },
-  axe: { flightHit: "cleave", landing: "spend", wallDamage: 2, recovers: false, form: "rod" },
-  // The three that come off a skeleton are the only ones you get back. That is the whole loop they
-  // exist for: it dies, you take the piece it dropped, you throw it, you walk over and take it again.
-  skeletonSword: { flightHit: "stop", landing: "strike", wallDamage: 3, recovers: true, form: "rod" },
-  skeletonSkull: { flightHit: "stop", landing: "burst", wallDamage: 2, recovers: true, form: "tumbling" },
-  skeletonFemur: { flightHit: "stop", landing: "strike", wallDamage: 2, recovers: true, form: "tumbling" },
+  stick: { flightHit: "skewer", landing: "pin", wallDamage: 2, leaves: undefined, form: "rod" },
+  rock: { flightHit: "stop", landing: "burst", wallDamage: 4, leaves: undefined, form: "billboard" },
+  bomb: { flightHit: "stop", landing: "detonate", wallDamage: 2, leaves: undefined, form: "billboard" },
+  // The two blades cut through three bodies and then lie where they stopped. Neither wears out: what
+  // they cost you is the walk back to them, which is a decision you make in the middle of a fight and
+  // not an inventory that quietly runs down.
+  axe: { flightHit: "cleave", landing: "spend", wallDamage: 2, leaves: "axe", form: "rod" },
+  skeletonSword: { flightHit: "cleave", landing: "spend", wallDamage: 3, leaves: "skeletonSword", form: "rod" },
+  // The skull is the skeleton's rock: one throw, and it is a mess on the floor.
+  skeletonSkull: { flightHit: "stop", landing: "burst", wallDamage: 2, leaves: undefined, form: "tumbling" },
+  // The femur is the one that wears. It comes back cracked, and the cracked one does not come back.
+  skeletonFemur: {
+    flightHit: "stop",
+    landing: "strike",
+    wallDamage: 2,
+    leaves: "skeletonFemurCracked",
+    form: "tumbling",
+  },
+  skeletonFemurCracked: {
+    flightHit: "stop",
+    landing: "strike",
+    wallDamage: 1,
+    leaves: undefined,
+    form: "tumbling",
+  },
 };
 
 export function propBehaviour(kind: DemoPropKind): DemoPropBehaviour {

@@ -36,7 +36,12 @@ describe("skeleton swordsman content", () => {
   });
 
   it("exposes one consistent world and left-hand asset for each detachable pickup", () => {
-    expect(Object.keys(SKELETON_PICKUP_ASSETS)).toEqual(["skeletonSword", "skeletonSkull", "skeletonFemur"]);
+    expect(Object.keys(SKELETON_PICKUP_ASSETS)).toEqual([
+      "skeletonSword",
+      "skeletonSkull",
+      "skeletonFemur",
+      "skeletonFemurCracked",
+    ]);
 
     for (const definition of Object.values(SKELETON_PICKUP_ASSETS)) {
       expect(SKELETON_PICKUP_URLS[definition.assetId]).toBe(definition.url);

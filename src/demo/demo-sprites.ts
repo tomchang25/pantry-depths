@@ -48,6 +48,7 @@ export const DEMO_ASSET_IDS = {
   skeletonSword: SKELETON_PICKUP_ASSETS.skeletonSword.assetId,
   skeletonSkull: SKELETON_PICKUP_ASSETS.skeletonSkull.assetId,
   skeletonFemur: SKELETON_PICKUP_ASSETS.skeletonFemur.assetId,
+  skeletonFemurCracked: SKELETON_PICKUP_ASSETS.skeletonFemurCracked.assetId,
 } as const;
 
 function surface(): readonly [HTMLCanvasElement, CanvasRenderingContext2D] {

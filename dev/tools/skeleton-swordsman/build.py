@@ -740,6 +740,24 @@ def render_pickups(
     ]
     render(femur, "skeleton-femur.png")
 
+    # The same bone after one throw: the far knob is gone, the shaft ends in splinters, and the break
+    # shows the dark marrow the socket material is already used for. Read against the whole femur it
+    # has to say "one more throw" at a glance and from across the room, so the silhouette changes —
+    # shorter, and no longer symmetrical — rather than only the surface.
+    cracked = [
+        cylinder_between("PickupCrackedFemur", (-0.27, 0, 0.22), (0.05, 0, 0.58), 0.062, assigned["bone"]),
+        ellipsoid("PickupCrackedFemurEnd", (-0.27, 0, 0.22), (0.1, 0.08, 0.1), assigned["bone"]),
+        # Wider than the shaft and pushed just past its end, so the marrow reads as a dark cap on the
+        # break rather than as a shadow inside it. At the size a prop is drawn on the floor this is
+        # most of what says "broken" — a splinter alone is a few pixels and disappears.
+        ellipsoid("PickupCrackedFemurBreak", (0.06, 0, 0.59), (0.072, 0.066, 0.055), assigned["socket"]),
+        cylinder_between("PickupCrackedFemurSplinter.A", (0.04, 0.03, 0.57), (0.2, 0.05, 0.78), 0.03, assigned["bone"]),
+        cylinder_between(
+            "PickupCrackedFemurSplinter.B", (0.05, -0.035, 0.57), (0.15, -0.06, 0.72), 0.024, assigned["bone"]
+        ),
+    ]
+    render(cracked, "skeleton-femur-cracked.png")
+
     rig.hide_render = False
     scene.render.resolution_x = frame_size
     scene.render.resolution_y = frame_size

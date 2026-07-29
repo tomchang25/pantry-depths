@@ -76,9 +76,9 @@ function throwRange(world: DemoWorld, base: number): number {
   return Math.min(base, Math.max(THROW_SPAWN_AHEAD, aimDistance - THROW_SPAWN_AHEAD));
 }
 
-/** How many victims each of the two piercing throws is allowed. */
+/** How many victims a piercing throw is allowed: the javelin carries them, the blades kill them. */
 export const JAVELIN_CAPACITY = 3;
-export const AXE_CAPACITY = 3;
+export const CLEAVE_CAPACITY = 3;
 
 export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
   stick: "Stakes",
@@ -88,6 +88,7 @@ export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
   skeletonSword: "Skeleton Sword",
   skeletonSkull: "Skull",
   skeletonFemur: "Femur",
+  skeletonFemurCracked: "Cracked Femur",
 };
 
 const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
@@ -98,6 +99,7 @@ const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
   skeletonSword: "Sword away!",
   skeletonSkull: "Skull away!",
   skeletonFemur: "Bone away!",
+  skeletonFemurCracked: "Last of the bone!",
 };
 
 export function meleeReach(world: DemoWorld): number {

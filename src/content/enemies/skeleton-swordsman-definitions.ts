@@ -8,6 +8,7 @@ import skeletonDeathAtlas from "@/content/enemies/assets/skeleton-swordsman/skel
 import skeletonHurtAtlas from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-atlas-hurt.png";
 import skeletonIdleAtlas from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-atlas-idle.png";
 import skeletonWalkAtlas from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-atlas-walk.png";
+import skeletonFemurCracked from "@/content/enemies/assets/skeleton-swordsman/skeleton-femur-cracked.png";
 import skeletonFemur from "@/content/enemies/assets/skeleton-swordsman/skeleton-femur.png";
 import skeletonSkull from "@/content/enemies/assets/skeleton-swordsman/skeleton-skull.png";
 import skeletonSword from "@/content/enemies/assets/skeleton-swordsman/skeleton-sword.png";
@@ -124,6 +125,7 @@ export const SKELETON_PICKUP_ASSETS = {
   skeletonSword: { assetId: "demo.skeletonSword", url: skeletonSword },
   skeletonSkull: { assetId: "demo.skeletonSkull", url: skeletonSkull },
   skeletonFemur: { assetId: "demo.skeletonFemur", url: skeletonFemur },
+  skeletonFemurCracked: { assetId: "demo.skeletonFemurCracked", url: skeletonFemurCracked },
 } as const;
 
 export const SKELETON_PICKUP_URLS = Object.fromEntries(

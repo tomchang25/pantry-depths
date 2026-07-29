@@ -110,6 +110,7 @@ const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   skeletonSword: DEMO_ASSET_IDS.skeletonSword,
   skeletonSkull: DEMO_ASSET_IDS.skeletonSkull,
   skeletonFemur: DEMO_ASSET_IDS.skeletonFemur,
+  skeletonFemurCracked: DEMO_ASSET_IDS.skeletonFemurCracked,
 };
 
 const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
@@ -120,6 +121,7 @@ const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
   skeletonSword: 0.58,
   skeletonSkull: 0.42,
   skeletonFemur: 0.48,
+  skeletonFemurCracked: 0.4,
 };
 
 const SKELETON_DISPLAY_SCALE = 1.16;
