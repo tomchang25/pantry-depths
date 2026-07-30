@@ -7,7 +7,7 @@
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/content/viewmodel/melee-viewmodel";
-import { createBlessState, grantBless, hasBless, OVERFLOW_MAX_HP, type BlessState } from "@/demo/bless";
+import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState } from "@/demo/bless";
 import {
   ENEMY_ARCHETYPES,
   isBoned,
@@ -730,20 +730,15 @@ export function spawnReinforcement(world: DemoWorld): boolean {
 /**
  * Awards one blessing and queues its card.
  *
- * Both sources — smashing an altar and taking the stairs down — come through here, so the card, the
- * bar, and the overflow rule can never drift apart between them.
+ * Both sources — smashing an altar and taking the stairs down — come through here, so the card and
+ * the bar can never drift apart between them.
  */
 export function awardBless(world: DemoWorld): void {
   const granted = grantBless(world.bless);
+  const healthGain = blessMaxHpGain(granted);
 
-  if (!granted) {
-    world.player.maxHp += OVERFLOW_MAX_HP;
-    world.player.hp = Math.min(world.player.maxHp, world.player.hp + OVERFLOW_MAX_HP);
-    world.pendingCard = "overflow";
-    announce(world, `Blessings full - max HP +${OVERFLOW_MAX_HP}`, 3);
-    return;
-  }
-
+  world.player.maxHp += healthGain;
+  world.player.hp = Math.min(world.player.maxHp, world.player.hp + healthGain);
   world.pendingCard = granted.id;
   announce(world, `Blessing gained: ${granted.name}`, 3);
 }
