@@ -96,7 +96,6 @@ Both are decisions that whichever plan lands first will fix in place, so they ar
 
 | Child | Focus                                                                                      |
 | ----- | ------------------------------------------------------------------------------------------ |
-| 02    | The five-block floor: a square thirty-five grid, three side rooms and an extraction room   |
 | 03    | What the side rooms do: smash for a curse, hold ground for a blessing, heal                |
 | 04    | Tasks: one main and three secondary, the descent locked and unmarked until the main is met |
 | 05    | The clock: run-wide level from time and depth, derived and shown only                      |
@@ -132,22 +131,6 @@ Four of those are unavoidable and are held to single-line touches: `world.ts` at
 `src/demo/bless.ts`, `src/demo/demo-hud.ts`, `src/demo/demo-viewmodel.ts`, and `src/demo/impacts.ts` are named by the concurrent plan nowhere and are fully available.
 
 Nothing in this plan may add a test under `src/demo/` or `src/presentation/`; the repository guard at `test/unit/repository/demo-half-is-untested.test.ts` enforces it and is not to be edited.
-
-### 02 — The five-block floor
-
-`src/demo/maze.ts` is the whole change.
-
-`DEMO_GRID_SIZE` (line 10) goes from 21 to 35. Before changing it, confirm all 45 readers treat it as a dimension: `maze.ts` 17, `demo-scene.ts` 14, `world.ts` 11, `demo-surface.ts` 3. `DemoMaze` already carries `size` as a field (line 29), so readers that go through the maze adapt for free; only direct readers of the constant need checking. Any reader that assumes 21 specifically rather than reading the number is the one thing that turns this child from small to large — find it first.
-
-`generateDemoMaze` (line 275) becomes an assembly: generate the twenty-one-square main region into the centred block, generate four seven-square rooms into the four side slots, then punch a connection through each shared edge. The existing generator body becomes the main-region generator; the side-room generators are new and small.
-
-`DemoMaze` (line 28) gains an extraction cell beside `entrance`, `exit`, and `altar`, plus enough room metadata for children 03 and 04 to ask which room a cell belongs to. `altar` becomes two cells — the cursed altar and the blessing altar — or a small record; child 03 decides the shape, so leave it as one field here if that keeps this child smaller.
-
-`tileIndex` (line 80) and `isInsideGrid` (line 84) are the accessors that keep a square grid cheap; do not replace them with width-and-height variants.
-
-`breadthFirstStep` (line 487) is what enemy pathing uses and it walks the whole grid — confirm the larger grid does not make it visibly expensive before delivering, since it runs per enemy.
-
-Requirement 2 says the extraction room is unmarked. Nothing marks it today because nothing knows it exists, so this child satisfies that by not adding anything; child 04 is where the descent's visibility becomes a live rule.
 
 ### 03 — What the side rooms do
 
