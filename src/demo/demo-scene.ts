@@ -162,6 +162,7 @@ const PIERCING_RODS: Readonly<
     shaft: [168, 156, 132],
     tip: [214, 206, 188],
   },
+  crossbowBolt: { length: 0.56, width: 0.038, shaft: [226, 218, 196], tip: [248, 244, 230] },
 };
 
 const AXE_LENGTH = 0.46;
@@ -259,6 +260,9 @@ const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   skeletonFemurCracked: DEMO_ASSET_IDS.skeletonFemurCracked,
   skeletonJavelin: DEMO_ASSET_IDS.skeletonJavelin,
   skeletonJavelinCracked: DEMO_ASSET_IDS.skeletonJavelinCracked,
+  crossbow: DEMO_ASSET_IDS.crossbow,
+  crossbowSpent: DEMO_ASSET_IDS.crossbowSpent,
+  crossbowBolt: DEMO_ASSET_IDS.crossbowBolt,
 };
 
 const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
@@ -272,6 +276,9 @@ const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
   skeletonFemurCracked: 0.4,
   skeletonJavelin: 0.62,
   skeletonJavelinCracked: 0.6,
+  crossbow: 0.54,
+  crossbowSpent: 0.54,
+  crossbowBolt: 0.4,
 };
 
 /**

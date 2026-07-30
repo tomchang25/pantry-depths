@@ -28,7 +28,10 @@ export type DemoPropKind =
   | "skeletonFemur"
   | "skeletonFemurCracked"
   | "skeletonJavelin"
-  | "skeletonJavelinCracked";
+  | "skeletonJavelinCracked"
+  | "crossbow"
+  | "crossbowSpent"
+  | "crossbowBolt";
 export type DemoThrowKind = DemoPropKind | "enemy";
 
 export type DemoThrowWeight = Readonly<{
@@ -99,6 +102,40 @@ const PROP_WEIGHTS: Readonly<Record<DemoPropKind, DemoThrowWeight>> = {
     recoil: 0.16,
     thud: 0.14,
     carrySlow: 1,
+  },
+  // Flat and fast, and further than an arm can throw anything: a bolt is the player's answer to the
+  // spitters at their own range.
+  crossbowBolt: {
+    speed: 30,
+    range: 40,
+    lobbed: false,
+    drag: 0,
+    plunge: 1,
+    recoil: 0.1,
+    thud: 0.08,
+    carrySlow: 1,
+  },
+  // The stock in the hand: heavy enough to be felt while it is carried, and it barely flies at all
+  // once there is nothing left to shoot.
+  crossbow: {
+    speed: 12,
+    range: 6,
+    lobbed: true,
+    drag: 0.5,
+    plunge: 0.9,
+    recoil: 0.5,
+    thud: 0.6,
+    carrySlow: 0.92,
+  },
+  crossbowSpent: {
+    speed: 14,
+    range: 7,
+    lobbed: false,
+    drag: 0.2,
+    plunge: 1,
+    recoil: 0.5,
+    thud: 0.6,
+    carrySlow: 0.92,
   },
   rock: {
     speed: 14,
@@ -202,10 +239,28 @@ export type DemoPropFlightHit = "stop" | "skewer" | "cleave";
 /** What it does where it stops, whether that is a wall, a body, or the end of its range. */
 export type DemoPropLanding = "spend" | "burst" | "detonate" | "pin" | "strike";
 
+/**
+ * What the left hand does with it: opens, or pulls a trigger.
+ *
+ * Everything in the demo was thrown, and the button that throws was the same button that swings —
+ * hands full meant throw, hands empty meant cut. A shooter is the third case, and it is a different
+ * kind of object rather than a different kind of throw: what leaves the hand is not the thing being
+ * held, and the thing being held is still there afterwards until its uses run out.
+ */
+export type DemoPropUse = "throw" | "shoot";
+
 /** How it is drawn on the way there. */
 export type DemoPropForm = "billboard" | "tumbling" | "rod";
 
 export type DemoPropBehaviour = Readonly<{
+  use: DemoPropUse;
+  /**
+   * What the hand is left holding once a shooter's uses run out. Only shooters set it.
+   *
+   * Distinct from `leaves`, which is what a *thrown* prop drops where it landed. This one never
+   * touches the floor: the weapon is spent in the hand and what remains is still in it.
+   */
+  spends?: DemoPropKind;
   flightHit: DemoPropFlightHit;
   /**
    * How many bodies a piercing throw takes before it is full and comes down.
@@ -247,14 +302,39 @@ export type DemoPropBehaviour = Readonly<{
 const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // A sharpened stake: it runs one body through and nails it to whatever stops it. Not a javelin —
   // that is a weapon of its own further down, and the two are told apart by what they carry.
-  stick: { flightHit: "skewer", capacity: 1, landing: "pin", wallDamage: 2, leaves: undefined, form: "rod" },
-  rock: { flightHit: "stop", capacity: 1, landing: "burst", wallDamage: 4, leaves: undefined, form: "billboard" },
-  bomb: { flightHit: "stop", capacity: 1, landing: "detonate", wallDamage: 2, leaves: undefined, form: "billboard" },
+  stick: {
+    use: "throw",
+    flightHit: "skewer",
+    capacity: 1,
+    landing: "pin",
+    wallDamage: 2,
+    leaves: undefined,
+    form: "rod",
+  },
+  rock: {
+    use: "throw",
+    flightHit: "stop",
+    capacity: 1,
+    landing: "burst",
+    wallDamage: 4,
+    leaves: undefined,
+    form: "billboard",
+  },
+  bomb: {
+    use: "throw",
+    flightHit: "stop",
+    capacity: 1,
+    landing: "detonate",
+    wallDamage: 2,
+    leaves: undefined,
+    form: "billboard",
+  },
   // The two blades cut through three bodies and then lie where they stopped. Neither wears out: what
   // they cost you is the walk back to them, which is a decision you make in the middle of a fight and
   // not an inventory that quietly runs down.
-  axe: { flightHit: "cleave", capacity: 3, landing: "spend", wallDamage: 2, leaves: "axe", form: "rod" },
+  axe: { use: "throw", flightHit: "cleave", capacity: 3, landing: "spend", wallDamage: 2, leaves: "axe", form: "rod" },
   skeletonSword: {
+    use: "throw",
     flightHit: "cleave",
     capacity: 3,
     landing: "spend",
@@ -264,6 +344,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   },
   // The skull is the skeleton's rock: one throw, and it is a mess on the floor.
   skeletonSkull: {
+    use: "throw",
     flightHit: "stop",
     capacity: 1,
     landing: "burst",
@@ -273,6 +354,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   },
   // The femur is the one that wears. It comes back cracked, and the cracked one does not come back.
   skeletonFemur: {
+    use: "throw",
     flightHit: "stop",
     capacity: 1,
     landing: "strike",
@@ -281,6 +363,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
     form: "tumbling",
   },
   skeletonFemurCracked: {
+    use: "throw",
     flightHit: "stop",
     capacity: 1,
     landing: "strike",
@@ -292,6 +375,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // and pinned wherever the shaft finally stops. It wears out the way the femur does — two throws, the
   // second from a shaft that comes back visibly bent and does not come back again.
   skeletonJavelin: {
+    use: "throw",
     flightHit: "skewer",
     capacity: 3,
     landing: "pin",
@@ -300,8 +384,40 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
     form: "rod",
   },
   skeletonJavelinCracked: {
+    use: "throw",
     flightHit: "skewer",
     capacity: 3,
+    landing: "pin",
+    wallDamage: 1,
+    leaves: undefined,
+    form: "rod",
+  },
+  // The only thing in the demo that is aimed rather than thrown. Three bolts, and then the stock
+  // itself is a weapon: what is left in the hand is a spent crossbow, and a spent crossbow flies.
+  crossbow: {
+    use: "shoot",
+    spends: "crossbowSpent",
+    flightHit: "stop",
+    capacity: 1,
+    landing: "spend",
+    wallDamage: 1,
+    leaves: undefined,
+    form: "billboard",
+  },
+  crossbowSpent: {
+    use: "throw",
+    flightHit: "cleave",
+    capacity: 3,
+    landing: "spend",
+    wallDamage: 2,
+    leaves: undefined,
+    form: "rod",
+  },
+  // Never picked up and never dropped: it exists only between the trigger and whatever it reaches.
+  crossbowBolt: {
+    use: "throw",
+    flightHit: "skewer",
+    capacity: 1,
     landing: "pin",
     wallDamage: 1,
     leaves: undefined,

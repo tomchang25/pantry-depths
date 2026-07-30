@@ -91,6 +91,9 @@ export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
   skeletonFemurCracked: "Cracked Femur",
   skeletonJavelin: "Skeleton Javelin",
   skeletonJavelinCracked: "Bent Javelin",
+  crossbow: "Bone Crossbow",
+  crossbowSpent: "Spent Crossbow",
+  crossbowBolt: "Bolt",
 };
 
 const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
@@ -104,6 +107,9 @@ const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
   skeletonFemurCracked: "Last of the bone!",
   skeletonJavelin: "Javelin away!",
   skeletonJavelinCracked: "Last of the shaft!",
+  crossbow: "Bolt away!",
+  crossbowSpent: "Threw the stock!",
+  crossbowBolt: "Bolt away!",
 };
 
 export function meleeReach(world: DemoWorld): number {
@@ -472,6 +478,42 @@ function throwHeld(world: DemoWorld): void {
   announce(world, left > 0 ? `${THROW_CALLS[held.prop]} (${left} left)` : THROW_CALLS[held.prop]);
 }
 
+/**
+ * Pulling a trigger rather than opening a hand.
+ *
+ * What leaves is a bolt; what stays is the crossbow, one use lighter. When the last use goes the stock
+ * remains in the hand as its own throwable, so the weapon ends by being flung at somebody rather than
+ * by quietly disappearing — the same "spend the last of it" shape the femur has, arrived at from the
+ * other direction.
+ *
+ * A shot is not a throw and must not read as one: it keeps the arm's dip so the press has weight, but
+ * the object stays put, so nothing is handed to the viewmodel to animate leaving.
+ */
+function shootHeld(world: DemoWorld): void {
+  const held = world.held;
+
+  if (!held || held.kind !== "prop") {
+    return;
+  }
+
+  const behaviour = propBehaviour(held.prop);
+  const left = held.count - 1;
+  world.held =
+    left > 0
+      ? { kind: "prop", prop: held.prop, count: left }
+      : behaviour.spends
+        ? { kind: "prop", prop: behaviour.spends, count: 1 }
+        : undefined;
+  spawnProjectile(world, "crossbowBolt", undefined);
+  burst(world.particles, "ember", world.player.x, world.player.y, 0.5, 4, {
+    speed: 2.2,
+    spreadZ: 1.2,
+    size: 0.035,
+    life: 0.22,
+  });
+  announce(world, left > 0 ? `Bolt away! (${left} left)` : "Last bolt — only the stock now");
+}
+
 function strikeAltar(world: DemoWorld): boolean {
   if (world.altar.hp <= 0) {
     return false;
@@ -633,6 +675,13 @@ export function primaryAction(world: DemoWorld): void {
     world.swingTotal = THROW_SWING_SECONDS;
     // A throw is over the moment the hand opens; there is no blade travelling anywhere to wait for.
     world.swingResolved = true;
+
+    // A shooter keeps what it is holding and sends something else. Everything else opens the hand.
+    if (world.held.kind === "prop" && propBehaviour(world.held.prop).use === "shoot") {
+      shootHeld(world);
+      return;
+    }
+
     throwHeld(world);
     return;
   }

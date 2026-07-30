@@ -41,6 +41,9 @@ export const DEMO_ASSET_IDS = {
   dustPuff: "demo.dustPuff",
   skeletonJavelin: "demo.skeletonJavelin",
   skeletonJavelinCracked: "demo.skeletonJavelinCracked",
+  crossbow: "demo.crossbow",
+  crossbowSpent: "demo.crossbowSpent",
+  crossbowBolt: "demo.crossbowBolt",
   hazardOrb: "demo.hazardOrb",
   warnShoot: "demo.warnShoot",
   warnCharge: "demo.warnCharge",
@@ -167,6 +170,83 @@ function skeletonJavelin(bent: boolean): HTMLCanvasElement {
   context.fill();
   context.fillStyle = "#8d7f66";
   context.fillRect(-18, -20, 36, 14);
+  context.restore();
+  return canvas;
+}
+
+/**
+ * A bone crossbow, loaded or spent.
+ *
+ * The loaded one has a bolt lying in the groove and a drawn string; the spent one has neither and its
+ * string hangs slack. That difference is the whole ammunition readout for the weapon — the count in
+ * the corner says how many are left, but which of the two pictures is in the hand says whether there
+ * is anything left at all.
+ */
+function crossbow(spent: boolean): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  context.save();
+  context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
+  context.rotate(-0.32);
+  // Stock.
+  context.fillStyle = spent ? "#8e8471" : "#b0a488";
+  context.fillRect(-24, -140, 48, 300);
+  context.fillStyle = spent ? "#a89d88" : "#cfc4a6";
+  context.fillRect(-24, -140, 16, 300);
+  // Bow arms, swept back.
+  context.strokeStyle = spent ? "#9c9280" : "#c2b696";
+  context.lineWidth = 26;
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(-170, -70);
+  context.quadraticCurveTo(0, -150, 170, -70);
+  context.stroke();
+  // The string: drawn taut across the arms while loaded, sagging once it is spent.
+  context.strokeStyle = spent ? "rgb(228 222 202 / 45%)" : "#efe8d2";
+  context.lineWidth = 7;
+  context.beginPath();
+  context.moveTo(-166, -66);
+
+  if (spent) {
+    context.quadraticCurveTo(0, 30, 166, -66);
+  } else {
+    context.lineTo(166, -66);
+  }
+
+  context.stroke();
+
+  if (!spent) {
+    // A bolt in the groove.
+    context.fillStyle = "#f2ecd8";
+    context.fillRect(-7, -230, 14, 180);
+    context.beginPath();
+    context.moveTo(0, -268);
+    context.lineTo(16, -222);
+    context.lineTo(-16, -222);
+    context.closePath();
+    context.fill();
+  }
+
+  context.fillStyle = spent ? "#6d6455" : "#8d8168";
+  context.fillRect(-30, 96, 60, 22);
+  context.restore();
+  return canvas;
+}
+
+/** One bolt on the floor is never a thing; this is only ever seen in flight, as a rod. */
+function crossbowBolt(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  context.save();
+  context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
+  context.rotate(-0.42);
+  context.fillStyle = "#e8e0c8";
+  context.fillRect(-9, -180, 18, 340);
+  context.fillStyle = "#f6f0dc";
+  context.beginPath();
+  context.moveTo(0, -232);
+  context.lineTo(20, -172);
+  context.lineTo(-20, -172);
+  context.closePath();
+  context.fill();
   context.restore();
   return canvas;
 }
@@ -845,6 +925,9 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.warnShoot, warnReticle());
   merged.set(DEMO_ASSET_IDS.warnCharge, warnFlame());
   merged.set(DEMO_ASSET_IDS.warnMelee, warnBladeStrip());
+  merged.set(DEMO_ASSET_IDS.crossbow, crossbow(false));
+  merged.set(DEMO_ASSET_IDS.crossbowSpent, crossbow(true));
+  merged.set(DEMO_ASSET_IDS.crossbowBolt, crossbowBolt());
   merged.set(DEMO_ASSET_IDS.skeletonJavelin, skeletonJavelin(false));
   merged.set(DEMO_ASSET_IDS.skeletonJavelinCracked, skeletonJavelin(true));
   merged.set(DEMO_ASSET_IDS.stunStar, stunStar());

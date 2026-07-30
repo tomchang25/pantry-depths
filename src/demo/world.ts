@@ -914,7 +914,8 @@ const DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: n
  * the soft bodies' one: a slime has no armoury on it.
  */
 const BONED_DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: number }>[] = [
-  { kind: "skeletonJavelin", count: 1, upTo: 0.18 },
+  { kind: "crossbow", count: 3, upTo: 0.1 },
+  { kind: "skeletonJavelin", count: 1, upTo: 0.26 },
 ];
 export const LIFESTEAL_HEAL = 12;
 
