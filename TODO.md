@@ -106,7 +106,31 @@ The skeleton swordsman is an eight-way authored body: ten clips, eight direction
 
 The alternative is a GPU 3D layer — Three.js or raw WebGL — where the same body is a rigged mesh of a few hundred kilobytes, viewable from any angle, at any resolution, with no bake step between authoring and seeing it. What makes this a decision rather than an obvious win is the compositing seam: walls, floors, depth, lighting, water and the x-ray markers are all the Canvas 2D raycaster's, and a second renderer has to agree with it about depth per column or the two images cannot be layered. Answering that is the work; the enemy is the easy half.
 
-Not scheduled. What forces the question is the second authored enemy, not this one.
+The boss concept currently on the table — a firing altar as a real 3D model, ringed by an impassable moat — would force this question earlier than the second authored enemy does, because the altar is that second body in everything but gait. The decision also orders other work: renderer-bound visual polish (light falloff, distance fog, contact shading, the first-person arm) done before it is thrown away by a port, while HUD, input feel, and simulation-side feedback survive one. Decide the boss's visual technology first; everything renderer-bound queues behind that answer.
+
+Not scheduled. What forces the question is the boss fight or the second authored enemy, whichever is wanted first.
+
+### Moving The Demo Onto The Tested Half
+
+The demo half — `src/demo/`, `src/presentation/` — is verified only by playing, by standing ruling, and `test/unit/repository/demo-half-is-untested.test.ts` enforces it. The ruling's cost is now felt from the other side: an agent working on the demo cannot verify anything itself, so every change ends in a manual playtest or a browser session someone has to drive, and the demo's internal structure has grown without the pressure a tested boundary applies. Migration would mean moving the logic that never touches a frame — simulation rules, spawn and task state, damage arithmetic — across into the tested half, leaving a thin surface whose value genuinely is how it feels; revisiting the guard's boundary is part of the work, not a side effect, and it is a deliberate revision of the ruling rather than an exception to it.
+
+What makes it a decision rather than a queue is timing. A migration mid-churn freezes behaviour that is still moving: every test written against the blessing and boss work now in flight would break as that work lands, and the mirrored-direction-wheel lesson says a test written against a moving surface records the surface's bugs as specification. The migration waits for the behaviour to stop moving.
+
+Not scheduled. What would force it is the core design's remaining content shipping — or a content pass whose bug rate makes manual verification the bottleneck before then.
+
+### One Enemy, One Record
+
+Changing an enemy's action or a number on it touches five or more files today, spread across archetype rows, AI branches, clip tables, display literals and spawn entries. The mechanical half of the fix is consolidation: one enemy becomes one record — statistics, actions, clip references, display numbers — read from one place, with `src/demo/enemy-archetypes.ts` as the seed the record grows from, and no behaviour change anywhere. The generalize-and-harden half deliberately waits, because an abstraction chosen before the blessing catalogue and the boss land would be guessed against the two consumers most likely to bend it.
+
+What makes it a decision rather than a queue is verification. A behaviour-preserving refactor in a half with no tests is proven by playing, so the mechanical half needs a supervised gate — a branch, then a playtest that confirms every enemy still moves and hits as before, before anything builds on top.
+
+Not scheduled. What would force it is the next content pass after the boss — or the next five-file enemy edit that goes wrong.
+
+### What Remains Of The Core Design
+
+The direction document `dev/docs/design/pantry_demo_core.design.md` is frozen with the rest of its directory, but the work it pointed at is nearly done, and the tail is recorded here so it is a list rather than a memory. Three pieces remain: fleshing out the blessing catalogue; the boss fight, whose current concept is a firing altar the player cannot reach directly — ringed by an impassable moat — and breaks by turning pickups earned from the crowd against it; and sound effects. All three are supervised manual work by nature: the boss is a mechanic decision, blessings are content taste, and audio cannot be judged without ears.
+
+This is the next supervised block, not autonomous work, and it lands before the two entries above — the migration and the enemy record — become safe to start.
 
 ### Browser Acceptance Coverage For Gameplay
 
