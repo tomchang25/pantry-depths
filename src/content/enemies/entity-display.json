@@ -42,6 +42,27 @@
     "markerSwell": 0.065
   },
   {
+    "appearanceId": "skeletonHammerman",
+    "bodyScale": 0.755,
+    "markerOffset": -0.015,
+    "markerScale": 0.2,
+    "markerSwell": 0.065
+  },
+  {
+    "appearanceId": "skeletonJavelineer",
+    "bodyScale": 0.755,
+    "markerOffset": -0.015,
+    "markerScale": 0.2,
+    "markerSwell": 0.065
+  },
+  {
+    "appearanceId": "skeletonCrossbowman",
+    "bodyScale": 0.755,
+    "markerOffset": -0.015,
+    "markerScale": 0.2,
+    "markerSwell": 0.065
+  },
+  {
     "appearanceId": "placeholder",
     "bodyScale": 0.46,
     "markerOffset": 0.08,

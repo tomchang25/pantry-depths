@@ -652,6 +652,10 @@ function stepHazards(world: DemoWorld, deltaSeconds: number): void {
 
       if (Math.hypot(world.player.x - hazard.x, world.player.y - hazard.y) <= 0.42) {
         hurtPlayer(world, hazard.damage, hazard.x, hazard.y);
+        // Along the line the shot was travelling, not away from where it happened to stop. A heavy
+        // shaft moves the player off the ground they were holding; a bolt carries none of this.
+        world.player.pushX += hazard.directionX * hazard.knockback;
+        world.player.pushY += hazard.directionY * hazard.knockback;
         finished = true;
         break;
       }
@@ -734,6 +738,8 @@ function fireShell(world: DemoWorld, mortar: DemoMortar, centreX: number, centre
     travelled: 0,
     range,
     damage: SHELL_DAMAGE,
+    // A shell knocks the player about through its blast, not by arriving somewhere.
+    knockback: 0,
     // The fall that brings the curve back to the floor exactly where the range runs out, which is
     // exactly where the circle has been painted for the last five seconds.
     arc,

@@ -37,6 +37,8 @@ import {
 import { DROWN_SECONDS } from "@/demo/impacts";
 import { DEATH_SECONDS } from "@/demo/simulation";
 import {
+  bodyFootprint,
+  ENEMY_RADIUS,
   projectileHeight,
   type DemoDeath,
   type DemoDeathCause,
@@ -222,6 +224,34 @@ function previewDisplay(state: EntityWorkbenchState): EntityDisplay {
     markerScale: state.markerScale,
     markerSwell: state.markerSwell,
   };
+}
+
+/**
+ * The two circles a body actually has, drawn together because they are deliberately different.
+ *
+ * The inner one is the footprint: how much floor it takes up, how far its shove reaches, and how
+ * large a target a thrown weapon has to hit. The outer one is wall clearance, which is the same
+ * number for every body on the floor — a large body with a large clearance wedges in corridor
+ * corners, and one that cannot get through a doorway cannot block one either. Seeing by how much
+ * they differ is the only way to judge whether a colour is sized right.
+ */
+function bodyCircles(enemy: DemoEnemy): RenderFloorDecal[] {
+  return [
+    {
+      x: enemy.x,
+      y: enemy.y,
+      shape: { kind: "ring", radius: ENEMY_RADIUS, thickness: 0.035 },
+      color: [120, 150, 210],
+      strength: 0.4,
+    },
+    {
+      x: enemy.x,
+      y: enemy.y,
+      shape: { kind: "ring", radius: bodyFootprint(enemy.archetype), thickness: 0.045 },
+      color: [240, 210, 120],
+      strength: 0.6,
+    },
+  ];
 }
 
 /**
@@ -956,7 +986,7 @@ function mainScene(state: EntityWorkbenchState, elapsedSeconds: number, scrub: n
   enemy.facingAngle = facingFor(camera, state.direction);
   return scene(bodyProjection(context, state, scrub), {
     camera,
-    floorDecals: attackCone(state, enemy),
+    floorDecals: [...bodyCircles(enemy), ...attackCone(state, enemy)],
   });
 }
 

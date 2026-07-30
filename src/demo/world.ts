@@ -175,6 +175,14 @@ export type DemoHazard = {
   travelled: number;
   range: number;
   damage: number;
+  /**
+   * How hard the arrival shoves the player, in the direction it was travelling.
+   *
+   * A javelin has one and a bolt does not. It is a small push — enough to cost the player the ground
+   * they were standing on and nowhere near enough to take control away — and it is what makes a
+   * three-second telegraph worth respecting rather than merely surviving.
+   */
+  knockback: number;
   /** Flight curve, for a shell. A bolt leaves these flat and never consults them. */
   arc: number;
   fall: number;
@@ -497,11 +505,12 @@ const SLIMES: readonly DemoEnemyArchetype[] = [
   ENEMY_ARCHETYPES.slimeRed,
 ];
 
-/** Everything with an attack. Even shares, which is what the three new skeletons land into. */
+/** Everything with an attack, in even shares: four bodies that stop, commit, and can be read. */
 const HUNTERS: readonly DemoEnemyArchetype[] = [
-  ENEMY_ARCHETYPES.ranged,
-  ENEMY_ARCHETYPES.charger,
   ENEMY_ARCHETYPES.swordsman,
+  ENEMY_ARCHETYPES.hammerman,
+  ENEMY_ARCHETYPES.javelineer,
+  ENEMY_ARCHETYPES.crossbowman,
 ];
 
 /**
@@ -915,10 +924,28 @@ export function hazardHeight(hazard: DemoHazard): number {
  * left. A slime carries no armoury and now drops nothing at all, which leaves two sources of weapons
  * on a floor: the things that were holding them, and the walls.
  */
-const BONED_DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: number }>[] = [
-  { kind: "crossbow", count: 5, upTo: 0.1 },
-  { kind: "skeletonJavelin", count: 1, upTo: 0.26 },
+const BONE_DROPS: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: number }>[] = [
+  { kind: "skeletonSkull", count: 1, upTo: 0.3 },
+  { kind: "skeletonFemur", count: 1, upTo: 0.5 },
 ];
+
+/**
+ * The armoury half of the same roll: what this body was carrying, on the tenth of the table above it.
+ *
+ * Per appearance rather than per behaviour, because what a body drops is what it is holding and the
+ * artwork is the only place that is true. A crossbow arrives with three shots in it and then the
+ * stock itself is throwable, which is the behaviour it already has at a different count.
+ */
+const SKELETON_ARMOURY: Readonly<Partial<Record<EnemyAppearanceId, Readonly<{ kind: DemoPropKind; count: number }>>>> =
+  {
+    skeletonSwordsman: { kind: "skeletonSword", count: 1 },
+    skeletonHammerman: { kind: "hammer", count: 1 },
+    skeletonJavelineer: { kind: "skeletonJavelin", count: 1 },
+    skeletonCrossbowman: { kind: "crossbow", count: 3 },
+  };
+
+/** Above this the roll leaves nothing, which is what four in every ten corpses do. */
+const ARMOURY_UP_TO = 0.6;
 export const LIFESTEAL_HEAL = 12;
 
 /**
@@ -1048,7 +1075,8 @@ export function killEnemy(
   }
 
   const roll = Math.random();
-  const drop = BONED_DROP_TABLE.find((entry) => roll < entry.upTo);
+  const armoury = SKELETON_ARMOURY[enemy.appearance];
+  const drop = BONE_DROPS.find((entry) => roll < entry.upTo) ?? (armoury && roll < ARMOURY_UP_TO ? armoury : undefined);
 
   if (drop) {
     world.props.push({ id: nextId(world, "prop"), kind: drop.kind, count: drop.count, x: enemy.x, y: enemy.y });

@@ -42,6 +42,12 @@ export const ENEMY_SPRITE_URLS = {
     attack: skeletonSwordsmanAttack,
     hurt: skeletonSwordsmanHurt,
   },
+  // The three later skeletons bake no single-image stills. Nothing draws them from here — a boned
+  // body is drawn from its atlases — so the honest entry is the placeholder rather than the
+  // swordsman's stills, which would put the wrong weapon in the hand of whatever did read them.
+  skeletonHammerman: { normal: entityPlaceholder, attack: entityPlaceholder, hurt: entityPlaceholder },
+  skeletonJavelineer: { normal: entityPlaceholder, attack: entityPlaceholder, hurt: entityPlaceholder },
+  skeletonCrossbowman: { normal: entityPlaceholder, attack: entityPlaceholder, hurt: entityPlaceholder },
   // Stands in for the retained creature archetypes until their own artwork is authored.
   placeholder: { normal: entityPlaceholder, attack: entityPlaceholder, hurt: entityPlaceholder },
 } as const satisfies Readonly<Record<EnemyAppearanceId, Readonly<Record<EnemySpriteState, string>>>>;

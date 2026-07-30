@@ -21,6 +21,9 @@ const APPEARANCE_IDS: readonly EnemyAppearanceId[] = [
   "redSlime",
   "purpleSlime",
   "skeletonSwordsman",
+  "skeletonHammerman",
+  "skeletonJavelineer",
+  "skeletonCrossbowman",
   "placeholder",
 ];
 

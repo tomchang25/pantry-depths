@@ -58,9 +58,10 @@ const ENEMY_DOT_COLORS: Readonly<Record<DemoArchetypeId, string>> = {
   slimeGreen: "#7fc46a",
   slimeBlue: "#5f92d8",
   slimeRed: "#c9524f",
-  ranged: "#5aa8e0",
-  charger: "#e2585f",
   swordsman: "#d8c69a",
+  hammerman: "#e0a86a",
+  javelineer: "#b7d0a0",
+  crossbowman: "#a8c0e0",
 };
 
 const MINIMAP_TILE_COLORS: Readonly<Record<string, string>> = {

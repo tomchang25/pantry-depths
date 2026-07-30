@@ -29,7 +29,6 @@ import {
   attackCooldown,
   attackReach,
   MELEE_CUT_HALF_ANGLE,
-  RANGED_SHOT_RANGE,
   STRIKE_SECONDS,
 } from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
@@ -2185,7 +2184,10 @@ function sightLines(world: DemoWorld, built: RenderParticle[]): void {
     }
 
     const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-    const beads = beadLine(world, enemy.x, enemy.y, dx / length, dy / length, Math.min(length, RANGED_SHOT_RANGE));
+    // The line is drawn to this body's own shot range, so a javelineer's telegraph reaches as far as
+    // its javelin does and a crossbowman's as far as its bolt.
+    const range = enemy.archetype.shot?.range ?? 0;
+    const beads = beadLine(world, enemy.x, enemy.y, dx / length, dy / length, Math.min(length, range));
 
     beads.forEach((bead, index) => {
       // Each dot flickers on its own phase, so the line reads as live rather than as paint.

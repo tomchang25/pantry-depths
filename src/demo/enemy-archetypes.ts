@@ -1,20 +1,23 @@
 /**
- * The four things that come after you, and how each one announces itself.
+ * The seven things on a floor, and how each one announces itself.
  *
- * Every attack in this demo is telegraphed before it lands, because every attack is avoidable if you
- * read it: the shooter can be broken line-of-sight on, and the charger commits to a straight lane
- * you can step out of — and beats itself against the wall if you do. The wind-up numbers below are
- * the whole difficulty knob; the damage numbers barely matter next to them.
+ * Three of them are slimes and have no attack at all: what they cost the player is position, and
+ * they never stop advancing. The other four are skeletons, and every attack they have is telegraphed
+ * before it lands, because every attack is avoidable if you read it — a shooter can be broken
+ * line-of-sight on, and a charge commits to a straight lane you can step out of, then beats itself
+ * against the wall. The wind-up numbers are the whole difficulty knob; the damage barely matters
+ * next to them.
  *
- * The swordsman is the first of them with a front. That costs it the freedom the slimes have — it
- * must turn before it can go, and it swings at what it is looking at — and buys the only thing that
- * makes an authored eight-way body readable: where it is pointed is where it is about to be.
+ * A skeleton has a front, which costs it the freedom a blob has — it must turn before it can go, and
+ * it strikes at what it is looking at — and buys the only thing that makes an authored eight-way body
+ * readable: where it is pointed is where it is about to be.
  */
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { DEFAULT_BODY_WEIGHT, type DemoThrowWeight } from "@/demo/throw-weight";
 
-export type DemoArchetypeId = "slimeGreen" | "slimeBlue" | "slimeRed" | "ranged" | "charger" | "swordsman";
+export type DemoArchetypeId =
+  "slimeGreen" | "slimeBlue" | "slimeRed" | "swordsman" | "hammerman" | "javelineer" | "crossbowman";
 
 /**
  * What a body is made of, which decides most of what is true about it besides its behaviour.
@@ -91,6 +94,16 @@ export type DemoEnemyArchetype = Readonly<{
    * decides what is in the way are different circles on purpose.
    */
   footprint?: number;
+  /**
+   * What this body's shot is, for a type that has one.
+   *
+   * On the row rather than shared constants, because the numbers describing a shot are what tell two
+   * ranged types apart once their behaviour is identical. A javelin is slower and heavier, hits
+   * harder, and shoves the player slightly — enough to cost them the ground they were standing on,
+   * and nowhere near enough to take control away, which is what makes a three-second telegraph worth
+   * respecting rather than merely surviving. A bolt is fast, flat, and cheaper.
+   */
+  shot?: Readonly<{ speed: number; damage: number; range: number; knockback: number }>;
   /**
    * The distance band this body tries to hold while pursuing: it backs off inside `near`, closes
    * beyond `far`, and stands still between them.
@@ -218,48 +231,6 @@ const SLIME_RED: DemoEnemyArchetype = {
   jostle: 0.8,
 };
 
-const RANGED: DemoEnemyArchetype = {
-  id: "ranged",
-  name: "Spitter Slime",
-  appearance: "blueSlime",
-  health: 22,
-  weight: LIGHT_BODY_WEIGHT,
-  speed: 1.7,
-  rushSpeed: 1.7,
-  rushDistance: 0,
-  attackCooldown: 2.6,
-  windup: 1,
-  contactDamage: 4,
-  contactRange: 0.8,
-  body: "soft",
-  meleeWindup: false,
-  windupIntent: "shoot",
-  band: { near: 4, far: 7 },
-};
-
-const CHARGER: DemoEnemyArchetype = {
-  id: "charger",
-  name: "Charger Slime",
-  appearance: "redSlime",
-  health: 38,
-  weight: HEAVY_BODY_WEIGHT,
-  speed: 1.8,
-  rushSpeed: 2.2,
-  rushDistance: 5,
-  attackCooldown: 3.5,
-  // Three seconds is long enough that a charger is no longer a thing that hits you — you can walk
-  // away, come back, and land several swings before it launches. That is the intent: what it becomes
-  // instead is a battering ram you position, which is what the wall damage and the long stall stun
-  // below are for. Without those two this number would only be a nerf.
-  windup: 3,
-  contactDamage: 6,
-  contactRange: CHARGER_REACH,
-  body: "soft",
-  meleeWindup: false,
-  windupIntent: "charge",
-  band: meleeBand(CHARGER_REACH),
-};
-
 const SWORDSMAN: DemoEnemyArchetype = {
   id: "swordsman",
   name: "Skeleton Swordsman",
@@ -296,13 +267,93 @@ const SWORDSMAN: DemoEnemyArchetype = {
   band: meleeBand(SWORDSMAN_REACH),
 };
 
+/**
+ * A hammer-bearer, which is the charger's whole arrangement with a skeleton in it.
+ *
+ * It paints its lane, burns while it gathers, damages what it fails to get through, and lies stunned
+ * for five seconds if it stalls. None of that changes; what changes is that it stops being a slime,
+ * so it is a body you cannot pick up, that plays authored clips, and that drops the hammer it was
+ * swinging.
+ */
+const HAMMERMAN: DemoEnemyArchetype = {
+  id: "hammerman",
+  name: "Skeleton Hammer-bearer",
+  appearance: "skeletonHammerman",
+  health: 58,
+  weight: HEAVY_BODY_WEIGHT,
+  speed: 1.8,
+  rushSpeed: 2.2,
+  rushDistance: 5,
+  attackCooldown: 3.5,
+  windup: 3,
+  contactDamage: 6,
+  contactRange: CHARGER_REACH,
+  body: "boned",
+  meleeWindup: false,
+  windupIntent: "charge",
+  band: meleeBand(CHARGER_REACH),
+  turnRate: 3.2,
+};
+
+/**
+ * The two ranged types: one behaviour, two rhythms.
+ *
+ * The javelineer is a long, obvious commitment that repeats often; the crossbowman is a short one
+ * that rarely comes again. Which of the two is standing in a room changes how the player crosses it
+ * without changing a line of how it thinks.
+ *
+ * Neither has a contact attack, and that is not an oversight. A body whose whole threat is at four
+ * to seven cells should have nothing at all at zero, so the reward for closing that distance is that
+ * the thing stops being dangerous.
+ */
+const RANGED_BAND = { near: 4, far: 7 } as const;
+
+const JAVELINEER: DemoEnemyArchetype = {
+  id: "javelineer",
+  name: "Skeleton Javelineer",
+  appearance: "skeletonJavelineer",
+  health: 22,
+  weight: LIGHT_BODY_WEIGHT,
+  speed: 1.7,
+  rushSpeed: 1.7,
+  rushDistance: 0,
+  attackCooldown: 3,
+  windup: 3,
+  body: "boned",
+  windupIntent: "shoot",
+  band: RANGED_BAND,
+  turnRate: 4.4,
+  shot: { speed: 6, damage: 18, range: 11, knockback: 3.5 },
+};
+
+const CROSSBOWMAN: DemoEnemyArchetype = {
+  id: "crossbowman",
+  name: "Skeleton Crossbowman",
+  appearance: "skeletonCrossbowman",
+  health: 22,
+  weight: LIGHT_BODY_WEIGHT,
+  speed: 1.7,
+  rushSpeed: 1.7,
+  rushDistance: 0,
+  // One second to commit and six to come back from it. Standing exposed for most of a fight is the
+  // price of a shot that lands before the player has finished reading it.
+  attackCooldown: 6,
+  windup: 1,
+  body: "boned",
+  windupIntent: "shoot",
+  band: RANGED_BAND,
+  turnRate: 4.4,
+  shot: { speed: 8, damage: 12, range: 12, knockback: 0 },
+};
+
 export const ENEMY_ARCHETYPES = {
   slimeGreen: SLIME_GREEN,
   slimeBlue: SLIME_BLUE,
   slimeRed: SLIME_RED,
-  ranged: RANGED,
-  charger: CHARGER,
   swordsman: SWORDSMAN,
+  hammerman: HAMMERMAN,
+  javelineer: JAVELINEER,
+  crossbowman: CROSSBOWMAN,
 } as const;
 
 /**
@@ -362,10 +413,6 @@ export const MELEE_CUT_HALF_ANGLE = 0.75;
  * forced to land in the same fifth of a second.
  */
 export const STRIKE_SECONDS = 0.22;
-
-export const RANGED_SHOT_SPEED = 8;
-export const RANGED_SHOT_DAMAGE = 12;
-export const RANGED_SHOT_RANGE = 12;
 
 export const CHARGE_TRIGGER_DISTANCE = 5;
 export const CHARGE_SPEED = 9;

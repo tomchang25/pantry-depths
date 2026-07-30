@@ -29,9 +29,6 @@ import {
   attackReach,
   attackWindup,
   MELEE_CUT_HALF_ANGLE,
-  RANGED_SHOT_DAMAGE,
-  RANGED_SHOT_RANGE,
-  RANGED_SHOT_SPEED,
   STRIKE_SECONDS,
 } from "@/demo/enemy-archetypes";
 import { hasBless } from "@/demo/bless";
@@ -241,6 +238,12 @@ function beginWindup(world: DemoWorld, enemy: DemoEnemy, intent: DemoEnemy["inte
 }
 
 function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
+  const shot = enemy.archetype.shot;
+
+  if (!shot) {
+    return;
+  }
+
   const dx = enemy.aimX - enemy.x;
   const dy = enemy.aimY - enemy.y;
   const length = Math.max(0.0001, Math.hypot(dx, dy));
@@ -251,11 +254,12 @@ function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
     y: enemy.y,
     directionX: dx / length,
     directionY: dy / length,
-    speed: RANGED_SHOT_SPEED,
+    speed: shot.speed,
     travelled: 0,
-    range: RANGED_SHOT_RANGE,
-    damage: RANGED_SHOT_DAMAGE,
-    // A bolt flies flat and hits what it touches: no curve, and no radius beyond its own body.
+    range: shot.range,
+    damage: shot.damage,
+    knockback: shot.knockback,
+    // A shot flies flat and hits what it touches: no curve, and no radius beyond its own body.
     arc: 0,
     fall: 0,
     plunge: 1,

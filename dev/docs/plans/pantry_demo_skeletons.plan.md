@@ -168,11 +168,7 @@ The workbench is the only place any of this is verified, since the demo half tak
 
 ### Child overview
 
-| Child | Focus                                                  |
-| ----- | ------------------------------------------------------ |
-| 06    | The hammer-bearer, the javelineer, and the crossbowman |
-
-Child 06 is all that remains: a new type is an action set, which now exists, plus a band.
+Every child has shipped. The table is empty because it is forward-only: a row is cut when its work lands, and the last of them has. What remains is the pass this plan cannot do for itself — playing the floor against the Acceptance Criteria above, and judging in the entity workbench whether the baked poses read.
 
 ## Non-Goals
 
@@ -202,23 +198,3 @@ Child 06 is all that remains: a new type is an action set, which now exists, plu
 12. Every clip is scrubbable in the workbench at its own frame count, a three-second wind-up holds its final pose rather than crawling, and the coverage matrix reports no false gap.
 13. Four authored bodies ship in under 300 MB of decoded sprite memory.
 14. Verification passes, and the manual playtest confirms each criterion above.
-
-## Execution
-
-Coordinates recorded against the codebase as it stands when this plan was written. Re-check each one against the live code before executing its child; a stale line here is expected as earlier children land. Each subsection is cut when its child ships, in the same change that cuts its row from the child overview.
-
-**What children 04 and 05 deliver is structure, not finished animation.** Both bake atlases, and the poses in the first bake are provisional by agreement: what those children own is the clip tables, the per-clip dimensions, the projection and precedence, the parameterised generator, and a bake that runs end to end. Judging whether a pose reads is a separate pass through the entity workbench against Acceptance Criteria 4, 5, and 12, and it is expected to replace keyframes rather than confirm them. Nothing in either child should be read as a claim that the artwork is right.
-
-### 06 — The three new skeletons
-
-`src/content/combat/enemies.ts` line 7: `EnemyAppearanceId` gains `skeletonHammerman`, `skeletonJavelineer`, `skeletonCrossbowman`. The union stays in this file — moving it out of the legacy turn-based module is a separate refactor and not part of this plan. `APPEARANCE_IDS` in `src/content/enemies/entity-display-schema.ts` line 17 mirrors it by hand and must be updated in the same change, and `src/content/enemies/entity-display.json` needs three new rows or the validator refuses the file at load.
-
-`src/demo/enemy-archetypes.ts`: three new rows. The hammer-bearer copies `CHARGER` (line 149) with `body: "boned"`, a `turnRate`, and health one step above the swordsman's 46. The two ranged rows copy `RANGED` (line 121) with `body: "boned"`, the band from child 01, and the wind-up and cooldown from the Design table.
-
-`RANGED_SHOT_SPEED`, `RANGED_SHOT_DAMAGE`, and `RANGED_SHOT_RANGE` (lines 247–249) are deleted and become a `shot: { speed, damage, range, knockback }` on the two ranged rows. Javelin: slower, higher damage, small non-zero knockback. Bolt: current values, zero knockback.
-
-`src/demo/enemy-ai.ts` line 564 branches on `enemy.archetype.id === "ranged"`. It becomes a test on `windupIntent === "shoot"`, so a third ranged type cannot be forgotten. `fireShot` (line 233) reads the row's `shot` instead of the module constants; the knockback is applied in `stepHazards`' bolt-hit branch at `src/demo/simulation.ts` line 579, beside `hurtPlayer`, as a push on `world.player`.
-
-`BONED_DROP_TABLE` at `src/demo/world.ts` line 924 becomes the per-type table from the Design section — cumulative thresholds 0.30 skull, 0.50 femur, 0.60 weapon, above which nothing — with the weapon column set per appearance. The crossbow entry's `count: 5` becomes `count: 3`.
-
-`src/demo/throw-weight.ts` needs a `hammer` prop row before this child can give the hammer-bearer its weapon; taking child 07 first avoids a placeholder.

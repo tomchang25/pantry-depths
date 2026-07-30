@@ -5,7 +5,16 @@ export type EnemyId =
 
 /** The archetypes that own baked artwork. Retained creature archetypes borrow the matching slime. */
 export type EnemyAppearanceId =
-  "greenSlime" | "yellowSlime" | "blueSlime" | "redSlime" | "purpleSlime" | "skeletonSwordsman" | "placeholder";
+  | "greenSlime"
+  | "yellowSlime"
+  | "blueSlime"
+  | "redSlime"
+  | "purpleSlime"
+  | "skeletonSwordsman"
+  | "skeletonHammerman"
+  | "skeletonJavelineer"
+  | "skeletonCrossbowman"
+  | "placeholder";
 
 export type EnemyArchetype = Readonly<
   CombatTarget & {

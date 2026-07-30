@@ -18,6 +18,9 @@ export type { SkeletonActionId, SkeletonTypeId };
  */
 const SKELETON_TYPES: Readonly<Partial<Record<EnemyAppearanceId, SkeletonTypeId>>> = {
   skeletonSwordsman: "swordsman",
+  skeletonHammerman: "hammerman",
+  skeletonJavelineer: "javelineer",
+  skeletonCrossbowman: "crossbowman",
 };
 
 /**
