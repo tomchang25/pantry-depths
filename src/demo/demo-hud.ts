@@ -106,8 +106,12 @@ export type DemoHudOverlayReward = Readonly<{
  * run's numbers and one row per thing the seals opened — and the screen lays them out.
  */
 export type DemoHudOverlay = Readonly<{
+  action?: string;
   body?: string;
+  controls?: readonly Readonly<{ key: string; label: string }>[];
+  eyebrow?: string;
   footer?: string;
+  objective?: string;
   rewards?: readonly DemoHudOverlayReward[];
   rewardsTitle?: string;
   stats?: readonly Readonly<{ label: string; value: string }>[];
@@ -215,6 +219,10 @@ function taskRow(task: DemoHudTask): HTMLLIElement {
   track.append(fill);
   row.dataset.met = String(task.met);
   row.dataset.main = String(task.main);
+  row.setAttribute(
+    "aria-label",
+    `${task.main ? "Main objective" : "Bonus objective"}: ${task.label}, ${Math.min(task.done, task.target)} of ${task.target}${task.met ? ", complete" : ""}`,
+  );
   row.append(mark, label, count, track);
   return row;
 }
@@ -232,6 +240,10 @@ function taskRow(task: DemoHudTask): HTMLLIElement {
 export function mountDemoHud(): MountedDemoHud {
   const root = element("div", "demo-hud");
   const run = element("section", "demo__run");
+  const runHeading = element("div", "demo__runheading");
+  const runTitle = element("h3", "demo__slottitle", "Current floor");
+  const runDepth = element("strong", "demo__rundepth");
+  const runMeta = element("div", "demo__runmeta");
   const runLevel = element("strong", "demo__runlevel");
   const runClock = element("span", "demo__runclock");
   const runCore = element("span", "demo__runcore");
@@ -260,12 +272,16 @@ export function mountDemoHud(): MountedDemoHud {
   const card = element("aside", "demo__card");
   const overlayButton = element("button", "demo__overlay");
   const overlayPanel = element("span", "demo__overlay-panel");
-  const overlayTitle = element("strong", "demo__overlay-title");
+  const overlayEyebrow = element("span", "demo__overlay-eyebrow");
+  const overlayTitle = element("span", "demo__overlay-title");
   const overlayBody = element("span", "demo__overlay-body");
+  const overlayObjective = element("span", "demo__overlay-objective");
+  const overlayControls = element("span", "demo__overlay-controls");
   const overlayStats = element("span", "demo__overlay-stats");
   const overlayRewardsTitle = element("span", "demo__overlay-rewardstitle");
   const overlayRewards = element("span", "demo__overlay-rewards");
   const overlayFooter = element("span", "demo__overlay-footer");
+  const overlayAction = element("span", "demo__overlay-action");
   const minimapContext = minimap.getContext("2d");
 
   if (!minimapContext) {
@@ -278,13 +294,29 @@ export function mountDemoHud(): MountedDemoHud {
   health.setAttribute("role", "progressbar");
   health.setAttribute("aria-label", "Health");
   message.setAttribute("role", "status");
+  runTitle.id = "demo-current-floor";
+  run.setAttribute("aria-labelledby", runTitle.id);
+  status.setAttribute("aria-label", "Player status");
   overlayButton.type = "button";
   channelTrack.append(channelFill);
   channel.append(channelLabel, channelRemaining, channelTrack, channelDetail);
-  overlayPanel.append(overlayTitle, overlayBody, overlayStats, overlayRewardsTitle, overlayRewards, overlayFooter);
+  overlayPanel.append(
+    overlayEyebrow,
+    overlayTitle,
+    overlayBody,
+    overlayObjective,
+    overlayControls,
+    overlayStats,
+    overlayRewardsTitle,
+    overlayRewards,
+    overlayFooter,
+    overlayAction,
+  );
   overlayButton.append(overlayPanel);
   health.append(healthFill);
-  run.append(element("h3", "demo__slottitle", "Run"), runLevel, runClock, runCore, taskList, haul);
+  runHeading.append(runTitle, runDepth);
+  runMeta.append(runLevel, runClock);
+  run.append(runHeading, runMeta, runCore, taskList, haul);
   heldSlot.append(element("h3", "demo__slottitle", "Held"), heldGlyph, heldName, heldCount);
   blessSlot.append(element("h3", "demo__slottitle", "Bless"), blessBar);
   healthSlot.append(hp, health);
@@ -303,8 +335,9 @@ export function mountDemoHud(): MountedDemoHud {
     hp.replaceChildren(String(Math.ceil(Math.max(0, model.hp))), element("small", "", `/${model.maxHp}`));
 
     run.dataset.rising = String(model.run.rising);
-    runLevel.replaceChildren(`LV ${model.run.level}`);
-    runClock.textContent = `${model.run.clock} · B${model.run.depth}`;
+    runDepth.textContent = `B${model.run.depth}`;
+    runLevel.replaceChildren(`Threat ${model.run.level}`);
+    runClock.textContent = `${model.run.clock} elapsed`;
     runCore.textContent = model.run.core?.text ?? "";
     runCore.hidden = model.run.core === undefined;
     runCore.style.setProperty("--core", model.run.core?.color ?? "#cdb69c");
@@ -366,9 +399,22 @@ export function mountDemoHud(): MountedDemoHud {
     if (model.overlay) {
       const overlay = model.overlay;
       overlayButton.dataset.tone = overlay.tone ?? "none";
+      overlayButton.setAttribute("aria-label", `${overlay.title}. ${overlay.action ?? "Continue"}`);
+      overlayEyebrow.textContent = overlay.eyebrow ?? "";
+      overlayEyebrow.hidden = overlay.eyebrow === undefined;
       overlayTitle.textContent = overlay.title;
       overlayBody.textContent = overlay.body ?? "";
       overlayBody.hidden = overlay.body === undefined;
+      overlayObjective.textContent = overlay.objective ?? "";
+      overlayObjective.hidden = overlay.objective === undefined;
+      overlayControls.replaceChildren(
+        ...(overlay.controls ?? []).map((control) => {
+          const item = element("span", "demo__overlay-control");
+          item.append(element("kbd", "", control.key), element("span", "", control.label));
+          return item;
+        }),
+      );
+      overlayControls.hidden = (overlay.controls ?? []).length === 0;
       overlayStats.replaceChildren(
         ...(overlay.stats ?? []).map((stat) => {
           const cell = element("span", "demo__overlay-stat");
@@ -391,6 +437,8 @@ export function mountDemoHud(): MountedDemoHud {
       overlayRewards.hidden = (overlay.rewards ?? []).length === 0;
       overlayFooter.textContent = overlay.footer ?? "";
       overlayFooter.hidden = overlay.footer === undefined;
+      overlayAction.textContent = overlay.action ?? "";
+      overlayAction.hidden = overlay.action === undefined;
     }
 
     drawMinimap(minimapContext, model.minimap);

@@ -493,13 +493,31 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
     if (!locked()) {
       return {
-        title: "Pantry Depths — Demo",
-        body: "Click the screen or press Esc to start. WASD move · mouse to look · Left attack / throw · Right grab / drop · Tab pause · R restart · Esc release the mouse. Four rooms hang off the floor and nothing says which is which — walk in and look. The red altar wants breaking; the white dais and the green pad each want five seconds stood on them, which nothing but stepping off can break. The green one is the way out with everything you are carrying. The stairs are sealed until the floor's main task is done.",
+        action: "Click or press Esc to descend",
+        controls: [
+          { key: "WASD", label: "Move" },
+          { key: "MOUSE", label: "Look" },
+          { key: "LMB", label: "Attack / throw" },
+          { key: "RMB", label: "Grab / drop" },
+          { key: "TAB", label: "Pause" },
+        ],
+        eyebrow: "Descend · Claim · Escape",
+        objective:
+          "Complete the main floor objective to open the stairs. Explore the four side rooms for healing, blessings, and a way out with your sealed haul.",
+        title: "Pantry Depths",
       };
     }
 
     if (paused) {
-      return { title: "Paused", body: "Tab to resume · Esc to release the mouse · R to restart" };
+      return {
+        action: "Press Tab to resume",
+        controls: [
+          { key: "ESC", label: "Release mouse" },
+          { key: "R", label: "Restart run" },
+        ],
+        eyebrow: "The depths are waiting",
+        title: "Paused",
+      };
     }
 
     return undefined;
