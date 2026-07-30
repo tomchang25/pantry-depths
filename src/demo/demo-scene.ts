@@ -128,8 +128,41 @@ const ARC_SEGMENTS = 7;
  * axe, and one that stays pointed where it is going is a spear. That single difference is now the
  * whole distinction between the two weapons, so it belongs to them rather than to the renderer.
  */
-const JAVELIN_LENGTH = 0.95;
-const JAVELIN_WIDTH = 0.055;
+const STAKE_LENGTH = 0.95;
+const STAKE_WIDTH = 0.055;
+/** The javelin is the longer, thinner shaft, so a glance at one in flight says which is coming. */
+const JAVELIN_LENGTH = 1.3;
+const JAVELIN_WIDTH = 0.048;
+
+/**
+ * How each piercing shaft is drawn in flight, keyed by what it is.
+ *
+ * A table rather than a chain of kind tests, because there are now two of these and there will be
+ * more: the stake is short, thick and timber, the javelin long, thin and bone, and a reader should be
+ * able to see both statements side by side.
+ */
+const PIERCING_RODS: Readonly<
+  Partial<
+    Record<
+      DemoPropKind,
+      Readonly<{
+        length: number;
+        width: number;
+        shaft: readonly [number, number, number];
+        tip: readonly [number, number, number];
+      }>
+    >
+  >
+> = {
+  stick: { length: STAKE_LENGTH, width: STAKE_WIDTH, shaft: [104, 66, 36], tip: [232, 214, 176] },
+  skeletonJavelin: { length: JAVELIN_LENGTH, width: JAVELIN_WIDTH, shaft: [205, 191, 162], tip: [244, 237, 220] },
+  skeletonJavelinCracked: {
+    length: JAVELIN_LENGTH,
+    width: JAVELIN_WIDTH,
+    shaft: [168, 156, 132],
+    tip: [214, 206, 188],
+  },
+};
 
 const AXE_LENGTH = 0.46;
 const AXE_WIDTH = 0.12;
@@ -224,6 +257,8 @@ const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   skeletonSkull: DEMO_ASSET_IDS.skeletonSkull,
   skeletonFemur: DEMO_ASSET_IDS.skeletonFemur,
   skeletonFemurCracked: DEMO_ASSET_IDS.skeletonFemurCracked,
+  skeletonJavelin: DEMO_ASSET_IDS.skeletonJavelin,
+  skeletonJavelinCracked: DEMO_ASSET_IDS.skeletonJavelinCracked,
 };
 
 const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
@@ -235,6 +270,8 @@ const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
   skeletonSkull: 0.42,
   skeletonFemur: 0.48,
   skeletonFemurCracked: 0.4,
+  skeletonJavelin: 0.62,
+  skeletonJavelinCracked: 0.6,
 };
 
 /**
@@ -799,7 +836,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
       built.push(ground(`${projectile.id}-shadow`, projectile.x, projectile.y, DEMO_ASSET_IDS.dropShadow, 0.5));
     }
 
-    if (projectile.kind === "stick") {
+    if (projectile.skewered.length > 0) {
       projectile.skewered.forEach((enemy, index) => {
         built.push(...projectCarriedDemoEnemy(projectionContext, projectile, enemy, index).sprites);
       });
@@ -1311,7 +1348,7 @@ function blobs(world: DemoWorld): RenderBlob[] {
   }
 
   for (const projectile of world.projectiles) {
-    if (projectile.kind === "stick") {
+    if (projectile.skewered.length > 0) {
       projectile.skewered.forEach((enemy, index) => {
         built.push(...projectCarriedDemoEnemy(projectionContext, projectile, enemy, index).blobs);
       });
@@ -1716,8 +1753,10 @@ function beams(world: DemoWorld): RenderBeam[] {
   const built: RenderBeam[] = [];
 
   for (const projectile of world.projectiles) {
-    if (projectile.kind === "stick") {
-      // The shaft points along its own flight line, which is now the aim line it left the hand on.
+    const pierce = PIERCING_RODS[projectile.kind as DemoPropKind];
+
+    if (pierce) {
+      // The shaft points along its own flight line, which is the aim line it left the hand on.
       const slope = projectile.arc / Math.max(0.0001, projectile.range);
       built.push(
         rodBeam(
@@ -1728,10 +1767,10 @@ function beams(world: DemoWorld): RenderBeam[] {
           projectile.directionY,
           Math.atan(slope),
           projectileHeight(projectile),
-          JAVELIN_LENGTH,
-          JAVELIN_WIDTH,
-          [104, 66, 36],
-          [232, 214, 176],
+          pierce.length,
+          pierce.width,
+          pierce.shaft,
+          pierce.tip,
         ),
       );
       continue;

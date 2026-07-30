@@ -6,15 +6,7 @@
  */
 
 import { MELEE_CUT_START } from "@/content/viewmodel/melee-viewmodel";
-import {
-  CLEAVE_CAPACITY,
-  damageWall,
-  heldWeight,
-  JAVELIN_CAPACITY,
-  resolveSwing,
-  thrownImpactDamage,
-  thrownWallDamage,
-} from "@/demo/actions";
+import { damageWall, heldWeight, resolveSwing, thrownImpactDamage, thrownWallDamage } from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
 import {
   bargeInto,
@@ -29,7 +21,7 @@ import {
 import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell, tileAt } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
-import { propBehaviour, type DemoPropFlightHit, type DemoPropLanding } from "@/demo/throw-weight";
+import { propBehaviour, throwCapacity, type DemoPropFlightHit, type DemoPropLanding } from "@/demo/throw-weight";
 import {
   announce,
   awardBless,
@@ -335,7 +327,7 @@ function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall:
  * the wall is what does it, not the throw.
  */
 function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
-  if (projectile.skewered.length >= JAVELIN_CAPACITY) {
+  if (projectile.skewered.length >= throwCapacity(projectile.kind)) {
     return;
   }
 
@@ -358,7 +350,7 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
     projectile.skewered.push(enemy);
     announce(world, "Skewered!", 1.2);
 
-    if (projectile.skewered.length >= JAVELIN_CAPACITY) {
+    if (projectile.skewered.length >= throwCapacity(projectile.kind)) {
       return;
     }
   }
@@ -385,7 +377,7 @@ function cleaveThrough(world: DemoWorld, projectile: DemoProjectile): boolean {
     killEnemy(world, enemy, "cleaved");
     announce(world, `Cleaves ${projectile.cleaved}!`, 1.2);
 
-    if (projectile.cleaved >= CLEAVE_CAPACITY) {
+    if (projectile.cleaved >= throwCapacity(projectile.kind)) {
       return true;
     }
   }

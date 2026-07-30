@@ -39,6 +39,8 @@ export const DEMO_ASSET_IDS = {
   stoneChip: "demo.stoneChip",
   woodChip: "demo.woodChip",
   dustPuff: "demo.dustPuff",
+  skeletonJavelin: "demo.skeletonJavelin",
+  skeletonJavelinCracked: "demo.skeletonJavelinCracked",
   hazardOrb: "demo.hazardOrb",
   warnShoot: "demo.warnShoot",
   warnCharge: "demo.warnCharge",
@@ -116,6 +118,55 @@ function stick(): HTMLCanvasElement {
   context.lineTo(4, -262);
   context.closePath();
   context.fill();
+  context.restore();
+  return canvas;
+}
+
+/**
+ * The javelin as it lies on the floor; in flight it is a beam, like every other long weapon.
+ *
+ * Bone rather than timber, and longer and thinner than the stake it must never be confused with — the
+ * two are the only props that pierce, and telling them apart on the ground is how a player knows
+ * whether the next throw takes one body or three.
+ */
+function skeletonJavelin(bent: boolean): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  context.save();
+  context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
+  context.rotate(-0.42);
+
+  if (bent) {
+    // A visible kink at the midpoint, so a shaft with one throw left in it is read off the floor
+    // rather than off a count in the corner of the screen.
+    context.rotate(0.12);
+  }
+
+  context.fillStyle = "#cdbfa2";
+  context.fillRect(-16, -12, 32, 248);
+  context.fillStyle = "#e6dcc4";
+  context.fillRect(-16, -12, 11, 248);
+  context.restore();
+  context.save();
+  context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
+  context.rotate(-0.42);
+  context.fillStyle = "#d8ccb0";
+  context.fillRect(-16, -236, 32, 224);
+  context.fillStyle = "#f0e8d4";
+  context.fillRect(-16, -236, 11, 224);
+  // A barbed bone head: the part that does the running-through.
+  context.fillStyle = "#f4eddc";
+  context.beginPath();
+  context.moveTo(0, -300);
+  context.lineTo(30, -228);
+  context.lineTo(12, -238);
+  context.lineTo(12, -206);
+  context.lineTo(-12, -206);
+  context.lineTo(-12, -238);
+  context.lineTo(-30, -228);
+  context.closePath();
+  context.fill();
+  context.fillStyle = "#8d7f66";
+  context.fillRect(-18, -20, 36, 14);
   context.restore();
   return canvas;
 }
@@ -794,6 +845,8 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.warnShoot, warnReticle());
   merged.set(DEMO_ASSET_IDS.warnCharge, warnFlame());
   merged.set(DEMO_ASSET_IDS.warnMelee, warnBladeStrip());
+  merged.set(DEMO_ASSET_IDS.skeletonJavelin, skeletonJavelin(false));
+  merged.set(DEMO_ASSET_IDS.skeletonJavelinCracked, skeletonJavelin(true));
   merged.set(DEMO_ASSET_IDS.stunStar, stunStar());
   return merged;
 }

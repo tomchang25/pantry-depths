@@ -106,6 +106,8 @@ const PROP_GLYPHS: Readonly<Record<DemoPropKind, string>> = {
   skeletonSkull: "☠",
   skeletonFemur: "⌇",
   skeletonFemurCracked: "⌇",
+  skeletonJavelin: "⇡",
+  skeletonJavelinCracked: "⇡",
 };
 
 /** Ammunition by what it is made of, explosives apart, so a stack reads before it is named. */
@@ -118,6 +120,8 @@ const PROP_COLORS: Readonly<Record<DemoPropKind, string>> = {
   skeletonSkull: "#dcd0b4",
   skeletonFemur: "#dcd0b4",
   skeletonFemurCracked: "#dcd0b4",
+  skeletonJavelin: "#efe6cf",
+  skeletonJavelinCracked: "#c6bda6",
 };
 
 function heldModel(world: DemoWorld): DemoHudHeld | undefined {

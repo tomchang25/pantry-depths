@@ -126,10 +126,10 @@ export type DemoProjectile = {
   /** Recent positions, newest last. Presentation only — the trail is drawn from it. */
   trail: { x: number; y: number; z: number }[];
   /**
-   * The body a javelin is carrying — one, per `JAVELIN_CAPACITY`. It leaves the world the moment it
-   * is run through and comes back only as a corpse, at the wall: being skewered is not a state
-   * anything is expected to survive. Still a list because the shaft is drawn from it, and the entity
-   * workbench previews a loaded shaft with more than one on it.
+   * The bodies a piercing throw is carrying, up to that prop's own capacity — one for a stake, three
+   * for a javelin. Each leaves the world the moment it is run through and comes back only as a corpse,
+   * at the wall: being skewered is not a state anything is expected to survive. The shaft is drawn
+   * from this list, which is why it is a list even when only one thing can be on it.
    */
   skewered: DemoEnemy[];
   /** Victims an axe has already cleaved, which is what limits it to three. */
@@ -905,6 +905,17 @@ const DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: n
   { kind: "axe", count: 1, upTo: 0.1 },
   { kind: "bomb", count: 3, upTo: 0.3 },
 ];
+
+/**
+ * What a boned body leaves besides its own bones.
+ *
+ * The bones themselves are guaranteed and picked by how it died; this is the roll on top of that, and
+ * it is what makes crossing a room for a skeleton worth the trip. Deliberately a separate table from
+ * the soft bodies' one: a slime has no armoury on it.
+ */
+const BONED_DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: number }>[] = [
+  { kind: "skeletonJavelin", count: 1, upTo: 0.18 },
+];
 export const LIFESTEAL_HEAL = 12;
 
 /**
@@ -1007,12 +1018,9 @@ export function killEnemy(
     return;
   }
 
-  if (isBoned(enemy.archetype)) {
-    return;
-  }
-
   const roll = Math.random();
-  const drop = DROP_TABLE.find((entry) => roll < entry.upTo);
+  const table = isBoned(enemy.archetype) ? BONED_DROP_TABLE : DROP_TABLE;
+  const drop = table.find((entry) => roll < entry.upTo);
 
   if (drop) {
     world.props.push({ id: nextId(world, "prop"), kind: drop.kind, count: drop.count, x: enemy.x, y: enemy.y });
