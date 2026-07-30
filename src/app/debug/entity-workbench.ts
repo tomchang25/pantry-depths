@@ -81,6 +81,8 @@ type EntityWorkbenchState = {
   /** The display numbers being tuned, previewed live and saved only when asked. */
   bodyScale: number;
   markerOffset: number;
+  markerScale: number;
+  markerSwell: number;
 };
 
 const SITUATIONS: readonly Readonly<{ id: EntitySituation; label: string; settings: string }>[] = [
@@ -195,6 +197,8 @@ function previewDisplay(state: EntityWorkbenchState): EntityDisplay {
     appearanceId: ENEMY_ARCHETYPES[state.archetypeId].appearance,
     bodyScale: state.bodyScale,
     markerOffset: state.markerOffset,
+    markerScale: state.markerScale,
+    markerSwell: state.markerSwell,
   };
 }
 
@@ -290,7 +294,10 @@ function stateEnemy(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityBodyS
   } else if (bodyState === "attack") {
     enemy.windupTotal = 1;
     enemy.windupSeconds = 0.4;
-    enemy.intent = "melee";
+    // Whatever this creature actually winds up — a spitter rehearses a shot, a charger a charge. It
+    // used to be melee for all of them, so every slime previewed its attack under a skeleton's sword.
+    // The ordinary slime declares none, and so wears no mark at all, which is true of it in the game.
+    enemy.intent = enemy.archetype.windupIntent ?? "none";
   } else if (bodyState === "hurt") {
     enemy.hurtSeconds = 0.14;
   } else if (bodyState === "block") {
@@ -1066,6 +1073,8 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     cameraBack: INSPECTION_BACK,
     bodyScale: displays.skeletonSwordsman.bodyScale,
     markerOffset: displays.skeletonSwordsman.markerOffset,
+    markerScale: displays.skeletonSwordsman.markerScale,
+    markerSwell: displays.skeletonSwordsman.markerSwell,
   };
 
   const axes = document.createElement("div");
@@ -1404,15 +1413,56 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     },
   );
 
+  const markerScale = createRange(
+    "entity-marker-scale",
+    "Marker scale",
+    state.markerScale,
+    0.1,
+    1.6,
+    0.005,
+    (value) => value.toFixed(3),
+    (value) => {
+      state.markerScale = value;
+      displays[ENEMY_ARCHETYPES[state.archetypeId].appearance] = previewDisplay(state);
+      displayStatus.textContent = "Unsaved display changes.";
+    },
+  );
+
+  const markerSwell = createRange(
+    "entity-marker-swell",
+    "Marker swell",
+    state.markerSwell,
+    0,
+    1,
+    0.005,
+    (value) => `+${value.toFixed(3)}`,
+    (value) => {
+      state.markerSwell = value;
+      displays[ENEMY_ARCHETYPES[state.archetypeId].appearance] = previewDisplay(state);
+      displayStatus.textContent = "Unsaved display changes.";
+    },
+  );
+
   /** Pulls the sliders back to whatever the working table holds for the archetype now on screen. */
   function refreshDisplayFields(): void {
-    const current = displays[ENEMY_ARCHETYPES[state.archetypeId].appearance];
+    const archetypeNow = ENEMY_ARCHETYPES[state.archetypeId];
+    const current = displays[archetypeNow.appearance];
     state.bodyScale = current.bodyScale;
     state.markerOffset = current.markerOffset;
+    state.markerScale = current.markerScale;
+    state.markerSwell = current.markerSwell;
     bodyScale.set(state.bodyScale);
     markerOffset.set(state.markerOffset);
+    markerScale.set(state.markerScale);
+    markerSwell.set(state.markerSwell);
     // A soft body's size comes from its own profile, so the scale slider has nothing to move on one.
-    bodyScale.setInert(!isBoned(ENEMY_ARCHETYPES[state.archetypeId]));
+    bodyScale.setInert(!isBoned(archetypeNow));
+    // An archetype that never winds up wears no mark, so its three mark controls have nothing to show.
+    const marked = archetypeNow.windupIntent !== undefined && state.bodyState === "attack";
+
+    for (const control of [markerOffset, markerScale, markerSwell]) {
+      control.setInert(!marked);
+    }
   }
 
   saveDisplay.addEventListener("click", () => {
@@ -1440,7 +1490,7 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
       });
   });
 
-  displayGrid.append(cameraBack.field, bodyScale.field, markerOffset.field);
+  displayGrid.append(cameraBack.field, bodyScale.field, markerOffset.field, markerScale.field, markerSwell.field);
   displayRow.append(saveDisplay);
   displayPanel.body.append(displayGrid, displayRow, displayStatus);
   refreshDisplayFields();

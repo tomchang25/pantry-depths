@@ -2,36 +2,50 @@
   {
     "appearanceId": "greenSlime",
     "bodyScale": 0.345,
-    "markerOffset": 0.08
+    "markerOffset": 0.08,
+    "markerScale": 0.44,
+    "markerSwell": 0.3
   },
   {
     "appearanceId": "yellowSlime",
     "bodyScale": 0.46,
-    "markerOffset": 0.08
+    "markerOffset": 0.08,
+    "markerScale": 0.44,
+    "markerSwell": 0.3
   },
   {
     "appearanceId": "blueSlime",
     "bodyScale": 0.54,
-    "markerOffset": 0.08
+    "markerOffset": 0.08,
+    "markerScale": 0.44,
+    "markerSwell": 0.3
   },
   {
     "appearanceId": "redSlime",
     "bodyScale": 0.4,
-    "markerOffset": 0.08
+    "markerOffset": 0.08,
+    "markerScale": 0.44,
+    "markerSwell": 0.3
   },
   {
     "appearanceId": "purpleSlime",
     "bodyScale": 0.46,
-    "markerOffset": 0.08
+    "markerOffset": 0.08,
+    "markerScale": 0.44,
+    "markerSwell": 0.3
   },
   {
     "appearanceId": "skeletonSwordsman",
     "bodyScale": 0.95,
-    "markerOffset": 0.08
+    "markerOffset": 0.08,
+    "markerScale": 0.44,
+    "markerSwell": 0.3
   },
   {
     "appearanceId": "placeholder",
     "bodyScale": 0.46,
-    "markerOffset": 0.08
+    "markerOffset": 0.08,
+    "markerScale": 0.44,
+    "markerSwell": 0.3
   }
 ]

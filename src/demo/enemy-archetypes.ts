@@ -30,6 +30,20 @@ export type DemoArchetypeId = "walker" | "ranged" | "charger" | "swordsman";
  */
 export type DemoBodyKind = "soft" | "boned";
 
+/**
+ * What an archetype's wind-up commits to, declared once here rather than inferred from its numbers.
+ *
+ * Behaviour still decides *when* a wind-up begins — a charger needs the range and the line of sight, a
+ * shooter needs its standoff band — but which of the three it will be is a fixed fact about the
+ * creature, and nothing outside this file should have to work it out. A preview that guessed got it
+ * wrong in the obvious way: it assumed melee, so every slime rehearsed its attack wearing the
+ * skeleton's sword.
+ *
+ * Omitted means the archetype never winds up at all. That is the ordinary slime, which simply touches
+ * you, and it is the reason this is optional rather than defaulted.
+ */
+export type DemoWindupIntent = "shoot" | "charge" | "melee";
+
 export type DemoEnemyArchetype = Readonly<{
   id: DemoArchetypeId;
   name: string;
@@ -57,6 +71,7 @@ export type DemoEnemyArchetype = Readonly<{
   body: DemoBodyKind;
   /** Whether a contact attack commits through a visible wind-up instead of landing on touch. */
   meleeWindup: boolean;
+  windupIntent?: DemoWindupIntent;
   /**
    * Radians per second the body may swing its facing, for a body that has a front.
    *
@@ -97,6 +112,7 @@ const WALKER: DemoEnemyArchetype = {
   contactRange: 0.86,
   body: "soft",
   meleeWindup: false,
+  // No `windupIntent`: it has no wind-up to give one to.
   // Under a fifth of walking pace at its very worst, and only while genuinely overlapping. Enough to
   // be shoved off a line you were holding; nowhere near enough to take control away.
   jostle: 0.6,
@@ -127,6 +143,7 @@ const RANGED: DemoEnemyArchetype = {
   contactRange: 0.8,
   body: "soft",
   meleeWindup: false,
+  windupIntent: "shoot",
 };
 
 const CHARGER: DemoEnemyArchetype = {
@@ -159,6 +176,7 @@ const CHARGER: DemoEnemyArchetype = {
   contactRange: 0.86,
   body: "soft",
   meleeWindup: false,
+  windupIntent: "charge",
 };
 
 const SWORDSMAN: DemoEnemyArchetype = {
@@ -192,6 +210,7 @@ const SWORDSMAN: DemoEnemyArchetype = {
   contactRange: 0.95,
   body: "boned",
   meleeWindup: true,
+  windupIntent: "melee",
   turnRate: 4.4,
 };
 

@@ -325,7 +325,10 @@ export function warnMarkerSprite(enemy: DemoEnemy, override?: EntityDisplay): Re
   }
 
   const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-  const scale = 0.44 + progress * 0.3;
+  const display = override ?? entityDisplay(enemy.appearance);
+  // Swells as the wind-up completes, so how much time is left is legible at a glance. Both halves of
+  // that are authored: how big the mark is, and how much bigger it gets.
+  const scale = display.markerScale + progress * display.markerSwell;
   const charge =
     enemy.intent === "melee"
       ? {
@@ -337,16 +340,14 @@ export function warnMarkerSprite(enemy: DemoEnemy, override?: EntityDisplay): Re
           },
         }
       : {};
-  const offset = (override ?? entityDisplay(enemy.appearance)).markerOffset;
   return {
     id: `${enemy.id}-warn`,
     x: enemy.x,
     y: enemy.y,
     placement: "billboard",
     assetId: warnAsset(enemy.intent),
-    // Swells as the wind-up completes, so how much time is left is legible at a glance.
     scale,
-    verticalAnchor: -(crownHeight(enemy, override) + offset) / scale,
+    verticalAnchor: -(crownHeight(enemy, override) + display.markerOffset) / scale,
     ...charge,
   };
 }

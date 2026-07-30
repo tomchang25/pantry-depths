@@ -43,6 +43,21 @@ export type EntityDisplay = Readonly<{
    * the workbench that tunes this has a distance slider next to it.
    */
   markerOffset: number;
+  /**
+   * How large the wind-up mark is drawn at the start of a wind-up, in cells.
+   *
+   * Its own number rather than a share of the body, because the two want to move in opposite
+   * directions: a mark exists to be seen from across a room, so a small creature needs a mark that is
+   * large *relative* to it, and tying the two together makes the smallest enemies the hardest to read.
+   */
+  markerScale: number;
+  /**
+   * How much more of that scale the mark takes on as the wind-up completes, in cells.
+   *
+   * The swell is the only thing a mark does to say how long is left, so how much of it there is decides
+   * whether the answer is "soon" or nothing at all. Zero is a mark that does not grow.
+   */
+  markerSwell: number;
 }>;
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -94,10 +109,24 @@ export function parseEntityDisplays(value: unknown): Readonly<Record<EnemyAppear
       throw new TypeError(`entityDisplay[${index}].bodyScale must be greater than zero.`);
     }
 
+    const markerScale = finiteNumber(source.markerScale, `entityDisplay[${index}].markerScale`);
+
+    if (markerScale <= 0) {
+      throw new TypeError(`entityDisplay[${index}].markerScale must be greater than zero.`);
+    }
+
+    const markerSwell = finiteNumber(source.markerSwell, `entityDisplay[${index}].markerSwell`);
+
+    if (markerSwell < 0) {
+      throw new TypeError(`entityDisplay[${index}].markerSwell must not be negative.`);
+    }
+
     parsed.set(appearanceId as EnemyAppearanceId, {
       appearanceId: appearanceId as EnemyAppearanceId,
       bodyScale,
       markerOffset: finiteNumber(source.markerOffset, `entityDisplay[${index}].markerOffset`),
+      markerScale,
+      markerSwell,
     });
   });
 

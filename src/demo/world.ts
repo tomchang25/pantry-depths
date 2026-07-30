@@ -8,7 +8,13 @@
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/content/viewmodel/melee-viewmodel";
 import { createBlessState, grantBless, hasBless, OVERFLOW_MAX_HP, type BlessState } from "@/demo/bless";
-import { ENEMY_ARCHETYPES, isBoned, type DemoArchetypeId, type DemoEnemyArchetype } from "@/demo/enemy-archetypes";
+import {
+  ENEMY_ARCHETYPES,
+  isBoned,
+  type DemoArchetypeId,
+  type DemoEnemyArchetype,
+  type DemoWindupIntent,
+} from "@/demo/enemy-archetypes";
 import {
   blocksProjectile,
   blocksWalk,
@@ -27,8 +33,13 @@ import type { DemoPropKind, DemoThrowKind } from "@/demo/throw-weight";
 /** A grid coordinate as the demo passes it around; structurally the same as the maze's own cell. */
 export type DemoCellLike = Readonly<{ x: number; y: number }>;
 
-/** What an enemy is currently committed to. A wind-up is visible to the player before it resolves. */
-export type DemoIntent = "none" | "shoot" | "charge" | "melee";
+/**
+ * What an enemy is currently committed to. A wind-up is visible to the player before it resolves.
+ *
+ * Built from the archetype's own declaration rather than listed again here, so an archetype that gains
+ * a new kind of wind-up cannot end up with an intent no telegraph knows how to draw.
+ */
+export type DemoIntent = "none" | DemoWindupIntent;
 
 export type DemoEnemy = {
   id: string;
