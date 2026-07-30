@@ -35,6 +35,7 @@ import {
   awardBless,
   damageEnemy,
   dropProp,
+  ENEMY_RADIUS,
   killEnemy,
   MAX_ENEMIES,
   MORTAR_DEAD_ZONE,
@@ -80,6 +81,54 @@ const MIN_FLIGHT_SPEED = 4.5;
  * wobble the player has to look through.
  */
 const SHAKE_DECAY = 5;
+
+/**
+ * Bodies pushing the player out of the space they are standing in.
+ *
+ * Until now every enemy was walked straight through, which left the ordinary slime with nothing to
+ * contribute once its damage was cut to a scratch. This is what it contributes instead: it is in the
+ * way. A crowd of them drags at the player and steers them off the line they were holding, which is
+ * pressure that needs no telegraph and adds nothing to an already busy screen.
+ *
+ * A push and never a block, applied through the same slide the player's own movement uses, so it can
+ * neither shove anyone into masonry nor seal them into a corner. It also scales with how deep the
+ * overlap is, which is why it does not matter that the simulation gives every body the same radius
+ * while the artwork draws them at different sizes: at the fringe, where the two disagree, the push is
+ * a fraction of a fraction and nobody can feel it.
+ */
+function jostlePlayer(world: DemoWorld, deltaSeconds: number): void {
+  let pushX = 0;
+  let pushY = 0;
+
+  for (const enemy of world.enemies) {
+    const jostle = enemy.archetype.jostle;
+
+    if (jostle === undefined || enemy.drowningSeconds > 0) {
+      continue;
+    }
+
+    const dx = world.player.x - enemy.x;
+    const dy = world.player.y - enemy.y;
+    const distance = Math.hypot(dx, dy);
+    const contact = PLAYER_RADIUS + ENEMY_RADIUS;
+
+    if (distance >= contact || distance < 0.0001) {
+      continue;
+    }
+
+    const depth = 1 - distance / contact;
+    pushX += (dx / distance) * jostle * depth;
+    pushY += (dy / distance) * jostle * depth;
+  }
+
+  if (pushX === 0 && pushY === 0) {
+    return;
+  }
+
+  const moved = slideMove(world.maze, world.player, pushX * deltaSeconds, pushY * deltaSeconds, PLAYER_RADIUS, WALKING);
+  world.player.x = moved.x;
+  world.player.y = moved.y;
+}
 
 function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
   const forwardX = Math.cos(world.player.angle);
@@ -768,6 +817,7 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
   if (!world.enemiesPaused) {
     stepEnemies(world, step);
     stepMortars(world, step);
+    jostlePlayer(world, step);
     world.spawnSeconds -= step;
 
     if (world.spawnSeconds <= 0) {

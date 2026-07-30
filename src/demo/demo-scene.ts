@@ -901,7 +901,9 @@ function wallMarkFace(death: DemoDeath): NonNullable<RenderSprite["wallFace"]> {
 type SlimeBody = Readonly<{ radius: number; height: number; color: readonly [number, number, number] }>;
 
 const SLIME_BODIES: Readonly<Partial<Record<EnemyAppearanceId, SlimeBody>>> = {
-  greenSlime: { radius: 0.3, height: 0.46, color: [118, 198, 92] },
+  // Three quarters of what it was. It is the one enemy whose job is to be underfoot rather than to be
+  // fought, and a body that size reads as something you wade through instead of something you answer.
+  greenSlime: { radius: 0.225, height: 0.345, color: [118, 198, 92] },
   blueSlime: { radius: 0.26, height: 0.54, color: [96, 152, 218] },
   redSlime: { radius: 0.35, height: 0.4, color: [216, 92, 86] },
 };

@@ -53,6 +53,16 @@ export type DemoEnemyArchetype = Readonly<{
    * along its facing, which is what keeps an eight-way sprite's feet pointed at where it is going.
    */
   turnRate?: number;
+  /**
+   * How hard this body shoves the player aside just by being where they want to be, in cells per
+   * second at full overlap. Omitted means it is walked straight through, which is what everything did.
+   *
+   * The ordinary slime's whole job. Its damage is now a rounding error and its cooldown is most of a
+   * fight, so what it contributes is not a threat but a body in the doorway — and that only reads if
+   * the body is physically there. Deliberately a push and never a block: a crowd should drag at the
+   * player and steer them somewhere they did not choose, and must never be able to seal them in.
+   */
+  jostle?: number;
 }>;
 
 const WALKER: DemoEnemyArchetype = {
@@ -65,12 +75,18 @@ const WALKER: DemoEnemyArchetype = {
   speed: 1.9,
   rushSpeed: 2.6,
   rushDistance: 5,
-  attackCooldown: 1.35,
+  // Nearly harmless on purpose, and the two numbers are one decision. Everything else on the floor
+  // now announces itself and can be walked out of; this one cannot be read at all, so it must not be
+  // worth reading. What it costs the player is position, not health — see `jostle`.
+  attackCooldown: 5,
   windup: 0,
-  contactDamage: 6,
+  contactDamage: 1,
   contactRange: 0.86,
   canGrab: true,
   meleeWindup: false,
+  // Under a fifth of walking pace at its very worst, and only while genuinely overlapping. Enough to
+  // be shoved off a line you were holding; nowhere near enough to take control away.
+  jostle: 0.6,
 };
 
 const RANGED: DemoEnemyArchetype = {
