@@ -23,8 +23,7 @@ import {
   type PropKind,
 } from "@/content/presentation/prop-display-schema";
 import { PROP_LABELS } from "@/demo/actions";
-import { PROP_ASSETS } from "@/demo/demo-scene";
-import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
+import { propPickupSprites } from "@/demo/demo-scene";
 import type {
   CameraPose,
   RenderFloorPatch,
@@ -92,49 +91,22 @@ const ROOM_TILES = Array.from({ length: ROOM_SIZE }, (_rowValue, y) =>
 );
 
 /**
- * The pickup exactly as the demo lays one down.
+ * The pickup exactly as the demo lays one down, because it is the demo laying one down.
  *
- * Deliberately a copy of the demo's own arithmetic rather than a call into it, and the reason is the
- * seam: the demo builds pickups inside one loop over the whole world's props, so there is nothing to
- * call with one prop and a size that is not saved yet. The two must be read side by side when either
- * moves — the shadow, the glow, the fan and the per-copy lift are all in `demo-scene`'s prop loop.
+ * This used to be a hand-copy of the prop loop's arithmetic, with a comment asking whoever moved
+ * either to remember the other. Nobody did: the game learned that a stack of charges is one object
+ * and this tab went on fanning out three crossbows. The unsaved slider values go in as the display
+ * override, which is the same seam the entity workbench tunes a body through.
  */
 function pickupSprites(state: PropWorkbenchState): RenderSprite[] {
-  const built: RenderSprite[] = [];
-  const copies = Math.min(state.count, 3);
-  built.push({
-    id: "pickup-shadow",
+  return propPickupSprites({
+    id: "pickup",
+    kind: state.kind,
+    count: state.count,
     x: ROOM_CENTRE,
     y: PROP_Y,
-    placement: "ground",
-    assetId: DEMO_ASSET_IDS.dropShadow,
-    scale: 0.5 + state.count * 0.06,
-    verticalAnchor: 0,
+    display: { floorScale: state.floorScale, floorAnchor: state.floorAnchor },
   });
-  built.push({
-    id: "pickup-glow",
-    x: ROOM_CENTRE,
-    y: PROP_Y,
-    placement: "ground",
-    assetId: DEMO_ASSET_IDS.groundGlow,
-    scale: 0.75 + state.count * 0.1,
-    verticalAnchor: 0,
-  });
-
-  for (let copy = 0; copy < copies; copy += 1) {
-    const spread = (copy - (copies - 1) / 2) * 0.14;
-    built.push({
-      id: `pickup-${copy}`,
-      x: ROOM_CENTRE + spread,
-      y: PROP_Y + spread * 0.5,
-      placement: "billboard",
-      assetId: PROP_ASSETS[state.kind],
-      scale: state.floorScale,
-      verticalAnchor: -state.floorAnchor - copy * 0.05,
-    });
-  }
-
-  return built;
 }
 
 function previewScene(state: PropWorkbenchState): RenderScene {

@@ -252,11 +252,28 @@ export type DemoPropLanding = "spend" | "burst" | "detonate" | "pin" | "strike";
  */
 export type DemoPropUse = "throw" | "shoot";
 
+/**
+ * What the number on a stack counts.
+ *
+ * Three stakes are three objects; a crossbow holding three shots is one object with three uses in
+ * it. Both arrive as `count: 3`, and every reader of that number used to work out which it was for
+ * itself — the floor drew three crossbows, and it was right by accident for everything else.
+ *
+ * Declared rather than derived. It happens to line up exactly with `use` today, because the only
+ * thing holding charges is the only thing that is aimed; that is a coincidence of a table with one
+ * shooter in it, not a rule. A thrown weapon with uses in it, or a shooter picked up one shot at a
+ * time, would each break the guess silently — and this is a fact about the object rather than about
+ * how it is drawn, which is why it lives here and not in the authored display table where somebody
+ * could tune a crossbow into three of them.
+ */
+export type DemoPropCount = "objects" | "charges";
+
 /** How it is drawn on the way there. */
 export type DemoPropForm = "billboard" | "tumbling" | "rod";
 
 export type DemoPropBehaviour = Readonly<{
   use: DemoPropUse;
+  counts: DemoPropCount;
   /**
    * What the hand is left holding once a shooter's uses run out. Only shooters set it.
    *
@@ -308,6 +325,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // that is a weapon of its own further down, and the two are told apart by what they carry.
   stick: {
     use: "throw",
+    counts: "objects",
     flightHit: "skewer",
     capacity: 1,
     landing: "pin",
@@ -317,6 +335,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   },
   rock: {
     use: "throw",
+    counts: "objects",
     flightHit: "stop",
     capacity: 1,
     landing: "burst",
@@ -326,6 +345,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   },
   bomb: {
     use: "throw",
+    counts: "objects",
     flightHit: "stop",
     capacity: 1,
     landing: "detonate",
@@ -340,6 +360,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // budget at once. One number and one rule, so there is no exceptions list to keep in your head.
   hammer: {
     use: "throw",
+    counts: "objects",
     flightHit: "reap",
     capacity: 3,
     landing: "spend",
@@ -352,6 +373,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // an inventory that quietly runs down.
   skeletonSword: {
     use: "throw",
+    counts: "objects",
     flightHit: "cleave",
     capacity: 3,
     landing: "spend",
@@ -362,6 +384,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // The skull is the skeleton's rock: one throw, and it is a mess on the floor.
   skeletonSkull: {
     use: "throw",
+    counts: "objects",
     flightHit: "stop",
     capacity: 1,
     landing: "burst",
@@ -372,6 +395,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // The femur is the one that wears. It comes back cracked, and the cracked one does not come back.
   skeletonFemur: {
     use: "throw",
+    counts: "objects",
     flightHit: "stop",
     capacity: 1,
     landing: "strike",
@@ -381,6 +405,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   },
   skeletonFemurCracked: {
     use: "throw",
+    counts: "objects",
     flightHit: "stop",
     capacity: 1,
     landing: "strike",
@@ -393,6 +418,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // second from a shaft that comes back visibly bent and does not come back again.
   skeletonJavelin: {
     use: "throw",
+    counts: "objects",
     flightHit: "skewer",
     capacity: 3,
     landing: "pin",
@@ -402,6 +428,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   },
   skeletonJavelinCracked: {
     use: "throw",
+    counts: "objects",
     flightHit: "skewer",
     capacity: 3,
     landing: "pin",
@@ -413,6 +440,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // itself is a weapon: what is left in the hand is a spent crossbow, and a spent crossbow flies.
   crossbow: {
     use: "shoot",
+    counts: "charges",
     spends: "crossbowSpent",
     flightHit: "stop",
     capacity: 1,
@@ -423,6 +451,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   },
   crossbowSpent: {
     use: "throw",
+    counts: "objects",
     flightHit: "cleave",
     capacity: 3,
     landing: "spend",
@@ -437,6 +466,7 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // strike landing is the femur's, so all of a bolt goes into whatever it stopped against.
   crossbowBolt: {
     use: "throw",
+    counts: "objects",
     flightHit: "stop",
     capacity: 1,
     landing: "strike",

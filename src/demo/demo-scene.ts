@@ -438,6 +438,65 @@ function ground(id: string, x: number, y: number, assetId: string, scale: number
   return { id, x, y, placement: "ground", assetId, scale, verticalAnchor: 0 };
 }
 
+/** The largest pile that is drawn as separate objects. Beyond it the fan stops reading as a count. */
+const MAX_DRAWN_COPIES = 3;
+
+export type DemoPickupPlacement = Readonly<{
+  id: string;
+  kind: DemoPropKind;
+  count: number;
+  x: number;
+  y: number;
+  /** How far the pickup is riding its float this frame. A tool inspecting one holds it still at zero. */
+  bob?: number;
+  /**
+   * Floor numbers to draw with instead of the authored ones.
+   *
+   * The seam a workbench tunes through: it is how a slider can show a pickup at a size that is not
+   * saved anywhere yet, while the authored table stays the answer for everything else on the floor.
+   */
+  display?: Readonly<{ floorScale: number; floorAnchor: number }>;
+}>;
+
+/**
+ * One pickup lying on the floor: its shadow, its glow, and however many of it there are.
+ *
+ * A function rather than a loop body because the prop workbench needs to draw exactly one of these
+ * and there was nothing to call — so it kept its own copy of the arithmetic, with a comment saying
+ * the two had to be read side by side whenever either moved. They were not, and the workbench went
+ * on drawing three crossbows after the game had stopped.
+ *
+ * A stack of throwables shows as a fan, up to three, so its worth is legible before you walk over to
+ * it. A stack of charges does not: a crossbow holding three shots is one crossbow, because what
+ * leaves the hand is not the thing being held, and drawing it as a pile promised two weapons that
+ * were never there.
+ */
+export function propPickupSprites(placement: DemoPickupPlacement): RenderSprite[] {
+  const { id, kind, count, x, y } = placement;
+  const bob = placement.bob ?? 0;
+  const display = placement.display ?? PROP_DISPLAYS[kind];
+  const copies = propBehaviour(kind).counts === "charges" ? 1 : Math.min(count, MAX_DRAWN_COPIES);
+  const built: RenderSprite[] = [
+    ground(`${id}-shadow`, x, y, DEMO_ASSET_IDS.dropShadow, 0.5 + copies * 0.06),
+    ground(`${id}-glow`, x, y, DEMO_ASSET_IDS.groundGlow, 0.75 + copies * 0.1),
+  ];
+
+  for (let copy = 0; copy < copies; copy += 1) {
+    const spread = (copy - (copies - 1) / 2) * 0.14;
+    built.push({
+      id: `${id}-${copy}`,
+      x: x + spread,
+      y: y + spread * 0.5,
+      placement: "billboard",
+      assetId: PROP_ASSETS[kind],
+      scale: display.floorScale,
+      verticalAnchor: -display.floorAnchor - bob - copy * 0.05,
+    });
+  }
+
+  return built;
+}
+
 /** An intent that is actually being wound up, which is the only kind that has a marker. */
 type CommittedIntent = Exclude<DemoIntent, "none">;
 
@@ -861,25 +920,17 @@ function sprites(world: DemoWorld): RenderSprite[] {
     ground("demo-entrance", world.maze.entrance.x + 0.5, world.maze.entrance.y + 0.5, DEMO_ASSET_IDS.entrance, 0.9),
   );
 
-  // Loose pickups float, bob, and cast a shadow. A stack of three shows as three, staggered, so its
-  // worth is legible before you walk over to it.
   for (const prop of world.props) {
-    const bob = Math.sin(world.elapsedSeconds * 2.2 + prop.x * 3 + prop.y * 5) * 0.06;
-    built.push(ground(`${prop.id}-shadow`, prop.x, prop.y, DEMO_ASSET_IDS.dropShadow, 0.5 + prop.count * 0.06));
-    built.push(ground(`${prop.id}-glow`, prop.x, prop.y, DEMO_ASSET_IDS.groundGlow, 0.75 + prop.count * 0.1));
-
-    for (let copy = 0; copy < Math.min(prop.count, 3); copy += 1) {
-      const spread = (copy - (Math.min(prop.count, 3) - 1) / 2) * 0.14;
-      built.push({
-        id: `${prop.id}-${copy}`,
-        x: prop.x + spread,
-        y: prop.y + spread * 0.5,
-        placement: "billboard",
-        assetId: PROP_ASSETS[prop.kind],
-        scale: PROP_DISPLAYS[prop.kind].floorScale,
-        verticalAnchor: -PROP_DISPLAYS[prop.kind].floorAnchor - bob - copy * 0.05,
-      });
-    }
+    built.push(
+      ...propPickupSprites({
+        id: prop.id,
+        kind: prop.kind,
+        count: prop.count,
+        x: prop.x,
+        y: prop.y,
+        bob: Math.sin(world.elapsedSeconds * 2.2 + prop.x * 3 + prop.y * 5) * 0.06,
+      }),
+    );
   }
 
   for (const enemy of world.enemies) {
