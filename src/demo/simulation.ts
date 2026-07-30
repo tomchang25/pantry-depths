@@ -15,6 +15,7 @@ import {
   thrownWallDamage,
 } from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
+import { stepExtraction } from "@/demo/extraction";
 import {
   bargeInto,
   bodyLanding,
@@ -831,5 +832,8 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
 
   if (toExit < EXIT_RADIUS && world.maze.progress.main.met) {
     descend(world);
+    return;
   }
+
+  stepExtraction(world);
 }

@@ -94,13 +94,9 @@ Both are decisions that whichever plan lands first will fix in place, so they ar
 
 ### Child overview
 
-| Child | Focus                                                                                    |
-| ----- | ---------------------------------------------------------------------------------------- |
-| 05    | The clock: run-wide level from time and depth, derived and shown only                    |
-| 06    | The modifier catalogue: numeric axes shared by stacking blessings and core rolls         |
-| 07    | Sealed rewards and extraction: clean and cursed, carried sealed, resolved on the way out |
+Every child has shipped. What each one delivered is recorded in `CHANGELOG.md`; the plan is waiting on a closeout.
 
-Landing order is 01 through 07. Children 01, 02, 05, and 06 have no prerequisites among the others and can land in any order. Child 03 needs 01 for the blessing it pays and 02 for the rooms to exist. Child 04 needs 02 for a descent to lock and 01 for the blessing its secondaries pay. Child 07 needs 02 for the extraction room, 04 for the main task that pays a clean reward, and 06 for a core to have anything rolled on it.
+Landing order was 01 through 07. Children 01, 02, 05, and 06 have no prerequisites among the others and can land in any order. Child 03 needs 01 for the blessing it pays and 02 for the rooms to exist. Child 04 needs 02 for a descent to lock and 01 for the blessing its secondaries pay. Child 07 needs 02 for the extraction room, 04 for the main task that pays a clean reward, and 06 for a core to have anything rolled on it.
 
 ## Acceptance Criteria
 
@@ -117,27 +113,3 @@ Landing order is 01 through 07. Children 01, 02, 05, and 06 have no prerequisite
 11. Melee damage and maximum health respond to a core's rolled modifiers; thrown damage is unchanged from melee damage.
 12. Every module the concurrent enemy-and-sprite plan names is either untouched by this plan or changed at exactly one of the three declared touch points.
 13. Verification passes, and the manual playtest confirms each criterion above.
-
-## Execution
-
-Coordinates recorded against the codebase as it stands when this plan was written. Re-check each one against the live code before executing its child; a stale line here is expected, not a defect. Each subsection is cut when its child ships, in the same change that cuts its row from the child overview.
-
-**Standing constraint for every child.** The concurrent plan at `dev/docs/plans/pantry_demo_skeletons.plan.md` names these and they are off limits: `src/demo/enemy-ai.ts`, `src/demo/enemy-archetypes.ts`, `src/demo/demo-scene.ts`, `src/demo/world.ts`, `src/demo/simulation.ts`, `src/demo/throw-weight.ts`, `src/demo/demo-sprites.ts`, `src/demo/demo-surface.ts`, `src/demo/particles.ts`, `src/demo/actions.ts`, `src/demo/movement.ts`, `src/demo/maze.ts`, `src/presentation/presentation-image-loader.ts`, `src/app/debug/entity-workbench.ts`, everything under `src/content/enemies/`, `src/content/combat/enemies.ts`, `src/content/presentation/prop-display*`, and everything under `dev/tools/`.
-
-Four of those are unavoidable and are held to single-line touches: `world.ts` at the blessing overflow branch, `actions.ts` at the melee damage accessor and inside the wall-damage dispatcher, `simulation.ts` appended at its step tail and at the exit-proximity check, and `maze.ts`, which the concurrent plan only _reads_ — it consults `STONE_WALL_HP` and `WOOD_WALL_HP` (lines 43–44) and edits nothing, so floor generation is free to be rewritten in place. Confirm that read-only status against the live skeleton plan before child 02.
-
-`src/demo/bless.ts`, `src/demo/demo-hud.ts`, `src/demo/demo-viewmodel.ts`, and `src/demo/impacts.ts` are named by the concurrent plan nowhere and are fully available.
-
-Nothing in this plan may add a test under `src/demo/` or `src/presentation/`; the repository guard at `test/unit/repository/demo-half-is-untested.test.ts` enforces it and is not to be edited.
-
-### 07 — Sealed rewards and extraction
-
-New modules for the sealed reward, its contents, and whatever holds them between runs.
-
-Two producers: the main task completing (child 04's state machine) and the cursed altar breaking (child 03's smashable). Both call one function that rolls a table and appends to the carried set, so the two rates live in one place.
-
-The carried set survives descents and is destroyed on death. `descend` at `src/demo/simulation.ts` line 748 rebuilds the floor and explicitly keeps health, hands, and blessings — see the comment at `src/demo/world.ts` line 567 — so the carried set joins that list of survivors and needs no new mechanism.
-
-Extraction is the same proximity shape as the descent, at the extraction cell child 02 added, with no lock. It ends the run and resolves everything carried. There is no run-end path today other than death, so this is new: decide whether it returns to the same start-a-run entry the demo already has, and keep it to that.
-
-Resolution assigns the actual modifier rolls at extraction rather than at pickup, so a save inspected mid-run genuinely does not know. Roll on the catalogue from child 06.

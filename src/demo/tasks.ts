@@ -14,6 +14,7 @@
  * screen that a concurrent rewrite does not own is the message line.
  */
 
+import { takeSealed } from "@/demo/extraction";
 import { roomAt, type DemoFloorProgress, type DemoTask, type DemoTaskKind } from "@/demo/maze";
 import { announce, awardBless, type DemoWorld } from "@/demo/world";
 
@@ -101,6 +102,7 @@ export function stepTasks(world: DemoWorld): void {
   }
 
   if (settle(world, progress, progress.main)) {
+    takeSealed(world, "clean");
     announce(world, "The way down is open, and now you can see where it is", 4);
     return;
   }

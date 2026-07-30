@@ -11,6 +11,7 @@ import "@/demo/demo-surface.css";
 import { grabAction, primaryAction, PROP_LABELS } from "@/demo/actions";
 import { BLESS_CATALOG, hasBless, findBless, type BlessDefinition } from "@/demo/bless";
 import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
+import { runEndOverlay } from "@/demo/extraction";
 import { mountDemoHud, type DemoHudCard, type DemoHudHeld, type DemoHudModel } from "@/demo/demo-hud";
 import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
@@ -283,11 +284,8 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   const locked = (): boolean => document.pointerLockElement === canvas;
 
   const overlayModel = (): DemoHudModel["overlay"] => {
-    if (world.status === "dead") {
-      return {
-        title: "Eaten",
-        body: `Reached floor B${world.depth}, killed ${world.kills}, carried ${world.bless.owned.length} blessings. Press R to run again.`,
-      };
+    if (world.status !== "playing") {
+      return runEndOverlay(world);
     }
 
     if (!locked()) {

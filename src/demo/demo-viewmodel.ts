@@ -36,6 +36,7 @@ import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/pr
 import { slimeBody } from "@/demo/demo-scene";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
 import { runLevel } from "@/demo/run-level";
+import { equippedCore } from "@/demo/sealed";
 import type { DemoWorld } from "@/demo/world";
 import type { PresentationImages } from "@/presentation/presentation-image-loader";
 
@@ -348,6 +349,19 @@ function drawRunLevel(context: CanvasRenderingContext2D, world: DemoViewmodelMod
   context.fillStyle = "rgb(232 201 138 / 62%)";
   context.font = `500 ${size * 0.66}px system-ui, sans-serif`;
   context.fillText(`${Math.floor(world.elapsedSeconds / 60)}m · B${world.depth}`, x, y + size * 1.15);
+
+  // The core this run is swinging, and what it rolled. On screen because a curse that can roll worse
+  // than clean is only a curse if the player can see which way this one went.
+  const equipped = equippedCore();
+
+  if (equipped) {
+    const rolls = Object.entries(equipped.rolls)
+      .map(([axis, amount]) => `${axis === "maxHp" ? "HP" : "DMG"} ${(amount ?? 0) >= 0 ? "+" : ""}${amount}`)
+      .join(" ");
+    context.fillStyle = equipped.source === "cursed" ? "rgb(226 88 95 / 82%)" : "rgb(159 224 208 / 82%)";
+    context.fillText(`${equipped.core.name} · ${rolls}`, x, y + size * 1.95);
+  }
+
   context.restore();
 }
 

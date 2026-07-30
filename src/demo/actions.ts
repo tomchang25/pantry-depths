@@ -8,8 +8,10 @@
 import { chooseMeleeAttack } from "@/content/viewmodel/melee-viewmodel";
 import { blessBonus, hasBless } from "@/demo/bless";
 import { canCarry } from "@/demo/enemy-archetypes";
+import { takeSealed } from "@/demo/extraction";
 import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
 import { burst } from "@/demo/particles";
+import { coreBase, coreBonus } from "@/demo/sealed";
 import {
   propBehaviour,
   propWeight,
@@ -20,7 +22,6 @@ import {
 } from "@/demo/throw-weight";
 import {
   announce,
-  awardBless,
   damageEnemy,
   nextId,
   PLAYER_SPEED,
@@ -114,13 +115,20 @@ const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
 };
 
 export function meleeReach(world: DemoWorld): number {
-  return (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_REACH : REACH) + blessBonus(world.bless, "meleeReach");
+  const base = coreBase()?.meleeReach ?? REACH;
+  return (
+    (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_REACH : base) +
+    blessBonus(world.bless, "meleeReach") +
+    coreBonus("meleeReach")
+  );
 }
 
 export function meleeDamage(world: DemoWorld): number {
+  const base = coreBase()?.meleeDamage ?? BASE_MELEE_DAMAGE;
   return (
-    (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_DAMAGE : BASE_MELEE_DAMAGE) +
-    blessBonus(world.bless, "meleeDamage")
+    (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_DAMAGE : base) +
+    blessBonus(world.bless, "meleeDamage") +
+    coreBonus("meleeDamage")
   );
 }
 
@@ -585,7 +593,7 @@ function strikeAltar(world: DemoWorld): boolean {
     size: 0.16,
     life: 0.9,
   });
-  awardBless(world);
+  takeSealed(world, "cursed");
   return true;
 }
 

@@ -8,6 +8,7 @@
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/content/viewmodel/melee-viewmodel";
 import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState } from "@/demo/bless";
+import { coreBonus, type SealedReward } from "@/demo/sealed";
 import {
   ENEMY_ARCHETYPES,
   isBoned,
@@ -312,7 +313,8 @@ export const MAX_DAMAGE_MARKS = 8;
 /** The hit size that fills a mark out completely; anything heavier is already at full strength. */
 const DAMAGE_MARK_FULL = 20;
 
-export type DemoStatus = "playing" | "dead";
+/** `extracted` is the only ending that keeps anything; `dead` is the only one that loses it. */
+export type DemoStatus = "playing" | "dead" | "extracted";
 
 export type DemoAltar = {
   hp: number;
@@ -403,6 +405,13 @@ export type DemoWorld = {
   nextId: number;
   kills: number;
   wallsBroken: number;
+  /**
+   * Sealed rewards this run is holding.
+   *
+   * Run state, not floor state: `populateFloor` deliberately leaves it alone, so it survives every
+   * descent and is lost only with the run itself.
+   */
+  carried: SealedReward[];
 };
 
 /**
@@ -419,6 +428,8 @@ export const ENEMY_RADIUS = 0.3;
 export const PLAYER_SPEED = 3.4;
 export const REACH = 1.45;
 export const ALTAR_HITS = 3;
+/** What a run starts with before any core it carried out of an earlier one. */
+export const PLAYER_BASE_MAX_HP = 150;
 
 const BASE_ENEMY_COUNT = 14;
 /** The dungeon keeps producing: one every five seconds until twenty are walking around. */
@@ -620,6 +631,9 @@ export function populateFloor(world: DemoWorld): void {
 
 export function createDemoWorld(): DemoWorld {
   const maze = generateDemoMaze();
+  // A cursed core can roll health downward, so the floor of one is what a run starts with rather than
+  // the base: a bad roll makes a run harder, never unplayable before it begins.
+  const startingMaxHp = Math.max(50, PLAYER_BASE_MAX_HP + coreBonus("maxHp"));
   const world: DemoWorld = {
     maze,
     depth: 1,
@@ -630,8 +644,10 @@ export function createDemoWorld(): DemoWorld {
       pitch: 0,
       pushX: 0,
       pushY: 0,
-      hp: 150,
-      maxHp: 150,
+      hp: startingMaxHp,
+      // A core carried out of an earlier run changes what this one starts with. It is the one axis a
+      // core moves that is stored rather than read, so it is applied where the run is built.
+      maxHp: startingMaxHp,
     },
     altar: { hp: ALTAR_HITS, maxHp: ALTAR_HITS, x: maze.altar.x + 0.5, y: maze.altar.y + 0.5 },
     bless: createBlessState(),
@@ -668,6 +684,7 @@ export function createDemoWorld(): DemoWorld {
     nextId: 0,
     kills: 0,
     wallsBroken: 0,
+    carried: [],
   };
 
   populateFloor(world);
