@@ -417,6 +417,7 @@ function createProjectile(
     trail: [],
     skewered: [],
     cleaved: 0,
+    broke: 0,
   };
 }
 

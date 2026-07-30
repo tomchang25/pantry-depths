@@ -21,7 +21,13 @@ import {
 import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell, tileAt } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
-import { propBehaviour, throwCapacity, type DemoPropFlightHit, type DemoPropLanding } from "@/demo/throw-weight";
+import {
+  breaksThroughWalls,
+  propBehaviour,
+  throwCapacity,
+  type DemoPropFlightHit,
+  type DemoPropLanding,
+} from "@/demo/throw-weight";
 import {
   announce,
   awardBless,
@@ -37,6 +43,7 @@ import {
   PLAYER_RADIUS,
   PLAYER_SPEED,
   populateFloor,
+  projectileGrounded,
   projectileHeight,
   SHELL_BLAST_RADIUS,
   SHELL_DAMAGE,
@@ -365,8 +372,13 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
   }
 }
 
-/** A blade cleaving through: outright kills, and it stops on the third one. */
-function cleaveThrough(world: DemoWorld, projectile: DemoProjectile): boolean {
+/**
+ * Cutting through bodies: outright kills whatever it touches, whatever that body had left.
+ *
+ * A blade stops on the third one. A reaping throw stops on none of them — it announces each and
+ * carries on, because what it is spending is the masonry behind them.
+ */
+function cleaveThrough(world: DemoWorld, projectile: DemoProjectile, stopsWhenFull: boolean): boolean {
   // Same head-height rule as everything else in flight: too high, and it passes clean over.
   if (projectileHeight(projectile) > 0.6) {
     return false;
@@ -389,7 +401,7 @@ function cleaveThrough(world: DemoWorld, projectile: DemoProjectile): boolean {
     killEnemy(world, enemy, "cleaved");
     announce(world, `Cleaves ${projectile.cleaved}!`, 1.2);
 
-    if (projectile.cleaved >= throwCapacity(projectile.kind)) {
+    if (stopsWhenFull && projectile.cleaved >= throwCapacity(projectile.kind)) {
       return true;
     }
   }
@@ -460,9 +472,10 @@ function hitsSomeone(world: DemoWorld, projectile: DemoProjectile): boolean {
 /**
  * What a prop does to a body it reaches while still in the air, and whether that ends the flight.
  *
- * The two piercing throws are the reason this is not simply a hit test: a javelin collects bodies and
- * carries them on, and an axe kills through them until it is full, so both keep flying after they have
- * done something. Everything else stops on the first thing it touches.
+ * The piercing throws are the reason this is not simply a hit test: a javelin collects bodies and
+ * carries them on, a blade kills through them until it is full, and the hammer never fills up at all,
+ * so all three keep flying after they have done something. Everything else stops on the first thing
+ * it touches.
  */
 function stoppedInFlight(world: DemoWorld, projectile: DemoProjectile, flightHit: DemoPropFlightHit): boolean {
   if (flightHit === "skewer") {
@@ -471,7 +484,11 @@ function stoppedInFlight(world: DemoWorld, projectile: DemoProjectile, flightHit
   }
 
   if (flightHit === "cleave") {
-    return cleaveThrough(world, projectile);
+    return cleaveThrough(world, projectile, true);
+  }
+
+  if (flightHit === "reap") {
+    return cleaveThrough(world, projectile, false);
   }
 
   if (flightHit === "stop") {
@@ -480,6 +497,18 @@ function stoppedInFlight(world: DemoWorld, projectile: DemoProjectile, flightHit
 
   flightHit satisfies never;
   throw new Error("unknown prop flight hit");
+}
+
+/**
+ * Whether this cell is masonry a breaking throw opens and carries on through.
+ *
+ * Stone and timber only. A barricade, an emplacement, and the outer boundary are all things a throw
+ * ends against, and each of them already answers a blow in its own way — the boundary by refusing it
+ * out loud.
+ */
+function spendsWall(world: DemoWorld, cell: DemoCellLike): boolean {
+  const tile = tileAt(world.maze, cell.x, cell.y);
+  return tile?.kind === "stone" || tile?.kind === "wood";
 }
 
 function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
@@ -497,6 +526,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
     let finished = false;
     let struckCell: DemoCellLike | undefined;
     let stoppedByWall = false;
+    const breaksThrough = breaksThroughWalls(projectile.kind);
 
     for (let step = 0; step < steps && !finished; step += 1) {
       const advance = distance / steps;
@@ -504,12 +534,39 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
       projectile.y += projectile.directionY * advance;
       projectile.travelled += advance;
 
+      // A throw that stops where it touches down. Every other weapon flattens against the floor and
+      // carries on to the end of its range, because the height curve is clamped there and produces
+      // no event at all; this is the crossing that clamp hides, and only a weapon aimed downward as
+      // a deliberate act consults it.
+      if (breaksThrough && projectileGrounded(projectile)) {
+        finished = true;
+        break;
+      }
+
       // Height-aware: the arc is simulation truth, so a lob sailing above a wall's top crosses it
       // and comes down on the far side. Flat weapons fly at hand height and stop as they always did.
       if (
         blocksProjectileAt(world.maze, Math.floor(projectile.x), Math.floor(projectile.y), projectileHeight(projectile))
       ) {
-        struckCell = { x: Math.floor(projectile.x), y: Math.floor(projectile.y) };
+        const cell = { x: Math.floor(projectile.x), y: Math.floor(projectile.y) };
+
+        // Masonry a reaping throw spends rather than stops against. The wall is opened where it
+        // stands and the flight goes straight on through the hole, so a corridor costs three walls
+        // and one throw. Anything that is not ordinary masonry takes the whole budget: it is
+        // damaged for whatever it is worth, and the throw ends there.
+        if (breaksThrough && spendsWall(world, cell)) {
+          damageWall(world, cell, thrownWallDamage(projectile.kind));
+          projectile.broke += 1;
+
+          if (projectile.broke < throwCapacity(projectile.kind)) {
+            continue;
+          }
+
+          finished = true;
+          break;
+        }
+
+        struckCell = cell;
         // A barricade is not a wall to a body. It is the thing bodies are meant to be shoved onto,
         // and stepping this one back out of the cell put it on the floor in front of the iron — so
         // a slime thrown at the spikes died of the fall, never touched them, and never once played

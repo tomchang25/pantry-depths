@@ -154,7 +154,7 @@ const PROP_WEIGHTS: Readonly<Record<DemoPropKind, DemoThrowWeight>> = {
     thud: 0.2,
     carrySlow: 1,
   },
-  axe: {
+  hammer: {
     speed: 16,
     range: 10,
     lobbed: false,
@@ -230,8 +230,14 @@ export const DEFAULT_BODY_WEIGHT: DemoThrowWeight = {
   carrySlow: 0.82,
 };
 
-/** What a throw does to the bodies it reaches while it is still in the air. */
-export type DemoPropFlightHit = "stop" | "skewer" | "cleave";
+/**
+ * What a throw does to the bodies it reaches while it is still in the air.
+ *
+ * `reap` is the one that spends nothing on them: it kills whatever it touches whatever that thing
+ * had left, and none of it ends the flight. A weapon that bodies cannot stop has to be counting
+ * something else, which is why the capacity below reads as masonry for exactly this value.
+ */
+export type DemoPropFlightHit = "stop" | "skewer" | "cleave" | "reap";
 
 /** What it does where it stops, whether that is a wall, a body, or the end of its range. */
 export type DemoPropLanding = "spend" | "burst" | "detonate" | "pin" | "strike";
@@ -260,13 +266,14 @@ export type DemoPropBehaviour = Readonly<{
   spends?: DemoPropKind;
   flightHit: DemoPropFlightHit;
   /**
-   * How many bodies a piercing throw takes before it is full and comes down.
+   * How much this throw is allowed to spend before it is full and comes down.
    *
    * On the prop rather than a constant per verb, which is what it used to be: one number for every
    * skewer and one for every cleave, so two weapons could not disagree about how many they take. A
    * stake takes one because the single body lifted off its feet and nailed to the far wall is the
    * whole picture; a proper javelin runs three through and they arrive in a heap.
    *
+   * Counted in bodies, except for a `reap`, which bodies do not cost at all — there it is walls.
    * Ignored by anything that stops at the first thing it touches.
    */
   capacity: number;
@@ -326,10 +333,23 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
     leaves: undefined,
     form: "billboard",
   },
-  // The two blades cut through three bodies and then lie where they stopped. Neither wears out: what
-  // they cost you is the walk back to them, which is a decision you make in the middle of a fight and
-  // not an inventory that quietly runs down.
-  axe: { use: "throw", flightHit: "cleave", capacity: 3, landing: "spend", wallDamage: 2, leaves: "axe", form: "rod" },
+  // The demolition tool, and the one throw bodies have no say in. It kills through however many
+  // stand in its line whatever their health, and what it counts instead is masonry: three walls, one
+  // each, and it is gone wherever the third one stops it. Everything it cannot break through — the
+  // barricade, the emplacement, the boundary, and the floor if it was aimed down — takes the whole
+  // budget at once. One number and one rule, so there is no exceptions list to keep in your head.
+  hammer: {
+    use: "throw",
+    flightHit: "reap",
+    capacity: 3,
+    landing: "spend",
+    wallDamage: 4,
+    leaves: undefined,
+    form: "rod",
+  },
+  // The blade cuts through three bodies and then lies where it stopped. It does not wear out: what it
+  // costs you is the walk back to it, which is a decision you make in the middle of a fight and not
+  // an inventory that quietly runs down.
   skeletonSword: {
     use: "throw",
     flightHit: "cleave",
@@ -443,6 +463,16 @@ export function propWeight(kind: DemoPropKind): DemoThrowWeight {
  */
 export function throwCapacity(kind: DemoThrowKind): number {
   return kind === "enemy" ? 1 : PROP_BEHAVIOURS[kind].capacity;
+}
+
+/**
+ * Whether masonry is something this throw spends rather than something that stops it.
+ *
+ * Read off the flight rule instead of being declared again beside it, because they are one statement:
+ * a weapon nothing alive can stop is the same weapon that opens the wall behind them.
+ */
+export function breaksThroughWalls(kind: DemoThrowKind): boolean {
+  return kind !== "enemy" && PROP_BEHAVIOURS[kind].flightHit === "reap";
 }
 
 /**

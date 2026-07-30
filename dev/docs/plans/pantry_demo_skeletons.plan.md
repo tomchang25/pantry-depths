@@ -173,9 +173,8 @@ The workbench is the only place any of this is verified, since the demo half tak
 | 04    | The shared death set, the bone burst, and the workbench's procedural state |
 | 05    | The private action set, the three attack clips, a parameterised generator  |
 | 06    | The hammer-bearer, the javelineer, and the crossbowman                     |
-| 07    | The hammer: unlimited bodies, a budget of three, one use                   |
 
-Landing order is 04 through 07. Children 04 and 05 are the two re-bakes and are independent of each other. Child 06 needs 04 and 05 together, because a new type is an action set plus a band. Child 07 can land at any time; its supply arrives with 06.
+Landing order is 04 through 06. Children 04 and 05 are the two re-bakes and are independent of each other. Child 06 needs 04 and 05 together, because a new type is an action set plus a band.
 
 ## Non-Goals
 
@@ -255,24 +254,3 @@ Workbench: `EntityBodyState` (line 58) becomes `idle | walk | hurt | stunned | w
 `BONED_DROP_TABLE` at `src/demo/world.ts` line 924 becomes the per-type table from the Design section — cumulative thresholds 0.30 skull, 0.50 femur, 0.60 weapon, above which nothing — with the weapon column set per appearance. The crossbow entry's `count: 5` becomes `count: 3`.
 
 `src/demo/throw-weight.ts` needs a `hammer` prop row before this child can give the hammer-bearer its weapon; taking child 07 first avoids a placeholder.
-
-### 07 — The hammer
-
-`src/content/presentation/prop-display-schema.ts` line 20 renames `axe` to `hammer`, and `src/content/presentation/prop-display.json` line 24 follows. `src/demo/throw-weight.ts` lines 157 and 332, `src/demo/actions.ts` lines 86 and 103, `src/demo/demo-sprites.ts` line 293 and 903, and `src/demo/demo-surface.ts` lines 104 and 121 all carry the name.
-
-Behaviour row: `flightHit: "cleave"`, `landing: "spend"`, `leaves: undefined`, `wallDamage: 4`, and a `capacity` that is no longer about bodies. Four is the smallest value that opens stone, whose hit points are set in `src/demo/maze.ts` — timber is 2, stone 4.
-
-`cleaveThrough` at `src/demo/simulation.ts` line 360: the `projectile.cleaved >= throwCapacity(...)` test at line 380 is removed for this weapon, so bodies never end the flight. `throwCapacity` (`src/demo/throw-weight.ts` line 444) is re-read as a masonry budget; `projectile.cleaved` (`src/demo/world.ts` line 146) stays as the announce counter.
-
-`stepProjectiles` at `src/demo/simulation.ts` lines 492–511 is the real work. Today `blocksProjectileAt` sets `struckCell`, sets `finished`, steps the projectile back out of the cell, and the wall is damaged once after the loop at line 533. For the hammer the branch becomes:
-
-1. Read the tile kind at the struck cell.
-2. Stone or timber: `damageWall` at 4, add 1 to a spent counter, do **not** step back, do **not** finish. If the counter reaches 3, finish in the opening.
-3. Barricade, mortar, or border: `damageWall` for its own effect, step back, finish.
-4. Water and open are not obstacles and never were.
-
-`damageWall` at `src/demo/actions.ts` line 327 already dispatches all five tile kinds correctly, including refusing the border with an announcement at 334 — it needs no change, only to be called per wall instead of once at the end.
-
-Floor contact: `flightHeight` at `src/demo/world.ts` line 876 clamps with `Math.max(0, ...)`, so height never goes negative and there is no landing event. Add a separate predicate that reports the unclamped value crossing zero, and test it in the step loop beside the wall check. Only weapons that stop on the floor consult it; every existing lobbed throw still ends on its range as it does now, so the clamp itself must not change.
-
-Art: `axe()` at `src/demo/demo-sprites.ts` line 293 is a procedural canvas and needs a hammer head. The `rod` flight form and the beam entry at `src/demo/demo-scene.ts` line 274 stay; a hammer tumbles like an axe.

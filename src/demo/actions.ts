@@ -84,7 +84,7 @@ export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
   stick: "Stakes",
   rock: "Rocks",
   bomb: "Bombs",
-  axe: "Axe",
+  hammer: "Hammer",
   skeletonSword: "Skeleton Sword",
   skeletonSkull: "Skull",
   skeletonFemur: "Femur",
@@ -100,7 +100,7 @@ const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
   stick: "Stake away!",
   rock: "Rock away!",
   bomb: "Bomb away!",
-  axe: "Axe away!",
+  hammer: "Hammer away!",
   skeletonSword: "Sword away!",
   skeletonSkull: "Skull away!",
   skeletonFemur: "Bone away!",
@@ -445,6 +445,7 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
     trail: [],
     skewered: [],
     cleaved: 0,
+    broke: 0,
   });
 
   // What it cost to get rid of: a shove backwards along the throw and a jolt of the view. Nothing

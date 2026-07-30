@@ -19,7 +19,7 @@ export const DEMO_ASSET_IDS = {
   stick: "demo.stick",
   rock: "demo.rock",
   bomb: "demo.bomb",
-  axe: "demo.axe",
+  hammer: "demo.hammer",
   stickPile: "demo.stickPile",
   rockPile: "demo.rockPile",
   bombPile: "demo.bombPile",
@@ -288,43 +288,51 @@ function bomb(): HTMLCanvasElement {
   return canvas;
 }
 
-/** The axe as it lies on the floor and sits in the hand; in flight it is a beam instead. */
-function axe(): HTMLCanvasElement {
+/**
+ * The hammer as it lies on the floor and sits in the hand; in flight it is a beam instead.
+ *
+ * A head rather than an edge, because what this weapon is for is masonry — it opens three walls and
+ * is gone. A blade silhouette would promise the wrong thing at the exact moment the player is
+ * deciding which of the two throws in their hand is the one for the corridor ahead.
+ */
+function hammer(): HTMLCanvasElement {
   const [canvas, context] = surface();
   context.save();
   context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
   context.rotate(-0.5);
   context.fillStyle = "#58381f";
-  context.fillRect(-22, -190, 44, 380);
+  context.fillRect(-22, -170, 44, 360);
   context.fillStyle = "#75512f";
-  context.fillRect(-22, -190, 14, 380);
+  context.fillRect(-22, -170, 14, 360);
   context.fillStyle = "#3d2a17";
   context.fillRect(-24, 120, 48, 12);
   context.fillRect(-24, 156, 48, 12);
 
-  const steel = context.createLinearGradient(-10, -190, 150, -60);
-  steel.addColorStop(0, "#9aa3ad");
+  const steel = context.createLinearGradient(-150, -230, 150, -140);
+  steel.addColorStop(0, "#8b949e");
   steel.addColorStop(0.5, "#e4ecf4");
-  steel.addColorStop(1, "#8b949e");
+  steel.addColorStop(1, "#7f8790");
   context.fillStyle = steel;
+  // The head: a squared block through the haft, with the striking face flared on one side and a
+  // narrower peen on the other, so which end does the work is legible at a glance.
   context.beginPath();
-  context.moveTo(-6, -196);
-  context.quadraticCurveTo(150, -220, 176, -78);
-  context.quadraticCurveTo(120, -34, -6, -46);
+  context.moveTo(-146, -218);
+  context.lineTo(-146, -140);
+  context.lineTo(-52, -152);
+  context.lineTo(96, -152);
+  context.lineTo(126, -178);
+  context.lineTo(96, -206);
+  context.lineTo(-52, -206);
   context.closePath();
   context.fill();
+  context.fillStyle = "#66707a";
+  context.fillRect(-160, -222, 22, 88);
+  context.fillStyle = "rgb(255 255 255 / 45%)";
   context.beginPath();
-  context.moveTo(6, -196);
-  context.quadraticCurveTo(-138, -220, -164, -78);
-  context.quadraticCurveTo(-108, -34, 6, -46);
-  context.closePath();
-  context.fill();
-  context.fillStyle = "rgb(255 255 255 / 55%)";
-  context.beginPath();
-  context.moveTo(-6, -186);
-  context.quadraticCurveTo(120, -200, 150, -96);
-  context.lineTo(126, -92);
-  context.quadraticCurveTo(100, -180, -6, -170);
+  context.moveTo(-140, -210);
+  context.lineTo(88, -198);
+  context.lineTo(88, -186);
+  context.lineTo(-140, -196);
   context.closePath();
   context.fill();
   context.restore();
@@ -896,7 +904,7 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.stick, stick());
   merged.set(DEMO_ASSET_IDS.rock, rock(150));
   merged.set(DEMO_ASSET_IDS.bomb, bomb());
-  merged.set(DEMO_ASSET_IDS.axe, axe());
+  merged.set(DEMO_ASSET_IDS.hammer, hammer());
   merged.set(DEMO_ASSET_IDS.stickPile, spikePile());
   merged.set(DEMO_ASSET_IDS.rockPile, rockPile());
   merged.set(DEMO_ASSET_IDS.bombPile, bombPile());

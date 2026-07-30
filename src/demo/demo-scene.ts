@@ -143,9 +143,10 @@ const ARC_SEGMENTS = 7;
 /**
  * A javelin holds its line: no tumble at all, just a slow nose-down as it carries.
  *
- * The tumble was what made the old stick read as a hatchet — an object turning end over end is an
- * axe, and one that stays pointed where it is going is a spear. That single difference is now the
- * whole distinction between the two weapons, so it belongs to them rather than to the renderer.
+ * The tumble was what made the old stick read as a hatchet — an object turning end over end is a
+ * thrown head, and one that stays pointed where it is going is a spear. That single difference is
+ * now the whole distinction between the two weapons, so it belongs to them rather than to the
+ * renderer.
  */
 const STAKE_LENGTH = 0.95;
 const STAKE_WIDTH = 0.055;
@@ -185,12 +186,12 @@ const FLYING_RODS: Readonly<
   crossbowBolt: { length: 0.56, width: 0.038, shaft: [226, 218, 196], tip: [248, 244, 230] },
 };
 
-const AXE_LENGTH = 0.46;
-const AXE_WIDTH = 0.12;
-/** Radians of tumble per cell travelled. An axe is defined by turning over.  */
-const AXE_SPIN = 7.2;
+const HAMMER_LENGTH = 0.46;
+const HAMMER_WIDTH = 0.12;
+/** Radians of tumble per cell travelled. A thrown head is defined by turning over.  */
+const HAMMER_SPIN = 7.2;
 
-/** A thrown sword shares the axe's end-over-end language, but stays long and visibly thinner. */
+/** A thrown sword shares the hammer's end-over-end language, but stays long and visibly thinner. */
 const SWORD_LENGTH = 0.72;
 const SWORD_WIDTH = 0.055;
 const SWORD_GUARD_LENGTH = 0.2;
@@ -274,7 +275,7 @@ export const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   stick: DEMO_ASSET_IDS.stick,
   rock: DEMO_ASSET_IDS.rock,
   bomb: DEMO_ASSET_IDS.bomb,
-  axe: DEMO_ASSET_IDS.axe,
+  hammer: DEMO_ASSET_IDS.hammer,
   skeletonSword: DEMO_ASSET_IDS.skeletonSword,
   skeletonSkull: DEMO_ASSET_IDS.skeletonSkull,
   skeletonFemur: DEMO_ASSET_IDS.skeletonFemur,
@@ -1850,7 +1851,7 @@ function beams(world: DemoWorld): RenderBeam[] {
       continue;
     }
 
-    if (projectile.kind === "axe") {
+    if (projectile.kind === "hammer") {
       built.push(
         rodBeam(
           projectile.id,
@@ -1858,10 +1859,10 @@ function beams(world: DemoWorld): RenderBeam[] {
           projectile.y,
           projectile.directionX,
           projectile.directionY,
-          projectile.travelled * AXE_SPIN,
+          projectile.travelled * HAMMER_SPIN,
           projectileHeight(projectile),
-          AXE_LENGTH,
-          AXE_WIDTH,
+          HAMMER_LENGTH,
+          HAMMER_WIDTH,
           [88, 58, 32],
           [214, 222, 232],
         ),

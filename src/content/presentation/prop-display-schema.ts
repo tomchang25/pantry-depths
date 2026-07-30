@@ -17,7 +17,7 @@ export const PROP_KINDS = [
   "stick",
   "rock",
   "bomb",
-  "axe",
+  "hammer",
   "skeletonSword",
   "skeletonSkull",
   "skeletonFemur",

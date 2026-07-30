@@ -69,6 +69,8 @@ Turned the single-file browser prototype into a governed TypeScript project. No 
 
 - 2026-07-30 — [skeletons] A clip carries its own frame count, and its sheet is derived from that count rather than stored beside it, so a row cannot contradict itself and the loader checks each atlas against its own shape instead of one size for the batch. The offline generator bakes to the same table, the workbench scrubs every clip at its own width, and the frame count stops being a fixed price every clip pays whether it moves or not.
 
+- 2026-07-30 — [skeletons] The thrown axe is a hammer, and it is the demolition tool bombs are being taken away from. Bodies neither stop it nor survive it, whatever their health; what it counts is masonry, opening up to three walls and flying on through each opening. A barricade, an emplacement, the outer boundary, or the floor under a downward throw takes the whole budget at once, and the hammer is gone wherever it stopped. A throw touching the floor is a stopping condition the demo did not previously have at all.
+
 ### Governance
 
 - 2026-07-27 — [design_document_freeze] `dev/docs/design/` is frozen: not read, not cited, not edited, and extended only by adding a new document. A design document exists to seed the plans derived from it once and is spent when they exist; keeping a spent one synchronised buys nothing, and a partly-refreshed document is worse than an evidently old one because no reader can tell which paragraphs still hold. Authority moved to `src/core/`, `src/content/`, the plans, and the tracker, and the local checker now fails when a durable governance file regains a reference to the tree.

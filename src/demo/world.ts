@@ -128,7 +128,7 @@ export type DemoProjectile = {
   arc: number;
   /**
    * How much of that rise gravity takes back, quadratically. Lobbed throws set it so the curve
-   * lands exactly at the end of the range; line-flying weapons — the javelin and the axe — leave
+   * lands exactly at the end of the range; line-flying weapons — the javelin and the hammer — leave
    * it at zero and simply fly where they were pointed.
    */
   fall: number;
@@ -144,8 +144,15 @@ export type DemoProjectile = {
    * from this list, which is why it is a list even when only one thing can be on it.
    */
   skewered: DemoEnemy[];
-  /** Victims an axe has already cleaved, which is what limits it to three. */
+  /** Victims a cleaving throw has already taken, which is what limits a blade to three. */
   cleaved: number;
+  /**
+   * Walls a reaping throw has already opened, which is what limits the hammer to three.
+   *
+   * Its own counter rather than a second use of `cleaved`: the hammer counts both, and only one of
+   * them is what ends its flight.
+   */
+  broke: number;
 };
 
 /**
@@ -898,8 +905,21 @@ function dropNearEnemy(world: DemoWorld, enemy: DemoEnemy, kind: DemoPropKind): 
  * given a range, choose a fall that brings the curve back to the floor precisely at the end of it.
  */
 export function flightHeight(travelled: number, range: number, arc: number, fall: number, plunge: number): number {
+  return Math.max(0, flightDepth(travelled, range, arc, fall, plunge));
+}
+
+/**
+ * The same curve without the floor under it, which is the only way to notice a throw aimed into it.
+ *
+ * `flightHeight` clamps at zero, so a throw pointed down flattens against the ground and carries on
+ * to the end of its range as though nothing happened — there is no landing event anywhere in the
+ * flight because height can never go negative. The clamp stays exactly as it is, because every
+ * lobbed throw in the demo depends on it; a weapon that is meant to stop where it touches down reads
+ * this instead and watches for the crossing.
+ */
+export function flightDepth(travelled: number, range: number, arc: number, fall: number, plunge: number): number {
   const s = Math.min(1, Math.max(0, travelled / Math.max(0.0001, range)));
-  return Math.max(0, 0.5 + arc * s - fall * s ** (2 * plunge));
+  return 0.5 + arc * s - fall * s ** (2 * plunge);
 }
 
 /**
@@ -919,6 +939,11 @@ export function flightHeight(travelled: number, range: number, arc: number, fall
  */
 export function projectileHeight(projectile: DemoProjectile): number {
   return flightHeight(projectile.travelled, projectile.range, projectile.arc, projectile.fall, projectile.plunge);
+}
+
+/** Whether this throw has reached the floor. Only a weapon that stops where it lands asks. */
+export function projectileGrounded(projectile: DemoProjectile): boolean {
+  return flightDepth(projectile.travelled, projectile.range, projectile.arc, projectile.fall, projectile.plunge) <= 0;
 }
 
 /** Height of a shell above the floor. A bolt's curve is flat, so this answers its fixed carry height. */
