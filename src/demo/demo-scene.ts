@@ -15,9 +15,11 @@ import {
   type EntityDisplay,
 } from "@/content/enemies/entity-display-schema";
 import {
+  SKELETON_DEATH_ANIMATIONS,
   SKELETON_SWORDSMAN_ANIMATIONS,
   SKELETON_SWORDSMAN_DIRECTIONS,
-  type SkeletonSwordsmanAnimationId,
+  type SkeletonDeathId,
+  type SkeletonSwordsmanAnimationDefinition,
 } from "@/content/enemies/skeleton-swordsman-definitions";
 import { DEMO_ASSET_IDS, WARN_BLADE_STEPS } from "@/demo/demo-sprites";
 import {
@@ -120,7 +122,7 @@ export type DemoEntityProjection = Readonly<{
 }>;
 
 export type DemoEntityProjectionOptions = Readonly<{
-  skeletonAnimation?: Readonly<{ animation: SkeletonSwordsmanAnimationId; progress: number }>;
+  skeletonAnimation?: Readonly<{ animation: SkeletonSwordsmanAnimationDefinition; progress: number }>;
   /**
    * Display numbers to draw with instead of the authored ones.
    *
@@ -537,9 +539,15 @@ function skeletonDirection(cameraAngle: number, facingAngle: number): number {
   );
 }
 
-function animationFrame(animation: SkeletonSwordsmanAnimationId, progress: number): number {
-  const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
+function animationFrame(definition: SkeletonSwordsmanAnimationDefinition, progress: number): number {
   return Math.min(definition.frames - 1, Math.max(0, Math.floor(progress * definition.frames)));
+}
+
+/** One clip and where in it the body is, which is everything a boned sprite needs to be drawn. */
+type SkeletonPose = Readonly<{ definition: SkeletonSwordsmanAnimationDefinition; frame: number }>;
+
+function poseAt(definition: SkeletonSwordsmanAnimationDefinition, progress: number): SkeletonPose {
+  return { definition, frame: animationFrame(definition, progress) };
 }
 
 /**
@@ -554,39 +562,33 @@ function enemyHitFlash(enemy: DemoEnemy): number {
   return enemy.hurtSeconds > 0 ? Math.min(1, enemy.hurtSeconds / 0.16) : 0;
 }
 
-function skeletonAnimation(
-  context: DemoEntityProjectionContext,
-  enemy: DemoEnemy,
-): Readonly<{
-  animation: SkeletonSwordsmanAnimationId;
-  frame: number;
-}> {
+function skeletonAnimation(context: DemoEntityProjectionContext, enemy: DemoEnemy): SkeletonPose {
   if (enemy.drowningSeconds > 0) {
     // Going under outranks everything else it was doing, the same way the simulation drops its
-    // wind-up and its charge on entry. The authored drowning artwork is now on screen while the body
-    // is drowning rather than only after the water has closed over it.
-    return { animation: "deathDrowned", frame: animationFrame("deathDrowned", drownStage(enemy)) };
+    // wind-up and its charge on entry. It is the shared drowning death, reached while the body is
+    // still alive, so the clip that plays during the countdown is the one the corpse carries on with.
+    return poseAt(SKELETON_DEATH_ANIMATIONS.drowning, drownStage(enemy));
   }
 
   if (enemy.hurtSeconds > 0) {
-    return { animation: "hurt", frame: animationFrame("hurt", 1 - enemy.hurtSeconds / 0.28) };
+    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.hurt, 1 - enemy.hurtSeconds / 0.28);
   }
 
   if (enemy.stunSeconds > 0) {
     // Above the attack states rather than below them. The simulation skips a stunned body before it
     // reaches the wind-up, so its wind-up timer keeps whatever was left on it — which used to leave a
     // skeleton clubbed mid-swing showing the raised sword with stars orbiting its head.
-    return { animation: "block", frame: animationFrame("block", 0.72) };
+    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.block, 0.72);
   }
 
   if (enemy.windupSeconds > 0 && enemy.intent === "melee") {
     const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-    return { animation: "attack", frame: animationFrame("attack", progress * 0.68) };
+    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.attack, progress * 0.68);
   }
 
   if (enemy.attackPoseSeconds > 0) {
     const progress = 1 - enemy.attackPoseSeconds / STRIKE_SECONDS;
-    return { animation: "attack", frame: animationFrame("attack", 0.68 + Math.max(0, progress) * 0.32) };
+    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.attack, 0.68 + Math.max(0, progress) * 0.32);
   }
 
   if (enemy.attackCooldown > 0) {
@@ -594,14 +596,13 @@ function skeletonAnimation(
     // cooldown. This is the window the player wants and could not previously see — a body that had
     // just committed everything it had looked identical to one that had not noticed them.
     const progress = 1 - enemy.attackCooldown / Math.max(0.0001, attackCooldown(enemy.archetype));
-    return { animation: "attack", frame: animationFrame("attack", 1 - progress) };
+    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.attack, 1 - progress);
   }
 
-  const animation: SkeletonSwordsmanAnimationId = enemy.moving ? "walk" : "idle";
-  const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
+  const definition = enemy.moving ? SKELETON_SWORDSMAN_ANIMATIONS.walk : SKELETON_SWORDSMAN_ANIMATIONS.idle;
   const phase = enemyPhase(enemy.id) / (Math.PI * 2);
   const frame = Math.floor((context.elapsedSeconds * definition.framesPerSecond + phase) % definition.frames);
-  return { animation, frame };
+  return { definition, frame };
 }
 
 function skeletonSprite(
@@ -610,7 +611,7 @@ function skeletonSprite(
   selected = skeletonAnimation(context, enemy),
   override?: EntityDisplay,
 ): RenderSprite {
-  const definition = SKELETON_SWORDSMAN_ANIMATIONS[selected.animation];
+  const definition = selected.definition;
   return {
     id: enemy.id,
     x: enemy.x,
@@ -632,30 +633,40 @@ function skeletonSprite(
   };
 }
 
-/** Which clip a corpse plays, exported so the workbench can scrub it at that clip's own length. */
-export function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonSwordsmanAnimationId {
+/**
+ * Which clip a corpse plays, or nothing at all.
+ *
+ * One situation, one clip, and no situation borrowing another's artwork — which is what the old
+ * injury-shaped naming produced. A blasted body has no clip by design: a bomb does not knock a
+ * skeleton over, it takes it apart, so that death is entirely a burst of bones and there is nothing
+ * for the corpse itself to show. Exported so the workbench can scrub each clip at its own length.
+ */
+export function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonDeathId | undefined {
   if (cause === "cleaved") {
-    return "deathSeverRight";
+    return "cleaved";
   }
 
   if (cause === "blasted") {
-    return "deathBlasted";
+    return undefined;
   }
 
   if (cause === "impaled") {
-    return "deathImpaled";
+    return "impaled";
   }
 
   if (cause === "splattered") {
-    return "deathImpaled";
+    // Driven into masonry, thrown or pinned there. The body is a heap at the foot of the wall and
+    // leaves no mark on it: the stain that exists for a soft body bursting against stone is a fact
+    // about soft bodies, and bones do not stain.
+    return "slammed";
   }
 
   if (cause === "drowned") {
-    return "deathDrowned";
+    return "drowning";
   }
 
   if (cause === "slain") {
-    return "death";
+    return "collapse";
   }
 
   cause satisfies never;
@@ -666,9 +677,14 @@ function skeletonDeathSprite(
   context: DemoEntityProjectionContext,
   death: DemoDeath,
   override?: EntityDisplay,
-): RenderSprite {
+): RenderSprite | undefined {
   const animation = skeletonDeathAnimation(death.cause);
-  const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
+
+  if (animation === undefined) {
+    return undefined;
+  }
+
+  const definition = SKELETON_DEATH_ANIMATIONS[animation];
   // A drowned corpse picks the clip up where the countdown left it and carries on down, so the water
   // closing over the body is one continuous performance rather than the clip restarting at frame zero
   // the instant the kill lands. It is gone by the end: what records it after that is the pool's own
@@ -686,7 +702,7 @@ function skeletonDeathSprite(
     verticalAnchor: 0,
     submerged: drowning ? stage : 0,
     frame: {
-      column: animationFrame(animation, stage),
+      column: animationFrame(definition, stage),
       row: skeletonDirection(context.camera.angle, death.facingAngle),
       columns: definition.frames,
       rows: definition.directions,
@@ -701,8 +717,9 @@ function carriedSkeletonSprite(
   enemy: DemoEnemy,
   index: number,
 ): RenderSprite {
-  const animation: SkeletonSwordsmanAnimationId = "deathImpaled";
-  const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
+  // Riding the shaft is being run through, which is the pose the impaled clip holds — and it holds
+  // exactly one, so there is no point in the clip to pick out any more.
+  const definition = SKELETON_DEATH_ANIMATIONS.impaled;
   const back = 0.3 + index * 0.3;
   const x = projectile.x - projectile.directionX * back;
   const y = projectile.y - projectile.directionY * back;
@@ -718,7 +735,7 @@ function carriedSkeletonSprite(
     // A pitched throw raises or lowers the complete skeleton with the same trajectory as the shaft.
     verticalAnchor: -(projectileHeight(projectile) - 0.5) / bonedDisplayScale(enemy.appearance),
     frame: {
-      column: animationFrame(animation, 0.62),
+      column: 0,
       row: skeletonDirection(context.camera.angle, enemy.facingAngle),
       columns: definition.frames,
       rows: definition.directions,
@@ -1347,10 +1364,7 @@ export function projectDemoEnemy(
 ): DemoEntityProjection {
   if (isBoned(enemy.archetype)) {
     const selected = options.skeletonAnimation
-      ? {
-          animation: options.skeletonAnimation.animation,
-          frame: animationFrame(options.skeletonAnimation.animation, options.skeletonAnimation.progress),
-        }
+      ? poseAt(options.skeletonAnimation.animation, options.skeletonAnimation.progress)
       : undefined;
     return { blobs: [], sprites: [skeletonSprite(context, enemy, selected, options.display)] };
   }
@@ -1365,7 +1379,9 @@ export function projectDemoDeath(
   options: DemoEntityProjectionOptions = {},
 ): DemoEntityProjection {
   if (isBoned(ENEMY_ARCHETYPES[death.archetypeId])) {
-    return { blobs: [], sprites: [skeletonDeathSprite(context, death, options.display)] };
+    // A death with no clip projects nothing. The bones already went everywhere when it was killed.
+    const sprite = skeletonDeathSprite(context, death, options.display);
+    return { blobs: [], sprites: sprite ? [sprite] : [] };
   }
 
   if (death.cause === "splattered") {
@@ -1932,6 +1948,7 @@ const PARTICLE_COLORS: Readonly<Record<DemoParticleKind, readonly [number, numbe
   dust: [178, 162, 182],
   ember: [255, 172, 78],
   splash: [162, 206, 232],
+  bone: [226, 218, 196],
 };
 
 /** Everything small and numerous, as flat dots rather than sprites. */

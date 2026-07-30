@@ -33,18 +33,23 @@ from primitives import (  # noqa: E402  (the path has to be set before this impo
 # was drawn per pixel. That gap was the whole complaint.
 PICKUP_SIZE = 512
 DIRECTIONS = 8
-SAMPLES = 8
-CLIP_DURATIONS = {
-    "idle": 24,
-    "walk": 24,
-    "attack": 24,
-    "hurt": 16,
-    "block": 20,
-    "death": 24,
-    "death-sever-right": 24,
-    "death-blasted": 24,
-    "death-impaled": 24,
-    "death-drowned": 24,
+# Each clip, as the animation length it is authored at and the number of frames baked out of it.
+#
+# The two are separate on purpose. Length is what makes the motion read in Blender; samples are what
+# the atlas pays for. A body driven into masonry holds one pose and needs one sample of a movement
+# that still has to be animated to arrive at that pose, and a death opened by a blade reads in four.
+# Sampling one takes the clip's last frame, which is the pose it is held at.
+CLIP_FRAMES = {
+    "idle": (24, 8),
+    "walk": (24, 8),
+    "attack": (24, 8),
+    "hurt": (16, 8),
+    "block": (20, 8),
+    "death-collapse": (24, 8),
+    "death-drowning": (24, 8),
+    "death-cleaved": (24, 4),
+    "death-slammed": (16, 1),
+    "death-impaled": (24, 1),
 }
 PoseTransform = dict[str, dict[str, tuple[float, float, float]]]
 
@@ -288,8 +293,8 @@ def create_actions(rig: bpy.types.Object) -> dict[str, bpy.types.Action]:
                 (20, {}),
             ),
         ),
-        "death": create(
-            "death",
+        "death-collapse": create(
+            "death-collapse",
             (
                 (1, {}),
                 (7, {"root": {"rotation": (-0.25, 0, 0.18)}, "spine": {"rotation": (-0.3, 0, -0.2)}}),
@@ -313,55 +318,70 @@ def create_actions(rig: bpy.types.Object) -> dict[str, bpy.types.Action]:
                 ),
             ),
         ),
-        "death-sever-right": create(
-            "death-sever-right",
+        "death-cleaved": create(
+            "death-cleaved",
             (
                 (1, {}),
                 (
-                    7,
+                    8,
                     {
-                        "root": {"rotation": (-0.22, 0, -0.2)},
-                        "spine": {"rotation": (-0.35, 0.1, 0.3)},
-                        "upper_arm.R": {"rotation": (0.9, 0.4, 0.8)},
-                        "forearm.R": {"rotation": (0.75, 0.1, 0.7)},
+                        "root": {"rotation": (-0.15, 0, -0.32)},
+                        "spine": {"rotation": (-0.2, 0.45, 0.5)},
+                        "head": {"rotation": (0.2, 0.35, -0.4)},
+                        "upper_arm.L": {"rotation": (1.3, 0.5, -1.1)},
+                        "upper_arm.R": {"rotation": (-1.2, -0.5, 1.0)},
                     },
                 ),
                 (
-                    15,
+                    16,
                     {
-                        "root": {"rotation": (-1.05, 0, -0.18), "location": (0, 0, -0.5)},
-                        "upper_arm.R": {"rotation": (1.2, 0.3, 0.9)},
-                        "forearm.R": {"rotation": (0.9, 0, 0.8)},
-                    },
-                ),
-                (24, {"root": {"rotation": (-1.4, 0, -0.2), "location": (0, 0, -0.72)}}),
-            ),
-        ),
-        "death-blasted": create(
-            "death-blasted",
-            (
-                (1, {}),
-                (5, {"root": {"scale": (1.12, 1.12, 1.12)}, "spine": {"rotation": (-0.2, 0.1, 0.2)}}),
-                (
-                    13,
-                    {
-                        "root": {"location": (0, 0, 0.15), "scale": (1.08, 1.08, 1.08)},
-                        "head": {"location": (0.2, 0, 0.32), "rotation": (0.8, 0.5, 0.7)},
-                        "upper_arm.L": {"rotation": (1.7, 0.4, -1.2)},
-                        "upper_arm.R": {"rotation": (-1.6, -0.5, 1.3)},
-                        "thigh.L": {"rotation": (0.9, 0.5, -0.8)},
-                        "thigh.R": {"rotation": (-0.9, -0.5, 0.8)},
+                        "root": {"rotation": (-0.7, 0, -0.5), "location": (0.16, 0, -0.34)},
+                        "spine": {"rotation": (-0.1, 0.9, 0.85), "location": (0.22, 0, 0.1)},
+                        "head": {"rotation": (0.4, 0.6, -0.7), "location": (0.18, 0.1, 0.06)},
+                        "upper_arm.L": {"rotation": (1.9, 0.7, -1.5)},
+                        "upper_arm.R": {"rotation": (-1.7, -0.7, 1.4)},
+                        "thigh.L": {"rotation": (0.5, 0.3, -0.5)},
+                        "thigh.R": {"rotation": (-0.5, -0.3, 0.5)},
                     },
                 ),
                 (
                     24,
                     {
-                        "root": {"location": (0, 0, -0.55), "scale": (0.9, 0.9, 0.9)},
-                        "head": {"location": (0.35, 0.15, 0.45), "rotation": (1.5, 0.8, 1.4)},
-                        "upper_arm.L": {"rotation": (2.2, 0.8, -1.6)},
-                        "upper_arm.R": {"rotation": (-2.0, -0.8, 1.8)},
-                        "thigh.L": {"rotation": (1.5, 0.6, -1.2)},
-                        "thigh.R": {"rotation": (-1.5, -0.6, 1.2)},
+                        "root": {"rotation": (-1.35, 0, -0.55), "location": (0.26, 0, -0.74)},
+                        "spine": {"rotation": (0.1, 1.2, 1.0), "location": (0.42, 0.1, 0.14)},
+                        "head": {"rotation": (0.6, 0.8, -0.9), "location": (0.34, 0.2, 0.1)},
+                        "upper_arm.L": {"rotation": (2.2, 0.9, -1.7)},
+                        "upper_arm.R": {"rotation": (-2.0, -0.9, 1.6)},
+                        "thigh.L": {"rotation": (0.9, 0.4, -0.8)},
+                        "thigh.R": {"rotation": (-0.9, -0.4, 0.8)},
+                    },
+                ),
+            ),
+        ),
+        "death-slammed": create(
+            "death-slammed",
+            (
+                (1, {}),
+                (
+                    6,
+                    {
+                        "root": {"rotation": (0.35, 0, 0.1), "location": (0, 0.18, 0.1)},
+                        "spine": {"rotation": (0.4, 0, -0.1)},
+                        "head": {"rotation": (0.5, 0, 0.15)},
+                        "upper_arm.L": {"rotation": (1.5, 0.3, -1.0)},
+                        "upper_arm.R": {"rotation": (1.4, -0.3, 1.0)},
+                    },
+                ),
+                (
+                    16,
+                    {
+                        "root": {"rotation": (-1.5, 0, 0.12), "location": (0, 0.06, -0.78)},
+                        "spine": {"rotation": (0.25, 0.1, -0.2)},
+                        "head": {"rotation": (0.7, 0.15, 0.3)},
+                        "upper_arm.L": {"rotation": (1.1, 0.4, -0.9)},
+                        "upper_arm.R": {"rotation": (1.0, -0.4, 0.9)},
+                        "thigh.L": {"rotation": (0.6, 0.25, -0.45)},
+                        "thigh.R": {"rotation": (-0.4, -0.25, 0.45)},
                     },
                 ),
             ),
@@ -393,8 +413,8 @@ def create_actions(rig: bpy.types.Object) -> dict[str, bpy.types.Action]:
                 ),
             ),
         ),
-        "death-drowned": create(
-            "death-drowned",
+        "death-drowning": create(
+            "death-drowning",
             (
                 (1, {}),
                 (8, {"root": {"location": (0, 0, -0.2)}, "upper_arm.L": {"rotation": (0.5, 0, -0.4)}}),
@@ -486,18 +506,9 @@ def aim_camera(camera: bpy.types.Object, key: bpy.types.Object, fill: bpy.types.
     look_at(fill, (0, 0, 1.0))
 
 
-def set_sever_visibility(character: list[bpy.types.Object], clip: str, sample: int) -> None:
-    severed = clip == "death-sever-right" and sample >= 3
-
-    for obj in character:
-        part = obj.get("skeleton_part")
-        obj.hide_render = severed and part in {"hand.R", "sword"}
-
-
 def render_frames(
     frames_root: Path,
     rig: bpy.types.Object,
-    character: list[bpy.types.Object],
     actions: dict[str, bpy.types.Action],
     camera: bpy.types.Object,
     key: bpy.types.Object,
@@ -506,20 +517,20 @@ def render_frames(
     scene = bpy.context.scene
     frames_root.mkdir(parents=True, exist_ok=True)
 
-    for clip, duration in CLIP_DURATIONS.items():
+    for clip, (duration, samples) in CLIP_FRAMES.items():
         rig.animation_data.action = actions[clip]
 
         for direction in range(DIRECTIONS):
             aim_camera(camera, key, fill, direction)
 
-            for sample in range(SAMPLES):
-                frame = 1 + round((duration - 1) * sample / (SAMPLES - 1))
+            for sample in range(samples):
+                # A single-sample clip is the pose the body is left in, which is the end of it. There
+                # is nothing to spread across, and dividing by the gap between samples would be a
+                # division by zero besides.
+                frame = duration if samples == 1 else 1 + round((duration - 1) * sample / (samples - 1))
                 scene.frame_set(frame)
-                set_sever_visibility(character, clip, sample)
                 scene.render.filepath = str(frames_root / f"{clip}-{direction}-{sample}.png")
                 bpy.ops.render.render(write_still=True)
-
-    set_sever_visibility(character, "idle", 0)
 
 
 def render_pickups(
@@ -645,7 +656,7 @@ def main() -> None:
         export_nla_strips=False,
     )
 
-    render_frames(args.frames_root, rig, character, actions, camera, key, fill)
+    render_frames(args.frames_root, rig, actions, camera, key, fill)
     render_pickups(runtime_root, rig, character, assigned, camera, key, fill, args.frame_size)
 
 

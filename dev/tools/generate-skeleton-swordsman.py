@@ -15,17 +15,23 @@ from pathlib import Path
 # buys is motion, and a clip with none in it pays the same memory for eight copies of one pose. The
 # runtime half of this table is `src/content/enemies/skeleton-swordsman-definitions.ts`, and the two
 # must agree or the image loader refuses the sheet at startup.
-CLIP_FRAMES = {
+#
+# The two tables are also two destinations. What a type privately owns is the clips its own weapon is
+# in, and those land under its own directory; how a body dies is the same performance whichever
+# weapon it was carrying, so the deaths are baked once and land in the shared one.
+ACTION_FRAMES = {
     "idle": 8,
     "walk": 8,
     "attack": 8,
     "hurt": 8,
     "block": 8,
-    "death": 8,
-    "death-sever-right": 8,
-    "death-blasted": 8,
-    "death-impaled": 8,
-    "death-drowned": 8,
+}
+DEATH_FRAMES = {
+    "death-collapse": 8,
+    "death-drowning": 8,
+    "death-cleaved": 4,
+    "death-slammed": 1,
+    "death-impaled": 1,
 }
 # Three sizes, and they are not the same number.
 #
@@ -58,13 +64,12 @@ def run(command: list[str]) -> None:
         raise RuntimeError(f"command failed with exit code {completed.returncode}: {' '.join(command)}")
 
 
-def bake_atlas(magick: str, frames_root: Path, runtime_root: Path, clip: str, frames: int) -> Path:
+def bake_atlas(magick: str, frames_root: Path, target: Path, clip: str, frames: int) -> Path:
     sources = [
         str(frames_root / f"{clip}-{direction}-{frame}.png")
         for direction in range(DIRECTIONS)
         for frame in range(frames)
     ]
-    target = runtime_root / f"skeleton-swordsman-atlas-{clip}.png"
     run(
         [
             magick,
@@ -113,8 +118,10 @@ def main() -> int:
     implementation = repository_root / "dev" / "tools" / "skeleton-swordsman" / "build.py"
     source_root = repository_root / "assets" / "enemies" / "skeleton-swordsman"
     runtime_root = repository_root / "src" / "content" / "enemies" / "assets" / "skeleton-swordsman"
+    shared_root = repository_root / "src" / "content" / "enemies" / "assets" / "skeleton-common"
     source_root.mkdir(parents=True, exist_ok=True)
     runtime_root.mkdir(parents=True, exist_ok=True)
+    shared_root.mkdir(parents=True, exist_ok=True)
 
     blender = require_tool(
         "blender",
@@ -142,8 +149,15 @@ def main() -> int:
         )
 
         atlases = {
-            clip: bake_atlas(magick, frames_root, runtime_root, clip, frames) for clip, frames in CLIP_FRAMES.items()
+            clip: bake_atlas(magick, frames_root, runtime_root / f"skeleton-swordsman-atlas-{clip}.png", clip, frames)
+            for clip, frames in ACTION_FRAMES.items()
         }
+        atlases.update(
+            {
+                clip: bake_atlas(magick, frames_root, shared_root / f"skeleton-{clip}.png", clip, frames)
+                for clip, frames in DEATH_FRAMES.items()
+            }
+        )
 
     extract_still(
         magick,
@@ -174,13 +188,15 @@ def main() -> int:
             capture_output=True,
             text=True,
         )
-        expected = f"{CLIP_FRAMES[clip] * TILE_SIZE}x{DIRECTIONS * TILE_SIZE}"
+        frames = ACTION_FRAMES.get(clip) or DEATH_FRAMES[clip]
+        expected = f"{frames * TILE_SIZE}x{DIRECTIONS * TILE_SIZE}"
 
         if identify.stdout != expected:
             raise RuntimeError(f"unexpected atlas dimensions for {atlas}: {identify.stdout}, expected {expected}")
 
     print(f"Skeleton source: {source_root / 'skeleton-swordsman.blend'}")
     print(f"Runtime atlases: {runtime_root}")
+    print(f"Shared deaths: {shared_root}")
     return 0
 
 

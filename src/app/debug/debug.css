@@ -1014,10 +1014,10 @@ textarea {
   font-weight: 800;
 }
 
-/* Present, but reached by borrowing another state's artwork. Neither a gap nor a clean answer. */
-.debug-page td[data-state="shared"] {
-  background: repeating-linear-gradient(-45deg, rgb(255 205 125 / 9%) 0 0.4rem, transparent 0.4rem 0.8rem);
-  color: var(--debug-warning);
+/* Absent artwork that is absent on purpose. Reading it as a gap is a permanent false alarm. */
+.debug-page td[data-state="procedural"] {
+  background: repeating-linear-gradient(-45deg, rgb(150 190 255 / 8%) 0 0.4rem, transparent 0.4rem 0.8rem);
+  color: var(--debug-info);
   font-weight: 800;
 }
 

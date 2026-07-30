@@ -168,13 +168,12 @@ The workbench is the only place any of this is verified, since the demo half tak
 
 ### Child overview
 
-| Child | Focus                                                                      |
-| ----- | -------------------------------------------------------------------------- |
-| 04    | The shared death set, the bone burst, and the workbench's procedural state |
-| 05    | The private action set, the three attack clips, a parameterised generator  |
-| 06    | The hammer-bearer, the javelineer, and the crossbowman                     |
+| Child | Focus                                                                     |
+| ----- | ------------------------------------------------------------------------- |
+| 05    | The private action set, the three attack clips, a parameterised generator |
+| 06    | The hammer-bearer, the javelineer, and the crossbowman                    |
 
-Landing order is 04 through 06. Children 04 and 05 are the two re-bakes and are independent of each other. Child 06 needs 04 and 05 together, because a new type is an action set plus a band.
+Landing order is 05 then 06. Child 06 needs 05, because a new type is an action set plus a band.
 
 ## Non-Goals
 
@@ -210,22 +209,6 @@ Landing order is 04 through 06. Children 04 and 05 are the two re-bakes and are 
 Coordinates recorded against the codebase as it stands when this plan was written. Re-check each one against the live code before executing its child; a stale line here is expected as earlier children land. Each subsection is cut when its child ships, in the same change that cuts its row from the child overview.
 
 **What children 04 and 05 deliver is structure, not finished animation.** Both bake atlases, and the poses in the first bake are provisional by agreement: what those children own is the clip tables, the per-clip dimensions, the projection and precedence, the parameterised generator, and a bake that runs end to end. Judging whether a pose reads is a separate pass through the entity workbench against Acceptance Criteria 4, 5, and 12, and it is expected to replace keyframes rather than confirm them. Nothing in either child should be read as a claim that the artwork is right.
-
-### 04 — The shared death set
-
-Clip ids: `SkeletonSwordsmanAnimationId` (line 16) splits. Shared deaths become `SkeletonDeathId` = `collapse | drowning | cleaved | slammed | impaled`, with `blasted` deliberately absent from the union because it has no atlas. Asset ids move from `enemy.skeletonSwordsman.atlas.*` to `enemy.skeleton.death.*`, and the files to `src/content/enemies/assets/skeleton-common/`.
-
-`skeletonDeathAnimation` at `src/demo/demo-scene.ts` line 620 becomes a lookup returning `SkeletonDeathId | undefined`, with `undefined` for `blasted`. `skeletonDeathSprite` (line 649) returns `RenderSprite | undefined`; its caller drops a nothing. The `drowning` branch at 661 and `drownedCorpseStage` stay as they are.
-
-`carriedSkeletonSprite` (line 682) uses the impaled pose. `animationFrame(animation, 0.62)` at line 705 becomes column 0 — one frame, no magic number.
-
-Delete `skeletonDrop` at `src/demo/world.ts` line 797 outright. Nothing replaces it inside this child; child 06 brings the unified table.
-
-`dev/tools/skeleton-swordsman/build.py`: `CLIP_DURATIONS` (line 37) loses `death-sever-right`; the remaining death actions are rewritten — `death` and `death-drowned` keep 24 frames sampled 8 times, `death-cleaved` samples 4, `death-slammed` and `death-impaled` sample 1 at their held pose. `set_sever_visibility` (line 489) and its two call sites (518, 522) are deleted; a one-frame or four-frame clip has no third sample to hide a hand at.
-
-Bone burst: a new emitter beside the existing `burst` in `src/demo/particles.ts`, called from the single kill exit in `src/demo/world.ts` rather than from each cause, taking the cause to decide count and spread. Six to eight fragments, no props created, nothing collectable. The skull and femur stills already exist as 512-square assets and can be the fragment art.
-
-Workbench, `src/app/debug/entity-workbench.ts`: `CoverageState` (line 62) gains `procedural`; `deathCoverage` (line 472) drops its shared-shape grouping — with one clip per cause nothing can collide — and reports `procedural` where the projection is empty by design, which needs an explicit list rather than inferring it from emptiness. `marksTheWall` (line 523) must now expect no wall placement for a boned body, and `hangsOnIron` (line 530) must expect a frozen pose rather than a lifted anchor. Both are assertions about the old behaviour and both are wrong after this child.
 
 ### 05 — The private action set
 

@@ -28,7 +28,7 @@ import {
   type DemoCell,
   type DemoMaze,
 } from "@/demo/maze";
-import { burst, createParticleField, type DemoParticleField } from "@/demo/particles";
+import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/demo/particles";
 import type { DemoPropKind, DemoThrowKind } from "@/demo/throw-weight";
 
 /** A grid coordinate as the demo passes it around; structurally the same as the maze's own cell. */
@@ -825,35 +825,6 @@ export function markDamageFrom(world: DemoWorld, amount: number, fromX: number, 
   }
 }
 
-function skeletonDrop(cause: DemoDeathCause): DemoPropKind {
-  if (cause === "cleaved") {
-    return "skeletonSword";
-  }
-
-  if (cause === "blasted") {
-    return "skeletonFemur";
-  }
-
-  if (cause === "impaled") {
-    return "skeletonSword";
-  }
-
-  if (cause === "splattered") {
-    return "skeletonFemur";
-  }
-
-  if (cause === "drowned") {
-    return "skeletonSkull";
-  }
-
-  if (cause === "slain") {
-    return "skeletonSkull";
-  }
-
-  cause satisfies never;
-  throw new Error("unknown skeleton death cause");
-}
-
 /**
  * Puts one loose prop on the floor, at the point asked for or the nearest side of it that is not
  * masonry.
@@ -880,21 +851,6 @@ export function dropProp(world: DemoWorld, kind: DemoPropKind, x: number, y: num
   }
 
   world.props.push({ id: nextId(world, "prop"), kind, count: 1, x: placedX, y: placedY });
-}
-
-/** The piece a body leaves behind, put down beside it rather than under it. */
-function dropNearEnemy(world: DemoWorld, enemy: DemoEnemy, kind: DemoPropKind): void {
-  for (const offset of [Math.PI / 2, -Math.PI / 2, Math.PI, 0]) {
-    const candidateX = enemy.x + Math.cos(enemy.facingAngle + offset) * 0.42;
-    const candidateY = enemy.y + Math.sin(enemy.facingAngle + offset) * 0.42;
-
-    if (!blocksWalk(world.maze, Math.floor(candidateX), Math.floor(candidateY))) {
-      dropProp(world, kind, candidateX, candidateY);
-      return;
-    }
-  }
-
-  dropProp(world, kind, enemy.x, enemy.y);
 }
 
 /**
@@ -997,6 +953,37 @@ function swallowIntoPool(world: DemoWorld, enemy: DemoEnemy): void {
  * Drowning, a stick through the chest, a bomb — all of them come here, so the drop chance and the
  * blessing payout cannot end up applying to some kill routes and not others.
  */
+/**
+ * How hard a death threw the body apart, from a quiet collapse to a bomb.
+ *
+ * Drowning is the one that scatters nothing: a body going under does not come apart, it sinks, and
+ * bones thrown off it would arrive above the water it just disappeared into.
+ */
+function deathViolence(cause: DemoDeathCause): number {
+  if (cause === "blasted") {
+    return 1;
+  }
+
+  if (cause === "cleaved" || cause === "splattered") {
+    return 0.65;
+  }
+
+  if (cause === "impaled") {
+    return 0.3;
+  }
+
+  if (cause === "drowned") {
+    return 0;
+  }
+
+  if (cause === "slain") {
+    return 0.25;
+  }
+
+  cause satisfies never;
+  throw new Error("unknown skeleton death cause");
+}
+
 export function killEnemy(
   world: DemoWorld,
   enemy: DemoEnemy,
@@ -1024,14 +1011,10 @@ export function killEnemy(
   world.kills += 1;
 
   if (isBoned(enemy.archetype)) {
-    burst(world.particles, "stoneChip", enemy.x, enemy.y, 0.7, 16, {
-      speed: 2.8,
-      spreadZ: 2.6,
-      gravity: 10,
-      drag: 1,
-      size: 0.055,
-      life: 1.2,
-    });
+    // Called here rather than from each cause, so every route out of the world scatters the same
+    // bones and none of them can be forgotten. How hard is the cause's business; what comes off the
+    // body is not.
+    shatterBones(world.particles, enemy.x, enemy.y, deathViolence(cause));
     burst(world.particles, "dust", enemy.x, enemy.y, 0.55, 5, {
       speed: 1.1,
       spreadZ: 1.4,
@@ -1040,7 +1023,6 @@ export function killEnemy(
       size: 0.12,
       life: 0.8,
     });
-    dropNearEnemy(world, enemy, skeletonDrop(cause));
   } else {
     burst(world.particles, "blood", enemy.x, enemy.y, 0.34, 18, {
       speed: 2.6,

@@ -10,7 +10,10 @@ import {
   parseEntityDisplays,
   type EntityDisplay,
 } from "@/content/enemies/entity-display-schema";
-import { SKELETON_SWORDSMAN_ANIMATIONS } from "@/content/enemies/skeleton-swordsman-definitions";
+import {
+  SKELETON_DEATH_ANIMATIONS,
+  SKELETON_SWORDSMAN_ANIMATIONS,
+} from "@/content/enemies/skeleton-swordsman-definitions";
 import {
   POOL_FILL,
   projectCarriedDemoEnemy,
@@ -64,7 +67,17 @@ type EntityBodyState = "idle" | "walk" | "attack" | "hurt" | "block" | "dying";
 
 type WallFace = "north" | "east" | "south" | "west";
 
-type CoverageState = "available" | "shared" | "missing";
+/**
+ * What the matrix found for one cell.
+ *
+ * `procedural` is the third state, and it exists because absence is now sometimes the design. A body
+ * a bomb reached has no corpse clip on purpose — the death is entirely a burst of bones — and a
+ * matrix that reads every empty projection as a gap would show that one as a permanent false alarm.
+ *
+ * There is no `shared` any more. Every situation owns its own clip, so nothing is borrowed and
+ * nothing can report as borrowed.
+ */
+type CoverageState = "available" | "procedural" | "missing";
 
 type EntityWorkbenchState = {
   archetypeId: DemoArchetypeId;
@@ -474,32 +487,35 @@ function livingCoverage(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityB
   return projectionShape(probe) === projectionShape(livingProbe(archetypeId, "idle")) ? "missing" : "available";
 }
 
-/** Every death cause of one body, grouped by what it actually projects to. */
+/**
+ * The deaths a boned body is meant to project nothing for.
+ *
+ * Written down rather than inferred from the empty projection, because those two cases look
+ * identical from here and only one of them is finished. A list that has to be edited is the point:
+ * adding a cause to it is a decision, and forgetting to add one shows up as a gap.
+ */
+const PROCEDURAL_BONED_DEATHS: readonly DemoDeathCause[] = ["blasted"];
+
+/** Every death cause of one body, and whether it has a picture of its own. */
 function deathCoverage(
   archetypeId: DemoArchetypeId,
 ): Map<DemoDeathCause, Readonly<{ state: CoverageState; note: string }>> {
-  const shapes = new Map<DemoDeathCause, string>();
+  const boned = isBoned(ENEMY_ARCHETYPES[archetypeId]);
   const found = new Map<DemoDeathCause, Readonly<{ state: CoverageState; note: string }>>();
 
   for (const cause of DEATH_CAUSES) {
     const probe = projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, cause, PROBE_PROGRESS));
-    shapes.set(cause, isEmpty(probe) ? "" : projectionShape(probe));
-  }
 
-  for (const cause of DEATH_CAUSES) {
-    const shape = shapes.get(cause);
-
-    if (!shape) {
-      found.set(cause, { state: "missing", note: "Missing — placeholder" });
+    if (!isEmpty(probe)) {
+      found.set(cause, { state: "available", note: "Available" });
       continue;
     }
 
-    const sharedWith = DEATH_CAUSES.filter((other) => other !== cause && shapes.get(other) === shape);
     found.set(
       cause,
-      sharedWith.length > 0
-        ? { state: "shared", note: `Shared with ${sharedWith.join(", ")}` }
-        : { state: "available", note: "Available" },
+      boned && PROCEDURAL_BONED_DEATHS.includes(cause)
+        ? { state: "procedural", note: "Procedural — bones only" }
+        : { state: "missing", note: "Missing — placeholder" },
     );
   }
 
@@ -525,19 +541,37 @@ function sinksInWater(archetypeId: DemoArchetypeId): boolean {
   );
 }
 
-/** Whether ending against masonry leaves anything on the masonry. */
-function marksTheWall(archetypeId: DemoArchetypeId): boolean {
-  return projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, "splattered", PROBE_PROGRESS)).sprites.some(
-    (sprite) => sprite.placement === "wall",
-  );
+/**
+ * Whether a death has a depiction of its own rather than falling back on the ordinary one.
+ *
+ * The two situation probes below used to assert the shape a soft body takes: a mark left on the
+ * masonry, and a body held off the floor by the iron. Both are wrong for a skeleton and deliberately
+ * so — bones do not stain a wall, and a body run through is a frozen pose rather than a lifted one —
+ * so a probe written that way reports a finished death as a gap. What both actually want to know is
+ * whether the situation is depicted at all.
+ */
+function depictsDeath(archetypeId: DemoArchetypeId, cause: DemoDeathCause): boolean {
+  const probe = projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, cause, PROBE_PROGRESS));
+
+  if (isEmpty(probe)) {
+    return false;
+  }
+
+  return projectionShape(probe) !== projectionShape(deathProbe(archetypeId, "slain"));
 }
 
-/** Whether being run through holds the body off the floor instead of laying it on it. */
-function hangsOnIron(archetypeId: DemoArchetypeId): boolean {
-  const projection = projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, "impaled", PROBE_PROGRESS));
-  return (
-    projection.blobs.some((blob) => blob.sink > 0) || projection.sprites.some((sprite) => sprite.verticalAnchor < 0)
-  );
+function deathProbe(archetypeId: DemoArchetypeId, cause: DemoDeathCause): DemoEntityProjection {
+  return projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, cause, PROBE_PROGRESS));
+}
+
+/** Whether ending against masonry is shown as something other than an ordinary death. */
+function endsAgainstMasonry(archetypeId: DemoArchetypeId): boolean {
+  return depictsDeath(archetypeId, "splattered");
+}
+
+/** Whether being run through is shown as something other than an ordinary death. */
+function runThrough(archetypeId: DemoArchetypeId): boolean {
+  return depictsDeath(archetypeId, "impaled");
 }
 
 /** Whether a carried body follows the shaft it is on when the throw is pitched. */
@@ -558,8 +592,8 @@ function probeProjectile(arc: number): DemoProjectile {
 
 const SITUATION_COVERAGE: readonly Readonly<{ label: string; holds: (archetypeId: DemoArchetypeId) => boolean }>[] = [
   { label: "Sinks in water", holds: sinksInWater },
-  { label: "Marks the wall", holds: marksTheWall },
-  { label: "Hangs on iron", holds: hangsOnIron },
+  { label: "Ends against masonry", holds: endsAgainstMasonry },
+  { label: "Run through", holds: runThrough },
   { label: "Rides the shaft", holds: ridesTheShaft },
 ];
 
@@ -687,8 +721,13 @@ function timelineFrames(state: EntityWorkbenchState): number {
   // A clip is scrubbed at its own width, which is why the cause has to be resolved here rather than
   // answered with one number for the whole set: a death held on a single pose and a death that runs
   // eight frames are both correct, and a scrubber that splits either into eight is not.
-  const clip = state.bodyState === "dying" ? skeletonDeathAnimation(state.deathCause) : state.bodyState;
-  return SKELETON_SWORDSMAN_ANIMATIONS[clip].frames;
+  if (state.bodyState !== "dying") {
+    return SKELETON_SWORDSMAN_ANIMATIONS[state.bodyState].frames;
+  }
+
+  // A death with no clip has nothing to step through, which is exactly what a blasted body is.
+  const clip = skeletonDeathAnimation(state.deathCause);
+  return clip === undefined ? 0 : SKELETON_DEATH_ANIMATIONS[clip].frames;
 }
 
 function livingProjection(
@@ -709,7 +748,7 @@ function livingProjection(
   // The preview forces the named clip so it can be stepped; the coverage table deliberately does not.
   const display = previewDisplay(state);
   const projected = projectDemoEnemy(context, enemy, {
-    skeletonAnimation: { animation: bodyState, progress },
+    skeletonAnimation: { animation: SKELETON_SWORDSMAN_ANIMATIONS[bodyState], progress },
     display,
   });
   // The mark is built by the game's own placement function rather than recomputed here, so what the
@@ -1330,8 +1369,8 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
         notes.push(finding.note.toLowerCase());
       }
 
-      if (state.situation === "wall" && !marksTheWall(state.archetypeId)) {
-        notes.push("this body leaves no mark on masonry, so the wall stays clean by design");
+      if (state.situation === "wall" && isBoned(ENEMY_ARCHETYPES[state.archetypeId])) {
+        notes.push("bones do not stain, so a body driven into masonry is a heap at the foot of a clean wall");
       }
     } else if (livingCoverage(state.archetypeId, state.bodyState) === "missing") {
       notes.push(`no ${state.bodyState} of its own — the preview shows a placeholder instead of falling back to idle`);

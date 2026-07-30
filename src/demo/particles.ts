@@ -7,7 +7,7 @@
  * gets busy.
  */
 
-export type DemoParticleKind = "blood" | "stoneChip" | "woodChip" | "dust" | "ember" | "splash";
+export type DemoParticleKind = "blood" | "stoneChip" | "woodChip" | "dust" | "ember" | "splash" | "bone";
 
 export type DemoParticle = {
   kind: DemoParticleKind;
@@ -105,6 +105,29 @@ export function burst(
       landed: false,
     });
   }
+}
+
+/**
+ * A body coming apart, thrown outward from where it stood.
+ *
+ * Four of the six deaths lean on this rather than on baked frames: a cleaved body needs its halves
+ * separating, a blasted one is nothing but the scatter, and the two held poses are single frames
+ * with the bones doing the rest of the work. `violence` is how hard the death threw them — a bomb
+ * sends them further and higher than a blade does — and it is the only thing that varies, because
+ * the fragments themselves are the same bones whatever took them off the body.
+ *
+ * Fragments only. Nothing here becomes a prop and nothing here can be picked up: what killing a
+ * skeleton is worth is one drop table and this is not it.
+ */
+export function shatterBones(field: DemoParticleField, x: number, y: number, violence: number): void {
+  burst(field, "bone", x, y, 0.62, 6 + Math.round(violence * 2), {
+    speed: 2.4 + violence * 3.4,
+    spreadZ: 2.2 + violence * 1.6,
+    gravity: 11,
+    drag: 0.9,
+    size: 0.09,
+    life: 1.3,
+  });
 }
 
 export type ParticleLanding = Readonly<{ kind: DemoParticleKind; x: number; y: number }>;
