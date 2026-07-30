@@ -339,6 +339,14 @@ export type RenderEmitter = Readonly<{
   y: number;
   kind: "embers" | "steam";
   density: number;
+  /**
+   * Overrides the colour the kind is drawn in, leaving its size, drift, and fade alone.
+   *
+   * The kind says how a plume moves; this says what it is made of. Without the split, smoke that is
+   * not steam-coloured has to be a whole new kind, and a kind that differs from an existing one by
+   * three numbers earns nothing.
+   */
+  color?: readonly [number, number, number];
 }>;
 
 export type RenderScene = Readonly<{

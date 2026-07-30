@@ -678,7 +678,7 @@ export function createDemoWorld(): DemoWorld {
     hitFlash: 0,
     damageMarks: [],
     walkBob: 0,
-    message: "WASD to move - mouse to look - left click attacks - right click grabs - find the altar and the stairs",
+    message: "WASD to move - mouse to look - left click attacks - right click grabs - find the four side rooms",
     messageSeconds: 6,
     pendingCard: undefined,
     nextId: 0,

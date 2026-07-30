@@ -39,10 +39,11 @@ import {
   tileIndex,
 } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
+import { BLESSING_HOLD_SECONDS } from "@/demo/rooms";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
-import type { DemoMaze, DemoTile } from "@/demo/maze";
+import type { DemoMaze, DemoRoom, DemoTile } from "@/demo/maze";
 import {
   hazardHeight,
   MORTAR_LOCK_SECONDS,
@@ -103,8 +104,8 @@ const NIGHT_SKY = {
   moonAngle: 2.1,
 };
 
+/** The only thing on a floor still drawn through a wall, and only once the descent is unlocked. */
 const EXIT_XRAY = { color: [138, 255, 190] as const, alpha: 0.95 };
-const ALTAR_XRAY = { color: [255, 208, 118] as const, alpha: 0.8 };
 
 export type DemoEntityProjectionContext = Readonly<{
   elapsedSeconds: number;
@@ -769,33 +770,25 @@ function sprites(world: DemoWorld): RenderSprite[] {
   const built: RenderSprite[] = [];
   const projectionContext = entityProjectionContext(world);
 
-  // The rune hanging over the altar and the shaft over the stairs are what carry the x-ray outline,
-  // because they sit above the structure and so are what you want to see over a wall.
-  if (world.altar.hp > 0) {
+  // Nothing a side room holds is shown through a wall any more, and the altar's floating rune is gone
+  // with the rest. A floor's business is found by walking into the room that holds it — that is what
+  // the four rooms cost the player, and an outline visible from across the floor refunds it.
+  //
+  // The shaft over the stairs survives, gated on the same task that unlocks the descent: before that
+  // the way down is not a place the player is allowed to know, and after it there is nothing left to
+  // hide.
+  if (world.maze.progress.main.met) {
     built.push({
-      id: "demo-altar-rune",
-      x: world.altar.x,
-      y: world.altar.y,
+      id: "demo-exit-shaft",
+      x: world.maze.exit.x + 0.5,
+      y: world.maze.exit.y + 0.5,
       placement: "billboard",
-      assetId: DEMO_ASSET_IDS.rune,
-      // Shrinks back towards the stone as the altar is broken, so the thing you can see through a
-      // wall says how many swings are left in it rather than only that one is there.
-      scale: 0.24 + altarShare(world) * 0.14,
-      verticalAnchor: -0.72 - Math.sin(world.elapsedSeconds * 1.7) * 0.05,
-      xray: ALTAR_XRAY,
+      assetId: DEMO_ASSET_IDS.shaft,
+      scale: 1.4,
+      verticalAnchor: -0.36,
+      xray: EXIT_XRAY,
     });
   }
-
-  built.push({
-    id: "demo-exit-shaft",
-    x: world.maze.exit.x + 0.5,
-    y: world.maze.exit.y + 0.5,
-    placement: "billboard",
-    assetId: DEMO_ASSET_IDS.shaft,
-    scale: 1.4,
-    verticalAnchor: -0.36,
-    xray: EXIT_XRAY,
-  });
   built.push(
     ground("demo-entrance", world.maze.entrance.x + 0.5, world.maze.entrance.y + 0.5, DEMO_ASSET_IDS.entrance, 0.9),
   );
@@ -1433,8 +1426,16 @@ function altarShare(world: DemoWorld): number {
   return world.altar.maxHp > 0 ? Math.max(0, world.altar.hp) / world.altar.maxHp : 0;
 }
 
-const ALTAR_STONE: readonly [number, number, number] = [96, 86, 106];
-const ALTAR_RUINED_STONE: readonly [number, number, number] = [58, 52, 68];
+/**
+ * The cursed altar's stone: dark red, and the only red structure on a floor.
+ *
+ * It used to be the same grey-violet as the masonry, which made the one thing on the floor that pays a
+ * curse look like part of the building. Colour is the whole of how the two altars are told apart at a
+ * distance — this one is red and asks to be broken, the pale one is white and asks to be stood in —
+ * because neither carries a label and nothing on the map says which room holds which.
+ */
+const ALTAR_STONE: readonly [number, number, number] = [92, 38, 42];
+const ALTAR_RUINED_STONE: readonly [number, number, number] = [52, 21, 25];
 
 /**
  * Where each piece knocked off an altar comes to rest, in cells from its centre.
@@ -1544,6 +1545,155 @@ function altarBoxes(world: DemoWorld): RenderBox[] {
   return built;
 }
 
+const BLESSING_STONE: readonly [number, number, number] = [226, 224, 232];
+const BLESSING_STONE_LIT: readonly [number, number, number] = [252, 251, 255];
+const SPRING_STONE: readonly [number, number, number] = [138, 164, 186];
+const SPRING_WATER: readonly [number, number, number] = [86, 158, 190];
+const CANISTER_METAL: readonly [number, number, number] = [74, 82, 70];
+
+/**
+ * The blessing altar: a floor to stand on, not a plinth to walk around.
+ *
+ * The shape follows what the thing asks for. Claiming it means holding the middle of the room for five
+ * seconds, so the middle of the room has to be somewhere a player can be — a low pale dais with four
+ * corner posts framing it, rather than the cursed altar's single column, which anyone standing on the
+ * spot would appear to be inside.
+ *
+ * Static on purpose. Structure geometry is cached against the floor, so making the posts rise with the
+ * claim would rebuild every wall on the floor every frame; the claim's progress is a light instead.
+ */
+function blessingAltarBoxes(room: DemoRoom): RenderBox[] {
+  const x = room.center.x + 0.5;
+  const y = room.center.y + 0.5;
+  const built: RenderBox[] = [
+    {
+      id: "blessing-dais",
+      x,
+      y,
+      halfX: 0.86,
+      halfY: 0.86,
+      bottom: 0,
+      top: 0.06,
+      color: BLESSING_STONE,
+      topColor: BLESSING_STONE_LIT,
+    },
+    {
+      id: "blessing-inlay",
+      x,
+      y,
+      halfX: 0.44,
+      halfY: 0.44,
+      bottom: 0.06,
+      top: 0.09,
+      color: BLESSING_STONE_LIT,
+      topColor: BLESSING_STONE_LIT,
+    },
+  ];
+
+  for (const cornerX of [-1, 1]) {
+    for (const cornerY of [-1, 1]) {
+      built.push({
+        id: `blessing-post-${cornerX}-${cornerY}`,
+        x: x + cornerX * 0.78,
+        y: y + cornerY * 0.78,
+        halfX: 0.11,
+        halfY: 0.11,
+        bottom: 0,
+        top: 1.15,
+        color: BLESSING_STONE,
+        topColor: BLESSING_STONE_LIT,
+      });
+    }
+  }
+
+  return built;
+}
+
+/**
+ * The hot spring: a tiered fountain, so it reads as water that is doing something.
+ *
+ * Two basins and a spout. A single pool would read as one more thing on the floor not to walk into,
+ * which is the opposite of what this room is for — the whole of it is that standing in it is good.
+ */
+function hotSpringBoxes(room: DemoRoom): RenderBox[] {
+  const x = room.center.x + 0.5;
+  const y = room.center.y + 0.5;
+  return [
+    { id: "spring-rim", x, y, halfX: 0.92, halfY: 0.92, bottom: 0, top: 0.14, color: SPRING_STONE },
+    {
+      id: "spring-pool",
+      x,
+      y,
+      halfX: 0.78,
+      halfY: 0.78,
+      bottom: 0.14,
+      top: 0.17,
+      color: SPRING_WATER,
+      topColor: litFace(SPRING_WATER),
+    },
+    { id: "spring-plinth", x, y, halfX: 0.4, halfY: 0.4, bottom: 0.17, top: 0.44, color: SPRING_STONE },
+    {
+      id: "spring-bowl",
+      x,
+      y,
+      halfX: 0.52,
+      halfY: 0.52,
+      bottom: 0.44,
+      top: 0.52,
+      color: SPRING_STONE,
+      topColor: litFace(SPRING_STONE),
+    },
+    {
+      id: "spring-basin",
+      x,
+      y,
+      halfX: 0.4,
+      halfY: 0.4,
+      bottom: 0.52,
+      top: 0.55,
+      color: SPRING_WATER,
+      topColor: litFace(SPRING_WATER),
+    },
+    { id: "spring-spout", x, y, halfX: 0.1, halfY: 0.1, bottom: 0.55, top: 1.02, color: SPRING_STONE },
+    {
+      id: "spring-cap",
+      x,
+      y,
+      halfX: 0.2,
+      halfY: 0.2,
+      bottom: 1.02,
+      top: 1.1,
+      color: SPRING_STONE,
+      topColor: litFace(SPRING_STONE),
+    },
+  ];
+}
+
+/**
+ * The extraction room: one canister on the floor, and nothing built.
+ *
+ * A room a run is left from earns no architecture. What marks it is a thing you can only see by having
+ * walked in, which is the point of the room being unmarked everywhere else.
+ */
+function extractionBoxes(room: DemoRoom): RenderBox[] {
+  const x = room.center.x + 0.5;
+  const y = room.center.y + 0.5;
+  return [
+    { id: "extract-canister", x, y, halfX: 0.11, halfY: 0.11, bottom: 0, top: 0.24, color: CANISTER_METAL },
+    {
+      id: "extract-collar",
+      x,
+      y,
+      halfX: 0.14,
+      halfY: 0.14,
+      bottom: 0.24,
+      top: 0.29,
+      color: [96, 108, 92],
+      topColor: [150, 216, 96],
+    },
+  ];
+}
+
 /**
  * The structures that stand up: the altar and the mouth of the stairs.
  *
@@ -1555,6 +1705,22 @@ function boxes(world: DemoWorld): RenderBox[] {
   const built: RenderBox[] = altarBoxes(world);
   const exitX = world.maze.exit.x + 0.5;
   const exitY = world.maze.exit.y + 0.5;
+
+  // Each side room's own fixture. The cursed altar is not here: it is the plinth above, which the floor
+  // already places at that room's centre.
+  for (const room of world.maze.rooms) {
+    if (room.role === "blessingAltar") {
+      built.push(...blessingAltarBoxes(room));
+    }
+
+    if (room.role === "hotSpring") {
+      built.push(...hotSpringBoxes(room));
+    }
+
+    if (room.role === "extraction") {
+      built.push(...extractionBoxes(room));
+    }
+  }
 
   // A dais climbing to a lit landing, rather than a pit descending into one. The depth buffer this
   // renderer keeps is one value per screen column, written only by the walls — the floor is never in
@@ -2315,6 +2481,61 @@ function pushLandingCircle(built: RenderFloorDecal[], x: number, y: number, radi
   });
 }
 
+/**
+ * A light per side-room fixture, and the blessing altar's claim readout.
+ *
+ * Lights are rebuilt every frame while structure geometry is cached against the floor, which is why the
+ * five-second claim is told here rather than by the posts rising: the dais brightens and its pool widens
+ * as the hold accumulates, and goes to full when the claim lands. Leaving the room drops it back to
+ * nothing on the next frame, because the hold itself resets — the readout is the state, not a copy of it.
+ */
+function roomLights(world: DemoWorld): RenderLight[] {
+  const built: RenderLight[] = [];
+
+  for (const room of world.maze.rooms) {
+    const x = room.center.x + 0.5;
+    const y = room.center.y + 0.5;
+
+    if (room.role === "blessingAltar") {
+      const held = world.maze.progress.blessingTaken
+        ? 1
+        : Math.min(1, world.maze.progress.heldSeconds / BLESSING_HOLD_SECONDS);
+      built.push({
+        id: "demo-blessing-light",
+        x,
+        y,
+        radius: 2.6 + held * 3.4,
+        intensity: 0.5 + held * 1.1,
+        color: [244, 246, 255],
+      });
+    }
+
+    if (room.role === "hotSpring") {
+      built.push({
+        id: "demo-spring-light",
+        x,
+        y,
+        radius: 4,
+        intensity: 0.7 + Math.sin(world.elapsedSeconds * 0.9) * 0.08,
+        color: [126, 196, 226],
+      });
+    }
+
+    if (room.role === "extraction") {
+      built.push({
+        id: "demo-extract-light",
+        x,
+        y,
+        radius: 3.6,
+        intensity: 0.8 + Math.sin(world.elapsedSeconds * 2.4) * 0.16,
+        color: [130, 240, 74],
+      });
+    }
+  }
+
+  return built;
+}
+
 function lights(world: DemoWorld): RenderLight[] {
   // The torch the player is carrying, as an actual light in the world rather than a screen effect —
   // so it pools on the floor around them, throws their surroundings into relief, and dies out at a
@@ -2349,9 +2570,11 @@ function lights(world: DemoWorld): RenderLight[] {
       y: world.altar.y,
       radius: 3.2 + left * 1.4,
       intensity: (0.85 + Math.sin(world.elapsedSeconds * 1.6) * 0.15) * (0.55 + left * 0.45),
-      color: [255, 206, 128],
+      color: [214, 62, 58],
     });
   }
+
+  built.push(...roomLights(world));
 
   for (const hazard of world.hazards) {
     built.push({
@@ -2486,7 +2709,23 @@ function emitters(world: DemoWorld): RenderEmitter[] {
       y: world.altar.y,
       kind: "embers",
       density: Math.max(2, Math.round(altarShare(world) * 7)),
+      color: [236, 74, 66],
     });
+  }
+
+  for (const room of world.maze.rooms) {
+    const x = room.center.x + 0.5;
+    const y = room.center.y + 0.5;
+
+    if (room.role === "hotSpring") {
+      built.push({ id: "demo-spring-steam", x, y, kind: "steam", density: 10 });
+    }
+
+    // A canister venting rather than a fountain of it: the plume drifts like steam and is the wrong
+    // colour for anything else on a floor, so green in the air means one thing only.
+    if (room.role === "extraction") {
+      built.push({ id: "demo-extract-smoke", x, y, kind: "steam", density: 14, color: [136, 238, 78] });
+    }
   }
 
   return built;
