@@ -1,6 +1,7 @@
 import { AUTHORING_API_ROOT, type AuthoringTargetId } from "../../../../../dev/tools/authoring/api-contract";
 import { handleAuthoringRequest, type AuthoringDependencies } from "../../../../../dev/tools/authoring/authoring-api";
 import { generateFloorSet } from "../../../../../dev/tools/floor-set/generator";
+import entityDisplayJson from "@/content/enemies/entity-display.json";
 import decorPresetsJson from "@/content/presentation/decor-presets.json";
 import { MELEE_ATTACKS } from "@/content/viewmodel/melee-viewmodel";
 import { describe, expect, it, vi } from "vitest";
@@ -8,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 function createDependencies(): AuthoringDependencies & Readonly<{ writeCanonical: ReturnType<typeof vi.fn> }> {
   const sources: Readonly<Record<AuthoringTargetId, unknown>> = {
     decor: decorPresetsJson,
+    entityDisplay: entityDisplayJson,
     floorSet: generateFloorSet({ seed: 1, floorCount: 1 }),
     meleeAttacks: MELEE_ATTACKS,
   };

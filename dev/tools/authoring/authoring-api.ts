@@ -5,6 +5,7 @@ import { AUTHORING_API_ROOT, CANONICAL_AUTHORING_PATHS, type AuthoringTargetId }
 import { generateFloorSet } from "../floor-set/generator";
 import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet } from "@/content/floor/floor-validation";
+import { parseEntityDisplays } from "@/content/enemies/entity-display-schema";
 import { parseDecorPresets } from "@/content/presentation/decor-preset-schema";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
 
@@ -94,6 +95,15 @@ function validateSource(target: AuthoringTargetId, source: unknown): unknown {
       return parseDecorPresets(source);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Decor preset validation failed.";
+      throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
+    }
+  }
+
+  if (target === "entityDisplay") {
+    try {
+      return parseEntityDisplays(source);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Entity display validation failed.";
       throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
     }
   }

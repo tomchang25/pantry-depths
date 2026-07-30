@@ -1,0 +1,37 @@
+[
+  {
+    "appearanceId": "greenSlime",
+    "bodyScale": 0.345,
+    "markerOffset": 0.08
+  },
+  {
+    "appearanceId": "yellowSlime",
+    "bodyScale": 0.46,
+    "markerOffset": 0.08
+  },
+  {
+    "appearanceId": "blueSlime",
+    "bodyScale": 0.54,
+    "markerOffset": 0.08
+  },
+  {
+    "appearanceId": "redSlime",
+    "bodyScale": 0.4,
+    "markerOffset": 0.08
+  },
+  {
+    "appearanceId": "purpleSlime",
+    "bodyScale": 0.46,
+    "markerOffset": 0.08
+  },
+  {
+    "appearanceId": "skeletonSwordsman",
+    "bodyScale": 0.95,
+    "markerOffset": 0.08
+  },
+  {
+    "appearanceId": "placeholder",
+    "bodyScale": 0.46,
+    "markerOffset": 0.08
+  }
+]

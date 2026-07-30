@@ -8,6 +8,8 @@
  */
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import entityDisplayJson from "@/content/enemies/entity-display.json";
+import { parseEntityDisplays, type EntityDisplay } from "@/content/enemies/entity-display-schema";
 import {
   SKELETON_SWORDSMAN_ANIMATIONS,
   SKELETON_SWORDSMAN_DIRECTIONS,
@@ -283,14 +285,25 @@ const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
 };
 
 /**
- * How tall an authored skeleton stands, in cells.
+ * The authored display table, and the two questions it answers.
  *
- * Shorter than it was. At its old height the marker over its head sat at the top of the frame from
- * anywhere close enough to matter, and everything it wore had to be placed against the exception
- * rather than the rule. It is still nearly three times a slime, which is what carries the only
- * distinction the size has to make: soft bodies can be picked up and boned ones cannot.
+ * Both numbers used to be literals in this file and both were tuned by editing, rebuilding and
+ * playing — which is why a body's height was guessed at three times running. They are authored content
+ * now, kept beside the enemy table where the structure addendum says sprite scale and anchors belong,
+ * tuned in the entity workbench and saved from it.
+ *
+ * The scene reads them and never writes them, so a display value can never be changed by playing.
  */
-const SKELETON_DISPLAY_SCALE = 0.95;
+const ENTITY_DISPLAYS = parseEntityDisplays(entityDisplayJson);
+
+function entityDisplay(appearance: EnemyAppearanceId): EntityDisplay {
+  return ENTITY_DISPLAYS[appearance];
+}
+
+/** How tall a body drawn from authored artwork stands, in cells. */
+export function bonedDisplayScale(appearance: EnemyAppearanceId): number {
+  return entityDisplay(appearance).bodyScale;
+}
 
 /**
  * How far through going under an authored body is at the moment the water finishes it.
@@ -435,14 +448,15 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
     // than down into the body. The height used to be a single number tuned against a slime, which put
     // the mark across a skeleton's ribs — the same mistake the stun stars already avoid by asking the
     // body how tall it is.
-    verticalAnchor: -(crownHeight(enemy) + 0.08) / scale,
+    verticalAnchor: -(crownHeight(enemy) + entityDisplay(enemy.appearance).markerOffset) / scale,
     ...charge,
   });
 }
 
 /** Where the top of an enemy sits, so anything worn over its head is worn over *its* head. */
 function crownHeight(enemy: DemoEnemy): number {
-  return isBoned(enemy.archetype) ? SKELETON_DISPLAY_SCALE : slimeBody(enemy.appearance).height;
+  const crown = isBoned(enemy.archetype) ? bonedDisplayScale(enemy.appearance) : slimeBody(enemy.appearance).height;
+  return crown;
 }
 
 const STUN_STARS = 3;
@@ -571,7 +585,7 @@ function skeletonSprite(
     y: enemy.y,
     placement: "billboard",
     assetId: definition.assetId,
-    scale: SKELETON_DISPLAY_SCALE,
+    scale: bonedDisplayScale(enemy.appearance),
     verticalAnchor: 0,
     // The same white a slime takes, on the same curve. A skeleton had only its hurt frames to say it
     // had been hit, and against a crowd at speed a frame swap is not an answer to "did that land?".
@@ -631,7 +645,7 @@ function skeletonDeathSprite(context: DemoEntityProjectionContext, death: DemoDe
     y: death.y,
     placement: "billboard",
     assetId: definition.assetId,
-    scale: SKELETON_DISPLAY_SCALE,
+    scale: bonedDisplayScale(death.appearance),
     verticalAnchor: 0,
     submerged: drowning ? stage : 0,
     frame: {
@@ -662,10 +676,10 @@ function carriedSkeletonSprite(
     y,
     placement: "billboard",
     assetId: definition.assetId,
-    scale: SKELETON_DISPLAY_SCALE,
+    scale: bonedDisplayScale(enemy.appearance),
     // Level flight crosses the torso at half a cell, leaving the feet at their normal screen base.
     // A pitched throw raises or lowers the complete skeleton with the same trajectory as the shaft.
-    verticalAnchor: -(projectileHeight(projectile) - 0.5) / SKELETON_DISPLAY_SCALE,
+    verticalAnchor: -(projectileHeight(projectile) - 0.5) / bonedDisplayScale(enemy.appearance),
     frame: {
       column: animationFrame(animation, 0.62),
       row: skeletonDirection(context.camera.angle, enemy.facingAngle),
