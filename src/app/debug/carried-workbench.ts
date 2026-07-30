@@ -12,7 +12,7 @@
  * over there.
  */
 
-import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
+import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createDebugPanel } from "@/app/debug/debug-shell";
 import { createRenderPanel } from "@/app/debug/render-panel";
 import propDisplayJson from "@/content/presentation/prop-display.json";
@@ -126,6 +126,7 @@ export function createCarriedWorkbench(): HTMLElement {
   const actions = document.createElement("div");
   const status = document.createElement("p");
   const saveButton = document.createElement("button");
+  const reloadButton = document.createElement("button");
   const kindSelect = document.createElement("select");
   const kindField = document.createElement("label");
   const kindLabel = document.createElement("span");
@@ -135,6 +136,8 @@ export function createCarriedWorkbench(): HTMLElement {
   status.setAttribute("role", "status");
   saveButton.type = "button";
   saveButton.textContent = "Save carried JSON";
+  reloadButton.type = "button";
+  reloadButton.textContent = "Reload from disk";
   kindField.className = "debug-field";
   kindLabel.textContent = "Prop";
   kindSelect.id = "carried-kind";
@@ -194,28 +197,42 @@ export function createCarriedWorkbench(): HTMLElement {
     },
   );
 
-  kindSelect.addEventListener("change", () => {
-    kind = kindSelect.value as PropKind;
+  function refreshFields(): void {
     handScale.set(displays[kind].handScale);
     handRotation.set(displays[kind].handRotation);
+  }
+
+  kindSelect.addEventListener("change", () => {
+    kind = kindSelect.value as PropKind;
+    refreshFields();
+  });
+
+  // Asked for rather than done to you: the dev server does not watch these files, so that saving one
+  // cannot reload the page out from under whoever is tuning it. This is how a hand edit is picked up, or
+  // how numbers slid but never saved are thrown away.
+  reloadButton.addEventListener("click", () => {
+    reloadButton.disabled = true;
+    status.textContent = "Reading carried JSON from disk…";
+    void loadCanonical("propDisplay")
+      .then((source) => {
+        Object.assign(displays, propDisplaysByKind(parsePropDisplays(source)));
+        refreshFields();
+        status.textContent = "Reloaded carried JSON from disk.";
+      })
+      .catch((error: unknown) => {
+        status.textContent = error instanceof Error ? error.message : String(error);
+      })
+      .finally(() => {
+        reloadButton.disabled = false;
+      });
   });
 
   saveButton.addEventListener("click", () => {
     saveButton.disabled = true;
     status.textContent = "Validating and saving carried JSON…";
-    void fetch(`${AUTHORING_API_ROOT}/propDisplay/save`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ source: Object.values(displays) }),
-    })
-      .then(async (response) => {
-        const body = (await response.json()) as { message?: string };
-
-        if (!response.ok) {
-          throw new Error(body.message ?? `Save failed with ${response.status}.`);
-        }
-
-        status.textContent = body.message ?? "Saved carried JSON.";
+    void saveCanonical("propDisplay", Object.values(displays))
+      .then((message) => {
+        status.textContent = message;
       })
       .catch((error: unknown) => {
         status.textContent = error instanceof Error ? error.message : String(error);
@@ -253,7 +270,7 @@ export function createCarriedWorkbench(): HTMLElement {
   });
 
   grid.append(kindField, stack.field, handScale.field, handRotation.field);
-  actions.append(saveButton);
+  actions.append(saveButton, reloadButton);
   controls.body.append(grid, actions, status);
   root.append(controls.panel, preview.element);
   return root;

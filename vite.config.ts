@@ -4,13 +4,32 @@ import type { IncomingMessage } from "node:http";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
-import { AUTHORING_API_ROOT } from "./dev/tools/authoring/api-contract";
+import { AUTHORING_API_ROOT, CANONICAL_AUTHORING_PATHS } from "./dev/tools/authoring/api-contract";
 
 const AUTHORING_RUNNER_PATH = fileURLToPath(new URL("./node_modules/vite-node/vite-node.mjs", import.meta.url));
 const AUTHORING_SCRIPT_PATH = fileURLToPath(new URL("./dev/tools/run-authoring-request.ts", import.meta.url));
 const FLOOR_TOOL_CONFIG_PATH = fileURLToPath(new URL("./dev/tools/vite-node.config.ts", import.meta.url));
 
 type AuthoringResponse = Readonly<{ status: number; body: unknown }>;
+
+/**
+ * The canonical authored files, which the dev server deliberately does not watch.
+ *
+ * Saving from a workbench writes one of these, and they live under `src/` where a module imports them —
+ * so the write used to look to Vite exactly like an edit. JSON has no hot-update boundary and nothing in
+ * the chain accepts one, so the fallback fired and the whole page reloaded: every slider back to its
+ * loaded value, the selected subject lost, and any other tab reloaded too, including a game mid-run.
+ *
+ * Nothing is given up by not watching them. The endpoint validates before it writes, so a file that
+ * could not be loaded back cannot be written in the first place, and the tool that saved already has the
+ * new values on screen. Reading the file back is a button in each workbench rather than something the
+ * watcher does behind everyone's back.
+ *
+ * Derived from the whitelist so a target added later is covered without anybody remembering to.
+ */
+const UNWATCHED_AUTHORED_FILES = Object.values(CANONICAL_AUTHORING_PATHS).map((path) =>
+  fileURLToPath(new URL(path, import.meta.url)),
+);
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -110,6 +129,9 @@ export default defineConfig({
   server: {
     port: 5273,
     strictPort: true,
+    watch: {
+      ignored: UNWATCHED_AUTHORED_FILES,
+    },
   },
   build: {
     outDir: "dist",

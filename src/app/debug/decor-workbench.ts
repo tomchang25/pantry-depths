@@ -1,4 +1,4 @@
-import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
+import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createDebugPanel } from "@/app/debug/debug-shell";
 import { createRenderPanel } from "@/app/debug/render-panel";
 import decorPresetsJson from "@/content/presentation/decor-presets.json";
@@ -148,6 +148,7 @@ export function createDecorWorkbench(): HTMLElement {
   const verticalAnchorInput = numberInput(0, 0.01);
   const duplicateButton = document.createElement("button");
   const saveButton = document.createElement("button");
+  const reloadButton = document.createElement("button");
   const status = document.createElement("p");
   let presets = [...parseDecorPresets(decorPresetsJson)];
   let selectedIndex = 0;
@@ -163,6 +164,8 @@ export function createDecorWorkbench(): HTMLElement {
   duplicateButton.textContent = "Duplicate as named variant";
   saveButton.type = "button";
   saveButton.textContent = "Save decor presets JSON";
+  reloadButton.type = "button";
+  reloadButton.textContent = "Reload from disk";
   status.className = "decor-workbench-status";
   status.setAttribute("role", "status");
 
@@ -280,19 +283,9 @@ export function createDecorWorkbench(): HTMLElement {
     saveButton.disabled = true;
     status.textContent = "Validating and saving decor presets…";
 
-    void fetch(`${AUTHORING_API_ROOT}/decor/save`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ source: parseDecorPresets(presets) }),
-    })
-      .then(async (response) => {
-        const body = (await response.json()) as { message?: string };
-
-        if (!response.ok) {
-          throw new Error(body.message ?? `Save failed with ${response.status}.`);
-        }
-
-        status.textContent = body.message ?? "Saved decor presets JSON.";
+    void saveCanonical("decor", parseDecorPresets(presets))
+      .then((message) => {
+        status.textContent = message;
       })
       .catch((error: unknown) => {
         status.textContent = error instanceof Error ? error.message : String(error);
@@ -314,7 +307,28 @@ export function createDecorWorkbench(): HTMLElement {
     field("Local offset Y", offsetYInput),
     field("Vertical anchor", verticalAnchorInput),
   );
-  actions.append(duplicateButton, saveButton);
+  // Asked for rather than done to you: the dev server does not watch these files, so that saving one
+  // cannot reload the page out from under whoever is editing it. This is how a hand edit is picked up, or
+  // how an unsaved variant is thrown away.
+  reloadButton.addEventListener("click", () => {
+    reloadButton.disabled = true;
+    status.textContent = "Reading decor presets from disk…";
+    void loadCanonical("decor")
+      .then((source) => {
+        presets = [...parseDecorPresets(source)];
+        selectedIndex = Math.min(selectedIndex, presets.length - 1);
+        refreshInputs();
+        status.textContent = "Reloaded decor presets from disk.";
+      })
+      .catch((error: unknown) => {
+        status.textContent = error instanceof Error ? error.message : String(error);
+      })
+      .finally(() => {
+        reloadButton.disabled = false;
+      });
+  });
+
+  actions.append(duplicateButton, saveButton, reloadButton);
   controls.body.append(grid, actions, status);
 
   const preview = createRenderPanel({

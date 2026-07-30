@@ -11,7 +11,7 @@
  * pile looks like.
  */
 
-import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
+import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createDebugPanel } from "@/app/debug/debug-shell";
 import { createRenderPanel } from "@/app/debug/render-panel";
 import propDisplayJson from "@/content/presentation/prop-display.json";
@@ -213,6 +213,7 @@ export function createPropWorkbench(): HTMLElement {
   const actions = document.createElement("div");
   const status = document.createElement("p");
   const saveButton = document.createElement("button");
+  const reloadButton = document.createElement("button");
   const kindSelect = document.createElement("select");
   const kindField = document.createElement("label");
   const kindLabel = document.createElement("span");
@@ -222,6 +223,8 @@ export function createPropWorkbench(): HTMLElement {
   status.setAttribute("role", "status");
   saveButton.type = "button";
   saveButton.textContent = "Save pickup JSON";
+  reloadButton.type = "button";
+  reloadButton.textContent = "Reload from disk";
   kindField.className = "debug-field";
   kindLabel.textContent = "Prop";
   kindSelect.id = "prop-kind";
@@ -302,29 +305,24 @@ export function createPropWorkbench(): HTMLElement {
 
   kindSelect.addEventListener("change", () => {
     state.kind = kindSelect.value as PropKind;
+    refreshFields();
+  });
+
+  /** Pulls the sliders back to whatever the working table holds for the prop now on screen. */
+  function refreshFields(): void {
     const current = displays[state.kind];
     state.floorScale = current.floorScale;
     state.floorAnchor = current.floorAnchor;
     floorScale.set(state.floorScale);
     floorAnchor.set(state.floorAnchor);
-  });
+  }
 
   saveButton.addEventListener("click", () => {
     saveButton.disabled = true;
     status.textContent = "Validating and saving pickup JSON…";
-    void fetch(`${AUTHORING_API_ROOT}/propDisplay/save`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ source: Object.values(displays) }),
-    })
-      .then(async (response) => {
-        const body = (await response.json()) as { message?: string };
-
-        if (!response.ok) {
-          throw new Error(body.message ?? `Save failed with ${response.status}.`);
-        }
-
-        status.textContent = body.message ?? "Saved pickup JSON.";
+    void saveCanonical("propDisplay", Object.values(displays))
+      .then((message) => {
+        status.textContent = message;
       })
       .catch((error: unknown) => {
         status.textContent = error instanceof Error ? error.message : String(error);
@@ -334,13 +332,33 @@ export function createPropWorkbench(): HTMLElement {
       });
   });
 
+  // Reading the file back is asked for rather than done to you. The dev server no longer watches these
+  // files, precisely so that saving one cannot reload the page out from under whoever is tuning it — so
+  // this is the way to see an edit made by hand, or to throw away numbers slid but never saved.
+  reloadButton.addEventListener("click", () => {
+    reloadButton.disabled = true;
+    status.textContent = "Reading pickup JSON from disk…";
+    void loadCanonical("propDisplay")
+      .then((source) => {
+        Object.assign(displays, propDisplaysByKind(parsePropDisplays(source)));
+        refreshFields();
+        status.textContent = "Reloaded pickup JSON from disk.";
+      })
+      .catch((error: unknown) => {
+        status.textContent = error instanceof Error ? error.message : String(error);
+      })
+      .finally(() => {
+        reloadButton.disabled = false;
+      });
+  });
+
   const preview = createRenderPanel({
     ariaLabel: "Prop workbench live preview",
     frame: () => ({ scene: previewScene(state), preferences: { grade: true } }),
   });
 
   grid.append(kindField, cameraBack.field, stack.field, floorScale.field, floorAnchor.field);
-  actions.append(saveButton);
+  actions.append(saveButton, reloadButton);
   controls.body.append(grid, actions, status);
   previewPanel.body.append(preview.element);
   root.append(controls.panel, previewPanel.panel);

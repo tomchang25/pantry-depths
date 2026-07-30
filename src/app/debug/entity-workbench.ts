@@ -1,4 +1,4 @@
-import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
+import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
 import { createDecorWorkbench } from "@/app/debug/decor-workbench";
 import { createPropWorkbench } from "@/app/debug/prop-workbench";
@@ -1383,12 +1383,15 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   const displayRow = document.createElement("div");
   const displayStatus = document.createElement("p");
   const saveDisplay = document.createElement("button");
+  const reloadDisplay = document.createElement("button");
   displayGrid.className = "debug-form-grid entity-workbench-controls";
   displayRow.className = "debug-button-row entity-playback-row";
   displayStatus.className = "entity-workbench-status";
   displayStatus.setAttribute("role", "status");
   saveDisplay.type = "button";
   saveDisplay.textContent = "Save display JSON";
+  reloadDisplay.type = "button";
+  reloadDisplay.textContent = "Reload from disk";
 
   const cameraBack = createRange(
     "entity-camera-back",
@@ -1488,19 +1491,9 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   saveDisplay.addEventListener("click", () => {
     saveDisplay.disabled = true;
     displayStatus.textContent = "Validating and saving display JSON…";
-    void fetch(`${AUTHORING_API_ROOT}/entityDisplay/save`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ source: Object.values(displays) }),
-    })
-      .then(async (response) => {
-        const body = (await response.json()) as { message?: string };
-
-        if (!response.ok) {
-          throw new Error(body.message ?? `Save failed with ${response.status}.`);
-        }
-
-        displayStatus.textContent = body.message ?? "Saved display JSON.";
+    void saveCanonical("entityDisplay", Object.values(displays))
+      .then((message) => {
+        displayStatus.textContent = message;
       })
       .catch((error: unknown) => {
         displayStatus.textContent = error instanceof Error ? error.message : String(error);
@@ -1510,8 +1503,28 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
       });
   });
 
+  // Asked for rather than done to you: the dev server does not watch these files, so that saving one
+  // cannot reload the page out from under whoever is tuning it. This is how a hand edit is picked up, or
+  // how numbers slid but never saved are thrown away.
+  reloadDisplay.addEventListener("click", () => {
+    reloadDisplay.disabled = true;
+    displayStatus.textContent = "Reading display JSON from disk…";
+    void loadCanonical("entityDisplay")
+      .then((source) => {
+        Object.assign(displays, entityDisplaysByAppearance(parseEntityDisplays(source)));
+        refreshDisplayFields();
+        displayStatus.textContent = "Reloaded display JSON from disk.";
+      })
+      .catch((error: unknown) => {
+        displayStatus.textContent = error instanceof Error ? error.message : String(error);
+      })
+      .finally(() => {
+        reloadDisplay.disabled = false;
+      });
+  });
+
   displayGrid.append(cameraBack.field, bodyScale.field, markerOffset.field, markerScale.field, markerSwell.field);
-  displayRow.append(saveDisplay);
+  displayRow.append(saveDisplay, reloadDisplay);
   displayPanel.body.append(displayGrid, displayRow, displayStatus);
   refreshDisplayFields();
 

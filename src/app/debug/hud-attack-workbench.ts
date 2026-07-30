@@ -1,4 +1,4 @@
-import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
+import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createCarriedWorkbench } from "@/app/debug/carried-workbench";
 import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
 import { createRenderPanel } from "@/app/debug/render-panel";
@@ -361,6 +361,7 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   const targetSelect = document.createElement("select");
   const playButton = document.createElement("button");
   const saveButton = document.createElement("button");
+  const reloadButton = document.createElement("button");
   const attackStatus = document.createElement("p");
   attackGrid.className = "debug-form-grid";
   poseGrid.className = "attack-pose-grid";
@@ -368,6 +369,8 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   playButton.textContent = "Play selected attack";
   saveButton.type = "button";
   saveButton.textContent = "Save melee attacks JSON";
+  reloadButton.type = "button";
+  reloadButton.textContent = "Reload from disk";
   attackStatus.className = "attack-workbench-status";
   attackStatus.setAttribute("role", "status");
 
@@ -462,19 +465,9 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
     saveButton.disabled = true;
     attackStatus.textContent = "Validating and saving melee attacks…";
 
-    void fetch(`${AUTHORING_API_ROOT}/meleeAttacks/save`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ source: parseMeleeAttacks(attacks) }),
-    })
-      .then(async (response) => {
-        const body = (await response.json()) as { error?: string; message?: string };
-
-        if (!response.ok) {
-          throw new Error(body.error ?? `Save failed with ${response.status}.`);
-        }
-
-        attackStatus.textContent = body.message ?? "Saved melee attacks JSON.";
+    void saveCanonical("meleeAttacks", parseMeleeAttacks(attacks))
+      .then((message) => {
+        attackStatus.textContent = message;
       })
       .catch((error: unknown) => {
         attackStatus.textContent = error instanceof Error ? error.message : String(error);
@@ -484,7 +477,37 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
       });
   });
 
-  attackGrid.append(field("Attack", attackSelect), field("Aim target", targetSelect), playButton, saveButton);
+  // Asked for rather than done to you: the dev server does not watch these files, so that saving one
+  // cannot reload the page out from under whoever is authoring it. This is how a hand edit is picked up,
+  // or how poses changed but never saved are thrown away.
+  reloadButton.addEventListener("click", () => {
+    reloadButton.disabled = true;
+    attackStatus.textContent = "Reading melee attacks from disk…";
+    void loadCanonical("meleeAttacks")
+      .then((source) => {
+        attacks = parseMeleeAttacks(source).map((attack) => ({
+          ...attack,
+          windup: { ...attack.windup },
+          follow: { ...attack.follow },
+        }));
+        renderPoseControls();
+        attackStatus.textContent = "Reloaded melee attacks from disk.";
+      })
+      .catch((error: unknown) => {
+        attackStatus.textContent = error instanceof Error ? error.message : String(error);
+      })
+      .finally(() => {
+        reloadButton.disabled = false;
+      });
+  });
+
+  attackGrid.append(
+    field("Attack", attackSelect),
+    field("Aim target", targetSelect),
+    playButton,
+    saveButton,
+    reloadButton,
+  );
   attackControls.body.append(attackGrid, poseGrid, attackStatus);
 
   const attackRender = createRenderPanel({
