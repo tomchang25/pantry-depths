@@ -14,6 +14,7 @@ This tracker is the forward-work authority.
 
 [editor] `dev/docs/plans/pantry_demo_workbench.plan.md`
 [telegraphs] `dev/docs/plans/pantry_demo_telegraphs.plan.md`
+[skeletons] `dev/docs/plans/pantry_demo_skeletons.plan.md`
 
 ---
 
