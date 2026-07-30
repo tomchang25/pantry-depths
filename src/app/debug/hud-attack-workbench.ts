@@ -244,7 +244,18 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   const hudGrid = document.createElement("div");
   hudGrid.className = "debug-form-grid";
   const hud = mountDemoHud();
-  const dev = mountDemoDevOverlay();
+  // Every command is inert here, the toggle included. This tab previews the corner against the
+  // picture behind it and owns no world, so there is nothing for a kill or a spawn to act on; and
+  // the two switches are already driven by this panel's own checkboxes, which a live chip would
+  // silently disagree with the moment either was used.
+  const noop = (): void => {};
+  const dev = mountDemoDevOverlay({
+    toggleGodMode: noop,
+    testArena: noop,
+    killAll: noop,
+    fillCrowd: noop,
+    dropKit: noop,
+  });
   const refreshHud = (): void => hud.update(hudModel);
   /**
    * The dev overlay is previewed beside the HUD, not inside its model.

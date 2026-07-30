@@ -1,5 +1,6 @@
 /**
- * The instrument panel: what the machine is doing, and which cheats are on.
+ * The instrument panel: what the machine is doing, which cheats are on, and the buttons that put
+ * the floor into a state worth looking at.
  *
  * Deliberately not part of the HUD. `DemoHudModel` is what the player is told about themselves, and a
  * frame counter is not that — it was living in the health readout, which meant reading health was
@@ -7,6 +8,9 @@
  *
  * It is loud on purpose. A cheat you cannot see is how an hour goes into wondering why nothing can
  * kill you, so the red frame is the point rather than a style choice.
+ *
+ * Every row names its key. The buttons only answer a click while the pointer is free, which is not
+ * most of the time — so the key is the real control and the chip is where you find out what it is.
  */
 
 import "@/demo/demo-dev-overlay.css";
@@ -17,32 +21,82 @@ export type DemoDevOverlayModel = Readonly<{
   godMode: boolean;
 }>;
 
+/**
+ * What the panel can ask the demo to do.
+ *
+ * Handed in at mount rather than exposed as buttons for the caller to wire up. Four actions wired
+ * from outside is eight lines of listener bookkeeping split across two places, and the half that
+ * removes them is the half that gets forgotten.
+ */
+export type DemoDevOverlayActions = Readonly<{
+  toggleGodMode(): void;
+  testArena(): void;
+  killAll(): void;
+  fillCrowd(): void;
+  dropKit(): void;
+}>;
+
 export type MountedDemoDevOverlay = Readonly<{
   element: HTMLDivElement;
-  godModeButton: HTMLButtonElement;
   update(model: DemoDevOverlayModel): void;
+  dispose(): void;
 }>;
 
 /**
  * Mounts the overlay. Append it *after* the HUD.
  *
  * The HUD's pause overlay is a button covering the whole surface, so anything drawn before it has its
- * clicks taken by the thing that re-locks the pointer. Later sibling, later paint, and the toggle is
+ * clicks taken by the thing that re-locks the pointer. Later sibling, later paint, and the buttons are
  * reachable whenever the pointer is free.
  */
-export function mountDemoDevOverlay(): MountedDemoDevOverlay {
+export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemoDevOverlay {
   const element = document.createElement("div");
   const fps = document.createElement("span");
   const godModeButton = document.createElement("button");
   const frozen = document.createElement("span");
   element.className = "demo-dev";
   fps.className = "demo-dev__fps";
-  // One chip shape for both switches, so the panel reads as a row of states rather than as a button
-  // and a caption. Only god mode adds the toggle class, which is the only thing that takes a click.
+  // One chip shape for every row, so the panel reads as a column of states and commands rather than
+  // as a mixture of buttons and captions. Only the ones that take a click say so.
   godModeButton.className = "demo-dev__chip demo-dev__toggle";
   godModeButton.type = "button";
   frozen.className = "demo-dev__chip";
-  element.append(fps, godModeButton, frozen);
+
+  /**
+   * A momentary command, as distinct from a switch.
+   *
+   * No `data-active`: there is no state to be in. A button that lit up would be claiming the floor
+   * is now in some mode, and none of these leave one — they do a thing once and the world carries on.
+   */
+  const command = (label: string, run: () => void): HTMLButtonElement => {
+    const button = document.createElement("button");
+    button.className = "demo-dev__chip demo-dev__action";
+    button.type = "button";
+    button.textContent = label;
+    // The click is kept off the surface underneath so it cannot double as a request to go back in,
+    // which is what a click anywhere else means while the overlay is up.
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      run();
+    });
+    return button;
+  };
+
+  const handleGodModeClick = (event: MouseEvent): void => {
+    event.stopPropagation();
+    actions.toggleGodMode();
+  };
+
+  godModeButton.addEventListener("click", handleGodModeClick);
+  element.append(
+    fps,
+    godModeButton,
+    frozen,
+    command("Test arena · T", actions.testArena),
+    command("Kill all · K", actions.killAll),
+    command("Fill crowd · N", actions.fillCrowd),
+    command("Drop kit · B", actions.dropKit),
+  );
 
   const update = (model: DemoDevOverlayModel): void => {
     fps.textContent = `${Math.round(model.fps)} FPS`;
@@ -56,5 +110,11 @@ export function mountDemoDevOverlay(): MountedDemoDevOverlay {
     frozen.dataset.active = String(model.enemiesPaused);
   };
 
-  return { element, godModeButton, update };
+  // The command buttons' listeners go with the nodes they are on, which are removed with the panel.
+  const dispose = (): void => {
+    godModeButton.removeEventListener("click", handleGodModeClick);
+    element.remove();
+  };
+
+  return { element, update, dispose };
 }

@@ -8,6 +8,7 @@
 
 import "@/demo/demo-surface.css";
 
+import { PROP_KINDS } from "@/content/presentation/prop-display-schema";
 import { grabAction, primaryAction, PROP_LABELS } from "@/demo/actions";
 import { BLESS_CATALOG, hasBless, findBless, type BlessDefinition } from "@/demo/bless";
 import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
@@ -19,7 +20,16 @@ import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { DEMO_GRID_SIZE } from "@/demo/maze";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
 import type { DemoPropKind } from "@/demo/throw-weight";
-import { announce, createDemoWorld, flattenFloorForTesting, type DemoWorld } from "@/demo/world";
+import {
+  announce,
+  createDemoWorld,
+  dropProp,
+  flattenFloorForTesting,
+  killEnemy,
+  MAX_ENEMIES,
+  spawnReinforcement,
+  type DemoWorld,
+} from "@/demo/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
 
 export type MountedDemo = Readonly<{ dispose: () => void }>;
@@ -133,6 +143,21 @@ const PROP_COLORS: Readonly<Record<DemoPropKind, string>> = {
   crossbowBolt: "#e8e0c8",
 };
 
+/** Far enough out that the ring lands around the player rather than under their feet. */
+const KIT_RADIUS = 1.3;
+
+/**
+ * How many uses each pile in the debug kit holds. Anything absent is a single one.
+ *
+ * Matched to what the game itself hands out, so a crossbow picked up from here fires the same three
+ * times one taken off a body does. A kit that was more generous than the floor would be answering a
+ * different question than the one being debugged.
+ */
+const KIT_COUNTS: Readonly<Partial<Record<DemoPropKind, number>>> = {
+  bomb: 3,
+  crossbow: 3,
+};
+
 function heldModel(world: DemoWorld): DemoHudHeld | undefined {
   const held = world.held;
 
@@ -214,7 +239,13 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   const hud = mountDemoHud();
   // After the HUD, never before it: the pause overlay is a full-surface button, and anything
   // painted under it has its clicks taken by the thing that re-locks the pointer.
-  const dev = mountDemoDevOverlay();
+  const dev = mountDemoDevOverlay({
+    toggleGodMode: () => toggleGodMode(),
+    testArena: () => testArena(),
+    killAll: () => killAll(),
+    fillCrowd: () => fillCrowd(),
+    dropKit: () => dropKit(),
+  });
   surface.className = "demo";
   canvas.className = "demo__canvas";
   surface.append(canvas, hud.element, dev.element);
@@ -348,6 +379,59 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     refreshDev();
   };
 
+  /**
+   * Empties the floor through the ordinary exit rather than by clearing the list.
+   *
+   * Every corpse, every burst of bones and every drop roll therefore happens exactly as it does in
+   * play, which is most of what makes this worth pressing: the fastest way to see all six deaths at
+   * once is to cause all of them at once. The particle field will overrun its cap and shed its
+   * oldest, which is the cap doing its job.
+   */
+  const killAll = (): void => {
+    const felled = world.enemies.length;
+
+    for (const enemy of world.enemies.slice()) {
+      killEnemy(world, enemy);
+    }
+
+    announce(world, felled > 0 ? `Killed everything on the floor (${felled})` : "Nothing left to kill", 2.5);
+  };
+
+  /** Refills the floor to the cap it fills itself to, without waiting out the reinforcement timer. */
+  const fillCrowd = (): void => {
+    while (world.enemies.length < MAX_ENEMIES) {
+      if (!spawnReinforcement(world)) {
+        break;
+      }
+    }
+
+    announce(world, `Crowd topped up (${world.enemies.length}/${MAX_ENEMIES})`, 2.5);
+  };
+
+  /**
+   * One of everything, in a ring at arm's length.
+   *
+   * The point is the tail of the list rather than the head. A stake and a rock turn up on any floor;
+   * a spent crossbow, a cracked femur and a bent javelin are the last state of a weapon that wears
+   * out, so meeting one in play means finding the weapon first and then using it up. Putting the
+   * whole table on the floor at once is the only way to look at those three on purpose.
+   */
+  const dropKit = (): void => {
+    PROP_KINDS.forEach((kind, index) => {
+      const angle = (index / PROP_KINDS.length) * Math.PI * 2;
+      dropProp(
+        world,
+        kind,
+        world.player.x + Math.cos(angle) * KIT_RADIUS,
+        world.player.y + Math.sin(angle) * KIT_RADIUS,
+        KIT_COUNTS[kind] ?? 1,
+      );
+    });
+    announce(world, `Dropped one of every pickup (${PROP_KINDS.length})`, 2.5);
+  };
+
+  const testArena = (): void => flattenFloorForTesting(world);
+
   const tick = (now: number): void => {
     if (disposed) {
       return;
@@ -438,7 +522,27 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     // The frame-rate worst case on demand: an arena with no occlusion and a full crowd.
     if (key === "t") {
       event.preventDefault();
-      flattenFloorForTesting(world);
+      testArena();
+      return;
+    }
+
+    // The three that put the floor into a state worth looking at. Keys rather than buttons, because
+    // the panel's buttons cannot be reached while the pointer is locked and that is most of play.
+    if (key === "k") {
+      event.preventDefault();
+      killAll();
+      return;
+    }
+
+    if (key === "n") {
+      event.preventDefault();
+      fillCrowd();
+      return;
+    }
+
+    if (key === "b") {
+      event.preventDefault();
+      dropKit();
       return;
     }
 
@@ -572,17 +676,6 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     beginRelock();
   };
 
-  /**
-   * The toggle, for when the pointer is free.
-   *
-   * The click is kept off the surface underneath so it cannot double as a request to go back in,
-   * which is what a click anywhere else means while the overlay is up.
-   */
-  const handleGodModeClick = (event: MouseEvent): void => {
-    event.stopPropagation();
-    toggleGodMode();
-  };
-
   const handleLockChange = (): void => {
     if (!locked()) {
       clearInput();
@@ -602,7 +695,6 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   document.addEventListener("contextmenu", suppressContextMenu);
   document.addEventListener("pointerlockchange", handleLockChange);
   hud.overlayButton.addEventListener("click", handleOverlayClick);
-  dev.godModeButton.addEventListener("click", handleGodModeClick);
 
   publish();
   refreshHud();
@@ -629,7 +721,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
       document.removeEventListener("mousedown", handleMouseDown);
       document.removeEventListener("contextmenu", suppressContextMenu);
       document.removeEventListener("pointerlockchange", handleLockChange);
-      dev.godModeButton.removeEventListener("click", handleGodModeClick);
+      dev.dispose();
       hud.overlayButton.removeEventListener("click", handleOverlayClick);
       surface.remove();
     },

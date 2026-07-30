@@ -66,3 +66,20 @@
   cursor: pointer;
   pointer-events: auto;
 }
+
+/*
+ * A command rather than a switch, and it never lights up.
+ *
+ * Nothing here leaves the floor in a mode, so there is no state for it to report — it does its thing
+ * once and the world carries on. Lighting one would be a claim about the world that is not true a
+ * frame later, which is exactly the confusion the toggle's own highlight exists to avoid.
+ */
+.demo-dev__action {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.demo-dev__action:hover {
+  border-color: rgb(255 77 94 / 85%);
+  background: rgb(255 77 94 / 22%);
+}

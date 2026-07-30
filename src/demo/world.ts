@@ -841,8 +841,12 @@ export function markDamageFrom(world: DemoWorld, amount: number, fromX: number, 
  * A throw that ends against a wall ends *in* the cell it struck, so a prop that survives its landing
  * has to be walked back out of the stonework before it can be picked up again — otherwise the thing
  * you were promised you could retrieve is embedded in a wall a step out of reach.
+ *
+ * `count` is how many uses the stack holds, which for everything a throw leaves behind is one. It is
+ * a parameter because a pile put down deliberately — a crossbow with shots still in it — is the same
+ * placement problem and should not need a second function to get the wall nudge right.
  */
-export function dropProp(world: DemoWorld, kind: DemoPropKind, x: number, y: number): void {
+export function dropProp(world: DemoWorld, kind: DemoPropKind, x: number, y: number, count = 1): void {
   let placedX = x;
   let placedY = y;
 
@@ -859,7 +863,7 @@ export function dropProp(world: DemoWorld, kind: DemoPropKind, x: number, y: num
     }
   }
 
-  world.props.push({ id: nextId(world, "prop"), kind, count: 1, x: placedX, y: placedY });
+  world.props.push({ id: nextId(world, "prop"), kind, count, x: placedX, y: placedY });
 }
 
 /**
