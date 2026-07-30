@@ -83,3 +83,23 @@
   border-color: rgb(255 77 94 / 85%);
   background: rgb(255 77 94 / 22%);
 }
+
+@media (max-width: 900px), (max-height: 650px) {
+  .demo-dev {
+    inset: auto 0.55rem 0.55rem auto;
+    gap: 0.25rem;
+    width: 13.5rem;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.66rem;
+  }
+
+  .demo-dev__chip {
+    padding: 0.2rem 0.35rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .demo-dev {
+    display: none;
+  }
+}
