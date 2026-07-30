@@ -15,7 +15,13 @@ import {
   type SkeletonSwordsmanAnimationId,
 } from "@/content/enemies/skeleton-swordsman-definitions";
 import { DEMO_ASSET_IDS, WARN_BLADE_STEPS } from "@/demo/demo-sprites";
-import { CHARGE_DISTANCE, MELEE_CUT_HALF_ANGLE, RANGED_SHOT_RANGE } from "@/demo/enemy-archetypes";
+import {
+  CHARGE_DISTANCE,
+  ENEMY_ARCHETYPES,
+  isBoned,
+  MELEE_CUT_HALF_ANGLE,
+  RANGED_SHOT_RANGE,
+} from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
 import {
   blocksFlung,
@@ -391,7 +397,7 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
 
 /** Where the top of an enemy sits, so anything worn over its head is worn over *its* head. */
 function crownHeight(enemy: DemoEnemy): number {
-  return enemy.archetype.id === "swordsman" ? SKELETON_DISPLAY_SCALE : slimeBody(enemy.appearance).height;
+  return isBoned(enemy.archetype) ? SKELETON_DISPLAY_SCALE : slimeBody(enemy.appearance).height;
 }
 
 const STUN_STARS = 3;
@@ -1233,7 +1239,7 @@ export function projectDemoEnemy(
   enemy: DemoEnemy,
   options: DemoEntityProjectionOptions = {},
 ): DemoEntityProjection {
-  if (enemy.archetype.id === "swordsman") {
+  if (isBoned(enemy.archetype)) {
     const selected = options.skeletonAnimation
       ? {
           animation: options.skeletonAnimation.animation,
@@ -1248,7 +1254,7 @@ export function projectDemoEnemy(
 
 /** Projects one corpse, including the wall decal that replaces a splattered blob body. */
 export function projectDemoDeath(context: DemoEntityProjectionContext, death: DemoDeath): DemoEntityProjection {
-  if (death.archetypeId === "swordsman") {
+  if (isBoned(ENEMY_ARCHETYPES[death.archetypeId])) {
     return { blobs: [], sprites: [skeletonDeathSprite(context, death)] };
   }
 
@@ -1266,7 +1272,7 @@ export function projectCarriedDemoEnemy(
   enemy: DemoEnemy,
   index: number,
 ): DemoEntityProjection {
-  if (enemy.archetype.id === "swordsman") {
+  if (isBoned(enemy.archetype)) {
     return { blobs: [], sprites: [carriedSkeletonSprite(context, projectile, enemy, index)] };
   }
 

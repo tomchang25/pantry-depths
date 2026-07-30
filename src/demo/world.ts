@@ -8,7 +8,7 @@
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/content/viewmodel/melee-viewmodel";
 import { createBlessState, grantBless, hasBless, OVERFLOW_MAX_HP, type BlessState } from "@/demo/bless";
-import { ENEMY_ARCHETYPES, type DemoArchetypeId, type DemoEnemyArchetype } from "@/demo/enemy-archetypes";
+import { ENEMY_ARCHETYPES, isBoned, type DemoArchetypeId, type DemoEnemyArchetype } from "@/demo/enemy-archetypes";
 import {
   blocksProjectile,
   blocksWalk,
@@ -965,7 +965,7 @@ export function killEnemy(
   });
   world.kills += 1;
 
-  if (enemy.archetype.id === "swordsman") {
+  if (isBoned(enemy.archetype)) {
     burst(world.particles, "stoneChip", enemy.x, enemy.y, 0.7, 16, {
       speed: 2.8,
       spreadZ: 2.6,
@@ -1007,7 +1007,7 @@ export function killEnemy(
     return;
   }
 
-  if (enemy.archetype.id === "swordsman") {
+  if (isBoned(enemy.archetype)) {
     return;
   }
 

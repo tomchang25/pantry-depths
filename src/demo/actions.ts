@@ -7,6 +7,7 @@
 
 import { chooseMeleeAttack } from "@/content/viewmodel/melee-viewmodel";
 import { hasBless } from "@/demo/bless";
+import { canCarry } from "@/demo/enemy-archetypes";
 import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
 import { burst } from "@/demo/particles";
 import {
@@ -703,7 +704,7 @@ export function grabAction(world: DemoWorld): void {
     return;
   }
 
-  const enemy = nearestEnemyAhead(world, REACH, GRAB_ARC, (candidate) => candidate.archetype.canGrab);
+  const enemy = nearestEnemyAhead(world, REACH, GRAB_ARC, (candidate) => canCarry(candidate.archetype));
 
   if (enemy) {
     world.enemies.splice(world.enemies.indexOf(enemy), 1);

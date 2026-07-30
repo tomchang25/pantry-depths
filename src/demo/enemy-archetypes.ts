@@ -16,6 +16,20 @@ import { DEFAULT_BODY_WEIGHT, type DemoThrowWeight } from "@/demo/throw-weight";
 
 export type DemoArchetypeId = "walker" | "ranged" | "charger" | "swordsman";
 
+/**
+ * What a body is made of, which decides most of what is true about it besides its behaviour.
+ *
+ * A soft body is a blob: the scene deforms it, it can be picked up and thrown, and it bursts. A boned
+ * one is an authored sprite sheet: it plays clips, it comes apart into chips and drops its own bones,
+ * and it cannot be carried — there is nothing to get hold of and nothing to draw in the hand.
+ *
+ * This exists because those facts were being asked for by name. Half a dozen places tested whether an
+ * archetype was *the swordsman*, which happened to be the only boned one, so every future skeleton
+ * would have had to be added to each of them by hand and would have been quietly wrong until it was.
+ * Asking what the body is made of is the question all of them actually meant.
+ */
+export type DemoBodyKind = "soft" | "boned";
+
 export type DemoEnemyArchetype = Readonly<{
   id: DemoArchetypeId;
   name: string;
@@ -40,8 +54,7 @@ export type DemoEnemyArchetype = Readonly<{
   windup: number;
   contactDamage: number;
   contactRange: number;
-  /** Whether the living body can be carried whole in the player's left hand. */
-  canGrab: boolean;
+  body: DemoBodyKind;
   /** Whether a contact attack commits through a visible wind-up instead of landing on touch. */
   meleeWindup: boolean;
   /**
@@ -82,7 +95,7 @@ const WALKER: DemoEnemyArchetype = {
   windup: 0,
   contactDamage: 1,
   contactRange: 0.86,
-  canGrab: true,
+  body: "soft",
   meleeWindup: false,
   // Under a fifth of walking pace at its very worst, and only while genuinely overlapping. Enough to
   // be shoved off a line you were holding; nowhere near enough to take control away.
@@ -112,7 +125,7 @@ const RANGED: DemoEnemyArchetype = {
   windup: 1,
   contactDamage: 4,
   contactRange: 0.8,
-  canGrab: true,
+  body: "soft",
   meleeWindup: false,
 };
 
@@ -144,7 +157,7 @@ const CHARGER: DemoEnemyArchetype = {
   windup: 3,
   contactDamage: 6,
   contactRange: 0.86,
-  canGrab: true,
+  body: "soft",
   meleeWindup: false,
 };
 
@@ -177,12 +190,28 @@ const SWORDSMAN: DemoEnemyArchetype = {
   // harmless.
   contactDamage: 16,
   contactRange: 0.95,
-  canGrab: false,
+  body: "boned",
   meleeWindup: true,
   turnRate: 4.4,
 };
 
 export const ENEMY_ARCHETYPES = { walker: WALKER, ranged: RANGED, charger: CHARGER, swordsman: SWORDSMAN } as const;
+
+/**
+ * Whether the living body can be carried whole in the player's left hand.
+ *
+ * Derived from what the body is made of rather than declared per archetype, so a skeleton added later
+ * cannot accidentally be grabbable — there is no flag to forget. The rule is the material: soft bodies
+ * go in the hand, boned ones do not.
+ */
+export function canCarry(archetype: DemoEnemyArchetype): boolean {
+  return archetype.body === "soft";
+}
+
+/** Whether a body is drawn from authored clips rather than as a blob the scene deforms. */
+export function isBoned(archetype: DemoEnemyArchetype): boolean {
+  return archetype.body === "boned";
+}
 
 /**
  * Half the arc a committed sword cut covers, either side of where the body is pointed.
