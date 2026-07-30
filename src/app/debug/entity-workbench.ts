@@ -2,8 +2,13 @@ import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
 import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
 import { createDecorWorkbench } from "@/app/debug/decor-workbench";
 import { createRenderPanel } from "@/app/debug/render-panel";
+import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
-import { parseEntityDisplays, type EntityDisplay } from "@/content/enemies/entity-display-schema";
+import {
+  entityDisplaysByAppearance,
+  parseEntityDisplays,
+  type EntityDisplay,
+} from "@/content/enemies/entity-display-schema";
 import {
   SKELETON_SWORDSMAN_ANIMATIONS,
   SKELETON_SWORDSMAN_FRAMES,
@@ -176,7 +181,10 @@ function roomFloor(): RenderFloorPatch[] {
  * Saving sends the whole table back through the same validator the file is loaded with, which means a
  * number that cannot survive a reload cannot be saved either.
  */
-const displays = { ...parseEntityDisplays(entityDisplayJson) };
+const displays = entityDisplaysByAppearance(parseEntityDisplays(entityDisplayJson)) as Record<
+  EnemyAppearanceId,
+  EntityDisplay
+>;
 
 const ROOM_SURFACES = roomSurfaces();
 const ROOM_FLOOR = roomFloor();

@@ -9,7 +9,11 @@
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
-import { parseEntityDisplays, type EntityDisplay } from "@/content/enemies/entity-display-schema";
+import {
+  entityDisplaysByAppearance,
+  parseEntityDisplays,
+  type EntityDisplay,
+} from "@/content/enemies/entity-display-schema";
 import {
   SKELETON_SWORDSMAN_ANIMATIONS,
   SKELETON_SWORDSMAN_DIRECTIONS,
@@ -302,7 +306,7 @@ const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
  *
  * The scene reads them and never writes them, so a display value can never be changed by playing.
  */
-const ENTITY_DISPLAYS = parseEntityDisplays(entityDisplayJson);
+const ENTITY_DISPLAYS = entityDisplaysByAppearance(parseEntityDisplays(entityDisplayJson));
 
 function entityDisplay(appearance: EnemyAppearanceId): EntityDisplay {
   return ENTITY_DISPLAYS[appearance];

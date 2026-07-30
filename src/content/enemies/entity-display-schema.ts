@@ -77,14 +77,20 @@ function finiteNumber(value: unknown, label: string): number {
 }
 
 /**
- * Validates an authored display table and answers it keyed by appearance.
+ * Validates an authored display table and answers it in the shape the file holds.
+ *
+ * **The list, not a lookup, and that is load-bearing.** The authoring endpoint writes whatever its
+ * validator returns, so a validator that answers a different shape from the one it was given cannot
+ * round-trip: saving once rewrote this file as an object keyed by appearance, and the next load
+ * rejected it for not being an array — taking the whole debug hub down with it. Anything that wants a
+ * lookup builds one with `entityDisplaysByAppearance`.
  *
  * Every appearance must be present. A partial table would mean a body drawn at whatever the reader
  * happened to default to, and a silent default is exactly what this file exists to remove — an
  * appearance added to the union without a row here should fail loudly at load rather than render at
  * some arbitrary size until somebody notices.
  */
-export function parseEntityDisplays(value: unknown): Readonly<Record<EnemyAppearanceId, EntityDisplay>> {
+export function parseEntityDisplays(value: unknown): readonly EntityDisplay[] {
   if (!Array.isArray(value)) {
     throw new TypeError("Entity displays must be an array.");
   }
@@ -136,5 +142,15 @@ export function parseEntityDisplays(value: unknown): Readonly<Record<EnemyAppear
     throw new TypeError(`Entity displays are missing an entry for: ${missing.join(", ")}.`);
   }
 
-  return Object.fromEntries(parsed) as Record<EnemyAppearanceId, EntityDisplay>;
+  return [...parsed.values()];
+}
+
+/** The same table as a lookup, for the readers that want one. Order is not meaningful to either. */
+export function entityDisplaysByAppearance(
+  displays: readonly EntityDisplay[],
+): Readonly<Record<EnemyAppearanceId, EntityDisplay>> {
+  return Object.fromEntries(displays.map((display) => [display.appearanceId, display])) as Record<
+    EnemyAppearanceId,
+    EntityDisplay
+  >;
 }

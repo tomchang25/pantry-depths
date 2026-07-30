@@ -89,6 +89,14 @@ function parsePath(pathname: string): Readonly<{ operation: string; target: Auth
   return { target, operation };
 }
 
+/**
+ * Validates one target's payload and answers what should be written to its canonical file.
+ *
+ * **A validator must answer the same shape its file holds.** The save path writes this return value
+ * verbatim, so a parser that helpfully reshapes its input — an array into a lookup, say — writes a file
+ * its own next load will reject, and the failure lands on whoever opens the tool afterwards rather than
+ * on whoever saved. Reshape at the point of use, never here.
+ */
 function validateSource(target: AuthoringTargetId, source: unknown): unknown {
   if (target === "decor") {
     try {
