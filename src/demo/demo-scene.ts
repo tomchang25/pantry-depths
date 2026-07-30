@@ -135,13 +135,14 @@ const JAVELIN_LENGTH = 1.3;
 const JAVELIN_WIDTH = 0.048;
 
 /**
- * How each piercing shaft is drawn in flight, keyed by what it is.
+ * How each long, straight thing is drawn in flight, keyed by what it is.
  *
- * A table rather than a chain of kind tests, because there are now two of these and there will be
- * more: the stake is short, thick and timber, the javelin long, thin and bone, and a reader should be
- * able to see both statements side by side.
+ * About the drawing and nothing else — a bolt is in here and does not pierce anything. A table rather
+ * than a chain of kind tests, because there are several of these now and there will be more: the stake
+ * is short, thick and timber, the javelin long, thin and bone, the bolt shorter and thinner again, and
+ * a reader should be able to see all of it side by side.
  */
-const PIERCING_RODS: Readonly<
+const FLYING_RODS: Readonly<
   Partial<
     Record<
       DemoPropKind,
@@ -1760,9 +1761,9 @@ function beams(world: DemoWorld): RenderBeam[] {
   const built: RenderBeam[] = [];
 
   for (const projectile of world.projectiles) {
-    const pierce = PIERCING_RODS[projectile.kind as DemoPropKind];
+    const rod = FLYING_RODS[projectile.kind as DemoPropKind];
 
-    if (pierce) {
+    if (rod) {
       // The shaft points along its own flight line, which is the aim line it left the hand on.
       const slope = projectile.arc / Math.max(0.0001, projectile.range);
       built.push(
@@ -1774,10 +1775,10 @@ function beams(world: DemoWorld): RenderBeam[] {
           projectile.directionY,
           Math.atan(slope),
           projectileHeight(projectile),
-          pierce.length,
-          pierce.width,
-          pierce.shaft,
-          pierce.tip,
+          rod.length,
+          rod.width,
+          rod.shaft,
+          rod.tip,
         ),
       );
       continue;

@@ -414,11 +414,15 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
     form: "rod",
   },
   // Never picked up and never dropped: it exists only between the trigger and whatever it reaches.
+  //
+  // It stops at the first body rather than running it through, which is the difference between a bolt
+  // and a javelin: the shaft is what carries a crowd, and a bolt is one hard hit on one thing. The
+  // strike landing is the femur's, so all of a bolt goes into whatever it stopped against.
   crossbowBolt: {
     use: "throw",
-    flightHit: "skewer",
+    flightHit: "stop",
     capacity: 1,
-    landing: "pin",
+    landing: "strike",
     wallDamage: 1,
     leaves: undefined,
     form: "rod",
