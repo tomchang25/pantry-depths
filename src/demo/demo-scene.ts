@@ -607,10 +607,11 @@ function skeletonAnimation(context: DemoEntityProjectionContext, enemy: DemoEnem
     return poseAt(actions.strike, 1 - enemy.attackPoseSeconds / STRIKE_SECONDS);
   }
 
-  if (enemy.attackCooldown > 0) {
-    // Recovery: the swing running backwards, from the follow-through to the guard, over exactly the
-    // cooldown. This is the window the player wants and could not previously see — a body that had
-    // just committed everything it had looked identical to one that had not noticed them.
+  if (enemy.attackCooldown > 0 && !enemy.moving) {
+    // Recovery, and only while the body is standing in it. A cooldown no longer holds anything
+    // still, so a skeleton that is walking it off has to walk: the clip is what a body gathering
+    // itself looks like, and playing it over a chase would leave the feet frozen under a body
+    // crossing the room.
     // Recovery is the wind-up's curve reversed: it leaves the follow-through quickly and then holds
     // the guard for whatever is left of the cooldown, so the free window is legible at six seconds
     // and at 1.8.

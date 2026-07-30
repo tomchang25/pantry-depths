@@ -5,14 +5,15 @@
  * its archetype wants to hold. Beyond a few cells it navigates the grid toward the player's cell,
  * inside that it drops the path and runs straight at them, and it stops when it is in the band.
  *
- * **Attacking** runs only for a body that has an attack, reads only its own timers, and while any of
- * them is live it suppresses pursuit completely — through the wind-up, through the strike, and through
- * the cooldown afterwards. A body cannot move during any of the three, and each of the three shows
- * which one it is in.
+ * **Attacking** runs only for a body that has an attack and reads only its own timers. The wind-up
+ * and the strike are the committed half: while either is live the body cannot move, cannot turn, and
+ * shows which of the two it is in. The cooldown afterwards is not — a body between attacks walks and
+ * chases as usual, it simply cannot start another one, so what a cooldown costs it is the attack and
+ * not the fight.
  *
- * The split is what makes both ends honest. A slime has no attack, therefore no attack state,
- * therefore nothing that can ever stop it: it walks into the player forever. A skeleton has all three,
- * so it spends most of its life standing still — committed, readable, and worth walking around.
+ * The split is what makes both ends honest. A slime has no attack, therefore no committed state,
+ * therefore nothing that can ever stop it advancing. A skeleton has both, so the seconds either side
+ * of a swing are the ones worth walking around it in.
  */
 
 import { damageWall } from "@/demo/actions";
@@ -43,6 +44,7 @@ import {
   markDamageFrom,
   nextId,
   randomAmmo,
+  stunEnemy,
   type DemoEnemy,
   type DemoWorld,
 } from "@/demo/world";
@@ -235,6 +237,10 @@ function beginWindup(world: DemoWorld, enemy: DemoEnemy, intent: DemoEnemy["inte
   enemy.windupTotal = attackWindup(enemy.archetype);
   enemy.aimX = world.player.x;
   enemy.aimY = world.player.y;
+  // Snapped to the aim, and then held there for the whole telegraph. The drawn body has to agree
+  // with the line on the floor: a shooter that opened fire while facing the way it last walked was
+  // pointing one direction and shooting another, which makes the telegraph unreadable.
+  enemy.facingAngle = Math.atan2(enemy.aimY - enemy.y, enemy.aimX - enemy.x);
 }
 
 function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
@@ -418,8 +424,7 @@ function stepCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
       life: 0.7,
     });
     enemy.chargeSeconds = 0;
-    enemy.intent = "none";
-    enemy.stunSeconds = CHARGE_WALL_STUN;
+    stunEnemy(enemy, CHARGE_WALL_STUN);
     return;
   }
 
@@ -518,17 +523,19 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
       continue;
     }
 
-    // The three attack states, in the order a body passes through them. Every one of them holds the
-    // body where it stands: none of these branches reaches `walk`, which is the whole of what
-    // separating the two systems means. The cooldown branch is the new one — the body already stood
-    // still for it, but it stood still as an accident of a range check, so nothing downstream could
-    // tell that the most punishable window in the fight was open.
+    // The committed half, and the only thing that holds a body where it stands. Neither branch
+    // reaches `walk`, which is what makes a telegraph a promise about a piece of ground rather than
+    // a decoration following whoever it was aimed at.
+    //
+    // The cooldown is deliberately not here. A body between attacks keeps chasing — losing the
+    // attack is what the cooldown costs it, and standing still for it as well turned every fight
+    // into a room of statues.
     if (enemy.windupSeconds > 0) {
       stepWindup(world, enemy, deltaSeconds);
       continue;
     }
 
-    if (enemy.attackPoseSeconds > 0 || enemy.attackCooldown > 0) {
+    if (enemy.attackPoseSeconds > 0) {
       continue;
     }
 
@@ -615,6 +622,11 @@ function pursue(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: b
     }
 
     if (distance <= band.far) {
+      // Holding station, and turning to keep the player in front while it does. Standing still used
+      // to leave the facing wherever the last step of walking left it, so a shooter that had reached
+      // its band and stopped was drawn facing the direction it had arrived from for as long as it
+      // stood there.
+      faceThePlayer(enemy, Math.atan2(towardY, towardX), deltaSeconds);
       return;
     }
   }
@@ -632,17 +644,28 @@ function pursue(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: b
   walk(world, enemy, heading.x, heading.y, close ? enemy.archetype.rushSpeed : enemy.archetype.speed, deltaSeconds);
 }
 
+/** Swings a standing body's facing toward the player, at its own turn rate if it has one. */
+function faceThePlayer(enemy: DemoEnemy, desiredAngle: number, deltaSeconds: number): void {
+  const turnRate = enemy.archetype.turnRate;
+
+  if (turnRate === undefined) {
+    enemy.facingAngle = desiredAngle;
+    return;
+  }
+
+  steerToward(enemy, desiredAngle, turnRate, deltaSeconds);
+}
+
 /**
  * Opens an attack if this body has one and the conditions it declares are met.
  *
- * Reached only with every attack timer at zero, so no branch below re-checks the cooldown. What each
- * one still checks is its own claim about the world: a cut needs to be in reach, a charge and a shot
- * need to be able to see what they are aimed at.
+ * The cooldown is checked here rather than upstream, because a body on cooldown is now an ordinary
+ * chasing body: it reaches this function every frame and this is the only thing turning it away.
  */
 function tryBeginAttack(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean): void {
   const intent = enemy.archetype.windupIntent;
 
-  if (intent === undefined) {
+  if (intent === undefined || enemy.attackCooldown > 0) {
     return;
   }
 
@@ -663,11 +686,13 @@ function tryBeginAttack(world: DemoWorld, enemy: DemoEnemy, distance: number, si
   }
 
   if (intent === "shoot") {
-    // The far edge of the standoff is also the range it will open fire at, so a shooter cannot want
-    // a distance it refuses to shoot from. A body with no band has no standoff and no shot.
+    // The band is the whole condition: its far edge is the range it will open fire at, and its near
+    // edge is the distance it would rather be walking away from than shooting at. A shooter caught
+    // inside that edge still finishes the shot it had started — a committed telegraph is never
+    // taken back — and then leaves rather than starting another. A body with no band has no shot.
     const band = enemy.archetype.band;
 
-    if (band !== undefined && sighted && distance <= band.far) {
+    if (band !== undefined && sighted && distance >= band.near && distance <= band.far) {
       beginWindup(world, enemy, "shoot");
     }
 

@@ -86,51 +86,46 @@ const MIN_FLIGHT_SPEED = 4.5;
 const SHAKE_DECAY = 5;
 
 /**
- * Bodies pushing the player out of the space they are standing in.
+ * The slowest a crowd may leave the player, however many of them there are.
  *
- * Until now every enemy was walked straight through, which left the ordinary slime with nothing to
- * contribute once its damage was cut to a scratch. This is what it contributes instead: it is in the
- * way. A crowd of them drags at the player and steers them off the line they were holding, which is
- * pressure that needs no telegraph and adds nothing to an already busy screen.
- *
- * A push and never a block, applied through the same slide the player's own movement uses, so it can
- * neither shove anyone into masonry nor seal them into a corner. It reaches as far as the body is
- * drawn, because the footprint is the same number in both places, and it scales with how deep the
- * overlap is — so a large body starts dragging at the player sooner and drags harder once they are
- * inside it.
+ * Well above a standstill on purpose. A body in the way is meant to cost time, never control: a
+ * player who decides to walk through five slimes gets to, and pays for it.
  */
-function jostlePlayer(world: DemoWorld, deltaSeconds: number): void {
-  let pushX = 0;
-  let pushY = 0;
+const MIN_CROWD_PACE = 0.35;
+
+/**
+ * What wading through bodies costs the player, as a fraction of their pace.
+ *
+ * This is the slime's whole job, and it is a slowdown rather than a shove. Shoving produced a force
+ * pulling against the player's own input every frame, and two forces arguing at sixty frames a
+ * second is a body twitching in place — not a crowd being in the way. A slowdown fights nothing:
+ * the player goes exactly where they pointed, it just takes the time it should take.
+ *
+ * It only bites while the player is genuinely inside the drawn body, and a slime holds station short
+ * of that on its own, so standing among a crowd is free. Pushing into one is not, and the deeper in
+ * they are the more it costs — which is what makes threading a gap different from barging a line.
+ */
+function crowdPace(world: DemoWorld): number {
+  let drag = 0;
 
   for (const enemy of world.enemies) {
-    const jostle = enemy.archetype.jostle;
+    const bodyDrag = enemy.archetype.drag;
 
-    if (jostle === undefined || enemy.drowningSeconds > 0) {
+    if (bodyDrag === undefined || enemy.drowningSeconds > 0) {
       continue;
     }
 
-    const dx = world.player.x - enemy.x;
-    const dy = world.player.y - enemy.y;
-    const distance = Math.hypot(dx, dy);
+    const distance = Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y);
     const contact = PLAYER_RADIUS + bodyFootprint(enemy.archetype);
 
-    if (distance >= contact || distance < 0.0001) {
+    if (distance >= contact) {
       continue;
     }
 
-    const depth = 1 - distance / contact;
-    pushX += (dx / distance) * jostle * depth;
-    pushY += (dy / distance) * jostle * depth;
+    drag += bodyDrag * (1 - distance / contact);
   }
 
-  if (pushX === 0 && pushY === 0) {
-    return;
-  }
-
-  const moved = slideMove(world.maze, world.player, pushX * deltaSeconds, pushY * deltaSeconds, PLAYER_RADIUS, WALKING);
-  world.player.x = moved.x;
-  world.player.y = moved.y;
+  return Math.max(MIN_CROWD_PACE, 1 - drag);
 }
 
 function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
@@ -163,9 +158,11 @@ function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): v
 
   if (length > 0.0001) {
     // Carrying something heavy costs pace. It is the one thing that makes picking a body up a
-    // decision rather than a free upgrade to the next throw.
+    // decision rather than a free upgrade to the next throw. Wading through a crowd costs pace the
+    // same way, and the two multiply: an armful of slime carried through a room of them is slow
+    // twice over, which is exactly what it should feel like.
     const carried = heldWeight(world.held)?.carrySlow ?? 1;
-    const step = (PLAYER_SPEED * carried * deltaSeconds) / length;
+    const step = (PLAYER_SPEED * carried * crowdPace(world) * deltaSeconds) / length;
     const moved = slideMove(world.maze, world.player, moveX * step, moveY * step, PLAYER_RADIUS, WALKING);
     world.player.x = moved.x;
     world.player.y = moved.y;
@@ -884,7 +881,6 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
   if (!world.enemiesPaused) {
     stepEnemies(world, step);
     stepMortars(world, step);
-    jostlePlayer(world, step);
     world.spawnSeconds -= step;
 
     if (world.spawnSeconds <= 0) {

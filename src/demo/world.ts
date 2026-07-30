@@ -1083,6 +1083,28 @@ export function killEnemy(
   }
 }
 
+/**
+ * Puts a body out for a while, and takes whatever it was committing to away from it.
+ *
+ * The commitment is the point. A stun used to set the timer and nothing else, and because the step
+ * loop skips a stunned body before it reaches the wind-up, the wind-up did not run down — it froze.
+ * So a skeleton clubbed mid-swing kept its telegraph painted on the floor, waited out the stun, and
+ * then finished the attack at the spot the player had been standing when they threw the thing. The
+ * interruption cost it time and nothing else, which is the opposite of what landing a hit should
+ * buy.
+ *
+ * Clearing the intent here is also what makes every warning disappear on its own: the head marker,
+ * the cut arc, the sight line and the charge lane all read the wind-up directly, so none of them
+ * needs to know what a stun is.
+ *
+ * Longest wins. A body already lying down from a worse hit is not stood back up by a lesser one.
+ */
+export function stunEnemy(enemy: DemoEnemy, seconds: number): void {
+  enemy.stunSeconds = Math.max(enemy.stunSeconds, seconds);
+  enemy.windupSeconds = 0;
+  enemy.intent = "none";
+}
+
 export function damageEnemy(
   world: DemoWorld,
   enemy: DemoEnemy,

@@ -57,6 +57,16 @@ What makes this a decision rather than a queue is the soft-body profile. It is t
 
 Not scheduled. What would force it is a second authored body, or wanting bodies that differ in width rather than height.
 
+### A Reload The Shooters Can Be Caught In
+
+Both ranged skeletons now have no cooldown at all. What paces them is how long they take to aim, and the shot is followed by nothing — so the only window on one is the wind-up you can see coming, and there is no moment after the shot where it is busy.
+
+The recovery clip both types need for this is already baked and already unused: with the cooldown at zero, nothing ever plays it. Putting a reload back is therefore a matter of giving the two rows a cooldown again and letting the existing clip run over it, not of authoring anything.
+
+What makes it a decision rather than a queue is what the reload is for. A cooldown that only exists to slow the fire rate is the thing that was just removed, because a pause with nothing to look at is not a window. A reload has to be legible enough that a player crosses the room _because_ they saw it start — which means its length, the clip, and the distance the shooter holds are one decision, not three.
+
+Not scheduled. What would force it is the shooters reading as unanswerable at their current range.
+
 ### A Real 3D Layer Instead Of Baked Sprite Sheets
 
 The skeleton swordsman is an eight-way authored body: ten clips, eight directions, eight frames, baked offline from Blender into ten 2048-square atlases. That is 48 MB of PNG on disk and roughly 168 MB decoded, for one enemy. The cost is per enemy and it does not amortise — a second authored body is another 50 MB, and every added clip or direction multiplies it. Cutting the atlas cell back down is the only knob the current pipeline has, and it trades directly against the resolution that made the skeleton stop looking pasted onto the room.

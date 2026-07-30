@@ -13,7 +13,7 @@ import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/demo/actions";
 import { hasBless } from "@/demo/bless";
 import { isBarricadeCell, isWaterCell } from "@/demo/maze";
 import { burst } from "@/demo/particles";
-import { addVfx, damageEnemy, killEnemy, type DemoEnemy, type DemoWorld } from "@/demo/world";
+import { addVfx, damageEnemy, killEnemy, stunEnemy, type DemoEnemy, type DemoWorld } from "@/demo/world";
 
 /** How wide "near the impact" is for a rock or a thrown body. */
 export const IMPACT_RADIUS = 1.2;
@@ -292,7 +292,7 @@ export function bargeInto(
   const side = lean >= 0 ? 1 : -1;
   enemy.pushX += perpendicularX * side * BODY_SHOVE * heft;
   enemy.pushY += perpendicularY * side * BODY_SHOVE * heft;
-  enemy.stunSeconds = Math.max(enemy.stunSeconds, BODY_STUN_SECONDS);
+  stunEnemy(enemy, BODY_STUN_SECONDS);
   damageEnemy(world, enemy, thrownImpactDamage(world));
 }
 
@@ -349,7 +349,7 @@ export type BodyLanding = Readonly<{
 export function bodyLanding(world: DemoWorld, thrown: DemoEnemy, landing: BodyLanding): void {
   const explosive = hasBless(world.bless, "explosiveBody");
   const hitWall = landing.hitWall;
-  thrown.stunSeconds = Math.max(thrown.stunSeconds, BODY_STUN_SECONDS);
+  stunEnemy(thrown, BODY_STUN_SECONDS);
   arrival(world, thrown.x, thrown.y, landing.thud * (hitWall ? 1.3 : 1));
 
   if (explosive) {

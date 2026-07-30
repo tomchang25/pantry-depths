@@ -24,6 +24,7 @@ import {
   damageEnemy,
   nextId,
   REACH,
+  stunEnemy,
   SWING_SECONDS,
   THROW_SWING_SECONDS,
   type DemoEnemy,
@@ -723,7 +724,7 @@ function dropHeld(world: DemoWorld): void {
   if (held.kind === "enemy") {
     held.enemy.x = x;
     held.enemy.y = y;
-    held.enemy.stunSeconds = Math.max(held.enemy.stunSeconds, 0.4);
+    stunEnemy(held.enemy, 0.4);
     world.enemies.push(held.enemy);
     announce(world, "Dropped the enemy");
     return;

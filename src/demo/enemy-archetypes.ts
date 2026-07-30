@@ -124,15 +124,18 @@ export type DemoEnemyArchetype = Readonly<{
    */
   turnRate?: number;
   /**
-   * How hard this body shoves the player aside just by being where they want to be, in cells per
-   * second at full overlap. Omitted means it is walked straight through, which is what everything did.
+   * How much this body slows the player who is pushing through it, at full overlap. Omitted means it
+   * costs nothing to walk past, which is true of everything that is not a slime.
    *
-   * The ordinary slime's whole job. Its damage is now a rounding error and its cooldown is most of a
-   * fight, so what it contributes is not a threat but a body in the doorway — and that only reads if
-   * the body is physically there. Deliberately a push and never a block: a crowd should drag at the
-   * player and steer them somewhere they did not choose, and must never be able to seal them in.
+   * The slime's whole job, and a speed penalty rather than a shove. Shoving the player produced a
+   * force pulling against their own input every frame, which read as a body twitching in place
+   * rather than as a crowd being in the way. Slowing them fights nothing: the player still goes
+   * exactly where they pointed, it just costs them the time it should cost to wade through a body.
+   *
+   * It only applies while the player is genuinely inside the drawn body — a slime holds station
+   * short of that on its own — so standing near a crowd is free and pushing into one is not.
    */
-  jostle?: number;
+  drag?: number;
 }>;
 
 /**
@@ -147,6 +150,15 @@ function meleeBand(contactRange: number): Readonly<{ near: number; far: number }
 
 const CHARGER_REACH = 0.86;
 const SWORDSMAN_REACH = 0.95;
+
+/**
+ * Where a slime stops, which is just short of the player rather than inside them.
+ *
+ * A near edge of zero is deliberate: a slime never backs off from anything, it only stops advancing.
+ * Walking into the player was what put the two bodies on top of each other in the first place, and
+ * everything that was wrong about the contact followed from that.
+ */
+const SLIME_BAND = { near: 0, far: 0.8 } as const;
 
 /** The small one: it goes further out of the hand and lands lighter than the other two. */
 const LIGHT_BODY_WEIGHT: DemoThrowWeight = {
@@ -190,21 +202,22 @@ const SLIME_GREEN: DemoEnemyArchetype = {
   id: "slimeGreen",
   name: "Green Slime",
   appearance: "greenSlime",
-  health: 20,
+  health: 40,
   weight: LIGHT_BODY_WEIGHT,
   speed: 1.9,
   rushSpeed: 2.6,
   rushDistance: 5,
   body: "soft",
   footprint: 0.22,
-  jostle: 0.45,
+  band: SLIME_BAND,
+  drag: 0.18,
 };
 
 const SLIME_BLUE: DemoEnemyArchetype = {
   id: "slimeBlue",
   name: "Blue Slime",
   appearance: "blueSlime",
-  health: 34,
+  health: 60,
   // The ordinary body, and the one every other weight is read against.
   weight: DEFAULT_BODY_WEIGHT,
   speed: 1.9,
@@ -212,30 +225,32 @@ const SLIME_BLUE: DemoEnemyArchetype = {
   rushDistance: 5,
   body: "soft",
   footprint: 0.3,
-  jostle: 0.6,
+  band: SLIME_BAND,
+  drag: 0.25,
 };
 
 const SLIME_RED: DemoEnemyArchetype = {
   id: "slimeRed",
   name: "Red Slime",
   appearance: "redSlime",
-  health: 52,
+  health: 80,
   weight: HEAVY_BODY_WEIGHT,
   speed: 1.9,
   rushSpeed: 2.6,
   rushDistance: 5,
   body: "soft",
   footprint: 0.38,
-  // Still a push and never a block. The largest one drags hardest at a player crossing it, and three
-  // of them together still cannot seal a doorway.
-  jostle: 0.8,
+  band: SLIME_BAND,
+  // The largest one drags hardest at a player crossing it, and three of them together still cannot
+  // seal a doorway: the slowdown is floored well above a standstill.
+  drag: 0.35,
 };
 
 const SWORDSMAN: DemoEnemyArchetype = {
   id: "swordsman",
   name: "Skeleton Swordsman",
   appearance: "skeletonSwordsman",
-  health: 46,
+  health: 120,
   weight: {
     speed: 7.2,
     range: 3.4,
@@ -279,7 +294,7 @@ const HAMMERMAN: DemoEnemyArchetype = {
   id: "hammerman",
   name: "Skeleton Hammer-bearer",
   appearance: "skeletonHammerman",
-  health: 58,
+  health: 120,
   weight: HEAVY_BODY_WEIGHT,
   speed: 1.8,
   rushSpeed: 2.2,
@@ -302,46 +317,52 @@ const HAMMERMAN: DemoEnemyArchetype = {
  * that rarely comes again. Which of the two is standing in a room changes how the player crosses it
  * without changing a line of how it thinks.
  *
- * Neither has a contact attack, and that is not an oversight. A body whose whole threat is at four
- * to seven cells should have nothing at all at zero, so the reward for closing that distance is that
- * the thing stops being dangerous.
+ * Neither has a contact attack, and that is not an oversight. A body whose whole threat is at range
+ * should have nothing at all at zero, so the reward for closing that distance is that the thing
+ * stops being dangerous — and its own band then walks it back out of your reach.
+ *
+ * Neither has a cooldown either. What paces a shooter is how long it takes to aim, and a second
+ * timer after the shot was a pause with nothing to look at. The rhythm is the wind-up repeating, and
+ * the range is what the two are balanced against: a javelin has to come close enough to be answered.
  */
-const RANGED_BAND = { near: 4, far: 7 } as const;
-
 const JAVELINEER: DemoEnemyArchetype = {
   id: "javelineer",
   name: "Skeleton Javelineer",
   appearance: "skeletonJavelineer",
-  health: 22,
+  health: 60,
   weight: LIGHT_BODY_WEIGHT,
   speed: 1.7,
   rushSpeed: 1.7,
   rushDistance: 0,
-  attackCooldown: 3,
+  attackCooldown: 0,
   windup: 3,
   body: "boned",
   windupIntent: "shoot",
-  band: RANGED_BAND,
+  // Four cells is close enough to walk to, which is the point of the longer telegraph: it is the
+  // shooter you answer by closing, and it backs away below two rather than letting you arrive.
+  band: { near: 2, far: 4 },
   turnRate: 4.4,
-  shot: { speed: 6, damage: 18, range: 11, knockback: 3.5 },
+  // Half again the band, so a shot loosed at the far edge still reaches a player who stepped back.
+  shot: { speed: 6, damage: 18, range: 6, knockback: 3.5 },
 };
 
 const CROSSBOWMAN: DemoEnemyArchetype = {
   id: "crossbowman",
   name: "Skeleton Crossbowman",
   appearance: "skeletonCrossbowman",
-  health: 22,
+  health: 60,
   weight: LIGHT_BODY_WEIGHT,
   speed: 1.7,
   rushSpeed: 1.7,
   rushDistance: 0,
-  // One second to commit and six to come back from it. Standing exposed for most of a fight is the
-  // price of a shot that lands before the player has finished reading it.
-  attackCooldown: 6,
-  windup: 1,
+  // The same three seconds the javelineer takes, and nothing afterwards. What separates the two is
+  // not the rhythm any more but the ground: eight cells is a room away, so the answer to this one is
+  // cover or the walk, and the answer to the other is that you can reach it.
+  attackCooldown: 0,
+  windup: 3,
   body: "boned",
   windupIntent: "shoot",
-  band: RANGED_BAND,
+  band: { near: 4, far: 8 },
   turnRate: 4.4,
   shot: { speed: 8, damage: 12, range: 12, knockback: 0 },
 };
