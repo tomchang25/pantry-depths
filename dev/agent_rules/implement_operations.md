@@ -42,3 +42,18 @@ This rule supersedes only the foundation statements that the Phase 2 implementat
 6. The bypass does not waive a renewed confirmation required by a material implementation-time deviation, nor any destructive-action approval, external authorization, human asset approval, or verification obligation.
 
 When these conditions hold, the explicit bypass request is advance approval of the spec-backed Goal and Summary and the executor plan produced within the confirmed target. Phase 4 may therefore begin immediately after Phase 2 completes successfully.
+
+## Standing Authorization Across A Plan's Children
+
+The bypass above is per-target by construction, so a plan whose children are already specified costs one mandatory stop per child — and that stop asks a question the plan has already answered. The target for a child is the row in its overview table plus the subsection in its `Execution` half, and both were read when the plan was approved.
+
+This rule supersedes only the two statements above that Phase 1 target confirmation may never be bypassed and that an authorization cannot carry to a later target or a later invocation. It applies where the target was written down and approved, and never where it would have to be inferred:
+
+1. The plan carries an `Execution` half per `dev/standards/work_lifecycle.addendum.md`, and that half has a subsection answering this child's implementation shape.
+2. The user has approved the plan and, in as many words, authorized continuous execution of its children. A generic `go`, `continue`, or `LGTM` on one child authorizes nothing beyond that child.
+3. Both stops are then skipped for every child the authorization named. Phase 2 still performs the complete implementation-modeling pass, writes its spec, updates lifecycle tracking, and runs the required documentation checks; Phase 4 begins immediately afterwards.
+4. The authorization is spent when the named children ship, when the plan's Requirements change, or when any guard below fires. It never becomes a standing preference for the repository.
+
+Every guard on the bypass above continues to apply unchanged, and clause 5 there is what keeps this honest: stop and ask when modeling exposes an unresolved user-authority decision, contradicts locked behavior, expands the approved scope, or requires a destructive action, an external authorization, or a human asset approval. **An authorization to work through a plan is never an authorization to decide something the plan left open.**
+
+**Why:** the per-target rule was written for `/implement` invoked conversationally against one slice, where the only record of the target is the conversation that produced it — and there, re-confirming is the only way to know the target survived. A plan with an execution half is the opposite case: the target is a reviewed document, so the confirmation buys a second reading of something already read, and the cost is paid once per child.
