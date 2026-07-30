@@ -21,10 +21,15 @@ The word limits above are a ceiling, not a target, and they were being treated a
 - Three to five bullets. Needing more means the commit is doing more than one thing.
 - One line per bullet. If it wraps, it is explaining rather than summarizing.
 - Each bullet names a capability the repository now has or has lost, in the imperative, at the altitude of the subject line.
-- No reasoning, no prior behaviour, no numbers of things, no file or symbol names, no measurements. Every one of those is either in the diff already or belongs in the plan.
+- Name it in the words the game uses. A crossbow, a wind-up, the dev panel: the domain's own nouns are what make a bullet findable a year later, and both the subject and the bullets are expected to carry them.
+- No reasoning, no prior behaviour, no file or symbol names, no measurement of the change itself. Every one of those is either in the diff already or belongs in the plan.
 - No trailing full stops.
 
 `4300f3c` is the reference commit for this shape.
+
+The two bans above are one distinction and it is worth stating outright, because reading it the other way is as easy as the failure this section was written for. What is banned is the **repository's** vocabulary — a path, a function, a type, a count of files touched. What is required is the **game's**. The reference commit names an Entity Workbench, clip scrubbing, an animation-gap matrix, and the splattered and impaled atlas selections; it also says "six death scenarios", because six is a fact about the feature rather than a measurement of the diff.
+
+Read as a ban on being specific, the rule produces the opposite failure, and it produced it twice in one afternoon: `put a floor into a debuggable state from one key` for three named commands added to a panel, and `build a pickup from a single place` for a drawing routine two callers now share. Both describe the change only to somebody who already knows what it was. **A bullet that could belong to four different commits is not a summary, it is padding** — and unlike an over-explained body, which is merely in the wrong file, it destroys the information rather than misplacing it.
 
 ## Environment Overrides
 
