@@ -4,3 +4,8 @@ node_modules/
 dev/foundation/
 port-ref/
 package-lock.json
+
+# Frozen by dev/standards/frozen_reference_directories.md — nothing here may be edited, so nothing
+# here may be gated on a check whose only remedy is an edit.
+dev/docs/design/
+dev/docs/reports/

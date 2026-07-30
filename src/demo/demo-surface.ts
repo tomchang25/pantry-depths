@@ -12,6 +12,7 @@ import { PROP_KINDS } from "@/content/presentation/prop-display-schema";
 import { grabAction, primaryAction, PROP_LABELS } from "@/demo/actions";
 import { BLESS_CATALOG, hasBless, findBless, type BlessDefinition } from "@/demo/bless";
 import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
+import { runEndOverlay } from "@/demo/extraction";
 import { mountDemoHud, type DemoHudCard, type DemoHudHeld, type DemoHudModel } from "@/demo/demo-hud";
 import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
@@ -199,10 +200,14 @@ function createHudModel(
     blessIcons.push({ color: "#f0f0d0", detail: "Extra max HP", glyph: "+", name: "Vitality", owned: true });
   }
 
+  // What a side room holds is never on here — not the altars, not the spring, not the way out. Four
+  // rooms hang off a floor and which one holds what is the thing the floor charges time to learn; a dot
+  // on the map hands all four back. The descent appears only once the main task has been met.
   const points = [
-    { x: world.maze.exit.x + 0.5, y: world.maze.exit.y + 0.5, radius: 4, color: "#7fd8a2" },
+    ...(world.maze.progress.main.met
+      ? [{ x: world.maze.exit.x + 0.5, y: world.maze.exit.y + 0.5, radius: 4, color: "#7fd8a2" }]
+      : []),
     { x: world.maze.entrance.x + 0.5, y: world.maze.entrance.y + 0.5, radius: 3, color: "#a789d4" },
-    ...(world.altar.hp > 0 ? [{ x: world.altar.x, y: world.altar.y, radius: 3.4, color: "#f4ca7a" }] : []),
     ...world.props.map((prop) => ({ x: prop.x, y: prop.y, radius: 1.6, color: "#e6d3a6" })),
     ...world.enemies.map((enemy) => ({
       x: enemy.x,
@@ -315,17 +320,14 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   const locked = (): boolean => document.pointerLockElement === canvas;
 
   const overlayModel = (): DemoHudModel["overlay"] => {
-    if (world.status === "dead") {
-      return {
-        title: "Eaten",
-        body: `Reached floor B${world.depth}, killed ${world.kills}, carried ${world.bless.owned.length} blessings. Press R to run again.`,
-      };
+    if (world.status !== "playing") {
+      return runEndOverlay(world);
     }
 
     if (!locked()) {
       return {
         title: "Pantry Depths — Demo",
-        body: "Click the screen or press Esc to start. WASD move · mouse to look · Left attack / throw · Right grab / drop · Tab pause · R restart · Esc release the mouse. The green light is the stairs down, the gold light is an altar — three swings for a blessing. Both show through walls.",
+        body: "Click the screen or press Esc to start. WASD move · mouse to look · Left attack / throw · Right grab / drop · Tab pause · R restart · Esc release the mouse. Four rooms hang off the floor and nothing says which is which — walk in and look. The red altar wants breaking, the white one wants holding, the spring heals, and the green smoke is the way out with everything you are carrying.",
       };
     }
 

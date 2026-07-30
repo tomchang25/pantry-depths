@@ -248,6 +248,9 @@ export function createCarriedWorkbench(): HTMLElement {
       elapsedSeconds += timing.frameSeconds;
       const model: DemoViewmodelModel = {
         damageMarks: [],
+        // Whatever the first floor would be. The viewmodel draws the run level, which is a run's
+        // number and means nothing in a preview of one object.
+        depth: 1,
         player: { ...CAMERA, pitch: 0, pushX: 0, pushY: 0, hp: 1, maxHp: 1 },
         elapsedSeconds,
         held: { kind: "prop", prop: kind, count },

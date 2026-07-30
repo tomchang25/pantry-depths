@@ -7,7 +7,8 @@
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/content/viewmodel/melee-viewmodel";
-import { createBlessState, grantBless, hasBless, OVERFLOW_MAX_HP, type BlessState } from "@/demo/bless";
+import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState } from "@/demo/bless";
+import { coreBonus, type SealedReward } from "@/demo/sealed";
 import {
   attackCooldown,
   ENEMY_ARCHETYPES,
@@ -328,7 +329,8 @@ export const MAX_DAMAGE_MARKS = 8;
 /** The hit size that fills a mark out completely; anything heavier is already at full strength. */
 const DAMAGE_MARK_FULL = 20;
 
-export type DemoStatus = "playing" | "dead";
+/** `extracted` is the only ending that keeps anything; `dead` is the only one that loses it. */
+export type DemoStatus = "playing" | "dead" | "extracted";
 
 export type DemoAltar = {
   hp: number;
@@ -419,6 +421,13 @@ export type DemoWorld = {
   nextId: number;
   kills: number;
   wallsBroken: number;
+  /**
+   * Sealed rewards this run is holding.
+   *
+   * Run state, not floor state: `populateFloor` deliberately leaves it alone, so it survives every
+   * descent and is lost only with the run itself.
+   */
+  carried: SealedReward[];
 };
 
 /**
@@ -443,6 +452,8 @@ export const ENEMY_RADIUS = 0.3;
 export const PLAYER_SPEED = 3.4;
 export const REACH = 1.45;
 export const ALTAR_HITS = 3;
+/** What a run starts with before any core it carried out of an earlier one. */
+export const PLAYER_BASE_MAX_HP = 150;
 
 const BASE_ENEMY_COUNT = 14;
 /** The dungeon keeps producing: one every five seconds until twenty are walking around. */
@@ -660,6 +671,9 @@ export function populateFloor(world: DemoWorld): void {
 
 export function createDemoWorld(): DemoWorld {
   const maze = generateDemoMaze();
+  // A cursed core can roll health downward, so the floor of one is what a run starts with rather than
+  // the base: a bad roll makes a run harder, never unplayable before it begins.
+  const startingMaxHp = Math.max(50, PLAYER_BASE_MAX_HP + coreBonus("maxHp"));
   const world: DemoWorld = {
     maze,
     depth: 1,
@@ -670,8 +684,10 @@ export function createDemoWorld(): DemoWorld {
       pitch: 0,
       pushX: 0,
       pushY: 0,
-      hp: 150,
-      maxHp: 150,
+      hp: startingMaxHp,
+      // A core carried out of an earlier run changes what this one starts with. It is the one axis a
+      // core moves that is stored rather than read, so it is applied where the run is built.
+      maxHp: startingMaxHp,
     },
     altar: { hp: ALTAR_HITS, maxHp: ALTAR_HITS, x: maze.altar.x + 0.5, y: maze.altar.y + 0.5 },
     bless: createBlessState(),
@@ -702,12 +718,13 @@ export function createDemoWorld(): DemoWorld {
     hitFlash: 0,
     damageMarks: [],
     walkBob: 0,
-    message: "WASD to move - mouse to look - left click attacks - right click grabs - find the altar and the stairs",
+    message: "WASD to move - mouse to look - left click attacks - right click grabs - find the four side rooms",
     messageSeconds: 6,
     pendingCard: undefined,
     nextId: 0,
     kills: 0,
     wallsBroken: 0,
+    carried: [],
   };
 
   populateFloor(world);
@@ -770,20 +787,15 @@ export function spawnReinforcement(world: DemoWorld): boolean {
 /**
  * Awards one blessing and queues its card.
  *
- * Both sources — smashing an altar and taking the stairs down — come through here, so the card, the
- * bar, and the overflow rule can never drift apart between them.
+ * Both sources — smashing an altar and taking the stairs down — come through here, so the card and
+ * the bar can never drift apart between them.
  */
 export function awardBless(world: DemoWorld): void {
   const granted = grantBless(world.bless);
+  const healthGain = blessMaxHpGain(granted);
 
-  if (!granted) {
-    world.player.maxHp += OVERFLOW_MAX_HP;
-    world.player.hp = Math.min(world.player.maxHp, world.player.hp + OVERFLOW_MAX_HP);
-    world.pendingCard = "overflow";
-    announce(world, `Blessings full - max HP +${OVERFLOW_MAX_HP}`, 3);
-    return;
-  }
-
+  world.player.maxHp += healthGain;
+  world.player.hp = Math.min(world.player.maxHp, world.player.hp + healthGain);
   world.pendingCard = granted.id;
   announce(world, `Blessing gained: ${granted.name}`, 3);
 }

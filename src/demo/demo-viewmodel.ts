@@ -35,6 +35,8 @@ import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { slimeBody } from "@/demo/demo-scene";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
+import { runLevel } from "@/demo/run-level";
+import { equippedCore } from "@/demo/sealed";
 import { bodyFootprint, type DemoWorld } from "@/demo/world";
 import type { PresentationImages } from "@/presentation/presentation-image-loader";
 
@@ -55,6 +57,7 @@ const PROP_DISPLAYS = propDisplaysByKind(parsePropDisplays(propDisplayJson));
 export type DemoViewmodelModel = Pick<
   DemoWorld,
   | "damageMarks"
+  | "depth"
   | "elapsedSeconds"
   | "held"
   | "impact"
@@ -323,9 +326,52 @@ export function drawDemoViewmodel(
   }
 
   drawCarriedLight(context, world.elapsedSeconds);
+  drawRunLevel(context, world);
   // Last, over everything including the arm. A warning that the thing in your hand can hide is not
   // one you can rely on in the moment it matters.
   drawDamageMarks(context, world);
+}
+
+/**
+ * The run's difficulty level, top left, always on.
+ *
+ * Drawn in this pass rather than in the DOM heads-up display for the reason the damage marks are: the
+ * number is derived from a clock that moves every frame, and the bar updates when discrete state
+ * changes. Top left because it is the one corner of the frame nothing else occupies.
+ *
+ * It is the whole of what reads the level. Nothing in the simulation consults it yet, deliberately —
+ * the tables that would carry the scaling are being rewritten elsewhere.
+ */
+function drawRunLevel(context: CanvasRenderingContext2D, world: DemoViewmodelModel): void {
+  const height = context.canvas.height;
+  const size = Math.max(13, height * 0.026);
+  const x = Math.max(12, context.canvas.width * 0.016);
+  const y = Math.max(20, height * 0.036);
+  context.save();
+  context.textAlign = "left";
+  context.textBaseline = "top";
+  context.fillStyle = "rgb(6 4 10 / 62%)";
+  context.font = `600 ${size}px system-ui, sans-serif`;
+  context.fillText(`LV ${runLevel(world)}`, x + 1, y + 1);
+  context.fillStyle = "#e8c98a";
+  context.fillText(`LV ${runLevel(world)}`, x, y);
+  context.fillStyle = "rgb(232 201 138 / 62%)";
+  context.font = `500 ${size * 0.66}px system-ui, sans-serif`;
+  context.fillText(`${Math.floor(world.elapsedSeconds / 60)}m · B${world.depth}`, x, y + size * 1.15);
+
+  // The core this run is swinging, and what it rolled. On screen because a curse that can roll worse
+  // than clean is only a curse if the player can see which way this one went.
+  const equipped = equippedCore();
+
+  if (equipped) {
+    const rolls = Object.entries(equipped.rolls)
+      .map(([axis, amount]) => `${axis === "maxHp" ? "HP" : "DMG"} ${(amount ?? 0) >= 0 ? "+" : ""}${amount}`)
+      .join(" ");
+    context.fillStyle = equipped.source === "cursed" ? "rgb(226 88 95 / 82%)" : "rgb(159 224 208 / 82%)";
+    context.fillText(`${equipped.core.name} · ${rolls}`, x, y + size * 1.95);
+  }
+
+  context.restore();
 }
 
 /**

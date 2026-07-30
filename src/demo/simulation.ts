@@ -6,8 +6,16 @@
  */
 
 import { MELEE_CUT_START } from "@/content/viewmodel/melee-viewmodel";
-import { damageWall, heldWeight, resolveSwing, thrownImpactDamage, thrownWallDamage } from "@/demo/actions";
+import {
+  damageWall,
+  heldWeight,
+  playerSpeed,
+  resolveSwing,
+  thrownImpactDamage,
+  thrownWallDamage,
+} from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
+import { stepExtraction } from "@/demo/extraction";
 import {
   bargeInto,
   bodyLanding,
@@ -21,6 +29,8 @@ import {
 import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell, tileAt } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
+import { stepRooms } from "@/demo/rooms";
+import { stepTasks } from "@/demo/tasks";
 import {
   breaksThroughWalls,
   propBehaviour,
@@ -30,7 +40,6 @@ import {
 } from "@/demo/throw-weight";
 import {
   announce,
-  awardBless,
   bodyFootprint,
   damageEnemy,
   dropProp,
@@ -41,7 +50,6 @@ import {
   MORTAR_LOCK_SECONDS,
   nextId,
   PLAYER_RADIUS,
-  PLAYER_SPEED,
   populateFloor,
   projectileGrounded,
   projectileHeight,
@@ -162,7 +170,7 @@ function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): v
     // same way, and the two multiply: an armful of slime carried through a room of them is slow
     // twice over, which is exactly what it should feel like.
     const carried = heldWeight(world.held)?.carrySlow ?? 1;
-    const step = (PLAYER_SPEED * carried * crowdPace(world) * deltaSeconds) / length;
+    const step = (playerSpeed(world) * carried * crowdPace(world) * deltaSeconds) / length;
     const moved = slideMove(world.maze, world.player, moveX * step, moveY * step, PLAYER_RADIUS, WALKING);
     world.player.x = moved.x;
     world.player.y = moved.y;
@@ -818,9 +826,11 @@ function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
 /**
  * Takes the stairs.
  *
- * Health, hands, and blessings all survive the descent — the floor is what is replaced. Arriving is
- * itself worth a blessing, which is the reward for the exit being reachable at all on a map that
- * never promised it would be.
+ * Health, hands, and blessings all survive the descent — the floor is what is replaced.
+ *
+ * Arriving pays nothing. It used to pay a blessing, which made the cheapest run the one that touched
+ * as little of each floor as possible; the floor's own tasks pay now, and the descent is only the way
+ * out of a floor whose business is finished.
  */
 export function descend(world: DemoWorld): void {
   world.depth += 1;
@@ -832,7 +842,6 @@ export function descend(world: DemoWorld): void {
   world.swingTarget = undefined;
   world.maze = generateDemoMaze();
   populateFloor(world);
-  awardBless(world);
   announce(world, `Down to floor B${world.depth}`, 3);
 }
 
@@ -892,9 +901,15 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
     }
   }
 
+  stepRooms(world, step);
+  stepTasks(world);
+
   const toExit = Math.hypot(world.player.x - (world.maze.exit.x + 0.5), world.player.y - (world.maze.exit.y + 0.5));
 
-  if (toExit < EXIT_RADIUS) {
+  if (toExit < EXIT_RADIUS && world.maze.progress.main.met) {
     descend(world);
+    return;
   }
+
+  stepExtraction(world);
 }

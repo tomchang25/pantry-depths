@@ -3264,6 +3264,10 @@ export class CanvasGameplayRenderer {
         continue;
       }
 
+      const steam = emitter.kind === "steam";
+      const tint = emitter.color ?? (steam ? ([225, 210, 222] as const) : ([255, 145, 42] as const));
+      const opacity = steam ? 0.18 : 0.68;
+
       for (let index = 0; index < emitter.density; index += 1) {
         const phase = reducedMotion ? (index * 0.19) % 1 : (elapsedSeconds * 0.17 + index * 0.19) % 1;
         const wobble = Math.sin(index * 8.3 + elapsedSeconds * (reducedMotion ? 0 : 1.8));
@@ -3271,10 +3275,7 @@ export class CanvasGameplayRenderer {
         const y = projected.startY + projected.height * (1 - phase);
         const radius = Math.max(1, projected.width * (0.015 + phase * 0.035));
         context.beginPath();
-        context.fillStyle =
-          emitter.kind === "steam"
-            ? `rgba(225, 210, 222, ${0.18 * (1 - phase)})`
-            : `rgba(255, 145, 42, ${0.68 * (1 - phase)})`;
+        context.fillStyle = `rgba(${tint[0]}, ${tint[1]}, ${tint[2]}, ${opacity * (1 - phase)})`;
         context.arc(x, y, radius, 0, Math.PI * 2);
         context.fill();
       }

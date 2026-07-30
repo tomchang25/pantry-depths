@@ -34,8 +34,8 @@ Side rooms are **fixed rather than drawn**. With the old blessing source retired
 
 ### The clock, and what a minute costs
 
-| Source  | Level     |
-| ------- | --------- |
+| Source  | Level         |
+| ------- | ------------- |
 | Time    | +1 per minute |
 | Descent | +5 per floor  |
 
@@ -60,10 +60,10 @@ Both stay sealed through the whole run and resolve on extraction. Dying with the
 
 Two tiers, and no third case at the point of award:
 
-| Tier     | Contents                            | When exhausted    |
-| -------- | ----------------------------------- | ----------------- |
-| Distinct | Authored mechanics, one of each     | Fall to the next tier |
-| Stacking | Numeric buffs, repeatable forever   | Never exhausted   |
+| Tier     | Contents                          | When exhausted        |
+| -------- | --------------------------------- | --------------------- |
+| Distinct | Authored mechanics, one of each   | Fall to the next tier |
+| Stacking | Numeric buffs, repeatable forever | Never exhausted       |
 
 The stacking tier opens with maximum health, melee damage, movement speed, and melee reach. Thrown damage is deliberately absent for the reason in requirement 10 — it is not a separate value yet, so a buff aimed at it would silently be a second melee buff.
 
@@ -94,17 +94,9 @@ Both are decisions that whichever plan lands first will fix in place, so they ar
 
 ### Child overview
 
-| Child | Focus                                                                       |
-| ----- | ----------------------------------------------------------------------------- |
-| 01    | The blessing ladder: a stacking tier behind the authored one, no consolation case |
-| 02    | The five-block floor: a square thirty-five grid, three side rooms and an extraction room |
-| 03    | What the side rooms do: smash for a curse, hold ground for a blessing, heal   |
-| 04    | Tasks: one main and three secondary, the descent locked and unmarked until the main is met |
-| 05    | The clock: run-wide level from time and depth, derived and shown only         |
-| 06    | The modifier catalogue: numeric axes shared by stacking blessings and core rolls |
-| 07    | Sealed rewards and extraction: clean and cursed, carried sealed, resolved on the way out |
+Every child has shipped. What each one delivered is recorded in `CHANGELOG.md`; the plan is waiting on a closeout.
 
-Landing order is 01 through 07. Children 01, 02, 05, and 06 have no prerequisites among the others and can land in any order. Child 03 needs 01 for the blessing it pays and 02 for the rooms to exist. Child 04 needs 02 for a descent to lock and 01 for the blessing its secondaries pay. Child 07 needs 02 for the extraction room, 04 for the main task that pays a clean reward, and 06 for a core to have anything rolled on it.
+Landing order was 01 through 07. Children 01, 02, 05, and 06 have no prerequisites among the others and can land in any order. Child 03 needs 01 for the blessing it pays and 02 for the rooms to exist. Child 04 needs 02 for a descent to lock and 01 for the blessing its secondaries pay. Child 07 needs 02 for the extraction room, 04 for the main task that pays a clean reward, and 06 for a core to have anything rolled on it.
 
 ## Acceptance Criteria
 
@@ -121,117 +113,3 @@ Landing order is 01 through 07. Children 01, 02, 05, and 06 have no prerequisite
 11. Melee damage and maximum health respond to a core's rolled modifiers; thrown damage is unchanged from melee damage.
 12. Every module the concurrent enemy-and-sprite plan names is either untouched by this plan or changed at exactly one of the three declared touch points.
 13. Verification passes, and the manual playtest confirms each criterion above.
-
-## Execution
-
-Coordinates recorded against the codebase as it stands when this plan was written. Re-check each one against the live code before executing its child; a stale line here is expected, not a defect. Each subsection is cut when its child ships, in the same change that cuts its row from the child overview.
-
-**Standing constraint for every child.** The concurrent plan at `dev/docs/plans/pantry_demo_skeletons.plan.md` names these and they are off limits: `src/demo/enemy-ai.ts`, `src/demo/enemy-archetypes.ts`, `src/demo/demo-scene.ts`, `src/demo/world.ts`, `src/demo/simulation.ts`, `src/demo/throw-weight.ts`, `src/demo/demo-sprites.ts`, `src/demo/demo-surface.ts`, `src/demo/particles.ts`, `src/demo/actions.ts`, `src/demo/movement.ts`, `src/demo/maze.ts`, `src/presentation/presentation-image-loader.ts`, `src/app/debug/entity-workbench.ts`, everything under `src/content/enemies/`, `src/content/combat/enemies.ts`, `src/content/presentation/prop-display*`, and everything under `dev/tools/`.
-
-Four of those are unavoidable and are held to single-line touches: `world.ts` at the blessing overflow branch, `actions.ts` at the melee damage accessor and inside the wall-damage dispatcher, `simulation.ts` appended at its step tail and at the exit-proximity check, and `maze.ts`, which the concurrent plan only *reads* — it consults `STONE_WALL_HP` and `WOOD_WALL_HP` (lines 43–44) and edits nothing, so floor generation is free to be rewritten in place. Confirm that read-only status against the live skeleton plan before child 02.
-
-`src/demo/bless.ts`, `src/demo/demo-hud.ts`, `src/demo/demo-viewmodel.ts`, and `src/demo/impacts.ts` are named by the concurrent plan nowhere and are fully available.
-
-Nothing in this plan may add a test under `src/demo/` or `src/presentation/`; the repository guard at `test/unit/repository/demo-half-is-untested.test.ts` enforces it and is not to be edited.
-
-### 01 — The blessing ladder
-
-`src/demo/bless.ts` is the whole change apart from one branch elsewhere.
-
-`BLESS_CATALOG` (line 21) keeps its five entries unchanged. `OVERFLOW_MAX_HP` (line 61) is deleted along with the concept — it is the consolation case requirement 7 removes.
-
-A second catalogue joins it: stacking entries over maximum health, melee damage, movement speed, and melee reach, each with a per-award magnitude and no uniqueness constraint. `BlessState` grows a count per stacking entry beside the existing set of held unique ids; `hasBless` (line 73) keeps its meaning for the unique tier only.
-
-`grantBless` (around line 84) stops returning `undefined` on exhaustion and instead rolls the stacking tier, so it always returns something awarded. That is what collapses the caller's branch.
-
-`awardBless` at `src/demo/world.ts` line 728 loses its `if (!granted)` arm entirely (lines 731–737), including the `world.player.maxHp += OVERFLOW_MAX_HP` line and the `"overflow"` pending card. The remaining body — grant, card, announce — is the only path. This is the single declared touch point in `world.ts`; the concurrent plan's nearest edit is at line 797, sixty-nine lines away.
-
-Applying a stacking buff needs a per-axis total the rest of the demo can read. Put it on `BlessState` and expose one accessor per axis from `bless.ts`; child 06 folds those accessors into the shared modifier catalogue, so keep them narrow.
-
-Movement speed and melee reach have existing owners — `PLAYER_SPEED` and `REACH` at `src/demo/world.ts` lines 410–411, and `meleeReach` at `src/demo/actions.ts` line 115. **Do not wire those two axes in this child**; carry the totals and leave them unread. `meleeReach` already branches on a unique blessing and is inside the contested file. Child 06 connects them through the modifier catalogue at one accessor.
-
-### 02 — The five-block floor
-
-`src/demo/maze.ts` is the whole change.
-
-`DEMO_GRID_SIZE` (line 10) goes from 21 to 35. Before changing it, confirm all 45 readers treat it as a dimension: `maze.ts` 17, `demo-scene.ts` 14, `world.ts` 11, `demo-surface.ts` 3. `DemoMaze` already carries `size` as a field (line 29), so readers that go through the maze adapt for free; only direct readers of the constant need checking. Any reader that assumes 21 specifically rather than reading the number is the one thing that turns this child from small to large — find it first.
-
-`generateDemoMaze` (line 275) becomes an assembly: generate the twenty-one-square main region into the centred block, generate four seven-square rooms into the four side slots, then punch a connection through each shared edge. The existing generator body becomes the main-region generator; the side-room generators are new and small.
-
-`DemoMaze` (line 28) gains an extraction cell beside `entrance`, `exit`, and `altar`, plus enough room metadata for children 03 and 04 to ask which room a cell belongs to. `altar` becomes two cells — the cursed altar and the blessing altar — or a small record; child 03 decides the shape, so leave it as one field here if that keeps this child smaller.
-
-`tileIndex` (line 80) and `isInsideGrid` (line 84) are the accessors that keep a square grid cheap; do not replace them with width-and-height variants.
-
-`breadthFirstStep` (line 487) is what enemy pathing uses and it walks the whole grid — confirm the larger grid does not make it visibly expensive before delivering, since it runs per enemy.
-
-Requirement 2 says the extraction room is unmarked. Nothing marks it today because nothing knows it exists, so this child satisfies that by not adding anything; child 04 is where the descent's visibility becomes a live rule.
-
-### 03 — What the side rooms do
-
-New module for altar behaviour; `src/demo/maze.ts` for the tiles.
-
-`DemoTileKind` (line 12) gains a cursed-altar kind and a blessing-altar kind. The cursed altar is smashable, so it needs hit points in the same unit as the rest — `ALTAR_HITS` at `src/demo/world.ts` line 412 is the existing precedent at 3, and the existing altar is already a smashable with a hit count, so mirror it rather than inventing a second scheme.
-
-`damageWall` at `src/demo/actions.ts` line 327 already dispatches every tile kind and is where a new smashable is registered. The concurrent plan states this function needs no change and is only *called* differently, so adding a dispatch arm here is the declared touch point and must stay one arm.
-
-The blessing altar's five-second claim is a per-frame check: player inside the room's radius accumulates, leaving resets to zero, damage does nothing. Append it as a new step call at the tail of the step loop in `src/demo/simulation.ts` — the loop ends around line 818 and the concurrent plan's edits sit at 105, 344–439, 492–533, and 579, so an append is clear of all of them. Do not thread it into an existing step function.
-
-The hot spring is a heal-over-time on the same proximity pattern and should share it.
-
-Awarding from the blessing altar calls the same path as everything else so the card and the bar cannot drift — see the comment above `awardBless` at `src/demo/world.ts` line 733.
-
-### 04 — Tasks
-
-New module for the task state machine and its conditions.
-
-Three observation points, one line each:
-
-- Kills: `damageEnemy` at `src/demo/world.ts` line 1031, at its kill exit. The concurrent plan's child 04 also adds a call here for its bone burst; two independent added lines in one function, trivial to settle.
-- Broken walls: inside `damageWall` at `src/demo/actions.ts` line 327, on the arm that opens a tile.
-- Standing on a cell for three seconds: the same appended step tail child 03 uses.
-
-The descent lock goes at the exit-proximity check at `src/demo/simulation.ts` lines 819–823, which calls `descend` when the player is within `EXIT_RADIUS`. Gate that call on the main task; leave `descend` itself (line 748) untouched.
-
-The descent's visibility is a heads-up display concern, not a scene concern. `src/demo/demo-hud.ts` owns the minimap — `DemoHudMinimap` (line 46), `drawMinimap` (line 88), a 168-square canvas built at lines 144–159 — and `src/demo/demo-viewmodel.ts` feeds it. **Neither file is named by the concurrent plan.** Show the descent as a minimap point once the main task is met, and never show the extraction room. Do not add anything to `src/demo/demo-scene.ts`; a first-person through-wall outline is the one implementation of requirement 2 that would collide, and the minimap is the one that does not.
-
-At 168 pixels over a 35-cell grid a minimap cell is 4.8 pixels, down from 8. Check it still reads before delivering.
-
-The task condition kinds are the five listed in the design document, which already match what the simulation knows. Nothing here needs a new signal.
-
-### 05 — The clock
-
-`src/demo/world.ts` carries run state, so the elapsed-seconds counter belongs beside `depth` (line 315). This is a field addition on the world type, which is a declared exception to the standing constraint only because there is nowhere else for run state to live — keep it to the field and its per-step increment and take nothing else in this file.
-
-Increment it in the same step loop children 03 and 04 append to, and derive the level rather than storing it, so the two sources cannot desynchronise: elapsed minutes floored, plus five per depth beyond the first.
-
-Display it through `src/demo/demo-hud.ts`, which is free.
-
-Nothing reads the derived level. Requirement 6 is the acceptance criterion; grep for readers before delivering and expect exactly one, the display.
-
-`SPAWN_INTERVAL_SECONDS` and `MAX_ENEMIES` at `src/demo/world.ts` lines 416–417 are the levers that would make the clock bite, and they are **not** touched here — that is enemy behaviour and it waits for the concurrent plan.
-
-### 06 — The modifier catalogue
-
-New module, no home in an existing file.
-
-Axes: melee damage, maximum health, movement speed, melee reach. Each carries a clean range and a widened cursed range. The stacking blessing totals child 01 parked on `BlessState` become readers of this catalogue rather than a parallel definition.
-
-One touch point: `meleeDamage` at `src/demo/actions.ts` line 119. It currently returns one of two constants based on a unique blessing; it gains the catalogue total. Keep it to that.
-
-**Do not touch `thrownImpactDamage` at line 124.** It reads `return meleeDamage(world)`, so it inherits the melee modifier automatically, which is the behaviour requirement 10 asks for. Splitting it is the collision.
-
-`meleeReach` at line 115 and `PLAYER_SPEED` at `src/demo/world.ts` line 410 are the other two axes' owners. Wiring them is one accessor each and is in scope for this child; both are single-line reads.
-
-Core definitions — the four bases and their rolled modifiers — are authored data with no runtime behaviour yet, since nothing equips a core until a preparation screen exists. Keep them as a definition table this child, consumed by child 07.
-
-### 07 — Sealed rewards and extraction
-
-New modules for the sealed reward, its contents, and whatever holds them between runs.
-
-Two producers: the main task completing (child 04's state machine) and the cursed altar breaking (child 03's smashable). Both call one function that rolls a table and appends to the carried set, so the two rates live in one place.
-
-The carried set survives descents and is destroyed on death. `descend` at `src/demo/simulation.ts` line 748 rebuilds the floor and explicitly keeps health, hands, and blessings — see the comment at `src/demo/world.ts` line 567 — so the carried set joins that list of survivors and needs no new mechanism.
-
-Extraction is the same proximity shape as the descent, at the extraction cell child 02 added, with no lock. It ends the run and resolves everything carried. There is no run-end path today other than death, so this is new: decide whether it returns to the same start-a-run entry the demo already has, and keep it to that.
-
-Resolution assigns the actual modifier rolls at extraction rather than at pickup, so a save inspected mid-run genuinely does not know. Roll on the catalogue from child 06.
