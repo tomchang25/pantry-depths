@@ -14,7 +14,6 @@ This tracker is the forward-work authority.
 
 [editor] `dev/docs/plans/pantry_demo_workbench.plan.md`
 [telegraphs] `dev/docs/plans/pantry_demo_telegraphs.plan.md`
-[skeletons] `dev/docs/plans/pantry_demo_skeletons.plan.md`
 [floor_loop] `dev/docs/plans/pantry_demo_floor_loop.plan.md`
 
 ---
@@ -56,6 +55,16 @@ The rest of what decides how a body looks is still literals in `src/demo/demo-sc
 What makes this a decision rather than a queue is the soft-body profile. It is three numbers that have to move together and one of them is a colour, so it is not the same shape as the two that moved; and the simulation gives every body one collision radius regardless, so authoring a per-body footprint invites the question of whether collision should read it too. Answer that first, because doing it wrong means the drawn size and the bumped size drift apart in opposite directions.
 
 Not scheduled. What would force it is a second authored body, or wanting bodies that differ in width rather than height.
+
+### Every Clip But Idle And Walk Reads Wrong
+
+Four skeletons ship with seven private clips each and one shared death set, and every pose in them is provisional by agreement. What the two re-bake passes owned was the clip tables, the per-clip dimensions, the weapon-per-type generator and a bake that runs end to end; whether a pose actually reads was always a separate judgement, expected to replace keyframes rather than confirm them.
+
+That judgement has now been made once and stopped at its first finding: standing and walking are right, and every other clip has a problem of its own. The problems themselves are deliberately not written down here, because they have not been stated yet — this exists so the gap is a known one rather than something the next person rediscovers by looking at a wind-up and wondering.
+
+The bar is three things, and all three are answered in the entity workbench, which can already reach every clip at the length the simulation gives it. A body winding up, striking and recovering have to be three states told apart by the body alone. A body that has just attacked has to visibly be recovering rather than idling, at every type's cooldown length — six seconds and 1.8 both. And every clip has to be scrubbable at its own frame count, with a three-second wind-up holding its final pose rather than crawling through four frames.
+
+Not scheduled. What would force it is showing the demo to anybody.
 
 ### A Reload The Shooters Can Be Caught In
 
