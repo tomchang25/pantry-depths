@@ -130,18 +130,6 @@ Four of those are unavoidable and are held to single-line touches: `world.ts` at
 
 Nothing in this plan may add a test under `src/demo/` or `src/presentation/`; the repository guard at `test/unit/repository/demo-half-is-untested.test.ts` enforces it and is not to be edited.
 
-### 05 — The clock
-
-`src/demo/world.ts` carries run state, so the elapsed-seconds counter belongs beside `depth` (line 315). This is a field addition on the world type, which is a declared exception to the standing constraint only because there is nowhere else for run state to live — keep it to the field and its per-step increment and take nothing else in this file.
-
-Increment it in the same step loop children 03 and 04 append to, and derive the level rather than storing it, so the two sources cannot desynchronise: elapsed minutes floored, plus five per depth beyond the first.
-
-Display it through `src/demo/demo-hud.ts`, which is free.
-
-Nothing reads the derived level. Requirement 6 is the acceptance criterion; grep for readers before delivering and expect exactly one, the display.
-
-`SPAWN_INTERVAL_SECONDS` and `MAX_ENEMIES` at `src/demo/world.ts` lines 416–417 are the levers that would make the clock bite, and they are **not** touched here — that is enemy behaviour and it waits for the concurrent plan.
-
 ### 06 — The modifier catalogue
 
 New module, no home in an existing file.
