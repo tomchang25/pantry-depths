@@ -213,6 +213,8 @@ Landing order is 01 through 07. Child 01 is a hard prerequisite for 02 — a sli
 
 Coordinates recorded against the codebase as it stands when this plan was written. Re-check each one against the live code before executing its child; a stale line here is expected as earlier children land. Each subsection is cut when its child ships, in the same change that cuts its row from the child overview.
 
+**What children 04 and 05 deliver is structure, not finished animation.** Both bake atlases, and the poses in the first bake are provisional by agreement: what those children own is the clip tables, the per-clip dimensions, the projection and precedence, the parameterised generator, and a bake that runs end to end. Judging whether a pose reads is a separate pass through the entity workbench against Acceptance Criteria 4, 5, and 12, and it is expected to replace keyframes rather than confirm them. Nothing in either child should be read as a claim that the artwork is right.
+
 ### 01 — Pursuit and attacking
 
 `src/demo/enemy-ai.ts` is the whole change.
