@@ -13,8 +13,6 @@ This tracker is the forward-work authority.
 ## Active
 
 [editor] `dev/docs/plans/pantry_demo_workbench.plan.md`
-[telegraphs] `dev/docs/plans/pantry_demo_telegraphs.plan.md`
-[floor_loop] `dev/docs/plans/pantry_demo_floor_loop.plan.md`
 
 ---
 
@@ -45,6 +43,32 @@ One line, no rationale, no backing document.
 ## Draft
 
 Not scheduled. Do not start without a decision.
+
+### The Difficulty Level Nothing Reads
+
+The run carries one difficulty level, on screen at all times, rising by one each minute and by five each descent and never falling. Nothing reads it. That was deliberate and it was temporary: the tables that would carry it into enemy statistics were being rewritten at the same time, and the two changes could not meet safely, so the level was built, derived, and displayed and stopped there. The rewrite has shipped, so the block is gone and this is the first thing that becomes available because of it.
+
+What makes it a decision rather than a queue is what a level is allowed to touch. Scaling health makes every fight longer, which is the one thing a demo about cutting to the stairs cannot afford; scaling damage makes them shorter and more dangerous, which is the same pressure from the other side; scaling how many bodies are alive and how fast they come back changes the floor rather than the enemy. Those are three different games and the clock prices them all identically, so picking one is the work.
+
+There is a second half nobody has answered: whether a level ever shows itself on a body. A player who cannot tell a floor-two skeleton from a floor-seven one is being scaled at without being told, and the number in the corner is not a substitute for seeing it.
+
+Not scheduled. What would force it is a run that stops getting harder after the third floor.
+
+### Thrown Damage Is Still Melee Damage
+
+Thrown damage is not a value of its own — it is defined as melee damage, so every core roll and every stacking blessing that moves one moves the other. The floor loop left it that way because separating them would have collided head-on with the rewrite of the whole projectile path. That rewrite has shipped, and the numbers describing a shot now live on the type that fires it, so the collision is gone.
+
+What makes it a decision is what a thrown weapon should scale with at all. A hammer that spends itself on masonry and a javelin that runs three bodies through are not doing what a sword does, and the modifier catalogue currently has one axis for both. Giving thrown its own axis is easy; deciding whether a build should be able to specialise into throwing — and therefore whether the props stop being consumables — is not.
+
+Not scheduled. What would force it is wanting a run that throws rather than swings.
+
+### Three Kinds Of Side Room For Three Slots
+
+A floor hangs four rooms off its main region: the cursed altar, the blessing altar, the hot spring, and the extraction room. There are exactly as many kinds as there are slots, so nothing is actually drawn — the only thing chosen per floor is which side each room lands on. The floor loop recorded that plainly rather than dressing it up, because with the old blessing source retired a draw of three from three is not a draw.
+
+The cost is that every floor offers the same business in a different order, which is a weaker version of the choice the tasks and the clock were built to create. Fixing it means more kinds of room, and a kind of room is a mechanic rather than a layout — the two that exist are told apart by what they ask of the player, and a third has to earn its place the same way instead of being a fourth thing to walk into.
+
+Not scheduled. What would force it is floors reading as the same floor by the third one.
 
 ### Authoring The Rest Of The Display Numbers
 
