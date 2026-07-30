@@ -211,6 +211,7 @@ function drawMinimap(context: CanvasRenderingContext2D, model: DemoHudMinimap): 
 function taskRow(task: DemoHudTask): HTMLLIElement {
   const row = element("li", "demo__task");
   const mark = element("span", "demo__taskmark", task.met ? "✓" : task.main ? "▸" : "·");
+  const kind = element("span", "demo__taskkind", task.main ? "Main" : "Bonus");
   const label = element("span", "demo__tasklabel", task.label);
   const count = element("span", "demo__taskcount", `${Math.min(task.done, task.target)}/${task.target}`);
   const track = element("span", "demo__tasktrack");
@@ -223,7 +224,7 @@ function taskRow(task: DemoHudTask): HTMLLIElement {
     "aria-label",
     `${task.main ? "Main objective" : "Bonus objective"}: ${task.label}, ${Math.min(task.done, task.target)} of ${task.target}${task.met ? ", complete" : ""}`,
   );
-  row.append(mark, label, count, track);
+  row.append(mark, kind, label, count, track);
   return row;
 }
 
@@ -257,10 +258,15 @@ export function mountDemoHud(): MountedDemoHud {
   const heldGlyph = element("span", "demo__held-glyph");
   const heldName = element("span", "demo__held-name");
   const heldCount = element("span", "demo__held-count");
+  const hpLabel = element("span", "demo__hplabel", "HP");
   const hp = element("span", "demo__hp");
+  const healthState = element("span", "demo__health-state");
   const health = element("div", "demo__health");
   const healthFill = document.createElement("span");
+  const minimapFrame = element("section", "demo__minimap-frame");
+  const minimapTitle = element("h3", "demo__slottitle", "Floor map");
   const minimap = element("canvas", "demo__minimap");
+  const minimapLegend = element("div", "demo__minimap-legend");
   const crosshair = element("div", "demo__crosshair");
   const channel = element("div", "demo__channel");
   const channelLabel = element("strong", "demo__channel-label");
@@ -294,9 +300,12 @@ export function mountDemoHud(): MountedDemoHud {
   health.setAttribute("role", "progressbar");
   health.setAttribute("aria-label", "Health");
   message.setAttribute("role", "status");
+  message.setAttribute("aria-atomic", "true");
   runTitle.id = "demo-current-floor";
   run.setAttribute("aria-labelledby", runTitle.id);
   status.setAttribute("aria-label", "Player status");
+  minimapTitle.id = "demo-floor-map";
+  minimapFrame.setAttribute("aria-labelledby", minimapTitle.id);
   overlayButton.type = "button";
   channelTrack.append(channelFill);
   channel.append(channelLabel, channelRemaining, channelTrack, channelDetail);
@@ -319,13 +328,22 @@ export function mountDemoHud(): MountedDemoHud {
   run.append(runHeading, runMeta, runCore, taskList, haul);
   heldSlot.append(element("h3", "demo__slottitle", "Held"), heldGlyph, heldName, heldCount);
   blessSlot.append(element("h3", "demo__slottitle", "Bless"), blessBar);
-  healthSlot.append(hp, health);
+  healthSlot.append(hpLabel, hp, healthState, health);
   status.append(heldSlot, blessSlot, healthSlot);
-  root.append(run, status, minimap, crosshair, channel, message, card, overlayButton);
+  minimapLegend.append(
+    element("span", "demo__mapkey demo__mapkey--you", "You"),
+    element("span", "demo__mapkey demo__mapkey--threat", "Threat"),
+    element("span", "demo__mapkey demo__mapkey--loot", "Loot"),
+    element("span", "demo__mapkey demo__mapkey--exit", "Stairs"),
+  );
+  minimapFrame.append(minimapTitle, minimap, minimapLegend);
+  root.append(run, status, minimapFrame, crosshair, channel, message, card, overlayButton);
 
   const update = (model: DemoHudModel): void => {
     const healthShare = model.maxHp > 0 ? Math.max(0, Math.min(1, model.hp / model.maxHp)) : 0;
+    const healthTone = healthShare <= 0.25 ? "critical" : healthShare <= 0.5 ? "wounded" : "steady";
     healthFill.style.width = `${healthShare * 100}%`;
+    status.dataset.health = healthTone;
     health.setAttribute("aria-valuemin", "0");
     health.setAttribute("aria-valuemax", String(model.maxHp));
     health.setAttribute("aria-valuenow", String(Math.max(0, model.hp)));
@@ -333,6 +351,8 @@ export function mountDemoHud(): MountedDemoHud {
     // enemy count, kills, walls broken, the altar and the wall ahead were all here once and were all
     // a number to read rather than a thing to look at. The frame counter is the dev overlay's.
     hp.replaceChildren(String(Math.ceil(Math.max(0, model.hp))), element("small", "", `/${model.maxHp}`));
+    healthState.textContent = healthTone === "steady" ? "" : healthTone;
+    healthState.hidden = healthTone === "steady";
 
     run.dataset.rising = String(model.run.rising);
     runDepth.textContent = `B${model.run.depth}`;
