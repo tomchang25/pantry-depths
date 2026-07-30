@@ -10,16 +10,14 @@ import {
   parseEntityDisplays,
   type EntityDisplay,
 } from "@/content/enemies/entity-display-schema";
-import {
-  SKELETON_SWORDSMAN_ANIMATIONS,
-  SKELETON_SWORDSMAN_FRAMES,
-} from "@/content/enemies/skeleton-swordsman-definitions";
+import { SKELETON_SWORDSMAN_ANIMATIONS } from "@/content/enemies/skeleton-swordsman-definitions";
 import {
   POOL_FILL,
   projectCarriedDemoEnemy,
   projectDemoBarricade,
   projectDemoDeath,
   projectDemoEnemy,
+  skeletonDeathAnimation,
   warnMarkerSprite,
   type DemoEntityProjection,
   type DemoEntityProjectionContext,
@@ -685,11 +683,11 @@ function timelineFrames(state: EntityWorkbenchState): number {
     return 0;
   }
 
-  // Every authored clip is the same eight frames wide, so a death does not need its cause resolved
-  // to a clip name here. What differs between clips is the rate, and that is `timelineSeconds`.
-  return state.bodyState === "dying"
-    ? SKELETON_SWORDSMAN_FRAMES
-    : SKELETON_SWORDSMAN_ANIMATIONS[state.bodyState].frames;
+  // A clip is scrubbed at its own width, which is why the cause has to be resolved here rather than
+  // answered with one number for the whole set: a death held on a single pose and a death that runs
+  // eight frames are both correct, and a scrubber that splits either into eight is not.
+  const clip = state.bodyState === "dying" ? skeletonDeathAnimation(state.deathCause) : state.bodyState;
+  return SKELETON_SWORDSMAN_ANIMATIONS[clip].frames;
 }
 
 function livingProjection(

@@ -17,7 +17,6 @@ import {
 import {
   SKELETON_SWORDSMAN_ANIMATIONS,
   SKELETON_SWORDSMAN_DIRECTIONS,
-  SKELETON_SWORDSMAN_FRAMES,
   type SkeletonSwordsmanAnimationId,
 } from "@/content/enemies/skeleton-swordsman-definitions";
 import { DEMO_ASSET_IDS, WARN_BLADE_STEPS } from "@/demo/demo-sprites";
@@ -626,13 +625,14 @@ function skeletonSprite(
     frame: {
       column: selected.frame,
       row: skeletonDirection(context.camera.angle, enemy.facingAngle),
-      columns: SKELETON_SWORDSMAN_FRAMES,
-      rows: SKELETON_SWORDSMAN_DIRECTIONS,
+      columns: definition.frames,
+      rows: definition.directions,
     },
   };
 }
 
-function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonSwordsmanAnimationId {
+/** Which clip a corpse plays, exported so the workbench can scrub it at that clip's own length. */
+export function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonSwordsmanAnimationId {
   if (cause === "cleaved") {
     return "deathSeverRight";
   }
@@ -687,8 +687,8 @@ function skeletonDeathSprite(
     frame: {
       column: animationFrame(animation, stage),
       row: skeletonDirection(context.camera.angle, death.facingAngle),
-      columns: SKELETON_SWORDSMAN_FRAMES,
-      rows: SKELETON_SWORDSMAN_DIRECTIONS,
+      columns: definition.frames,
+      rows: definition.directions,
     },
   };
 }
@@ -719,8 +719,8 @@ function carriedSkeletonSprite(
     frame: {
       column: animationFrame(animation, 0.62),
       row: skeletonDirection(context.camera.angle, enemy.facingAngle),
-      columns: SKELETON_SWORDSMAN_FRAMES,
-      rows: SKELETON_SWORDSMAN_DIRECTIONS,
+      columns: definition.frames,
+      rows: definition.directions,
     },
   };
 }

@@ -9,18 +9,24 @@ import tempfile
 from pathlib import Path
 
 
-CLIPS = (
-    "idle",
-    "walk",
-    "attack",
-    "hurt",
-    "block",
-    "death",
-    "death-sever-right",
-    "death-blasted",
-    "death-impaled",
-    "death-drowned",
-)
+# Every clip, and how many frames it is baked at.
+#
+# A frame count per clip rather than one for the set. Most of these do not need eight: what a count
+# buys is motion, and a clip with none in it pays the same memory for eight copies of one pose. The
+# runtime half of this table is `src/content/enemies/skeleton-swordsman-definitions.ts`, and the two
+# must agree or the image loader refuses the sheet at startup.
+CLIP_FRAMES = {
+    "idle": 8,
+    "walk": 8,
+    "attack": 8,
+    "hurt": 8,
+    "block": 8,
+    "death": 8,
+    "death-sever-right": 8,
+    "death-blasted": 8,
+    "death-impaled": 8,
+    "death-drowned": 8,
+}
 # Three sizes, and they are not the same number.
 #
 # `RENDER_SIZE` is what Blender writes per frame, `TILE_SIZE` is the atlas cell it is filtered down
@@ -31,8 +37,6 @@ RENDER_SIZE = 512
 TILE_SIZE = 256
 STILL_SIZE = 512
 DIRECTIONS = 8
-FRAMES = 8
-ATLAS_SIZE = TILE_SIZE * FRAMES
 
 
 def require_tool(name: str, known_path: Path | None = None) -> str:
@@ -54,11 +58,11 @@ def run(command: list[str]) -> None:
         raise RuntimeError(f"command failed with exit code {completed.returncode}: {' '.join(command)}")
 
 
-def bake_atlas(magick: str, frames_root: Path, runtime_root: Path, clip: str) -> Path:
+def bake_atlas(magick: str, frames_root: Path, runtime_root: Path, clip: str, frames: int) -> Path:
     sources = [
         str(frames_root / f"{clip}-{direction}-{frame}.png")
         for direction in range(DIRECTIONS)
-        for frame in range(FRAMES)
+        for frame in range(frames)
     ]
     target = runtime_root / f"skeleton-swordsman-atlas-{clip}.png"
     run(
@@ -74,7 +78,7 @@ def bake_atlas(magick: str, frames_root: Path, runtime_root: Path, clip: str) ->
             "-geometry",
             f"{TILE_SIZE}x{TILE_SIZE}+0+0",
             "-tile",
-            f"{FRAMES}x{DIRECTIONS}",
+            f"{frames}x{DIRECTIONS}",
             str(target),
         ]
     )
@@ -137,7 +141,9 @@ def main() -> int:
             ]
         )
 
-        atlases = {clip: bake_atlas(magick, frames_root, runtime_root, clip) for clip in CLIPS}
+        atlases = {
+            clip: bake_atlas(magick, frames_root, runtime_root, clip, frames) for clip, frames in CLIP_FRAMES.items()
+        }
 
     extract_still(
         magick,
@@ -161,16 +167,17 @@ def main() -> int:
         runtime_root / "skeleton-swordsman-hurt.png",
     )
 
-    for atlas in atlases.values():
+    for clip, atlas in atlases.items():
         identify = subprocess.run(
             [magick, "identify", "-format", "%wx%h", str(atlas)],
             check=True,
             capture_output=True,
             text=True,
         )
+        expected = f"{CLIP_FRAMES[clip] * TILE_SIZE}x{DIRECTIONS * TILE_SIZE}"
 
-        if identify.stdout != f"{ATLAS_SIZE}x{ATLAS_SIZE}":
-            raise RuntimeError(f"unexpected atlas dimensions for {atlas}: {identify.stdout}")
+        if identify.stdout != expected:
+            raise RuntimeError(f"unexpected atlas dimensions for {atlas}: {identify.stdout}, expected {expected}")
 
     print(f"Skeleton source: {source_root / 'skeleton-swordsman.blend'}")
     print(f"Runtime atlases: {runtime_root}")

@@ -170,13 +170,12 @@ The workbench is the only place any of this is verified, since the demo half tak
 
 | Child | Focus                                                                      |
 | ----- | -------------------------------------------------------------------------- |
-| 03    | Per-clip frame counts and atlas dimensions, generator through loader       |
 | 04    | The shared death set, the bone burst, and the workbench's procedural state |
 | 05    | The private action set, the three attack clips, a parameterised generator  |
 | 06    | The hammer-bearer, the javelineer, and the crossbowman                     |
 | 07    | The hammer: unlimited bodies, a budget of three, one use                   |
 
-Landing order is 03 through 07. Child 03 is a hard prerequisite for 04 and 05, which are the two re-bakes and are otherwise independent of each other. Child 06 needs 04 and 05 together, because a new type is an action set plus a band. Child 07 can land at any time; its supply arrives with 06.
+Landing order is 04 through 07. Children 04 and 05 are the two re-bakes and are independent of each other. Child 06 needs 04 and 05 together, because a new type is an action set plus a band. Child 07 can land at any time; its supply arrives with 06.
 
 ## Non-Goals
 
@@ -212,20 +211,6 @@ Landing order is 03 through 07. Child 03 is a hard prerequisite for 04 and 05, w
 Coordinates recorded against the codebase as it stands when this plan was written. Re-check each one against the live code before executing its child; a stale line here is expected as earlier children land. Each subsection is cut when its child ships, in the same change that cuts its row from the child overview.
 
 **What children 04 and 05 deliver is structure, not finished animation.** Both bake atlases, and the poses in the first bake are provisional by agreement: what those children own is the clip tables, the per-clip dimensions, the projection and precedence, the parameterised generator, and a bake that runs end to end. Judging whether a pose reads is a separate pass through the entity workbench against Acceptance Criteria 4, 5, and 12, and it is expected to replace keyframes rather than confirm them. Nothing in either child should be read as a claim that the artwork is right.
-
-### 03 — Per-clip dimensions
-
-`src/content/enemies/skeleton-swordsman-definitions.ts`: delete `SKELETON_SWORDSMAN_FRAMES` (line 37) and `SKELETON_SWORDSMAN_ATLAS_SIZE` (line 45). `SkeletonSwordsmanAnimationDefinition` (line 28) gains `directions: number` and `cell: number`; width and height are derived as `frames * cell` and `directions * cell` rather than stored, so a row cannot contradict itself.
-
-`src/presentation/presentation-image-loader.ts`: `loadPresentationImages` (line 69) currently takes one `ExpectedImageDimensions` for the whole manifest and hands the same object to every `loadOne`. It needs to accept either a per-asset lookup keyed by asset id or a manifest whose values carry their own dimensions. Prefer the second — a manifest entry that carries its own expected size cannot be paired with the wrong one. `DEFAULT_IMAGE_DIMENSIONS` (line 29) stays for the 512-square shipped manifest.
-
-`src/demo/demo-sprites.ts` lines 886–893: the single skeleton batch becomes one call with per-entry dimensions, replacing the shared `{ width: ATLAS_SIZE, height: ATLAS_SIZE }`.
-
-`src/demo/demo-scene.ts` lines 614, 675, 707: `columns: SKELETON_SWORDSMAN_FRAMES` and `rows: SKELETON_SWORDSMAN_DIRECTIONS` all read the definition. `animationFrame` (line 536) already reads `definition.frames` and needs nothing.
-
-`dev/tools/generate-skeleton-swordsman.py`: `FRAMES` and `ATLAS_SIZE` (lines 33–35) become per-clip; `bake_atlas` (line 57) takes the clip's frame count for both its source loop and its `-tile` argument; the dimension assertion at line 172 compares against that clip's expected size. `extract_still` (line 84) is unaffected — it cuts from cell zero.
-
-Tests: `test/unit/content/enemies/skeleton-swordsman-definitions.test.ts` lines 16–17 assert the two deleted constants and lines 23–28 list the ten clip ids. Both are updated, not widened. `test/unit/presentation/presentation-image-loader.test.ts` is the frozen exemption in `test/unit/repository/demo-half-is-untested.test.ts` line 31; its subject is changing, so it is updated in place. Neither is a new test and neither needs permission — `dev/agent_rules/test_operations.md` covers this under "When A Test Breaks".
 
 ### 04 — The shared death set
 

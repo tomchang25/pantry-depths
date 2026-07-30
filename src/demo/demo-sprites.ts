@@ -9,8 +9,7 @@
 import {
   SKELETON_PICKUP_ASSETS,
   SKELETON_PICKUP_URLS,
-  SKELETON_SWORDSMAN_ATLAS_SIZE,
-  SKELETON_SWORDSMAN_ATLAS_URLS,
+  SKELETON_SWORDSMAN_ATLAS_MANIFEST,
 } from "@/content/enemies/skeleton-swordsman-definitions";
 import { loadPresentationImages, type PresentationImages } from "@/presentation/presentation-image-loader";
 
@@ -885,10 +884,7 @@ function marker(inner: string, outer: string, glyph: string): HTMLCanvasElement 
 export async function loadDemoImages(): Promise<PresentationImages> {
   const [shipped, skeletonAtlases, skeletonPickups] = await Promise.all([
     loadPresentationImages(),
-    loadPresentationImages(SKELETON_SWORDSMAN_ATLAS_URLS, undefined, {
-      width: SKELETON_SWORDSMAN_ATLAS_SIZE,
-      height: SKELETON_SWORDSMAN_ATLAS_SIZE,
-    }),
+    loadPresentationImages(SKELETON_SWORDSMAN_ATLAS_MANIFEST),
     loadPresentationImages(SKELETON_PICKUP_URLS),
   ]);
   const merged = new Map<string, CanvasImageSource>(shipped);

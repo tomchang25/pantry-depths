@@ -26,6 +26,18 @@ export type ImageFactory = () => LoadableImage;
 
 export type ExpectedImageDimensions = Readonly<{ width: number; height: number }>;
 
+/**
+ * One asset, and the exact sheet it has to arrive as.
+ *
+ * A manifest entry may still be a bare url, which is what the shipped 512-square manifest is and
+ * what every world sprite will stay. The long form exists for animation atlases, whose size is a
+ * fact about the individual clip: a batch of them cannot be checked against one number without
+ * either weakening the check or forcing every clip to the widest one's shape.
+ */
+export type PresentationAssetSource = Readonly<{ url: string; dimensions: ExpectedImageDimensions }>;
+
+export type PresentationManifest = Readonly<Record<string, string | PresentationAssetSource>>;
+
 const DEFAULT_IMAGE_DIMENSIONS: ExpectedImageDimensions = { width: 512, height: 512 };
 
 function defaultImageFactory(): LoadableImage {
@@ -67,12 +79,15 @@ function loadOne(
 
 /** Loads the complete immutable sprite manifest before the renderer becomes ready. */
 export async function loadPresentationImages(
-  manifest: Readonly<Record<string, string>> = REQUIRED_PRESENTATION_ASSETS,
+  manifest: PresentationManifest = REQUIRED_PRESENTATION_ASSETS,
   imageFactory: ImageFactory = defaultImageFactory,
-  expectedDimensions: ExpectedImageDimensions = DEFAULT_IMAGE_DIMENSIONS,
 ): Promise<PresentationImages> {
   const loaded = await Promise.all(
-    Object.entries(manifest).map(([assetId, url]) => loadOne(assetId, url, imageFactory, expectedDimensions)),
+    Object.entries(manifest).map(([assetId, entry]) =>
+      typeof entry === "string"
+        ? loadOne(assetId, entry, imageFactory, DEFAULT_IMAGE_DIMENSIONS)
+        : loadOne(assetId, entry.url, imageFactory, entry.dimensions),
+    ),
   );
   return new Map(loaded);
 }

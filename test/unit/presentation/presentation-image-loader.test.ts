@@ -50,11 +50,15 @@ describe("presentation image loader", () => {
     );
   });
 
-  it("accepts an explicitly sized animation atlas without weakening the default sprite contract", async () => {
+  it("accepts an entry carrying its own dimensions without weakening the default sprite contract", async () => {
     const images = await loadPresentationImages(
-      { "enemy.skeletonSwordsman.atlas.walk": "/skeleton-walk.png" },
-      fakeImageFactory(1024, 1024),
-      { width: 1024, height: 1024 },
+      {
+        "enemy.skeletonSwordsman.atlas.walk": {
+          url: "/skeleton-walk.png",
+          dimensions: { width: 1024, height: 2048 },
+        },
+      },
+      fakeImageFactory(1024, 2048),
     );
 
     expect([...images.keys()]).toEqual(["enemy.skeletonSwordsman.atlas.walk"]);
