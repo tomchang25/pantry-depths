@@ -25,7 +25,7 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
   {
     id: "hud-attack-workbench",
     path: "/debug/hud-attack-workbench",
-    title: "HUD and Attack Workbench",
+    title: "HUD Workbench",
     description: "Tune pure HUD states and authored attacks against real dungeon renderer panels.",
     load: () =>
       import("@/app/debug/hud-attack-workbench").then(({ renderHudAttackWorkbench }) => ({

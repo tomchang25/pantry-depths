@@ -6,10 +6,11 @@
  * demo for the union it is checking against. Keeping one list and having the demo alias it is the only
  * arrangement where a kind added later cannot be missing a display row and compile anyway.
  *
- * The numbers are the pickup on the floor and nothing else. What a thing looks like in flight and what
- * it looks like in the hand are two more contexts with their own numbers, and mixing all three into one
- * record would mean a table where two thirds of every row is untunable from wherever you happen to be
- * looking. Those get their own tables when they get their own previews.
+ * The numbers cover two of the three contexts a prop is drawn in: where it lies on the floor, and how it
+ * sits in the hand. Each arrived with its own preview — the pickup on the prop workbench's tab, the hand
+ * on the HUD workbench's — because a number nobody can look at is a number that gets guessed. Flight is
+ * the one still missing, and it stays out until it has a preview of its own rather than being authored
+ * blind alongside two contexts that can be seen.
  */
 
 export const PROP_KINDS = [
@@ -42,6 +43,16 @@ export type PropDisplay = Readonly<{
    * right for whichever was authored first.
    */
   floorAnchor: number;
+  /**
+   * How much of the carried-object slot this prop fills in the first-person view.
+   *
+   * One for the size the slot was built around. Every prop used to be drawn into exactly that square,
+   * so a thrown stake and a bomb were the same size in the hand however different they are on the
+   * floor — this is what lets a long thing read as long while it is being carried.
+   */
+  handScale: number;
+  /** How far the carried object is turned in the hand, in radians. */
+  handRotation: number;
 }>;
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -92,10 +103,18 @@ export function parsePropDisplays(value: unknown): readonly PropDisplay[] {
       throw new TypeError(`propDisplay[${index}].floorScale must be greater than zero.`);
     }
 
+    const handScale = finiteNumber(source.handScale, `propDisplay[${index}].handScale`);
+
+    if (handScale <= 0) {
+      throw new TypeError(`propDisplay[${index}].handScale must be greater than zero.`);
+    }
+
     parsed.set(kind as PropKind, {
       kind: kind as PropKind,
       floorScale,
       floorAnchor: finiteNumber(source.floorAnchor, `propDisplay[${index}].floorAnchor`),
+      handScale,
+      handRotation: finiteNumber(source.handRotation, `propDisplay[${index}].handRotation`),
     });
   });
 

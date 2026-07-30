@@ -21,7 +21,7 @@ describe("resolveDebugRoute", () => {
     }
   });
 
-  it("resolves the HUD and Attack Workbench from the shared debug catalog", () => {
+  it("resolves the HUD Workbench from the shared debug catalog", () => {
     const route = resolveDebugRoute("/debug/hud-attack-workbench");
 
     expect(route.kind).toBe("tool");
@@ -30,7 +30,7 @@ describe("resolveDebugRoute", () => {
       expect(route.tool).toMatchObject({
         id: "hud-attack-workbench",
         path: "/debug/hud-attack-workbench",
-        title: "HUD and Attack Workbench",
+        title: "HUD Workbench",
       });
     }
   });

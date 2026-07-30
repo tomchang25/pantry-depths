@@ -29,6 +29,8 @@ import {
   type MeleeViewPoint,
   type MeleeViewmodelPose,
 } from "@/content/viewmodel/melee-viewmodel";
+import propDisplayJson from "@/content/presentation/prop-display.json";
+import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { slimeBody } from "@/demo/demo-scene";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
 import type { DemoWorld } from "@/demo/world";
@@ -44,6 +46,9 @@ import type { PresentationImages } from "@/presentation/presentation-image-loade
  */
 const STAGE_WIDTH_FRACTION = 0.94;
 const STAGE_HEIGHT_FRACTION = 1.45;
+
+/** How each carried object fills the hand, authored beside how it looks on the floor. */
+const PROP_DISPLAYS = propDisplaysByKind(parsePropDisplays(propDisplayJson));
 
 export type DemoViewmodelModel = Pick<
   DemoWorld,
@@ -297,12 +302,17 @@ export function drawDemoViewmodel(
       const carried = images.get(DEMO_ASSET_IDS[held.prop]);
 
       if (carried) {
+        // Its own size and turn in the hand, authored per kind. Every prop used to be drawn into the
+        // same square, so a stake and a bomb were carried at identical size however different they are
+        // anywhere else; the numbers are tuned on the HUD workbench's carried tab.
+        const display = PROP_DISPLAYS[held.prop];
+        const drawn = unit * display.handScale;
         context.save();
         context.translate(carriedX, carriedY);
-        context.rotate(-0.18 + sway);
+        context.rotate(display.handRotation + sway);
         // Matched to how dark the arm beside it reads, so the carried thing does not glow next to it.
         context.filter = "brightness(0.86) saturate(0.92)";
-        context.drawImage(carried, -unit * 0.5, -unit * 0.5, unit, unit);
+        context.drawImage(carried, -drawn * 0.5, -drawn * 0.5, drawn, drawn);
         context.restore();
       }
     }
@@ -321,7 +331,7 @@ export function drawDemoViewmodel(
       context.save();
       context.globalAlpha = Math.max(0, 1 - flight * 1.2);
       context.translate(carriedX + (width * 0.5 - carriedX) * flight * 0.7, carriedY - height * 0.42 * flight);
-      context.rotate(-0.18 - flight * 2.4);
+      context.rotate(PROP_DISPLAYS[world.thrownKind].handRotation - flight * 2.4);
       context.filter = "brightness(0.86) saturate(0.92)";
       const shrunk = unit * (1 - flight * 0.55);
       context.drawImage(leaving, -shrunk * 0.5, -shrunk * 0.5, shrunk, shrunk);

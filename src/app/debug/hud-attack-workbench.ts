@@ -1,4 +1,5 @@
 import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
+import { createCarriedWorkbench } from "@/app/debug/carried-workbench";
 import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
 import { createRenderPanel } from "@/app/debug/render-panel";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
@@ -17,7 +18,7 @@ import { demoMeleeImpactPitch } from "@/demo/demo-scene";
 import { drawDemoViewmodel, type DemoViewmodelModel } from "@/demo/demo-viewmodel";
 import type { CameraPose, RenderBeam, RenderBox, RenderScene, RenderSurface } from "@/presentation/render-scene";
 
-type WorkbenchTab = "hud" | "attack";
+type WorkbenchTab = "hud" | "attack" | "carried";
 type PoseName = "windup" | "follow";
 
 const ROOM_SIZE = 9;
@@ -187,16 +188,18 @@ function poseInput(label: string, value: number, onInput: (value: number) => voi
 /** Renders the pure HUD model and the authored melee geometry against real renderer panels. */
 export function renderHudAttackWorkbench(mount: HTMLElement): void {
   const { page, content } = createDebugPage({
-    title: "HUD and Attack Workbench",
+    title: "HUD Workbench",
     description:
-      "Tune HUD states and the eight first-person attacks against the same renderer and drawing seams used by the demo.",
+      "Everything drawn over the world rather than in it: the HUD, the eight first-person attacks, and whatever the other hand is carrying — all against the same renderer and drawing seams the demo uses.",
     width: "wide",
   });
   const tabs = document.createElement("div");
   const hudTab = document.createElement("button");
   const attackTab = document.createElement("button");
+  const carriedTab = document.createElement("button");
   const hudSection = document.createElement("div");
   const attackSection = document.createElement("div");
+  const carriedSection = document.createElement("div");
   tabs.className = "workbench-tabs";
   tabs.setAttribute("role", "tablist");
   hudTab.type = "button";
@@ -209,20 +212,29 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   attackTab.setAttribute("aria-controls", "attack-workbench-tab");
   hudSection.id = "hud-workbench-tab";
   hudSection.setAttribute("role", "tabpanel");
+  carriedTab.type = "button";
+  carriedTab.textContent = "Carried";
+  carriedTab.setAttribute("role", "tab");
+  carriedTab.setAttribute("aria-controls", "carried-workbench-tab");
   attackSection.id = "attack-workbench-tab";
   attackSection.setAttribute("role", "tabpanel");
-  tabs.append(hudTab, attackTab);
+  carriedSection.id = "carried-workbench-tab";
+  carriedSection.setAttribute("role", "tabpanel");
+  tabs.append(hudTab, attackTab, carriedTab);
 
   let activeTab: WorkbenchTab = "hud";
   const selectTab = (tab: WorkbenchTab): void => {
     activeTab = tab;
     hudTab.setAttribute("aria-selected", String(activeTab === "hud"));
     attackTab.setAttribute("aria-selected", String(activeTab === "attack"));
+    carriedTab.setAttribute("aria-selected", String(activeTab === "carried"));
     hudSection.hidden = activeTab !== "hud";
     attackSection.hidden = activeTab !== "attack";
+    carriedSection.hidden = activeTab !== "carried";
   };
   hudTab.addEventListener("click", () => selectTab("hud"));
   attackTab.addEventListener("click", () => selectTab("attack"));
+  carriedTab.addEventListener("click", () => selectTab("carried"));
 
   let hudModel = defaultHudModel();
   const hudControls = createDebugPanel(
@@ -532,7 +544,8 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   });
   attackSection.append(attackControls.panel, attackRender.element);
 
-  content.append(tabs, hudSection, attackSection);
+  carriedSection.append(createCarriedWorkbench());
+  content.append(tabs, hudSection, attackSection, carriedSection);
   mount.replaceChildren(page);
   renderPoseControls();
   refreshHud();

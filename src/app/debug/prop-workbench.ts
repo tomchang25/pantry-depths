@@ -254,7 +254,7 @@ export function createPropWorkbench(): HTMLElement {
     (value) => value.toFixed(3),
     (value) => {
       state.floorScale = value;
-      displays[state.kind] = { kind: state.kind, floorScale: value, floorAnchor: state.floorAnchor };
+      displays[state.kind] = { ...displays[state.kind], floorScale: value };
       status.textContent = "Unsaved pickup changes.";
     },
   );
@@ -269,7 +269,7 @@ export function createPropWorkbench(): HTMLElement {
     (value) => value.toFixed(3),
     (value) => {
       state.floorAnchor = value;
-      displays[state.kind] = { kind: state.kind, floorScale: state.floorScale, floorAnchor: value };
+      displays[state.kind] = { ...displays[state.kind], floorAnchor: value };
       status.textContent = "Unsaved pickup changes.";
     },
   );
