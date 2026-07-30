@@ -168,17 +168,16 @@ The workbench is the only place any of this is verified, since the demo half tak
 
 ### Child overview
 
-| Child | Focus                                                                        |
-| ----- | ---------------------------------------------------------------------------- |
-| 01    | Split pursuit from attacking; attack states suppress movement and show which |
-| 02    | Three slime entities: no attacks, no drops, own health, size, and footprint  |
-| 03    | Per-clip frame counts and atlas dimensions, generator through loader         |
-| 04    | The shared death set, the bone burst, and the workbench's procedural state   |
-| 05    | The private action set, the three attack clips, a parameterised generator    |
-| 06    | The hammer-bearer, the javelineer, and the crossbowman                       |
-| 07    | The hammer: unlimited bodies, a budget of three, one use                     |
+| Child | Focus                                                                       |
+| ----- | --------------------------------------------------------------------------- |
+| 02    | Three slime entities: no attacks, no drops, own health, size, and footprint |
+| 03    | Per-clip frame counts and atlas dimensions, generator through loader        |
+| 04    | The shared death set, the bone burst, and the workbench's procedural state  |
+| 05    | The private action set, the three attack clips, a parameterised generator   |
+| 06    | The hammer-bearer, the javelineer, and the crossbowman                      |
+| 07    | The hammer: unlimited bodies, a budget of three, one use                    |
 
-Landing order is 01 through 07. Child 01 is a hard prerequisite for 02 — a slime with no attack under the current coupling would stop dead at a reach it no longer uses. Child 03 is a hard prerequisite for 04 and 05, which are the two re-bakes and are otherwise independent of each other. Child 06 needs 04, 05, and 01 together, because a new type is an action set plus a band. Child 07 needs only 01 and can land any time after it; its supply arrives with 06.
+Landing order is 02 through 07. Child 03 is a hard prerequisite for 04 and 05, which are the two re-bakes and are otherwise independent of each other. Child 06 needs 04 and 05 together, because a new type is an action set plus a band. Child 07 can land at any time; its supply arrives with 06.
 
 ## Non-Goals
 
@@ -214,28 +213,6 @@ Landing order is 01 through 07. Child 01 is a hard prerequisite for 02 — a sli
 Coordinates recorded against the codebase as it stands when this plan was written. Re-check each one against the live code before executing its child; a stale line here is expected as earlier children land. Each subsection is cut when its child ships, in the same change that cuts its row from the child overview.
 
 **What children 04 and 05 deliver is structure, not finished animation.** Both bake atlases, and the poses in the first bake are provisional by agreement: what those children own is the clip tables, the per-clip dimensions, the projection and precedence, the parameterised generator, and a bake that runs end to end. Judging whether a pose reads is a separate pass through the entity workbench against Acceptance Criteria 4, 5, and 12, and it is expected to replace keyframes rather than confirm them. Nothing in either child should be read as a claim that the artwork is right.
-
-### 01 — Pursuit and attacking
-
-`src/demo/enemy-ai.ts` is the whole change.
-
-The coupling is the bare `return` at line 596, at the end of `stepMelee`'s in-reach branch. Reaching it means "in reach, cooldown running", and it exits without calling `walk`, leaving `enemy.moving` at the `false` set by line 485 — which is why a recovering body plays idle.
-
-New shape for `stepEnemies` (line 483), replacing the archetype-id branch chain at 564–579:
-
-1. Existing preamble unchanged: `decayTimers`, `applyPush`, drowning skip, `unstick`, charge step, stun skip.
-2. If any attack state is live — `windupSeconds > 0`, `attackPoseSeconds > 0`, or `attackCooldown > 0` — run only that state's tick and `continue`. No `walk` call on any of these paths.
-3. Otherwise run pursuit toward the archetype's band, then test whether the attack can begin.
-
-`attackCooldown` is already decayed by `decayTimers` (line 49) and its total is `archetype.attackCooldown`, so recovery progress is `1 - attackCooldown / archetype.attackCooldown` with no new field. `attackPoseSeconds` is set to `windup + 0.2` in `beginWindup` (line 228) — that arithmetic goes away, the strike clip owns its own length, and `attackPoseSeconds` becomes the strike timer only.
-
-Bands go on `DemoEnemyArchetype` in `src/demo/enemy-archetypes.ts` as `band: { near: number; far: number } | undefined`. `RANGED_STANDOFF` at line 246 is deleted and becomes `{ near: 4, far: 7 }` on the two ranged rows; a melee row is `{ near: contactRange * 0.85, far: contactRange }`; a slime row omits it. `stepRanged` (line 615) and `stepMelee` (line 583) collapse into one `pursue` that reads the band: inside `near` walk away, beyond `far` walk toward, inside the band stand. The sidestep at line 644 is deleted per Non-Goal 3.
-
-Attack triggers keep their current predicates, just relocated: melee needs `distance <= contactRange` and `meleeWindup`; charge needs `distance <= CHARGE_TRIGGER_DISTANCE`, line of sight, and cooldown clear (line 569); ranged needs line of sight and `distance <= band.far` (line 622).
-
-Delete the contact-damage fallback at lines 627–631 — that is the ranged melee poke, and Requirement 6 removes it. It is currently the only reason a shooter reads `contactRange` at all.
-
-Animation precedence in `skeletonAnimation`, `src/demo/demo-scene.ts` line 553, becomes: drowning, hurt, **stunned**, wind-up, strike, recovery, walk, idle. Stunned must move above wind-up. Today it sits below (line 581 after 571), and `stepEnemies` skips a stunned body at line 502 before the wind-up block, so `windupSeconds` stays non-zero through the stun — a skeleton stunned mid-wind-up currently shows the wind-up pose with stars orbiting it. That is a live defect this reordering fixes.
 
 ### 02 — Three slime entities
 

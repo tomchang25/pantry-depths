@@ -73,6 +73,16 @@ export type DemoEnemyArchetype = Readonly<{
   meleeWindup: boolean;
   windupIntent?: DemoWindupIntent;
   /**
+   * The distance band this body tries to hold while pursuing: it backs off inside `near`, closes
+   * beyond `far`, and stands still between them.
+   *
+   * Pursuit reads nothing else, which is what lets one routine steer a swordsman and a shooter. A
+   * melee body's band is its own reach, so it stops exactly where it can hit; a shooter's is the
+   * standoff it wants. Omitted means the body holds no distance at all and walks into the player
+   * forever — that is the slime, and it is the reason this is optional rather than defaulted.
+   */
+  band?: Readonly<{ near: number; far: number }>;
+  /**
    * Radians per second the body may swing its facing, for a body that has a front.
    *
    * Omitted means the body has no front and moves freely in any direction, which is what a blob does
@@ -93,6 +103,19 @@ export type DemoEnemyArchetype = Readonly<{
   jostle?: number;
 }>;
 
+/**
+ * The band a body with a contact attack holds: just inside its own reach.
+ *
+ * Derived from the reach rather than authored beside it, because the two can never disagree without
+ * producing a body that walks to a spot it cannot strike from.
+ */
+function meleeBand(contactRange: number): Readonly<{ near: number; far: number }> {
+  return { near: contactRange * 0.85, far: contactRange };
+}
+
+const CHARGER_REACH = 0.86;
+const SWORDSMAN_REACH = 0.95;
+
 const WALKER: DemoEnemyArchetype = {
   id: "walker",
   name: "Slime",
@@ -112,7 +135,8 @@ const WALKER: DemoEnemyArchetype = {
   contactRange: 0.86,
   body: "soft",
   meleeWindup: false,
-  // No `windupIntent`: it has no wind-up to give one to.
+  // No `windupIntent`: it has no wind-up to give one to. No `band` either, and that is the whole of
+  // what a slime is now — nothing it can enter suppresses its pursuit, so it advances forever.
   // Under a fifth of walking pace at its very worst, and only while genuinely overlapping. Enough to
   // be shoved off a line you were holding; nowhere near enough to take control away.
   jostle: 0.6,
@@ -144,6 +168,7 @@ const RANGED: DemoEnemyArchetype = {
   body: "soft",
   meleeWindup: false,
   windupIntent: "shoot",
+  band: { near: 4, far: 7 },
 };
 
 const CHARGER: DemoEnemyArchetype = {
@@ -173,10 +198,11 @@ const CHARGER: DemoEnemyArchetype = {
   // below are for. Without those two this number would only be a nerf.
   windup: 3,
   contactDamage: 6,
-  contactRange: 0.86,
+  contactRange: CHARGER_REACH,
   body: "soft",
   meleeWindup: false,
   windupIntent: "charge",
+  band: meleeBand(CHARGER_REACH),
 };
 
 const SWORDSMAN: DemoEnemyArchetype = {
@@ -207,11 +233,12 @@ const SWORDSMAN: DemoEnemyArchetype = {
   // and walked out of should cost something when it does land, or it is only a slower way of being
   // harmless.
   contactDamage: 16,
-  contactRange: 0.95,
+  contactRange: SWORDSMAN_REACH,
   body: "boned",
   meleeWindup: true,
   windupIntent: "melee",
   turnRate: 4.4,
+  band: meleeBand(SWORDSMAN_REACH),
 };
 
 export const ENEMY_ARCHETYPES = { walker: WALKER, ranged: RANGED, charger: CHARGER, swordsman: SWORDSMAN } as const;
@@ -242,8 +269,15 @@ export function isBoned(archetype: DemoEnemyArchetype): boolean {
  */
 export const MELEE_CUT_HALF_ANGLE = 0.75;
 
-/** The band a shooter tries to hold: it backs off inside the near edge and closes outside the far one. */
-export const RANGED_STANDOFF = { near: 4, far: 7 } as const;
+/**
+ * How long a released attack holds its strike pose before the cooldown takes over.
+ *
+ * One number for every attack while every clip is the same length. It becomes the strike clip's own
+ * duration once a clip carries one, which is what stops a fast swing and a heavy one from being
+ * forced to land in the same fifth of a second.
+ */
+export const STRIKE_SECONDS = 0.22;
+
 export const RANGED_SHOT_SPEED = 8;
 export const RANGED_SHOT_DAMAGE = 12;
 export const RANGED_SHOT_RANGE = 12;

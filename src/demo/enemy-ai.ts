@@ -1,11 +1,18 @@
 /**
- * Enemy behaviour.
+ * Enemy behaviour, as two systems that never run in the same frame.
  *
- * The shared spine is unchanged: beyond a few cells an enemy navigates the grid toward the player's
- * cell, and inside that it drops the path and runs straight at them. What each archetype adds is a
- * committed attack with a visible wind-up — a window where it has stopped, is telling you what it
- * is about to do, and cannot change its mind. Everything that makes these fights readable lives in
- * that window.
+ * **Pursuit** is what a body does when it is not attacking, and it reads one thing: the distance band
+ * its archetype wants to hold. Beyond a few cells it navigates the grid toward the player's cell,
+ * inside that it drops the path and runs straight at them, and it stops when it is in the band.
+ *
+ * **Attacking** runs only for a body that has an attack, reads only its own timers, and while any of
+ * them is live it suppresses pursuit completely — through the wind-up, through the strike, and through
+ * the cooldown afterwards. A body cannot move during any of the three, and each of the three shows
+ * which one it is in.
+ *
+ * The split is what makes both ends honest. A slime has no attack, therefore no attack state,
+ * therefore nothing that can ever stop it: it walks into the player forever. A skeleton has all three,
+ * so it spends most of its life standing still — committed, readable, and worth walking around.
  */
 
 import { damageWall } from "@/demo/actions";
@@ -21,7 +28,7 @@ import {
   RANGED_SHOT_DAMAGE,
   RANGED_SHOT_RANGE,
   RANGED_SHOT_SPEED,
-  RANGED_STANDOFF,
+  STRIKE_SECONDS,
 } from "@/demo/enemy-archetypes";
 import { hasBless } from "@/demo/bless";
 import { checkHazards } from "@/demo/impacts";
@@ -225,7 +232,6 @@ function beginWindup(world: DemoWorld, enemy: DemoEnemy, intent: DemoEnemy["inte
   enemy.intent = intent;
   enemy.windupSeconds = enemy.archetype.windup;
   enemy.windupTotal = enemy.archetype.windup;
-  enemy.attackPoseSeconds = enemy.archetype.windup + 0.2;
   enemy.aimX = world.player.x;
   enemy.aimY = world.player.y;
 }
@@ -251,6 +257,7 @@ function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
     plunge: 1,
     blastRadius: 0,
   });
+  enemy.attackPoseSeconds = STRIKE_SECONDS;
   enemy.attackCooldown = enemy.archetype.attackCooldown;
 }
 
@@ -503,103 +510,108 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
       continue;
     }
 
+    // The three attack states, in the order a body passes through them. Every one of them holds the
+    // body where it stands: none of these branches reaches `walk`, which is the whole of what
+    // separating the two systems means. The cooldown branch is the new one — the body already stood
+    // still for it, but it stood still as an accident of a range check, so nothing downstream could
+    // tell that the most punishable window in the fight was open.
     if (enemy.windupSeconds > 0) {
-      stokeCharge(world, enemy, deltaSeconds);
-      honeBlade(world, enemy, deltaSeconds);
-      // Committed means committed: a body winding up neither moves nor turns. It used to keep
-      // tracking the player at its walking turn rate, which over a full second is most of a circle —
-      // so the cut would follow whoever it was aimed at and the arc drawn on the floor would sweep
-      // around after them, describing nothing. Locking the facing here is what makes that arc a claim
-      // about a piece of ground rather than a decoration attached to a body.
-      enemy.windupSeconds -= deltaSeconds;
+      stepWindup(world, enemy, deltaSeconds);
+      continue;
+    }
 
-      if (enemy.windupSeconds <= 0) {
-        const intent = enemy.intent;
-
-        if (intent === "shoot") {
-          fireShot(world, enemy);
-          enemy.intent = "none";
-          continue;
-        }
-
-        if (intent === "charge") {
-          launchCharge(enemy);
-          continue;
-        }
-
-        if (intent === "melee") {
-          const toX = world.player.x - enemy.x;
-          const toY = world.player.y - enemy.y;
-          const distance = Math.hypot(toX, toY);
-          // Both halves of the shape the floor is showing. Distance alone made a cut a full circle,
-          // which is why walking round a swordsman never used to work; with the facing locked at the
-          // start of the wind-up, the cone is fixed in the world for the whole second and stepping
-          // out of it is exactly as reliable as the mark says it is.
-          const offBearing = Math.abs(shortestTurn(Math.atan2(toY, toX) - enemy.facingAngle));
-          releaseBlade(world, enemy);
-
-          if (distance <= enemy.archetype.contactRange + 0.16 && offBearing <= MELEE_CUT_HALF_ANGLE) {
-            hurtPlayer(world, enemy.archetype.contactDamage, enemy.x, enemy.y);
-          }
-
-          enemy.attackCooldown = enemy.archetype.attackCooldown;
-          enemy.intent = "none";
-          continue;
-        }
-
-        if (intent === "none") {
-          continue;
-        }
-
-        intent satisfies never;
-        throw new Error("unknown enemy intent");
-      }
-
+    if (enemy.attackPoseSeconds > 0 || enemy.attackCooldown > 0) {
       continue;
     }
 
     const distance = Math.max(0.0001, Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y));
     const sighted = hasLineOfSight(world.maze, enemy.x, enemy.y, world.player.x, world.player.y);
-
-    if (enemy.archetype.id === "ranged") {
-      stepRanged(world, enemy, distance, sighted, deltaSeconds);
-      continue;
-    }
-
-    if (
-      enemy.archetype.id === "charger" &&
-      distance <= CHARGE_TRIGGER_DISTANCE &&
-      sighted &&
-      enemy.attackCooldown <= 0
-    ) {
-      beginWindup(world, enemy, "charge");
-      continue;
-    }
-
-    stepMelee(world, enemy, distance, deltaSeconds);
+    pursue(world, enemy, distance, sighted, deltaSeconds);
+    tryBeginAttack(world, enemy, distance, sighted);
   }
 }
 
-function stepMelee(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSeconds: number): void {
-  if (distance <= enemy.archetype.contactRange) {
-    if (enemy.attackCooldown <= 0) {
-      if (enemy.archetype.meleeWindup) {
-        beginWindup(world, enemy, "melee");
-        return;
-      }
+/** Runs a wind-up already committed to, and resolves whatever it was committed to when it expires. */
+function stepWindup(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+  stokeCharge(world, enemy, deltaSeconds);
+  honeBlade(world, enemy, deltaSeconds);
+  // Committed means committed: a body winding up neither moves nor turns. It used to keep tracking
+  // the player at its walking turn rate, which over a full second is most of a circle — so the cut
+  // would follow whoever it was aimed at and the arc drawn on the floor would sweep around after
+  // them, describing nothing. Locking the facing here is what makes that arc a claim about a piece
+  // of ground rather than a decoration attached to a body.
+  enemy.windupSeconds -= deltaSeconds;
 
-      enemy.attackCooldown = enemy.archetype.attackCooldown;
-      enemy.attackPoseSeconds = 0.3;
-      hurtPlayer(world, enemy.archetype.contactDamage, enemy.x, enemy.y);
-    }
-
+  if (enemy.windupSeconds > 0) {
     return;
   }
 
+  const intent = enemy.intent;
+
+  if (intent === "shoot") {
+    fireShot(world, enemy);
+    enemy.intent = "none";
+    return;
+  }
+
+  if (intent === "charge") {
+    launchCharge(enemy);
+    return;
+  }
+
+  if (intent === "melee") {
+    const toX = world.player.x - enemy.x;
+    const toY = world.player.y - enemy.y;
+    const distance = Math.hypot(toX, toY);
+    // Both halves of the shape the floor is showing. Distance alone made a cut a full circle, which
+    // is why walking round a swordsman never used to work; with the facing locked at the start of
+    // the wind-up, the cone is fixed in the world for the whole second and stepping out of it is
+    // exactly as reliable as the mark says it is.
+    const offBearing = Math.abs(shortestTurn(Math.atan2(toY, toX) - enemy.facingAngle));
+    releaseBlade(world, enemy);
+
+    if (distance <= enemy.archetype.contactRange + 0.16 && offBearing <= MELEE_CUT_HALF_ANGLE) {
+      hurtPlayer(world, enemy.archetype.contactDamage, enemy.x, enemy.y);
+    }
+
+    enemy.attackPoseSeconds = STRIKE_SECONDS;
+    enemy.attackCooldown = enemy.archetype.attackCooldown;
+    enemy.intent = "none";
+    return;
+  }
+
+  if (intent === "none") {
+    return;
+  }
+
+  intent satisfies never;
+  throw new Error("unknown enemy intent");
+}
+
+/**
+ * Closes on the player, or holds off them, according to the one band the archetype declares.
+ *
+ * This replaces a melee routine and a shooter routine that differed in nothing but which distance
+ * they wanted. Sight gates the band rather than the closing, because a body holding a standoff
+ * against a wall it cannot see through is holding it against nothing — it should come round.
+ */
+function pursue(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean, deltaSeconds: number): void {
+  const band = enemy.archetype.band;
+  const towardX = (world.player.x - enemy.x) / distance;
+  const towardY = (world.player.y - enemy.y) / distance;
+
+  if (band !== undefined && sighted) {
+    if (distance < band.near) {
+      walk(world, enemy, -towardX, -towardY, enemy.archetype.speed, deltaSeconds);
+      return;
+    }
+
+    if (distance <= band.far) {
+      return;
+    }
+  }
+
   const close = distance <= enemy.archetype.rushDistance;
-  const heading = close
-    ? { x: (world.player.x - enemy.x) / distance, y: (world.player.y - enemy.y) / distance }
-    : pathHeading(world, enemy);
 
   if (close) {
     // Dropping the waypoint alone would leave the rusher stalled for a whole cooldown when the
@@ -608,43 +620,52 @@ function stepMelee(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSe
     enemy.repathSeconds = 0;
   }
 
+  const heading = close ? { x: towardX, y: towardY } : pathHeading(world, enemy);
   walk(world, enemy, heading.x, heading.y, close ? enemy.archetype.rushSpeed : enemy.archetype.speed, deltaSeconds);
 }
 
-/** Holds a standoff band: backs away when crowded, closes when out of range, shoots when it can. */
-function stepRanged(
-  world: DemoWorld,
-  enemy: DemoEnemy,
-  distance: number,
-  sighted: boolean,
-  deltaSeconds: number,
-): void {
-  if (sighted && enemy.attackCooldown <= 0 && distance <= RANGED_STANDOFF.far) {
-    beginWindup(world, enemy, "shoot");
+/**
+ * Opens an attack if this body has one and the conditions it declares are met.
+ *
+ * Reached only with every attack timer at zero, so no branch below re-checks the cooldown. What each
+ * one still checks is its own claim about the world: a cut needs to be in reach, a charge and a shot
+ * need to be able to see what they are aimed at.
+ */
+function tryBeginAttack(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean): void {
+  const intent = enemy.archetype.windupIntent;
+
+  if (intent === undefined) {
     return;
   }
 
-  if (distance <= enemy.archetype.contactRange && enemy.attackCooldown <= 0) {
-    enemy.attackCooldown = enemy.archetype.attackCooldown;
-    hurtPlayer(world, enemy.archetype.contactDamage, enemy.x, enemy.y);
+  if (intent === "melee") {
+    if (enemy.archetype.meleeWindup && distance <= enemy.archetype.contactRange) {
+      beginWindup(world, enemy, "melee");
+    }
+
     return;
   }
 
-  const towardX = (world.player.x - enemy.x) / distance;
-  const towardY = (world.player.y - enemy.y) / distance;
+  if (intent === "charge") {
+    if (sighted && distance <= CHARGE_TRIGGER_DISTANCE) {
+      beginWindup(world, enemy, "charge");
+    }
 
-  if (sighted && distance < RANGED_STANDOFF.near) {
-    walk(world, enemy, -towardX, -towardY, enemy.archetype.speed, deltaSeconds);
     return;
   }
 
-  if (sighted && distance <= RANGED_STANDOFF.far) {
-    // In the band with a shot on cooldown: sidestep rather than stand still, so it is never a target
-    // painted onto the floor.
-    walk(world, enemy, -towardY, towardX, enemy.archetype.speed * 0.6, deltaSeconds);
+  if (intent === "shoot") {
+    // The far edge of the standoff is also the range it will open fire at, so a shooter cannot want
+    // a distance it refuses to shoot from. A body with no band has no standoff and no shot.
+    const band = enemy.archetype.band;
+
+    if (band !== undefined && sighted && distance <= band.far) {
+      beginWindup(world, enemy, "shoot");
+    }
+
     return;
   }
 
-  const heading = pathHeading(world, enemy);
-  walk(world, enemy, heading.x, heading.y, enemy.archetype.speed, deltaSeconds);
+  intent satisfies never;
+  throw new Error("unknown enemy windup intent");
 }

@@ -59,6 +59,11 @@ Turned the single-file browser prototype into a governed TypeScript project. No 
 - 2026-07-27 — [presentation] Corrected the projection. The camera plane now derives from the canvas aspect instead of a fixed angle, ending a horizontal stretch of about 1.4x that cost the player the side walls at a junction and made a quarter turn sweep far more screen than it represented. Floor tiles now draw their cell boundary heavier than the flagstone joints inside them, so counting cells to judge distance is reliable.
 - 2026-07-27 — [content] An enemy is identified by its archetype rather than by its artwork. Four archetypes share one placeholder appearance, so an entity carrying only its appearance could not say what it was; resolving artwork at the presentation boundary also retires a cast that would have thrown for every archetype borrowing shared art.
 
+### Demo Enemies
+
+- 2026-07-30 — [skeletons] Pursuit and attacking became two systems that never run in the same frame. A body holds the one distance band its archetype declares, and any live attack state — winding up, striking, or recovering from the cooldown — holds it still and is told apart from the others by the body alone. The cooldown was already a standstill and is now a visible one, which is what turns the most punishable window in a fight into something the player can hunt for.
+- 2026-07-30 — [skeletons] A body with no wind-up now has no attack at all: the slimes' contact damage and the shooter's melee poke are gone, and with nothing able to suppress their pursuit the slimes advance forever. The shooter's strafe-on-cooldown went with them — standing exposed is the price of a long reload. A skeleton clubbed mid-swing also stops showing the raised sword.
+
 ### Governance
 
 - 2026-07-27 — [design_document_freeze] `dev/docs/design/` is frozen: not read, not cited, not edited, and extended only by adding a new document. A design document exists to seed the plans derived from it once and is spent when they exist; keeping a spent one synchronised buys nothing, and a partly-refreshed document is worse than an evidently old one because no reader can tell which paragraphs still hold. Authority moved to `src/core/`, `src/content/`, the plans, and the tracker, and the local checker now fails when a durable governance file regains a reference to the tree.

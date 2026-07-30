@@ -27,6 +27,7 @@ import {
   isBoned,
   MELEE_CUT_HALF_ANGLE,
   RANGED_SHOT_RANGE,
+  STRIKE_SECONDS,
 } from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
 import {
@@ -568,18 +569,29 @@ function skeletonAnimation(
     return { animation: "hurt", frame: animationFrame("hurt", 1 - enemy.hurtSeconds / 0.28) };
   }
 
+  if (enemy.stunSeconds > 0) {
+    // Above the attack states rather than below them. The simulation skips a stunned body before it
+    // reaches the wind-up, so its wind-up timer keeps whatever was left on it — which used to leave a
+    // skeleton clubbed mid-swing showing the raised sword with stars orbiting its head.
+    return { animation: "block", frame: animationFrame("block", 0.72) };
+  }
+
   if (enemy.windupSeconds > 0 && enemy.intent === "melee") {
     const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
     return { animation: "attack", frame: animationFrame("attack", progress * 0.68) };
   }
 
   if (enemy.attackPoseSeconds > 0) {
-    const progress = 1 - enemy.attackPoseSeconds / 0.22;
+    const progress = 1 - enemy.attackPoseSeconds / STRIKE_SECONDS;
     return { animation: "attack", frame: animationFrame("attack", 0.68 + Math.max(0, progress) * 0.32) };
   }
 
-  if (enemy.stunSeconds > 0) {
-    return { animation: "block", frame: animationFrame("block", 0.72) };
+  if (enemy.attackCooldown > 0) {
+    // Recovery: the swing running backwards, from the follow-through to the guard, over exactly the
+    // cooldown. This is the window the player wants and could not previously see — a body that had
+    // just committed everything it had looked identical to one that had not noticed them.
+    const progress = 1 - enemy.attackCooldown / Math.max(0.0001, enemy.archetype.attackCooldown);
+    return { animation: "attack", frame: animationFrame("attack", 1 - progress) };
   }
 
   const animation: SkeletonSwordsmanAnimationId = enemy.moving ? "walk" : "idle";
