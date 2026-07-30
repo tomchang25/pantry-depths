@@ -94,12 +94,11 @@ Both are decisions that whichever plan lands first will fix in place, so they ar
 
 ### Child overview
 
-| Child | Focus                                                                                      |
-| ----- | ------------------------------------------------------------------------------------------ |
-| 04    | Tasks: one main and three secondary, the descent locked and unmarked until the main is met |
-| 05    | The clock: run-wide level from time and depth, derived and shown only                      |
-| 06    | The modifier catalogue: numeric axes shared by stacking blessings and core rolls           |
-| 07    | Sealed rewards and extraction: clean and cursed, carried sealed, resolved on the way out   |
+| Child | Focus                                                                                    |
+| ----- | ---------------------------------------------------------------------------------------- |
+| 05    | The clock: run-wide level from time and depth, derived and shown only                    |
+| 06    | The modifier catalogue: numeric axes shared by stacking blessings and core rolls         |
+| 07    | Sealed rewards and extraction: clean and cursed, carried sealed, resolved on the way out |
 
 Landing order is 01 through 07. Children 01, 02, 05, and 06 have no prerequisites among the others and can land in any order. Child 03 needs 01 for the blessing it pays and 02 for the rooms to exist. Child 04 needs 02 for a descent to lock and 01 for the blessing its secondaries pay. Child 07 needs 02 for the extraction room, 04 for the main task that pays a clean reward, and 06 for a core to have anything rolled on it.
 
@@ -130,24 +129,6 @@ Four of those are unavoidable and are held to single-line touches: `world.ts` at
 `src/demo/bless.ts`, `src/demo/demo-hud.ts`, `src/demo/demo-viewmodel.ts`, and `src/demo/impacts.ts` are named by the concurrent plan nowhere and are fully available.
 
 Nothing in this plan may add a test under `src/demo/` or `src/presentation/`; the repository guard at `test/unit/repository/demo-half-is-untested.test.ts` enforces it and is not to be edited.
-
-### 04 — Tasks
-
-New module for the task state machine and its conditions.
-
-Three observation points, one line each:
-
-- Kills: `damageEnemy` at `src/demo/world.ts` line 1031, at its kill exit. The concurrent plan's child 04 also adds a call here for its bone burst; two independent added lines in one function, trivial to settle.
-- Broken walls: inside `damageWall` at `src/demo/actions.ts` line 327, on the arm that opens a tile.
-- Standing on a cell for three seconds: the same appended step tail child 03 uses.
-
-The descent lock goes at the exit-proximity check at `src/demo/simulation.ts` lines 819–823, which calls `descend` when the player is within `EXIT_RADIUS`. Gate that call on the main task; leave `descend` itself (line 748) untouched.
-
-The descent's visibility is a heads-up display concern, not a scene concern. `src/demo/demo-hud.ts` owns the minimap — `DemoHudMinimap` (line 46), `drawMinimap` (line 88), a 168-square canvas built at lines 144–159 — and `src/demo/demo-viewmodel.ts` feeds it. **Neither file is named by the concurrent plan.** Show the descent as a minimap point once the main task is met, and never show the extraction room. Do not add anything to `src/demo/demo-scene.ts`; a first-person through-wall outline is the one implementation of requirement 2 that would collide, and the minimap is the one that does not.
-
-At 168 pixels over a 35-cell grid a minimap cell is 4.8 pixels, down from 8. Check it still reads before delivering.
-
-The task condition kinds are the five listed in the design document, which already match what the simulation knows. Nothing here needs a new signal.
 
 ### 05 — The clock
 

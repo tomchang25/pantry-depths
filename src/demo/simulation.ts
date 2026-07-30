@@ -22,10 +22,10 @@ import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
 import { stepRooms } from "@/demo/rooms";
+import { stepTasks } from "@/demo/tasks";
 import { propBehaviour, throwCapacity, type DemoPropFlightHit, type DemoPropLanding } from "@/demo/throw-weight";
 import {
   announce,
-  awardBless,
   damageEnemy,
   dropProp,
   ENEMY_RADIUS,
@@ -742,9 +742,11 @@ function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
 /**
  * Takes the stairs.
  *
- * Health, hands, and blessings all survive the descent — the floor is what is replaced. Arriving is
- * itself worth a blessing, which is the reward for the exit being reachable at all on a map that
- * never promised it would be.
+ * Health, hands, and blessings all survive the descent — the floor is what is replaced.
+ *
+ * Arriving pays nothing. It used to pay a blessing, which made the cheapest run the one that touched
+ * as little of each floor as possible; the floor's own tasks pay now, and the descent is only the way
+ * out of a floor whose business is finished.
  */
 export function descend(world: DemoWorld): void {
   world.depth += 1;
@@ -756,7 +758,6 @@ export function descend(world: DemoWorld): void {
   world.swingTarget = undefined;
   world.maze = generateDemoMaze();
   populateFloor(world);
-  awardBless(world);
   announce(world, `Down to floor B${world.depth}`, 3);
 }
 
@@ -818,10 +819,11 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
   }
 
   stepRooms(world, step);
+  stepTasks(world);
 
   const toExit = Math.hypot(world.player.x - (world.maze.exit.x + 0.5), world.player.y - (world.maze.exit.y + 0.5));
 
-  if (toExit < EXIT_RADIUS) {
+  if (toExit < EXIT_RADIUS && world.maze.progress.main.met) {
     descend(world);
   }
 }

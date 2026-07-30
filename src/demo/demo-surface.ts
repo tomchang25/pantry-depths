@@ -172,7 +172,9 @@ function createHudModel(
   }
 
   const points = [
-    { x: world.maze.exit.x + 0.5, y: world.maze.exit.y + 0.5, radius: 4, color: "#7fd8a2" },
+    ...(world.maze.progress.main.met
+      ? [{ x: world.maze.exit.x + 0.5, y: world.maze.exit.y + 0.5, radius: 4, color: "#7fd8a2" }]
+      : []),
     { x: world.maze.entrance.x + 0.5, y: world.maze.entrance.y + 0.5, radius: 3, color: "#a789d4" },
     ...(world.altar.hp > 0 ? [{ x: world.altar.x, y: world.altar.y, radius: 3.4, color: "#f4ca7a" }] : []),
     ...world.props.map((prop) => ({ x: prop.x, y: prop.y, radius: 1.6, color: "#e6d3a6" })),

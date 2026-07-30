@@ -63,16 +63,70 @@ export type DemoRoom = Readonly<{
 }>;
 
 /**
- * What has already been taken out of this floor's rooms.
+ * What a floor owes, in one of the units it already counts.
+ *
+ * Every kind is a running total against a target, because the simulation already keeps all four and a
+ * task that needs a new signal is a task the floor cannot actually observe.
+ */
+export type DemoTaskKind = "kills" | "wallsBroken" | "roomsVisited" | "poolsFilled";
+
+export type DemoTask = {
+  kind: DemoTaskKind;
+  /** What this floor is asking for, in the kind's own unit. */
+  target: number;
+  /** How much of it this floor has seen. */
+  done: number;
+  met: boolean;
+};
+
+/**
+ * What this floor has taken and what it still owes.
  *
  * Mutable, and hung off the floor for the same reason a pool counts the bodies it has swallowed: it
  * has exactly the floor's lifetime, and descending is meant to wipe it.
  */
-export type DemoRoomProgress = {
+export type DemoFloorProgress = {
   /** Unbroken seconds the player has stood in the blessing altar's room. */
   heldSeconds: number;
   blessingTaken: boolean;
+  /** Pools this floor has closed over with bodies. */
+  poolsFilled: number;
+  /** Which side rooms the player has set foot in. */
+  roomsVisited: DemoRoomSide[];
+  /**
+   * The run counters as they read when this floor began, so a task counts this floor rather than the
+   * run. Unset until the first step on the floor, because the floor is built before anyone reads it.
+   */
+  killsAtArrival: number | undefined;
+  wallsBrokenAtArrival: number | undefined;
+  /** Met to open the descent, and to reveal where it is. Pays nothing by itself. */
+  main: DemoTask;
+  /** Each pays a blessing the moment it is met. */
+  secondary: DemoTask[];
 };
+
+/**
+ * What a floor asks for.
+ *
+ * One main task and three secondaries, the same four every floor. The run's difficulty is a clock,
+ * not a rising target list, so a floor asking more at depth would be pricing the same work twice.
+ */
+function createFloorProgress(): DemoFloorProgress {
+  return {
+    heldSeconds: 0,
+    blessingTaken: false,
+    poolsFilled: 0,
+    roomsVisited: [],
+    killsAtArrival: undefined,
+    wallsBrokenAtArrival: undefined,
+    main: { kind: "kills", target: 20, done: 0, met: false },
+    secondary: [
+      { kind: "wallsBroken", target: 12, done: 0, met: false },
+      { kind: "roomsVisited", target: 4, done: 0, met: false },
+      { kind: "poolsFilled", target: 1, done: 0, met: false },
+    ],
+  };
+}
 
 export type DemoMaze = Readonly<{
   size: number;
@@ -80,7 +134,7 @@ export type DemoMaze = Readonly<{
   entrance: DemoCell;
   exit: DemoCell;
   altar: DemoCell;
-  progress: DemoRoomProgress;
+  progress: DemoFloorProgress;
   /**
    * Where a run is left with everything it is carrying.
    *
@@ -575,7 +629,7 @@ export function generateDemoMaze(): DemoMaze {
     entrance,
     exit,
     altar,
-    progress: { heldSeconds: 0, blessingTaken: false },
+    progress: createFloorProgress(),
     extraction,
     rooms,
   };
@@ -736,6 +790,9 @@ export function sinkBody(maze: DemoMaze, x: number, y: number): boolean {
   }
 
   tile.kind = "filled";
+  // Counted where it happens rather than by sweeping for filled cells, which is the only place that
+  // can tell the body that closed a pool from the ones that went in after it.
+  maze.progress.poolsFilled += 1;
   return true;
 }
 
