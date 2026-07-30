@@ -3,6 +3,7 @@ import { handleAuthoringRequest, type AuthoringDependencies } from "../../../../
 import { generateFloorSet } from "../../../../../dev/tools/floor-set/generator";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
 import decorPresetsJson from "@/content/presentation/decor-presets.json";
+import propDisplayJson from "@/content/presentation/prop-display.json";
 import { MELEE_ATTACKS } from "@/content/viewmodel/melee-viewmodel";
 import { describe, expect, it, vi } from "vitest";
 
@@ -12,6 +13,7 @@ function createDependencies(): AuthoringDependencies & Readonly<{ writeCanonical
     entityDisplay: entityDisplayJson,
     floorSet: generateFloorSet({ seed: 1, floorCount: 1 }),
     meleeAttacks: MELEE_ATTACKS,
+    propDisplay: propDisplayJson,
   };
   return {
     readCanonical: async (target) => JSON.stringify(sources[target]),

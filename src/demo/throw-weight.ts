@@ -14,24 +14,21 @@
  * body is has nothing to do with how much of it there is to kill, and deriving one from the other
  * would tie two knobs together that want to move separately.
  *
- * This module imports nothing. It is the vocabulary both the props and the bodies speak, so it must
- * not depend on either of them.
+ * It is the vocabulary both the props and the bodies speak, so it depends on neither of them. Its one
+ * import is the authored list of what prop kinds exist, which lives a layer down because the table
+ * that says how each one is drawn has to validate against the same list and cannot reach up here.
  */
 
-export type DemoPropKind =
-  | "stick"
-  | "rock"
-  | "bomb"
-  | "axe"
-  | "skeletonSword"
-  | "skeletonSkull"
-  | "skeletonFemur"
-  | "skeletonFemurCracked"
-  | "skeletonJavelin"
-  | "skeletonJavelinCracked"
-  | "crossbow"
-  | "crossbowSpent"
-  | "crossbowBolt";
+/**
+ * What kinds of loose object exist.
+ *
+ * Aliased from `src/content/` rather than declared here, because the authored table that says how each
+ * one is drawn has to validate against the same list and that layer cannot import this one. One list,
+ * two readers; a kind added there fails to compile here until every behaviour table below covers it.
+ */
+import type { PropKind } from "@/content/presentation/prop-display-schema";
+
+export type DemoPropKind = PropKind;
 export type DemoThrowKind = DemoPropKind | "enemy";
 
 export type DemoThrowWeight = Readonly<{

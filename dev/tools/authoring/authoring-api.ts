@@ -7,6 +7,7 @@ import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet } from "@/content/floor/floor-validation";
 import { parseEntityDisplays } from "@/content/enemies/entity-display-schema";
 import { parseDecorPresets } from "@/content/presentation/decor-preset-schema";
+import { parsePropDisplays } from "@/content/presentation/prop-display-schema";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
 
 export type AuthoringRequest = Readonly<{
@@ -112,6 +113,15 @@ function validateSource(target: AuthoringTargetId, source: unknown): unknown {
       return parseEntityDisplays(source);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Entity display validation failed.";
+      throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
+    }
+  }
+
+  if (target === "propDisplay") {
+    try {
+      return parsePropDisplays(source);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Prop display validation failed.";
       throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
     }
   }

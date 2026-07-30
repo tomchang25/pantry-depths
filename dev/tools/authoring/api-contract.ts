@@ -6,6 +6,7 @@ export const CANONICAL_AUTHORING_PATHS = {
   entityDisplay: "src/content/enemies/entity-display.json",
   floorSet: "src/content/floors/provisional-floor-set.json",
   meleeAttacks: "src/content/viewmodel/melee-attacks.json",
+  propDisplay: "src/content/presentation/prop-display.json",
 } as const;
 
 export type AuthoringTargetId = keyof typeof CANONICAL_AUTHORING_PATHS;

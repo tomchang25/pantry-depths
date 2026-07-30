@@ -39,6 +39,8 @@ import {
   tileIndex,
 } from "@/demo/maze";
 import type { DemoParticleKind } from "@/demo/particles";
+import propDisplayJson from "@/content/presentation/prop-display.json";
+import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
 import {
@@ -264,7 +266,8 @@ export function projectDemoBarricade(cell: Readonly<{ x: number; y: number }>, w
   return built;
 }
 
-const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
+/** Which picture each loose object is drawn from. Exported so the prop workbench previews the same one. */
+export const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   stick: DEMO_ASSET_IDS.stick,
   rock: DEMO_ASSET_IDS.rock,
   bomb: DEMO_ASSET_IDS.bomb,
@@ -280,21 +283,15 @@ const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
   crossbowBolt: DEMO_ASSET_IDS.crossbowBolt,
 };
 
-const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
-  stick: 0.5,
-  rock: 0.42,
-  bomb: 0.4,
-  axe: 0.5,
-  skeletonSword: 0.58,
-  skeletonSkull: 0.42,
-  skeletonFemur: 0.48,
-  skeletonFemurCracked: 0.4,
-  skeletonJavelin: 0.62,
-  skeletonJavelinCracked: 0.6,
-  crossbow: 0.54,
-  crossbowSpent: 0.54,
-  crossbowBolt: 0.4,
-};
+/**
+ * How each pickup is drawn where it lies, as authored content.
+ *
+ * Was a literal table beside the drawing code, and the last five rows in it were guessed by copying a
+ * neighbour and nudging — nobody had looked at a javelin or a crossbow on the floor at all. Tuned in
+ * the prop workbench now, on its own tab, with a camera-distance slider and a stack-size slider beside
+ * it because a single pickup and a stack of three are drawn differently.
+ */
+const PROP_DISPLAYS = propDisplaysByKind(parsePropDisplays(propDisplayJson));
 
 /**
  * The authored display table, and the two questions it answers.
@@ -818,8 +815,8 @@ function sprites(world: DemoWorld): RenderSprite[] {
         y: prop.y + spread * 0.5,
         placement: "billboard",
         assetId: PROP_ASSETS[prop.kind],
-        scale: PROP_SCALES[prop.kind],
-        verticalAnchor: -0.28 - bob - copy * 0.05,
+        scale: PROP_DISPLAYS[prop.kind].floorScale,
+        verticalAnchor: -PROP_DISPLAYS[prop.kind].floorAnchor - bob - copy * 0.05,
       });
     }
   }
@@ -901,7 +898,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
       continue;
     }
 
-    const scale = PROP_SCALES[projectile.kind] * 0.8;
+    const scale = PROP_DISPLAYS[projectile.kind].floorScale * 0.8;
     built.push({
       id: projectile.id,
       x: projectile.x,

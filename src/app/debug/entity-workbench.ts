@@ -1,6 +1,7 @@
 import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
 import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
 import { createDecorWorkbench } from "@/app/debug/decor-workbench";
+import { createPropWorkbench } from "@/app/debug/prop-workbench";
 import { createRenderPanel } from "@/app/debug/render-panel";
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
@@ -1011,8 +1012,10 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   });
   const tabs = document.createElement("div");
   const entityTab = document.createElement("button");
+  const propTab = document.createElement("button");
   const decorTab = document.createElement("button");
   const entitySection = document.createElement("div");
+  const propSection = document.createElement("div");
   const decorSection = document.createElement("div");
   tabs.className = "workbench-tabs";
   tabs.setAttribute("role", "tablist");
@@ -1020,23 +1023,32 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   entityTab.textContent = "Entities";
   entityTab.setAttribute("role", "tab");
   entityTab.setAttribute("aria-controls", "entity-workbench-tab");
+  propTab.type = "button";
+  propTab.textContent = "Pickups";
+  propTab.setAttribute("role", "tab");
+  propTab.setAttribute("aria-controls", "prop-workbench-tab");
   decorTab.type = "button";
   decorTab.textContent = "Decor";
   decorTab.setAttribute("role", "tab");
   decorTab.setAttribute("aria-controls", "decor-workbench-tab");
   entitySection.id = "entity-workbench-tab";
   entitySection.setAttribute("role", "tabpanel");
+  propSection.id = "prop-workbench-tab";
+  propSection.setAttribute("role", "tabpanel");
   decorSection.id = "decor-workbench-tab";
   decorSection.setAttribute("role", "tabpanel");
-  tabs.append(entityTab, decorTab);
+  tabs.append(entityTab, propTab, decorTab);
 
-  const selectTab = (tab: "entity" | "decor"): void => {
+  const selectTab = (tab: "entity" | "prop" | "decor"): void => {
     entityTab.setAttribute("aria-selected", String(tab === "entity"));
+    propTab.setAttribute("aria-selected", String(tab === "prop"));
     decorTab.setAttribute("aria-selected", String(tab === "decor"));
     entitySection.hidden = tab !== "entity";
+    propSection.hidden = tab !== "prop";
     decorSection.hidden = tab !== "decor";
   };
   entityTab.addEventListener("click", () => selectTab("entity"));
+  propTab.addEventListener("click", () => selectTab("prop"));
   decorTab.addEventListener("click", () => selectTab("decor"));
 
   const bodyPanel = createDebugPanel(
@@ -1556,8 +1568,9 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     comparePanel.panel,
     matrixPanel.panel,
   );
+  propSection.append(createPropWorkbench());
   decorSection.append(createDecorWorkbench());
-  content.append(tabs, entitySection, decorSection);
+  content.append(tabs, entitySection, propSection, decorSection);
   mount.replaceChildren(page);
   selectTab("entity");
 }

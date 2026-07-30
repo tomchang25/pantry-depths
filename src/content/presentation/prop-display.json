@@ -1,0 +1,67 @@
+[
+  {
+    "kind": "stick",
+    "floorScale": 0.5,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "rock",
+    "floorScale": 0.42,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "bomb",
+    "floorScale": 0.4,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "axe",
+    "floorScale": 0.5,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "skeletonSword",
+    "floorScale": 0.58,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "skeletonSkull",
+    "floorScale": 0.42,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "skeletonFemur",
+    "floorScale": 0.48,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "skeletonFemurCracked",
+    "floorScale": 0.4,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "skeletonJavelin",
+    "floorScale": 0.62,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "skeletonJavelinCracked",
+    "floorScale": 0.6,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "crossbow",
+    "floorScale": 0.54,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "crossbowSpent",
+    "floorScale": 0.54,
+    "floorAnchor": 0.28
+  },
+  {
+    "kind": "crossbowBolt",
+    "floorScale": 0.4,
+    "floorAnchor": 0.28
+  }
+]
