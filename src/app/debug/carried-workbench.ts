@@ -126,18 +126,15 @@ export function createCarriedWorkbench(): HTMLElement {
   const actions = document.createElement("div");
   const status = document.createElement("p");
   const saveButton = document.createElement("button");
-  const throwButton = document.createElement("button");
   const kindSelect = document.createElement("select");
   const kindField = document.createElement("label");
   const kindLabel = document.createElement("span");
   grid.className = "debug-form-grid";
-  actions.className = "debug-button-row";
+  actions.className = "debug-button-row workbench-actions";
   status.className = "entity-workbench-status";
   status.setAttribute("role", "status");
   saveButton.type = "button";
   saveButton.textContent = "Save carried JSON";
-  throwButton.type = "button";
-  throwButton.textContent = "Play throw";
   kindField.className = "debug-field";
   kindLabel.textContent = "Prop";
   kindSelect.id = "carried-kind";
@@ -154,7 +151,6 @@ export function createCarriedWorkbench(): HTMLElement {
   const first = PROP_KINDS[0];
   let kind: PropKind = first;
   let count = 3;
-  let swingRemaining = 0;
   let elapsedSeconds = 0;
 
   const handScale = createRange(
@@ -204,12 +200,6 @@ export function createCarriedWorkbench(): HTMLElement {
     handRotation.set(displays[kind].handRotation);
   });
 
-  // The throw is half of what these numbers decide: the object leaves the hand along its own rotation,
-  // so a turn that reads well at rest can spin the wrong way the moment it is released.
-  throwButton.addEventListener("click", () => {
-    swingRemaining = MELEE_SWING_SECONDS;
-  });
-
   saveButton.addEventListener("click", () => {
     saveButton.disabled = true;
     status.textContent = "Validating and saving carried JSON…";
@@ -239,21 +229,19 @@ export function createCarriedWorkbench(): HTMLElement {
     ariaLabel: "Carried object preview",
     frame: (timing) => {
       elapsedSeconds += timing.frameSeconds;
-      swingRemaining = Math.max(0, swingRemaining - timing.frameSeconds);
-      const throwing = swingRemaining > 0;
       const model: DemoViewmodelModel = {
         damageMarks: [],
         player: { ...CAMERA, pitch: 0, pushX: 0, pushY: 0, hp: 1, maxHp: 1 },
         elapsedSeconds,
         held: { kind: "prop", prop: kind, count },
         impact: 0,
-        swing: swingRemaining,
+        // Idle on purpose. A throw no longer animates the carried object out of the corner of the
+        // screen — what says a throw happened is the throw's own effects in the world — so there is
+        // nothing about a swing for this tab to show.
+        swing: 0,
         swingKind: "throw",
         swingTarget: undefined,
         swingTotal: MELEE_SWING_SECONDS,
-        // Set only while the throw plays, because it is what tells the viewmodel to draw the object on
-        // its way out rather than sitting in the hand.
-        thrownKind: throwing ? kind : undefined,
         walkBob: 0,
       };
 
@@ -265,7 +253,7 @@ export function createCarriedWorkbench(): HTMLElement {
   });
 
   grid.append(kindField, stack.field, handScale.field, handRotation.field);
-  actions.append(throwButton, saveButton);
+  actions.append(saveButton);
   controls.body.append(grid, actions, status);
   root.append(controls.panel, preview.element);
   return root;

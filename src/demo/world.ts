@@ -381,8 +381,6 @@ export type DemoWorld = {
    * a picture drawn over something already settled.
    */
   swingResolved: boolean;
-  /** What just left the hand, so the viewmodel can show it leaving rather than vanishing. */
-  thrownKind: DemoThrowKind | undefined;
   swingTarget: DemoSwingTarget;
   /** Rises when a swing connects, decays fast. Drives the impact hitch on the arm and the camera. */
   impact: number;
@@ -657,7 +655,6 @@ export function createDemoWorld(): DemoWorld {
     swingTotal: 0,
     swingKind: "horizontal-left",
     swingResolved: true,
-    thrownKind: undefined,
     swingTarget: undefined,
     impact: 0,
     shake: 0,

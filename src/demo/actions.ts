@@ -464,7 +464,6 @@ function throwHeld(world: DemoWorld): void {
 
   if (held.kind === "enemy") {
     world.held = undefined;
-    world.thrownKind = "enemy";
     spawnProjectile(world, "enemy", held.enemy);
     announce(world, "Threw the enemy!");
     return;
@@ -473,7 +472,6 @@ function throwHeld(world: DemoWorld): void {
   // One use off the stack, not the whole hand. The hand only empties on the last one.
   const left = held.count - 1;
   world.held = left > 0 ? { kind: "prop", prop: held.prop, count: left } : undefined;
-  world.thrownKind = held.prop;
   spawnProjectile(world, held.prop, undefined);
   announce(world, left > 0 ? `${THROW_CALLS[held.prop]} (${left} left)` : THROW_CALLS[held.prop]);
 }

@@ -217,7 +217,7 @@ export function createPropWorkbench(): HTMLElement {
   const kindField = document.createElement("label");
   const kindLabel = document.createElement("span");
   grid.className = "debug-form-grid entity-workbench-controls";
-  actions.className = "debug-button-row";
+  actions.className = "debug-button-row workbench-actions";
   status.className = "entity-workbench-status";
   status.setAttribute("role", "status");
   saveButton.type = "button";

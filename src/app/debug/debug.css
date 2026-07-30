@@ -968,6 +968,17 @@ textarea {
   margin-top: 0.95rem;
 }
 
+/**
+ * A button row between a field grid and a status line, which is a place that needs air on both sides.
+ *
+ * Without the lower margin the buttons sit flush against whatever reports what they did, and the pair
+ * reads as one control. The panel zeroes the bottom margin of its own last child, so a row that ends a
+ * panel still closes flush against it.
+ */
+.workbench-actions {
+  margin-block: 0.95rem;
+}
+
 /* Fixed width, so the label swapping between pause and play cannot resize the button. */
 .entity-play-button {
   min-width: 11rem;

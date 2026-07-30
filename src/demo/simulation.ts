@@ -762,13 +762,8 @@ export function descend(world: DemoWorld): void {
 export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
   const step = Math.min(deltaSeconds, 0.05);
   world.elapsedSeconds += step;
-  const wasSwinging = world.swing > 0;
   world.swing = Math.max(0, world.swing - step);
   world.impact = Math.max(0, world.impact - step * 6);
-
-  if (wasSwinging && world.swing <= 0) {
-    world.thrownKind = undefined;
-  }
 
   // The blade reaches the target partway through the animation, not on the press. Everything the
   // swing does to the world happens on this frame, which is the frame the arc is drawn on.

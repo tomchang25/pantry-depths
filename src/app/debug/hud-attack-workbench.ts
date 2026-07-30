@@ -525,7 +525,6 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
         swingKind: selectedAttackId,
         swingTarget: swingRemaining > 0 ? target : undefined,
         swingTotal: MELEE_SWING_SECONDS,
-        thrownKind: undefined,
         walkBob: 0,
       };
 

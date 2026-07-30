@@ -11,10 +11,12 @@
  * converting the point a swing landed on into stage coordinates so the arc chases it, and the second
  * hand, which the stage knows nothing about.
  *
- * Two things it deliberately does not draw. There is no hand on the carried object: what the player
+ * Three things it deliberately does not draw. There is no hand on the carried object: what the player
  * needs from that corner is what they are holding, not whose hand is holding it, and every attempt at
- * a second fist has read as a lump of meat rather than as a hand. And a throw plays no cut, because
- * the throw is the *other* hand's — the sword arm only dips, and what animates is the object leaving.
+ * a second fist has read as a lump of meat rather than as a hand. A throw plays no cut, because the
+ * throw is the *other* hand's and the sword arm only dips. And the thrown object itself does not fly
+ * out of the corner of the screen: what says a throw happened is the throw's own effects out in the
+ * world, and a second copy of the object sailing across the viewmodel only competes with the real one.
  */
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
@@ -61,7 +63,6 @@ export type DemoViewmodelModel = Pick<
   | "swingKind"
   | "swingTarget"
   | "swingTotal"
-  | "thrownKind"
   | "walkBob"
 >;
 
@@ -122,10 +123,6 @@ function drawDamageMarks(context: CanvasRenderingContext2D, world: DemoViewmodel
   }
 
   context.restore();
-}
-
-function easeOut(progress: number): number {
-  return 1 - (1 - progress) * (1 - progress);
 }
 
 /**
@@ -281,8 +278,6 @@ export function drawDemoViewmodel(
   const width = context.canvas.width;
   const height = context.canvas.height;
   const viewSize = Math.min(width * STAGE_WIDTH_FRACTION, height * STAGE_HEIGHT_FRACTION);
-  const active = world.swing > 0;
-  const progress = active ? 1 - world.swing / Math.max(0.0001, world.swingTotal) : 0;
   const bob = Math.sin(world.elapsedSeconds * 2.2) * height * 0.006 + world.walkBob * height * 0.017;
   // The arm draws its own arc and its own sparks, inside the stage, so this one call is the whole
   // swing. There is no separate slash pass any more: the trail is part of the drawing it belongs to.
@@ -315,27 +310,6 @@ export function drawDemoViewmodel(
         context.drawImage(carried, -drawn * 0.5, -drawn * 0.5, drawn, drawn);
         context.restore();
       }
-    }
-  }
-
-  // What was just thrown, on its way out of the hand.
-  //
-  // Without this the object simply stopped being drawn the moment the button went down, which is the
-  // one thing a throw must never look like: the whole read of a throw is that the weight left. The
-  // body of a thrown enemy is not drawn here — it is already in the world, in flight, and large.
-  if (active && world.swingKind === "throw" && world.thrownKind && world.thrownKind !== "enemy") {
-    const leaving = images.get(DEMO_ASSET_IDS[world.thrownKind]);
-
-    if (leaving) {
-      const flight = easeOut(progress);
-      context.save();
-      context.globalAlpha = Math.max(0, 1 - flight * 1.2);
-      context.translate(carriedX + (width * 0.5 - carriedX) * flight * 0.7, carriedY - height * 0.42 * flight);
-      context.rotate(PROP_DISPLAYS[world.thrownKind].handRotation - flight * 2.4);
-      context.filter = "brightness(0.86) saturate(0.92)";
-      const shrunk = unit * (1 - flight * 0.55);
-      context.drawImage(leaving, -shrunk * 0.5, -shrunk * 0.5, shrunk, shrunk);
-      context.restore();
     }
   }
 
