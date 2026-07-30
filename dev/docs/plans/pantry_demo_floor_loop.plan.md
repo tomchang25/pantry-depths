@@ -130,20 +130,6 @@ Four of those are unavoidable and are held to single-line touches: `world.ts` at
 
 Nothing in this plan may add a test under `src/demo/` or `src/presentation/`; the repository guard at `test/unit/repository/demo-half-is-untested.test.ts` enforces it and is not to be edited.
 
-### 06 — The modifier catalogue
-
-New module, no home in an existing file.
-
-Axes: melee damage, maximum health, movement speed, melee reach. Each carries a clean range and a widened cursed range. The stacking blessing totals child 01 parked on `BlessState` become readers of this catalogue rather than a parallel definition.
-
-One touch point: `meleeDamage` at `src/demo/actions.ts` line 119. It currently returns one of two constants based on a unique blessing; it gains the catalogue total. Keep it to that.
-
-**Do not touch `thrownImpactDamage` at line 124.** It reads `return meleeDamage(world)`, so it inherits the melee modifier automatically, which is the behaviour requirement 10 asks for. Splitting it is the collision.
-
-`meleeReach` at line 115 and `PLAYER_SPEED` at `src/demo/world.ts` line 410 are the other two axes' owners. Wiring them is one accessor each and is in scope for this child; both are single-line reads.
-
-Core definitions — the four bases and their rolled modifiers — are authored data with no runtime behaviour yet, since nothing equips a core until a preparation screen exists. Keep them as a definition table this child, consumed by child 07.
-
 ### 07 — Sealed rewards and extraction
 
 New modules for the sealed reward, its contents, and whatever holds them between runs.

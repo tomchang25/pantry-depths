@@ -6,7 +6,7 @@
  */
 
 import { chooseMeleeAttack } from "@/content/viewmodel/melee-viewmodel";
-import { hasBless } from "@/demo/bless";
+import { blessBonus, hasBless } from "@/demo/bless";
 import { canCarry } from "@/demo/enemy-archetypes";
 import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
 import { burst } from "@/demo/particles";
@@ -23,6 +23,7 @@ import {
   awardBless,
   damageEnemy,
   nextId,
+  PLAYER_SPEED,
   REACH,
   SWING_SECONDS,
   THROW_SWING_SECONDS,
@@ -113,11 +114,25 @@ const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
 };
 
 export function meleeReach(world: DemoWorld): number {
-  return hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_REACH : REACH;
+  return (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_REACH : REACH) + blessBonus(world.bless, "meleeReach");
 }
 
 export function meleeDamage(world: DemoWorld): number {
-  return hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_DAMAGE : BASE_MELEE_DAMAGE;
+  return (
+    (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_DAMAGE : BASE_MELEE_DAMAGE) +
+    blessBonus(world.bless, "meleeDamage")
+  );
+}
+
+/**
+ * How fast the player walks, before whatever they are carrying slows them down.
+ *
+ * An accessor rather than the constant, for the same reason the two above are: the modifier layer has
+ * to be consulted somewhere, and one place per axis is the only arrangement where a new source of
+ * modifiers reaches every axis at once.
+ */
+export function playerSpeed(world: DemoWorld): number {
+  return PLAYER_SPEED + blessBonus(world.bless, "moveSpeed");
 }
 
 /** The damage a thrown object does on contact — the same as a bare swing, blessings aside. */

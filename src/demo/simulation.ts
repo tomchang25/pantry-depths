@@ -6,7 +6,14 @@
  */
 
 import { MELEE_CUT_START } from "@/content/viewmodel/melee-viewmodel";
-import { damageWall, heldWeight, resolveSwing, thrownImpactDamage, thrownWallDamage } from "@/demo/actions";
+import {
+  damageWall,
+  heldWeight,
+  playerSpeed,
+  resolveSwing,
+  thrownImpactDamage,
+  thrownWallDamage,
+} from "@/demo/actions";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
 import {
   bargeInto,
@@ -36,7 +43,6 @@ import {
   MORTAR_LOCK_SECONDS,
   nextId,
   PLAYER_RADIUS,
-  PLAYER_SPEED,
   populateFloor,
   projectileHeight,
   SHELL_BLAST_RADIUS,
@@ -155,7 +161,7 @@ function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): v
     // Carrying something heavy costs pace. It is the one thing that makes picking a body up a
     // decision rather than a free upgrade to the next throw.
     const carried = heldWeight(world.held)?.carrySlow ?? 1;
-    const step = (PLAYER_SPEED * carried * deltaSeconds) / length;
+    const step = (playerSpeed(world) * carried * deltaSeconds) / length;
     const moved = slideMove(world.maze, world.player, moveX * step, moveY * step, PLAYER_RADIUS, WALKING);
     world.player.x = moved.x;
     world.player.y = moved.y;

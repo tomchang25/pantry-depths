@@ -10,6 +10,8 @@
  * from a hand of three, because the point here is that the run shapes itself and you adapt.
  */
 
+import { blessingStep, type ModifierAxis } from "@/demo/modifiers";
+
 export type BlessId = "heavyStrike" | "explosiveBody" | "stormStone" | "lifesteal" | "hostageGuard";
 
 export type BlessDefinition = Readonly<{
@@ -62,14 +64,17 @@ export const BLESS_CATALOG: readonly BlessDefinition[] = [
 
 export type StackingBlessId = "vigour" | "brutality" | "swiftness" | "longReach";
 
-/** The four numbers the stacking tier moves. Thrown damage is absent because it is melee damage. */
-export type StackingBlessAxis = "maxHp" | "meleeDamage" | "moveSpeed" | "meleeReach";
+/**
+ * The four numbers the stacking tier moves.
+ *
+ * The same axes a core rolls on, because they are one layer: `@/demo/modifiers` owns the list and the
+ * magnitudes, and an entry here only says which axis it moves and how it reads.
+ */
+export type StackingBlessAxis = ModifierAxis;
 
 export type StackingBlessDefinition = Readonly<{
   id: StackingBlessId;
   axis: StackingBlessAxis;
-  /** Added to the axis total per award, and added again every time the same entry comes up. */
-  amount: number;
   name: string;
   detail: string;
   /** Two characters at most; drawn into the bless bar and onto the award card. */
@@ -87,7 +92,6 @@ export const BLESS_STACKING_CATALOG: readonly StackingBlessDefinition[] = [
   {
     id: "vigour",
     axis: "maxHp",
-    amount: 25,
     name: "Vigour",
     detail: "More maximum health, and the difference healed on the spot",
     glyph: "✜",
@@ -96,7 +100,6 @@ export const BLESS_STACKING_CATALOG: readonly StackingBlessDefinition[] = [
   {
     id: "brutality",
     axis: "meleeDamage",
-    amount: 6,
     name: "Brutality",
     detail: "Every swing lands harder, and so does everything you throw",
     glyph: "⁂",
@@ -105,7 +108,6 @@ export const BLESS_STACKING_CATALOG: readonly StackingBlessDefinition[] = [
   {
     id: "swiftness",
     axis: "moveSpeed",
-    amount: 0.3,
     name: "Swiftness",
     detail: "You cross a floor faster",
     glyph: "»",
@@ -114,7 +116,6 @@ export const BLESS_STACKING_CATALOG: readonly StackingBlessDefinition[] = [
   {
     id: "longReach",
     axis: "meleeReach",
-    amount: 0.15,
     name: "Long Reach",
     detail: "You strike from further out",
     glyph: "⟶",
@@ -155,24 +156,9 @@ export function findBless(id: BlessId | StackingBlessId): BlessDefinition | Stac
   );
 }
 
-/**
- * Extra melee damage from the stacking tier.
- *
- * One accessor per axis, kept deliberately narrow: the shared modifier catalogue folds them in
- * later, and a wider surface now is a wider surface to unpick then.
- */
-export function blessMeleeDamageBonus(state: BlessState): number {
-  return state.stacking.meleeDamage;
-}
-
-/** Extra movement speed from the stacking tier. Carried and not yet read. */
-export function blessMoveSpeedBonus(state: BlessState): number {
-  return state.stacking.moveSpeed;
-}
-
-/** Extra melee reach from the stacking tier. Carried and not yet read. */
-export function blessMeleeReachBonus(state: BlessState): number {
-  return state.stacking.meleeReach;
+/** What the stacking tier has added to one axis so far. One accessor, because there is one layer. */
+export function blessBonus(state: BlessState, axis: ModifierAxis): number {
+  return state.stacking[axis];
 }
 
 /**
@@ -182,7 +168,7 @@ export function blessMeleeReachBonus(state: BlessState): number {
  * apply itself; the other three are totals the readers consult.
  */
 export function blessMaxHpGain(granted: BlessDefinition | StackingBlessDefinition): number {
-  return "axis" in granted && granted.axis === "maxHp" ? granted.amount : 0;
+  return "axis" in granted && granted.axis === "maxHp" ? blessingStep(granted.axis) : 0;
 }
 
 /**
@@ -207,7 +193,7 @@ export function grantBless(state: BlessState): BlessDefinition | StackingBlessDe
     throw new Error("the stacking blessing catalogue is empty");
   }
 
-  state.stacking[stacking.axis] += stacking.amount;
+  state.stacking[stacking.axis] += blessingStep(stacking.axis);
   state.overflowMaxHp = state.stacking.maxHp;
   return stacking;
 }
