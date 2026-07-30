@@ -112,6 +112,14 @@ export type DemoEntityProjection = Readonly<{
 
 export type DemoEntityProjectionOptions = Readonly<{
   skeletonAnimation?: Readonly<{ animation: SkeletonSwordsmanAnimationId; progress: number }>;
+  /**
+   * Display numbers to draw with instead of the authored ones.
+   *
+   * The seam the entity workbench tunes through. It is how a slider can show a body at a size that is
+   * not yet saved anywhere — the authored table stays the answer for everything that is not being
+   * previewed, and the game itself never passes this.
+   */
+  display?: EntityDisplay;
 }>;
 
 function entityProjectionContext(world: DemoWorld): DemoEntityProjectionContext {
@@ -301,8 +309,46 @@ function entityDisplay(appearance: EnemyAppearanceId): EntityDisplay {
 }
 
 /** How tall a body drawn from authored artwork stands, in cells. */
-export function bonedDisplayScale(appearance: EnemyAppearanceId): number {
-  return entityDisplay(appearance).bodyScale;
+export function bonedDisplayScale(appearance: EnemyAppearanceId, override?: EntityDisplay): number {
+  return (override ?? entityDisplay(appearance)).bodyScale;
+}
+
+/**
+ * The mark over a committed enemy, as its own function so a workbench can place one without a world.
+ *
+ * Exported for exactly that: the offset it applies is the number being tuned, and a tuning tool that
+ * recomputed the placement itself would be tuning against its own arithmetic rather than the game's.
+ */
+export function warnMarkerSprite(enemy: DemoEnemy, override?: EntityDisplay): RenderSprite | undefined {
+  if (enemy.windupSeconds <= 0 || enemy.intent === "none") {
+    return undefined;
+  }
+
+  const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+  const scale = 0.44 + progress * 0.3;
+  const charge =
+    enemy.intent === "melee"
+      ? {
+          frame: {
+            column: Math.min(WARN_BLADE_STEPS - 1, Math.floor(progress * WARN_BLADE_STEPS)),
+            row: 0,
+            columns: WARN_BLADE_STEPS,
+            rows: 1,
+          },
+        }
+      : {};
+  const offset = (override ?? entityDisplay(enemy.appearance)).markerOffset;
+  return {
+    id: `${enemy.id}-warn`,
+    x: enemy.x,
+    y: enemy.y,
+    placement: "billboard",
+    assetId: warnAsset(enemy.intent),
+    // Swells as the wind-up completes, so how much time is left is legible at a glance.
+    scale,
+    verticalAnchor: -(crownHeight(enemy, override) + offset) / scale,
+    ...charge,
+  };
 }
 
 /**
@@ -415,48 +461,16 @@ function warnAsset(intent: CommittedIntent): string {
 
 /** The wind-up marker floating over a committed enemy, and the lane a charger has claimed. */
 function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
-  if (enemy.windupSeconds <= 0 || enemy.intent === "none") {
-    return;
-  }
+  const marker = warnMarkerSprite(enemy);
 
-  const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-  // The sword's mark charges up rather than only swelling. It is the one attack whose timing nothing
-  // else carries — a charger has the bright fill running down its lane and a shooter has a line that
-  // brightens, and a full second of sword needs its own clock. Baked as a strip of fill steps because
-  // a sprite has no per-instance opacity and cannot be clipped when it is drawn.
-  const charge =
-    enemy.intent === "melee"
-      ? {
-          frame: {
-            column: Math.min(WARN_BLADE_STEPS - 1, Math.floor(progress * WARN_BLADE_STEPS)),
-            row: 0,
-            columns: WARN_BLADE_STEPS,
-            rows: 1,
-          },
-        }
-      : {};
-  const scale = 0.44 + progress * 0.3;
-  built.push({
-    id: `${enemy.id}-warn`,
-    x: enemy.x,
-    y: enemy.y,
-    placement: "billboard",
-    assetId: warnAsset(enemy.intent),
-    // Swells as the wind-up completes, so how much time is left is legible at a glance.
-    scale,
-    // Its bottom edge rides just clear of whatever is wearing it, so the swelling goes upward rather
-    // than down into the body. The height used to be a single number tuned against a slime, which put
-    // the mark across a skeleton's ribs — the same mistake the stun stars already avoid by asking the
-    // body how tall it is.
-    verticalAnchor: -(crownHeight(enemy) + entityDisplay(enemy.appearance).markerOffset) / scale,
-    ...charge,
-  });
+  if (marker) {
+    built.push(marker);
+  }
 }
 
 /** Where the top of an enemy sits, so anything worn over its head is worn over *its* head. */
-function crownHeight(enemy: DemoEnemy): number {
-  const crown = isBoned(enemy.archetype) ? bonedDisplayScale(enemy.appearance) : slimeBody(enemy.appearance).height;
-  return crown;
+function crownHeight(enemy: DemoEnemy, override?: EntityDisplay): number {
+  return isBoned(enemy.archetype) ? bonedDisplayScale(enemy.appearance, override) : slimeBody(enemy.appearance).height;
 }
 
 const STUN_STARS = 3;
@@ -577,6 +591,7 @@ function skeletonSprite(
   context: DemoEntityProjectionContext,
   enemy: DemoEnemy,
   selected = skeletonAnimation(context, enemy),
+  override?: EntityDisplay,
 ): RenderSprite {
   const definition = SKELETON_SWORDSMAN_ANIMATIONS[selected.animation];
   return {
@@ -585,7 +600,7 @@ function skeletonSprite(
     y: enemy.y,
     placement: "billboard",
     assetId: definition.assetId,
-    scale: bonedDisplayScale(enemy.appearance),
+    scale: bonedDisplayScale(enemy.appearance, override),
     verticalAnchor: 0,
     // The same white a slime takes, on the same curve. A skeleton had only its hurt frames to say it
     // had been hit, and against a crowd at speed a frame swap is not an answer to "did that land?".
@@ -629,7 +644,11 @@ function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonSwordsmanAnimati
   throw new Error("unknown skeleton death cause");
 }
 
-function skeletonDeathSprite(context: DemoEntityProjectionContext, death: DemoDeath): RenderSprite {
+function skeletonDeathSprite(
+  context: DemoEntityProjectionContext,
+  death: DemoDeath,
+  override?: EntityDisplay,
+): RenderSprite {
   const animation = skeletonDeathAnimation(death.cause);
   const definition = SKELETON_SWORDSMAN_ANIMATIONS[animation];
   // A drowned corpse picks the clip up where the countdown left it and carries on down, so the water
@@ -645,7 +664,7 @@ function skeletonDeathSprite(context: DemoEntityProjectionContext, death: DemoDe
     y: death.y,
     placement: "billboard",
     assetId: definition.assetId,
-    scale: bonedDisplayScale(death.appearance),
+    scale: bonedDisplayScale(death.appearance, override),
     verticalAnchor: 0,
     submerged: drowning ? stage : 0,
     frame: {
@@ -1305,16 +1324,20 @@ export function projectDemoEnemy(
           frame: animationFrame(options.skeletonAnimation.animation, options.skeletonAnimation.progress),
         }
       : undefined;
-    return { blobs: [], sprites: [skeletonSprite(context, enemy, selected)] };
+    return { blobs: [], sprites: [skeletonSprite(context, enemy, selected, options.display)] };
   }
 
   return { blobs: [enemyBlob(context, enemy)], sprites: [] };
 }
 
 /** Projects one corpse, including the wall decal that replaces a splattered blob body. */
-export function projectDemoDeath(context: DemoEntityProjectionContext, death: DemoDeath): DemoEntityProjection {
+export function projectDemoDeath(
+  context: DemoEntityProjectionContext,
+  death: DemoDeath,
+  options: DemoEntityProjectionOptions = {},
+): DemoEntityProjection {
   if (isBoned(ENEMY_ARCHETYPES[death.archetypeId])) {
-    return { blobs: [], sprites: [skeletonDeathSprite(context, death)] };
+    return { blobs: [], sprites: [skeletonDeathSprite(context, death, options.display)] };
   }
 
   if (death.cause === "splattered") {

@@ -1,6 +1,9 @@
+import { AUTHORING_API_ROOT } from "@/app/debug/authoring-client";
 import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
 import { createDecorWorkbench } from "@/app/debug/decor-workbench";
 import { createRenderPanel } from "@/app/debug/render-panel";
+import entityDisplayJson from "@/content/enemies/entity-display.json";
+import { parseEntityDisplays, type EntityDisplay } from "@/content/enemies/entity-display-schema";
 import {
   SKELETON_SWORDSMAN_ANIMATIONS,
   SKELETON_SWORDSMAN_FRAMES,
@@ -11,10 +14,11 @@ import {
   projectDemoBarricade,
   projectDemoDeath,
   projectDemoEnemy,
+  warnMarkerSprite,
   type DemoEntityProjection,
   type DemoEntityProjectionContext,
 } from "@/demo/demo-scene";
-import { ENEMY_ARCHETYPES, type DemoArchetypeId } from "@/demo/enemy-archetypes";
+import { ENEMY_ARCHETYPES, isBoned, MELEE_CUT_HALF_ANGLE, type DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
 import { DEATH_SECONDS } from "@/demo/simulation";
 import {
@@ -29,6 +33,7 @@ import type {
   RenderBeam,
   RenderBox,
   RenderEmitter,
+  RenderFloorDecal,
   RenderFloorPatch,
   RenderScene,
   RenderSurface,
@@ -64,6 +69,18 @@ type EntityWorkbenchState = {
   carriedCount: number;
   flightPitch: number;
   flightSpeed: number;
+  /**
+   * How far behind the body the inspection camera stands.
+   *
+   * The most important control on this panel, and the one that was a constant. Every argument about a
+   * body's size or a marker's height has turned out to be an argument about distance — a mark that sits
+   * clear of the head across a room leaves the frame at arm's reach, and the two readings cannot be
+   * judged one at a time. Sliding this is how the trade becomes visible instead of being guessed.
+   */
+  cameraBack: number;
+  /** The display numbers being tuned, previewed live and saved only when asked. */
+  bodyScale: number;
+  markerOffset: number;
 };
 
 const SITUATIONS: readonly Readonly<{ id: EntitySituation; label: string; settings: string }>[] = [
@@ -150,6 +167,15 @@ function roomFloor(): RenderFloorPatch[] {
   return built;
 }
 
+/**
+ * The authored display table, as a working copy this tool edits.
+ *
+ * Parsed once and then mutated by the sliders, so what is on screen is always what would be written.
+ * Saving sends the whole table back through the same validator the file is loaded with, which means a
+ * number that cannot survive a reload cannot be saved either.
+ */
+const displays = { ...parseEntityDisplays(entityDisplayJson) };
+
 const ROOM_SURFACES = roomSurfaces();
 const ROOM_FLOOR = roomFloor();
 const ROOM_TILES = Array.from({ length: ROOM_SIZE }, (_rowValue, y) =>
@@ -157,6 +183,49 @@ const ROOM_TILES = Array.from({ length: ROOM_SIZE }, (_rowValue, y) =>
     x === 0 || y === 0 || x === ROOM_SIZE - 1 || y === ROOM_SIZE - 1 ? "#" : ".",
   ).join(""),
 );
+
+/** The inspection camera at whatever distance the slider is holding. */
+function previewCamera(state: EntityWorkbenchState): CameraPose {
+  return { x: ROOM_CENTRE, y: BODY_Y + state.cameraBack, angle: -Math.PI / 2 };
+}
+
+/** The display record the sliders are currently describing, for the archetype on screen. */
+function previewDisplay(state: EntityWorkbenchState): EntityDisplay {
+  return {
+    appearanceId: ENEMY_ARCHETYPES[state.archetypeId].appearance,
+    bodyScale: state.bodyScale,
+    markerOffset: state.markerOffset,
+  };
+}
+
+/**
+ * The ground a committed cut would cross, drawn so body size and reach are judged together.
+ *
+ * Without it a body can be tuned to a size that looks right on its own and wrong next to its own
+ * attack: reach is the simulation's number and does not shrink with the artwork, so a body taken far
+ * enough down ends up shorter than the arc it swings.
+ */
+function attackCone(state: EntityWorkbenchState, enemy: DemoEnemy): RenderFloorDecal[] {
+  if (state.bodyState !== "attack" || !isBoned(enemy.archetype)) {
+    return [];
+  }
+
+  return [
+    {
+      x: enemy.x,
+      y: enemy.y,
+      shape: {
+        kind: "sector",
+        radius: enemy.archetype.contactRange,
+        directionX: Math.cos(enemy.facingAngle),
+        directionY: Math.sin(enemy.facingAngle),
+        halfAngle: MELEE_CUT_HALF_ANGLE,
+      },
+      color: [188, 52, 54],
+      strength: 0.55,
+    },
+  ];
+}
 
 function createEnemy(archetypeId: DemoArchetypeId, id = "workbench-enemy"): DemoEnemy {
   const archetype = ENEMY_ARCHETYPES[archetypeId];
@@ -268,6 +337,7 @@ function scene(
     boxes?: readonly RenderBox[];
     camera?: CameraPose;
     emitters?: readonly RenderEmitter[];
+    floorDecals?: readonly RenderFloorDecal[];
     floorPatches?: readonly RenderFloorPatch[];
     light?: Readonly<{ x: number; y: number }>;
     surfaces?: readonly RenderSurface[];
@@ -289,6 +359,7 @@ function scene(
     blobs: projection.blobs,
     sprites: projection.sprites,
     ...(options.boxes ? { boxes: options.boxes } : {}),
+    ...(options.floorDecals && options.floorDecals.length > 0 ? { floorDecals: options.floorDecals } : {}),
     ...(options.beams ? { beams: options.beams } : {}),
     lights: [{ id: "inspection-light", x: light.x, y: light.y, radius: 5, color: [255, 178, 112], intensity: 1 }],
     emitters: options.emitters ?? [],
@@ -614,9 +685,15 @@ function livingProjection(
   }
 
   // The preview forces the named clip so it can be stepped; the coverage table deliberately does not.
-  return projectDemoEnemy(context, enemy, {
+  const display = previewDisplay(state);
+  const projected = projectDemoEnemy(context, enemy, {
     skeletonAnimation: { animation: bodyState, progress },
+    display,
   });
+  // The mark is built by the game's own placement function rather than recomputed here, so what the
+  // offset slider moves is the number the game reads and not this tool's arithmetic.
+  const marker = warnMarkerSprite(enemy, display);
+  return marker ? { blobs: projected.blobs, sprites: [...projected.sprites, marker] } : projected;
 }
 
 function bodyProjection(
@@ -628,7 +705,9 @@ function bodyProjection(
   if (state.bodyState === "dying") {
     const death = { ...createDeath(state.archetypeId, state.deathCause, progress), ...placement };
     death.facingAngle = facingFor(context.camera, state.direction);
-    return projectDemoDeath(context, death);
+    // The corpse takes the tuned scale too, or sliding it would change a living body and leave the
+    // dying one at whatever is on disk — which reads as the slider being broken.
+    return projectDemoDeath(context, death, { display: previewDisplay(state) });
   }
 
   return livingProjection(context, state, progress);
@@ -786,7 +865,14 @@ function mainScene(state: EntityWorkbenchState, elapsedSeconds: number, scrub: n
     });
   }
 
-  return scene(bodyProjection(createContext(elapsedSeconds), state, scrub));
+  const camera = previewCamera(state);
+  const context = createContext(elapsedSeconds, camera);
+  const enemy = createEnemy(state.archetypeId);
+  enemy.facingAngle = facingFor(camera, state.direction);
+  return scene(bodyProjection(context, state, scrub), {
+    camera,
+    floorDecals: attackCone(state, enemy),
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -946,6 +1032,10 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     "Playback",
     "How the body is being looked at and where in its own timeline it is. 1× is the rate the game runs the selected clip at, not a flat one-second loop.",
   );
+  const displayPanel = createDebugPanel(
+    "Display",
+    "How the body and its markers are drawn, as authored content. Camera distance is not saved — it is the lens the other two are judged through, because a mark that clears the head across a room leaves the frame at arm's reach.",
+  );
   const previewPanel = createDebugPanel(
     "Live entity projection",
     "The room, body, wall decal, and hazard props are all drawn by the shipped renderer.",
@@ -973,6 +1063,9 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     carriedCount: 3,
     flightPitch: 12,
     flightSpeed: 3.5,
+    cameraBack: INSPECTION_BACK,
+    bodyScale: displays.skeletonSwordsman.bodyScale,
+    markerOffset: displays.skeletonSwordsman.markerOffset,
   };
 
   const axes = document.createElement("div");
@@ -1224,10 +1317,15 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     bodyState.setInert(scripted);
     deathCause.setInert(scripted || state.bodyState !== "dying");
     direction.setInert(state.situation === "skewered");
+    // Water, walls and flight each frame the body deliberately. Only the open room is the slider's.
+    cameraBack.setInert(state.situation !== "room");
     const frames = timelineFrames(state);
     scrubber.setBounds(frames > 0 ? { max: frames - 1, step: 1 } : { max: 100, step: 1 });
     shownFrame = -1;
     refreshSettings();
+    // Reads from the working table rather than resetting it, so switching archetype and back does not
+    // discard a number that has been slid but not saved.
+    refreshDisplayFields();
     refreshStatus();
   }
 
@@ -1251,6 +1349,101 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   playbackGrid.append(direction.field, scrubber.field, speed.field);
   playbackRow.append(playButton);
   playbackPanel.body.append(playbackGrid, playbackRow);
+
+  const displayGrid = document.createElement("div");
+  const displayRow = document.createElement("div");
+  const displayStatus = document.createElement("p");
+  const saveDisplay = document.createElement("button");
+  displayGrid.className = "debug-form-grid entity-workbench-controls";
+  displayRow.className = "debug-button-row entity-playback-row";
+  displayStatus.className = "entity-workbench-status";
+  displayStatus.setAttribute("role", "status");
+  saveDisplay.type = "button";
+  saveDisplay.textContent = "Save display JSON";
+
+  const cameraBack = createRange(
+    "entity-camera-back",
+    "Camera distance",
+    state.cameraBack,
+    0.8,
+    9,
+    0.05,
+    (value) => `${value.toFixed(2)} cells`,
+    (value) => {
+      state.cameraBack = value;
+    },
+  );
+
+  const bodyScale = createRange(
+    "entity-body-scale",
+    "Body scale",
+    state.bodyScale,
+    0.2,
+    2,
+    0.005,
+    (value) => value.toFixed(3),
+    (value) => {
+      state.bodyScale = value;
+      displays[ENEMY_ARCHETYPES[state.archetypeId].appearance] = previewDisplay(state);
+      displayStatus.textContent = "Unsaved display changes.";
+    },
+  );
+
+  const markerOffset = createRange(
+    "entity-marker-offset",
+    "Marker offset",
+    state.markerOffset,
+    -0.6,
+    0.6,
+    0.005,
+    (value) => value.toFixed(3),
+    (value) => {
+      state.markerOffset = value;
+      displays[ENEMY_ARCHETYPES[state.archetypeId].appearance] = previewDisplay(state);
+      displayStatus.textContent = "Unsaved display changes.";
+    },
+  );
+
+  /** Pulls the sliders back to whatever the working table holds for the archetype now on screen. */
+  function refreshDisplayFields(): void {
+    const current = displays[ENEMY_ARCHETYPES[state.archetypeId].appearance];
+    state.bodyScale = current.bodyScale;
+    state.markerOffset = current.markerOffset;
+    bodyScale.set(state.bodyScale);
+    markerOffset.set(state.markerOffset);
+    // A soft body's size comes from its own profile, so the scale slider has nothing to move on one.
+    bodyScale.setInert(!isBoned(ENEMY_ARCHETYPES[state.archetypeId]));
+  }
+
+  saveDisplay.addEventListener("click", () => {
+    saveDisplay.disabled = true;
+    displayStatus.textContent = "Validating and saving display JSON…";
+    void fetch(`${AUTHORING_API_ROOT}/entityDisplay/save`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ source: Object.values(displays) }),
+    })
+      .then(async (response) => {
+        const body = (await response.json()) as { message?: string };
+
+        if (!response.ok) {
+          throw new Error(body.message ?? `Save failed with ${response.status}.`);
+        }
+
+        displayStatus.textContent = body.message ?? "Saved display JSON.";
+      })
+      .catch((error: unknown) => {
+        displayStatus.textContent = error instanceof Error ? error.message : String(error);
+      })
+      .finally(() => {
+        saveDisplay.disabled = false;
+      });
+  });
+
+  displayGrid.append(cameraBack.field, bodyScale.field, markerOffset.field);
+  displayRow.append(saveDisplay);
+  displayPanel.body.append(displayGrid, displayRow, displayStatus);
+  refreshDisplayFields();
 
   const preview = createRenderPanel({
     ariaLabel: "Entity workbench live preview",
@@ -1297,7 +1490,14 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   comparePanel.body.append(comparisonGrid);
   matrixPanel.body.append(createCoverageMatrix());
   refreshControls();
-  entitySection.append(bodyPanel.panel, playbackPanel.panel, previewPanel.panel, comparePanel.panel, matrixPanel.panel);
+  entitySection.append(
+    bodyPanel.panel,
+    playbackPanel.panel,
+    displayPanel.panel,
+    previewPanel.panel,
+    comparePanel.panel,
+    matrixPanel.panel,
+  );
   decorSection.append(createDecorWorkbench());
   content.append(tabs, entitySection, decorSection);
   mount.replaceChildren(page);

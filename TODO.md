@@ -45,6 +45,16 @@ One line, no rationale, no backing document.
 
 Not scheduled. Do not start without a decision.
 
+### Authoring The Rest Of The Display Numbers
+
+Body scale and the wind-up marker's offset are authored content now: they live in `src/content/enemies/entity-display.json`, are validated on load, and are tuned and saved from the entity workbench with a camera-distance slider beside them. That was the half worth doing first, because it was the half being guessed at repeatedly.
+
+The rest of what decides how a body looks is still literals in `src/demo/demo-scene.ts`. A soft body's profile — footprint radius, height and colour together — is the largest piece; the stun stars' orbit and height, the blade arc's own height, and the per-intent marker scale ramp are the smaller ones. Every one of them is a number somebody will eventually want to slide.
+
+What makes this a decision rather than a queue is the soft-body profile. It is three numbers that have to move together and one of them is a colour, so it is not the same shape as the two that moved; and the simulation gives every body one collision radius regardless, so authoring a per-body footprint invites the question of whether collision should read it too. Answer that first, because doing it wrong means the drawn size and the bumped size drift apart in opposite directions.
+
+Not scheduled. What would force it is a second authored body, or wanting bodies that differ in width rather than height.
+
 ### A Real 3D Layer Instead Of Baked Sprite Sheets
 
 The skeleton swordsman is an eight-way authored body: ten clips, eight directions, eight frames, baked offline from Blender into ten 2048-square atlases. That is 48 MB of PNG on disk and roughly 168 MB decoded, for one enemy. The cost is per enemy and it does not amortise — a second authored body is another 50 MB, and every added clip or direction multiplies it. Cutting the atlas cell back down is the only knob the current pipeline has, and it trades directly against the resolution that made the skeleton stop looking pasted onto the room.
