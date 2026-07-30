@@ -14,8 +14,8 @@ import {
   SKELETON_SWORDSMAN_FRAMES,
   type SkeletonSwordsmanAnimationId,
 } from "@/content/enemies/skeleton-swordsman-definitions";
-import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
-import { CHARGE_DISTANCE, RANGED_SHOT_RANGE } from "@/demo/enemy-archetypes";
+import { DEMO_ASSET_IDS, WARN_BLADE_STEPS } from "@/demo/demo-sprites";
+import { CHARGE_DISTANCE, MELEE_CUT_HALF_ANGLE, RANGED_SHOT_RANGE } from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
 import {
   blocksFlung,
@@ -231,7 +231,15 @@ const PROP_SCALES: Readonly<Record<DemoPropKind, number>> = {
   skeletonFemurCracked: 0.4,
 };
 
-const SKELETON_DISPLAY_SCALE = 1.16;
+/**
+ * How tall an authored skeleton stands, in cells.
+ *
+ * Shorter than it was. At its old height the marker over its head sat at the top of the frame from
+ * anywhere close enough to matter, and everything it wore had to be placed against the exception
+ * rather than the rule. It is still nearly three times a slime, which is what carries the only
+ * distinction the size has to make: soft bodies can be picked up and boned ones cannot.
+ */
+const SKELETON_DISPLAY_SCALE = 0.95;
 
 /**
  * How far through going under an authored body is at the moment the water finishes it.
@@ -348,6 +356,22 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
   }
 
   const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+  // The sword's mark charges up rather than only swelling. It is the one attack whose timing nothing
+  // else carries — a charger has the bright fill running down its lane and a shooter has a line that
+  // brightens, and a full second of sword needs its own clock. Baked as a strip of fill steps because
+  // a sprite has no per-instance opacity and cannot be clipped when it is drawn.
+  const charge =
+    enemy.intent === "melee"
+      ? {
+          frame: {
+            column: Math.min(WARN_BLADE_STEPS - 1, Math.floor(progress * WARN_BLADE_STEPS)),
+            row: 0,
+            columns: WARN_BLADE_STEPS,
+            rows: 1,
+          },
+        }
+      : {};
+  const scale = 0.44 + progress * 0.3;
   built.push({
     id: `${enemy.id}-warn`,
     x: enemy.x,
@@ -355,8 +379,13 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
     placement: "billboard",
     assetId: warnAsset(enemy.intent),
     // Swells as the wind-up completes, so how much time is left is legible at a glance.
-    scale: 0.44 + progress * 0.3,
-    verticalAnchor: -0.85,
+    scale,
+    // Its bottom edge rides just clear of whatever is wearing it, so the swelling goes upward rather
+    // than down into the body. The height used to be a single number tuned against a slime, which put
+    // the mark across a skeleton's ribs — the same mistake the stun stars already avoid by asking the
+    // body how tall it is.
+    verticalAnchor: -(crownHeight(enemy) + 0.08) / scale,
+    ...charge,
   });
 }
 
@@ -1918,22 +1947,21 @@ function beadLine(
   return points;
 }
 
-/** Height a sword is carried at, and how wide a cut opens either side of where it is looking. */
+/** Height a sword is carried at, and how many dots the arc at that height is drawn from. */
 const CUT_HEIGHT = 0.62;
-const CUT_HALF_ANGLE = 0.75;
-const CUT_BEADS = 13;
+const CUT_BEADS = 15;
 
 /**
- * The path a committed sword cut is about to sweep.
+ * The path a committed sword cut is about to sweep, at the height the blade travels.
  *
- * The other two archetypes announce a wind-up with their bodies, because both are soft bodies the
- * scene deforms at will. The swordsman is an authored sheet with fixed frames and nothing to squash,
- * so it gets the more useful half instead: the ground the blade is about to cross. Its reach is
- * short enough that knowing the arc is knowing whether one step backwards is enough.
+ * The primary read of the whole telegraph, and the reason is the range. A swordsman commits at arm's
+ * reach, and the mark it paints on the floor sits at the very bottom of the frame from there — so the
+ * floor is where a player confirms they got out, and this is where they see it coming at all.
  *
- * Built from the facing on this frame, not the facing the wind-up started with — a swordsman keeps
- * turning towards the player at a bounded rate right through its commitment, so an arc frozen at the
- * start would point at where the player used to be while the sword went somewhere else.
+ * It fills from one edge to the other rather than brightening as a whole, in step with the wedge on
+ * the ground, so both say the same thing about which way the blade is coming round. Built from the
+ * current facing, which is now fixed for the whole wind-up: the body locks its aim when it commits,
+ * so this arc is nailed to a piece of the room from the first frame.
  */
 function cutArc(enemy: DemoEnemy, elapsedSeconds: number, built: RenderParticle[]): void {
   if (enemy.windupSeconds <= 0 || enemy.intent !== "melee") {
@@ -1945,17 +1973,19 @@ function cutArc(enemy: DemoEnemy, elapsedSeconds: number, built: RenderParticle[
 
   for (let index = 0; index < CUT_BEADS; index += 1) {
     const across = index / (CUT_BEADS - 1);
-    const angle = enemy.facingAngle + (across * 2 - 1) * CUT_HALF_ANGLE;
+    const angle = enemy.facingAngle + (across * 2 - 1) * MELEE_CUT_HALF_ANGLE;
     const shimmer = 0.84 + 0.16 * Math.sin(elapsedSeconds * 18 + index * 1.3);
+    // How far behind the sweep's leading edge this dot is. Everything the edge has passed stays lit,
+    // the edge itself is the brightest thing in the arc, and the ground ahead of it is barely there.
+    const behind = progress - across;
+    const lit = behind < 0 ? 0.12 : 0.5 + 0.5 * Math.max(0, 1 - behind * 5);
     built.push({
       x: enemy.x + Math.cos(angle) * reach,
       y: enemy.y + Math.sin(angle) * reach,
       z: CUT_HEIGHT,
-      size: 0.055 + progress * 0.03,
-      color: [255, 128, 108],
-      // Dim for most of the wind-up and bright at the end: the arc's job is to say "now", and one
-      // that starts at full strength only ever says "soon".
-      alpha: (0.1 + progress * progress * 0.8) * shimmer,
+      size: 0.05 + lit * 0.05,
+      color: [255, 138, 112],
+      alpha: lit * shimmer,
       additive: true,
     });
   }
@@ -2013,6 +2043,8 @@ const LANE_DIM: readonly [number, number, number] = [128, 30, 34];
 const LANE_HOT: readonly [number, number, number] = [255, 118, 84];
 const CIRCLE_EDGE: readonly [number, number, number] = [255, 74, 58];
 const CIRCLE_FILL: readonly [number, number, number] = [220, 96, 62];
+const CUT_DIM: readonly [number, number, number] = [136, 36, 40];
+const CUT_HOT: readonly [number, number, number] = [255, 128, 96];
 
 /**
  * How far a charge can run before something stops it.
@@ -2096,6 +2128,49 @@ function floorDecals(world: DemoWorld): RenderFloorDecal[] {
       shape: { kind: "lane", directionX, directionY, length: length * progress, halfWidth: LANE_HALF_WIDTH },
       color: LANE_HOT,
       strength: 0.82,
+    });
+  }
+
+  for (const enemy of world.enemies) {
+    if (enemy.windupSeconds <= 0 || enemy.intent !== "melee") {
+      continue;
+    }
+
+    // The ground a cut is about to cross, fixed in the world because the facing is. Secondary by
+    // design: at this reach the wedge sits at the very bottom of the frame, so what a player reads in
+    // the moment is the mark over its head and the arc at blade height. What the floor is for is the
+    // half-second after stepping back, when the question is whether you actually got out.
+    const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+    const reach = enemy.archetype.contactRange;
+    built.push({
+      x: enemy.x,
+      y: enemy.y,
+      shape: {
+        kind: "sector",
+        radius: reach,
+        directionX: Math.cos(enemy.facingAngle),
+        directionY: Math.sin(enemy.facingAngle),
+        halfAngle: MELEE_CUT_HALF_ANGLE,
+      },
+      color: CUT_DIM,
+      strength: 0.5,
+    });
+    // The same wedge sweeping open from one edge to the other, so the fill runs the way the blade
+    // will. Widening about a bisector that walks across is how one shape says both.
+    const swept = MELEE_CUT_HALF_ANGLE * progress;
+    const bisector = enemy.facingAngle - MELEE_CUT_HALF_ANGLE + swept;
+    built.push({
+      x: enemy.x,
+      y: enemy.y,
+      shape: {
+        kind: "sector",
+        radius: reach,
+        directionX: Math.cos(bisector),
+        directionY: Math.sin(bisector),
+        halfAngle: Math.max(0.02, swept),
+      },
+      color: CUT_HOT,
+      strength: 0.8,
     });
   }
 
@@ -2237,15 +2312,16 @@ function lights(world: DemoWorld): RenderLight[] {
     }
 
     if (enemy.intent === "melee") {
-      // The faintest of the three. A swordsman is already in your face when it commits, so the light
-      // only has to separate it from the crowd behind it — the arc on the floor does the real work.
+      // A full second is long enough that this has to carry across a crowded room, not just separate
+      // the swordsman from whatever is standing behind it. It pulses faster as the swing nears, which
+      // is the same clock the mark over its head and the wedge on the ground are counting.
       built.push({
         id: `${enemy.id}-windup-light`,
         x: enemy.x,
         y: enemy.y,
-        radius: 1.2 + progress * 0.8,
-        color: [255, 132, 112],
-        intensity: 0.2 + progress * 0.5,
+        radius: 1.6 + progress * 1.8,
+        color: [255, 146, 112],
+        intensity: (0.3 + progress * 1.05) * (0.88 + Math.sin(world.elapsedSeconds * (8 + progress * 16)) * 0.12),
       });
       continue;
     }

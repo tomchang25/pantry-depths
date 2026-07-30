@@ -117,6 +117,20 @@ export type RenderFloorDecalShape =
       directionY: number;
       length: number;
       halfWidth: number;
+    }>
+  /**
+   * A wedge of ground, measured either side of the direction it is pointed.
+   *
+   * The direction is the wedge's bisector rather than one of its edges, so a caller that wants a
+   * wedge growing from one side to the other moves the bisector as it widens the angle. That keeps
+   * one shape covering both a fixed cone and a sweeping one.
+   */
+  | Readonly<{
+      kind: "sector";
+      radius: number;
+      directionX: number;
+      directionY: number;
+      halfAngle: number;
     }>;
 
 /**

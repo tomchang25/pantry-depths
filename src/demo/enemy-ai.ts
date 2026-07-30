@@ -17,6 +17,7 @@ import {
   CHARGE_TRIGGER_DISTANCE,
   CHARGE_WALL_DAMAGE,
   CHARGE_WALL_STUN,
+  MELEE_CUT_HALF_ANGLE,
   RANGED_SHOT_DAMAGE,
   RANGED_SHOT_RANGE,
   RANGED_SHOT_SPEED,
@@ -280,6 +281,56 @@ function launchCharge(enemy: DemoEnemy): void {
  * Rate-gated rather than burst every frame: at sixty frames a second a per-frame burst would bury the
  * particle field under one enemy.
  */
+/**
+ * Sparks drawn in along a sword's edge while it is being raised, and thrown off it when it goes.
+ *
+ * The soft bodies say "committed" by changing shape. A skeleton is an authored sheet playing authored
+ * frames, so what it has instead is what surrounds it — and gathering is the readable half: particles
+ * converging on a body is a wind-up in a way that particles leaving one never is. The release throws
+ * them back out along the arc, so the moment the second ends is punctuated rather than merely over.
+ */
+function honeBlade(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+  if (enemy.intent !== "melee") {
+    return;
+  }
+
+  const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+
+  if (Math.random() > (6 + progress * 22) * deltaSeconds) {
+    return;
+  }
+
+  // Started out on the arc and aimed back at the body, so they close on the blade as it is raised.
+  const angle = enemy.facingAngle + (Math.random() * 2 - 1) * MELEE_CUT_HALF_ANGLE;
+  const reach = enemy.archetype.contactRange * (1.1 + Math.random() * 0.35);
+  burst(world.particles, "ember", enemy.x + Math.cos(angle) * reach, enemy.y + Math.sin(angle) * reach, 0.62, 1, {
+    speed: 1.4 + progress * 1.8,
+    spreadZ: 0.5,
+    gravity: -0.4,
+    drag: 2.4,
+    directionX: -Math.cos(angle),
+    directionY: -Math.sin(angle),
+    focus: 0.85,
+    size: 0.04,
+    life: 0.34,
+  });
+}
+
+/** The blade going, thrown outward along the arc it just swept. */
+function releaseBlade(world: DemoWorld, enemy: DemoEnemy): void {
+  burst(world.particles, "ember", enemy.x, enemy.y, 0.62, 12, {
+    speed: 5.5,
+    spreadZ: 0.7,
+    gravity: 1.2,
+    drag: 2.8,
+    directionX: Math.cos(enemy.facingAngle),
+    directionY: Math.sin(enemy.facingAngle),
+    focus: 0.45,
+    size: 0.05,
+    life: 0.3,
+  });
+}
+
 function stokeCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
   if (enemy.intent !== "charge") {
     return;
@@ -454,15 +505,12 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
 
     if (enemy.windupSeconds > 0) {
       stokeCharge(world, enemy, deltaSeconds);
-      const turnRate = enemy.archetype.turnRate;
-
-      if (turnRate !== undefined) {
-        // Committed to the attack, but not blind through it. A body with a front keeps tracking the
-        // player at the same bounded rate it walks at, so the swing lands from a pose that is looking
-        // at what it hits. It cannot spin, which is what leaves stepping around it as an answer.
-        steerToward(enemy, Math.atan2(world.player.y - enemy.y, world.player.x - enemy.x), turnRate, deltaSeconds);
-      }
-
+      honeBlade(world, enemy, deltaSeconds);
+      // Committed means committed: a body winding up neither moves nor turns. It used to keep
+      // tracking the player at its walking turn rate, which over a full second is most of a circle —
+      // so the cut would follow whoever it was aimed at and the arc drawn on the floor would sweep
+      // around after them, describing nothing. Locking the facing here is what makes that arc a claim
+      // about a piece of ground rather than a decoration attached to a body.
       enemy.windupSeconds -= deltaSeconds;
 
       if (enemy.windupSeconds <= 0) {
@@ -480,9 +528,17 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
         }
 
         if (intent === "melee") {
-          const distance = Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y);
+          const toX = world.player.x - enemy.x;
+          const toY = world.player.y - enemy.y;
+          const distance = Math.hypot(toX, toY);
+          // Both halves of the shape the floor is showing. Distance alone made a cut a full circle,
+          // which is why walking round a swordsman never used to work; with the facing locked at the
+          // start of the wind-up, the cone is fixed in the world for the whole second and stepping
+          // out of it is exactly as reliable as the mark says it is.
+          const offBearing = Math.abs(shortestTurn(Math.atan2(toY, toX) - enemy.facingAngle));
+          releaseBlade(world, enemy);
 
-          if (distance <= enemy.archetype.contactRange + 0.16) {
+          if (distance <= enemy.archetype.contactRange + 0.16 && offBearing <= MELEE_CUT_HALF_ANGLE) {
             hurtPlayer(world, enemy.archetype.contactDamage, enemy.x, enemy.y);
           }
 

@@ -151,8 +151,15 @@ const SWORDSMAN: DemoEnemyArchetype = {
   rushSpeed: 2.35,
   rushDistance: 4.5,
   attackCooldown: 1.8,
-  windup: 0.55,
-  contactDamage: 11,
+  // A full second, standing still and pointed where it decided to point. That is a long time to be a
+  // statue at arm's reach, and it is meant to be: the swing is now a cone rather than a circle and
+  // the body cannot turn inside it, so one step to either side is a clean answer. What the second
+  // buys is that the step is a decision rather than a reflex.
+  windup: 1,
+  // Raised with the wind-up, because those two numbers are one decision. An attack that can be read
+  // and walked out of should cost something when it does land, or it is only a slower way of being
+  // harmless.
+  contactDamage: 16,
   contactRange: 0.95,
   canGrab: false,
   meleeWindup: true,
@@ -160,6 +167,16 @@ const SWORDSMAN: DemoEnemyArchetype = {
 };
 
 export const ENEMY_ARCHETYPES = { walker: WALKER, ranged: RANGED, charger: CHARGER, swordsman: SWORDSMAN } as const;
+
+/**
+ * Half the arc a committed sword cut covers, either side of where the body is pointed.
+ *
+ * One number, read by three things that have to agree: the damage check, the mark painted on the
+ * floor, and the arc drawn at blade height. A cut used to resolve as a plain distance test — a full
+ * circle, so a swordsman struck whatever was near it including whatever was behind it — while the
+ * comment beside it claimed that stepping around one was an answer. It is now.
+ */
+export const MELEE_CUT_HALF_ANGLE = 0.75;
 
 /** The band a shooter tries to hold: it backs off inside the near edge and closes outside the far one. */
 export const RANGED_STANDOFF = { near: 4, far: 7 } as const;

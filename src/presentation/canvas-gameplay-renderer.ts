@@ -123,15 +123,16 @@ const STAIN_STEPS = 8;
  */
 const DECAL_RADIAL = 0;
 const DECAL_LANE = 1;
+const DECAL_SECTOR = 2;
 
 /** A decal with its shape flattened into fields the floor loop reads without branching on a string. */
 type PreparedDecal = Readonly<{
   kind: number;
   x: number;
   y: number;
-  /** Radial: squared outer radius. Lane: length along its direction. */
+  /** Radial and sector: squared outer radius. Lane: length along its direction. */
   outer: number;
-  /** Radial: squared inner radius, zero for a disc. Lane: half its width. */
+  /** Radial: squared inner radius, zero for a disc. Lane: half its width. Sector: the half-angle's cosine. */
   inner: number;
   directionX: number;
   directionY: number;
@@ -845,22 +846,26 @@ export class CanvasGameplayRenderer {
       let minY: number;
       let maxY: number;
 
-      if (shape.kind === "disc" || shape.kind === "ring") {
+      if (shape.kind === "disc" || shape.kind === "ring" || shape.kind === "sector") {
         const radius = shape.radius;
         const inner = shape.kind === "ring" ? Math.max(0, radius - shape.thickness) : 0;
         reach = {
-          kind: DECAL_RADIAL,
+          kind: shape.kind === "sector" ? DECAL_SECTOR : DECAL_RADIAL,
           x: decal.x,
           y: decal.y,
           outer: radius * radius,
-          inner: inner * inner,
-          directionX: 0,
-          directionY: 0,
+          // A sector spends this slot on the cosine of its half-angle instead of an inner radius, so
+          // the test below is a dot product against the bisector rather than a second distance.
+          inner: shape.kind === "sector" ? Math.cos(shape.halfAngle) : inner * inner,
+          directionX: shape.kind === "sector" ? shape.directionX : 0,
+          directionY: shape.kind === "sector" ? shape.directionY : 0,
           red: decal.color[0],
           green: decal.color[1],
           blue: decal.color[2],
           strength: clamp(decal.strength, 0, 1),
         };
+        // The whole circle, for a wedge as well: a conservative box costs a few cells of bookkeeping
+        // and saves working out which quadrants a rotating wedge reaches into.
         minX = decal.x - radius;
         maxX = decal.x + radius;
         minY = decal.y - radius;
@@ -1431,6 +1436,16 @@ export class CanvasGameplayRenderer {
             if (decal.kind === DECAL_RADIAL) {
               const squared = toX * toX + toY * toY;
               covered = squared <= decal.outer && squared >= decal.inner;
+            } else if (decal.kind === DECAL_SECTOR) {
+              const squared = toX * toX + toY * toY;
+              // Inside the radius, and within the half-angle of the bisector. Compared as cosines
+              // rather than angles so the wedge costs a dot product and one square root instead of
+              // an arctangent per pixel.
+              const reach = Math.sqrt(squared);
+              covered =
+                squared <= decal.outer &&
+                reach > 0.0001 &&
+                (toX * decal.directionX + toY * decal.directionY) / reach >= decal.inner;
             } else {
               const along = toX * decal.directionX + toY * decal.directionY;
               const across = toY * decal.directionX - toX * decal.directionY;

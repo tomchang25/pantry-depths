@@ -543,23 +543,73 @@ function warnFlame(): HTMLCanvasElement {
 }
 
 /** A cut is coming: an angled edge, which is the one shape a sword makes that a flame cannot. */
-function warnBlade(): HTMLCanvasElement {
-  const [canvas, context] = surface();
-  warningGlow(context);
-  context.fillStyle = "#fff2ee";
+/** Traces the blade shape into the current path, hilt at the lower left and point at the upper right. */
+function bladePath(context: CanvasRenderingContext2D): void {
   context.beginPath();
   context.moveTo(120, 392);
   context.lineTo(360, 108);
   context.lineTo(404, 152);
   context.lineTo(172, 420);
   context.closePath();
-  context.fill();
-  // A short guard across the base, so the shape is a weapon rather than a stripe.
+}
+
+/** The short guard across the base, so the shape reads as a weapon rather than as a stripe. */
+function bladeGuard(context: CanvasRenderingContext2D): void {
   context.save();
   context.translate(150, 402);
   context.rotate(-Math.PI / 4);
   context.fillRect(-70, -18, 140, 36);
   context.restore();
+}
+
+/**
+ * How many charge steps the sword marker is baked at.
+ *
+ * The marker fills rather than merely swelling, because a swordsman is the one attack with no other
+ * way of saying how long is left — the charger's lane has a bright fill running down it and the
+ * shooter's line brightens, and until now the sword had only the shape.
+ *
+ * Baked as a strip and picked by frame because a sprite in this renderer carries no per-instance
+ * opacity and cannot be clipped at draw time: the only thing that can vary per frame is which cell of
+ * an atlas is read. Eight steps is under the threshold where a filling bar reads as stepping.
+ */
+export const WARN_BLADE_STEPS = 8;
+
+function warnBladeStrip(): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = SPRITE_SIZE * WARN_BLADE_STEPS;
+  canvas.height = SPRITE_SIZE;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("demo sprites: Canvas 2D is unavailable");
+  }
+
+  for (let step = 0; step < WARN_BLADE_STEPS; step += 1) {
+    context.save();
+    context.translate(step * SPRITE_SIZE, 0);
+    warningGlow(context);
+    // The unfilled blade first, dark against its own glow, so the shape is legible from the first
+    // frame and only the charge inside it moves.
+    context.fillStyle = "#6d2028";
+    bladePath(context);
+    context.fill();
+    bladeGuard(context);
+
+    // Then the same blade again in white, clipped to a band rising from the hilt to the point. The
+    // blade runs corner to corner, so filling bottom-upward fills it along its own length.
+    const filled = (step + 1) / WARN_BLADE_STEPS;
+    context.save();
+    bladePath(context);
+    context.clip();
+    context.fillStyle = "#fff2ee";
+    context.fillRect(0, SPRITE_SIZE * (1 - filled), SPRITE_SIZE, SPRITE_SIZE * filled);
+    context.restore();
+    context.fillStyle = "#fff2ee";
+    bladeGuard(context);
+    context.restore();
+  }
+
   return canvas;
 }
 
@@ -743,7 +793,7 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.wallSplat, wallSplat());
   merged.set(DEMO_ASSET_IDS.warnShoot, warnReticle());
   merged.set(DEMO_ASSET_IDS.warnCharge, warnFlame());
-  merged.set(DEMO_ASSET_IDS.warnMelee, warnBlade());
+  merged.set(DEMO_ASSET_IDS.warnMelee, warnBladeStrip());
   merged.set(DEMO_ASSET_IDS.stunStar, stunStar());
   return merged;
 }
