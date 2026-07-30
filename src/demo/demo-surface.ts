@@ -55,7 +55,9 @@ function suppressContextMenu(event: MouseEvent): void {
 }
 
 const ENEMY_DOT_COLORS: Readonly<Record<DemoArchetypeId, string>> = {
-  walker: "#7fc46a",
+  slimeGreen: "#7fc46a",
+  slimeBlue: "#5f92d8",
+  slimeRed: "#c9524f",
   ranged: "#5aa8e0",
   charger: "#e2585f",
   swordsman: "#d8c69a",

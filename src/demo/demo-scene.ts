@@ -25,6 +25,8 @@ import {
   CHARGE_DISTANCE,
   ENEMY_ARCHETYPES,
   isBoned,
+  attackCooldown,
+  attackReach,
   MELEE_CUT_HALF_ANGLE,
   RANGED_SHOT_RANGE,
   STRIKE_SECONDS,
@@ -45,6 +47,7 @@ import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/pr
 import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
 import type { DemoMaze, DemoTile } from "@/demo/maze";
 import {
+  bodyFootprint,
   hazardHeight,
   MORTAR_LOCK_SECONDS,
   projectileHeight,
@@ -590,7 +593,7 @@ function skeletonAnimation(
     // Recovery: the swing running backwards, from the follow-through to the guard, over exactly the
     // cooldown. This is the window the player wants and could not previously see — a body that had
     // just committed everything it had looked identical to one that had not noticed them.
-    const progress = 1 - enemy.attackCooldown / Math.max(0.0001, enemy.archetype.attackCooldown);
+    const progress = 1 - enemy.attackCooldown / Math.max(0.0001, attackCooldown(enemy.archetype));
     return { animation: "attack", frame: animationFrame("attack", 1 - progress) };
   }
 
@@ -991,23 +994,24 @@ function wallMarkFace(death: DemoDeath): NonNullable<RenderSprite["wallFace"]> {
 }
 
 /**
- * Body dimensions and colour per appearance — the whole visual identity of a slime archetype.
+ * How tall a slime stands and what colour it is, per appearance.
  *
- * The walker is the reference shape, the shooter is slimmer and taller, the charger is a wider,
- * lower wedge; the silhouettes have to differ because the blobs no longer carry distinct artwork.
+ * How wide it is left with the archetype, as its footprint, because that number is also the shove it
+ * gives the player and the target a thrown weapon has to hit. Keeping a second copy of it here is
+ * how the drawn body and the bumped body drift apart, and the whole point of the three colours is
+ * that a player can judge one from the other.
  */
-type SlimeBody = Readonly<{ radius: number; height: number; color: readonly [number, number, number] }>;
+type SlimeBody = Readonly<{ height: number; color: readonly [number, number, number] }>;
 
+// Monotonic, so the colour tells the player the size and the size tells them the health. The set
+// these replace ran green, blue, red as small, tall, squat, which taught nothing.
 const SLIME_BODIES: Readonly<Partial<Record<EnemyAppearanceId, SlimeBody>>> = {
-  // Three quarters of what it was. It is the one enemy whose job is to be underfoot rather than to be
-  // fought, and a body that size reads as something you wade through instead of something you answer.
-  greenSlime: { radius: 0.225, height: 0.345, color: [118, 198, 92] },
-  blueSlime: { radius: 0.26, height: 0.54, color: [96, 152, 218] },
-  redSlime: { radius: 0.35, height: 0.4, color: [216, 92, 86] },
+  greenSlime: { height: 0.3, color: [118, 198, 92] },
+  blueSlime: { height: 0.42, color: [96, 152, 218] },
+  redSlime: { height: 0.56, color: [216, 92, 86] },
 };
 
 const FALLBACK_BODY: SlimeBody = {
-  radius: 0.3,
   height: 0.46,
   color: [160, 160, 160],
 };
@@ -1037,6 +1041,7 @@ function enemyPhase(id: string): number {
  */
 function enemyBlob(context: DemoEntityProjectionContext, enemy: DemoEnemy): RenderBlob {
   const body = SLIME_BODIES[enemy.appearance] ?? FALLBACK_BODY;
+  const footprint = bodyFootprint(enemy.archetype);
   const t = context.elapsedSeconds;
   const phase = enemyPhase(enemy.id);
   const toPlayerX = context.camera.x - enemy.x;
@@ -1124,7 +1129,7 @@ function enemyBlob(context: DemoEntityProjectionContext, enemy: DemoEnemy): Rend
     id: enemy.id,
     x: enemy.x,
     y: enemy.y,
-    radius: body.radius,
+    radius: footprint,
     height: body.height,
     color: body.color,
     squash,
@@ -1156,7 +1161,13 @@ const SHATTER_PIECES = 7;
  *
  * Every piece is placed from the death's own id, so the same body always breaks the same way.
  */
-function shatteredBlobs(death: DemoDeath, corpse: RenderBlob, body: SlimeBody, t: number): RenderBlob[] {
+function shatteredBlobs(
+  death: DemoDeath,
+  corpse: RenderBlob,
+  body: SlimeBody,
+  footprint: number,
+  t: number,
+): RenderBlob[] {
   const seed = enemyPhase(death.id);
   const flight = Math.min(1, t / 0.45);
   const settle = easeOut(flight);
@@ -1166,7 +1177,7 @@ function shatteredBlobs(death: DemoDeath, corpse: RenderBlob, body: SlimeBody, t
     const angle = seed + (piece / SHATTER_PIECES) * Math.PI * 2;
     // Alternating near and far, so the pieces do not land on one neat ring around the crater.
     const reach = (0.4 + (piece % 3) * 0.26) * settle;
-    const size = body.radius * (0.24 + ((piece * 7) % 5) * 0.05);
+    const size = footprint * (0.24 + ((piece * 7) % 5) * 0.05);
     built.push({
       ...corpse,
       id: `${death.id}-piece-${piece}`,
@@ -1190,12 +1201,13 @@ function shatteredBlobs(death: DemoDeath, corpse: RenderBlob, body: SlimeBody, t
 /** The corpse, one animation per way of dying. Empty once there is nothing left of it to show. */
 function deathBlobs(death: DemoDeath): RenderBlob[] {
   const body = SLIME_BODIES[death.appearance] ?? FALLBACK_BODY;
+  const footprint = bodyFootprint(ENEMY_ARCHETYPES[death.archetypeId]);
   const t = Math.min(1, Math.max(0, death.progress));
   const corpse: RenderBlob = {
     id: `${death.id}-corpse`,
     x: death.x,
     y: death.y,
-    radius: body.radius,
+    radius: footprint,
     height: body.height,
     color: body.color,
     squash: 1,
@@ -1210,7 +1222,7 @@ function deathBlobs(death: DemoDeath): RenderBlob[] {
   };
 
   if (death.cause === "blasted") {
-    return shatteredBlobs(death, corpse, body, t);
+    return shatteredBlobs(death, corpse, body, footprint, t);
   }
 
   if (death.cause === "cleaved") {
@@ -1253,7 +1265,7 @@ function deathBlobs(death: DemoDeath): RenderBlob[] {
         // direction worth recording, but two bodies folding the same way reads as a copy.
         leanX: Math.cos(enemyPhase(death.id)) * hang * 0.14,
         leanY: Math.sin(enemyPhase(death.id)) * hang * 0.14,
-        radius: body.radius * (1 - 0.16 * hang),
+        radius: footprint * (1 - 0.16 * hang),
         wobbleAmp: 0.22 * (1 - punch),
         wobblePhase: t * 34,
         flash: 0.6 * (1 - punch),
@@ -1299,13 +1311,14 @@ function carriedBlob(
   t: number,
   lift: number,
   impaled: boolean,
+  footprint: number,
 ): RenderBlob {
   const body = SLIME_BODIES[appearance] ?? FALLBACK_BODY;
   return {
     id,
     x,
     y,
-    radius: body.radius * (impaled ? 0.9 : 1),
+    radius: footprint * (impaled ? 0.9 : 1),
     height: body.height,
     color: body.color,
     // A skewered body is compressed on the shaft and holds still; a thrown one flails the whole way.
@@ -1388,6 +1401,7 @@ export function projectCarriedDemoEnemy(
         // while the authored body on the same shaft has always tracked it.
         projectileHeight(projectile),
         true,
+        bodyFootprint(enemy.archetype),
       ),
     ],
     sprites: [],
@@ -1427,6 +1441,7 @@ function blobs(world: DemoWorld): RenderBlob[] {
           // Riding the same display arc the props fly, so a thrown body slams and lobs too.
           projectileHeight(projectile),
           false,
+          bodyFootprint(projectile.payload.archetype),
         ),
       );
     }
@@ -2075,7 +2090,7 @@ function cutArc(enemy: DemoEnemy, elapsedSeconds: number, built: RenderParticle[
   }
 
   const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-  const reach = enemy.archetype.contactRange;
+  const reach = attackReach(enemy.archetype);
 
   for (let index = 0; index < CUT_BEADS; index += 1) {
     const across = index / (CUT_BEADS - 1);
@@ -2247,7 +2262,7 @@ function floorDecals(world: DemoWorld): RenderFloorDecal[] {
     // the moment is the mark over its head and the arc at blade height. What the floor is for is the
     // half-second after stepping back, when the question is whether you actually got out.
     const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-    const reach = enemy.archetype.contactRange;
+    const reach = attackReach(enemy.archetype);
     built.push({
       x: enemy.x,
       y: enemy.y,

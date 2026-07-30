@@ -14,7 +14,7 @@
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { DEFAULT_BODY_WEIGHT, type DemoThrowWeight } from "@/demo/throw-weight";
 
-export type DemoArchetypeId = "walker" | "ranged" | "charger" | "swordsman";
+export type DemoArchetypeId = "slimeGreen" | "slimeBlue" | "slimeRed" | "ranged" | "charger" | "swordsman";
 
 /**
  * What a body is made of, which decides most of what is true about it besides its behaviour.
@@ -39,8 +39,9 @@ export type DemoBodyKind = "soft" | "boned";
  * wrong in the obvious way: it assumed melee, so every slime rehearsed its attack wearing the
  * skeleton's sword.
  *
- * Omitted means the archetype never winds up at all. That is the ordinary slime, which simply touches
- * you, and it is the reason this is optional rather than defaulted.
+ * Omitted means the archetype never winds up at all, and with the whole attack block optional beside
+ * it, that is the same statement as having no attack. It is the slime, and it is the reason this is
+ * optional rather than defaulted.
  */
 export type DemoWindupIntent = "shoot" | "charge" | "melee";
 
@@ -63,15 +64,33 @@ export type DemoEnemyArchetype = Readonly<{
   rushSpeed: number;
   /** Grid distance at which pathing is abandoned for a straight line at the player. */
   rushDistance: number;
-  attackCooldown: number;
+  /**
+   * Everything about having an attack, and every one of them optional together.
+   *
+   * A body that omits them has no attack — not a disabled one, not one with a damage of zero, but no
+   * such thing at all, so nothing exists that could put it into an attack state and stop it walking.
+   * That is what a slime is, and it is why there is no boolean saying so: a flag can be set on a body
+   * that still carries a reach and a cooldown, and then two things disagree about what it is.
+   */
+  attackCooldown?: number;
   /** Seconds of visible wind-up before the attack resolves. */
-  windup: number;
-  contactDamage: number;
-  contactRange: number;
+  windup?: number;
+  contactDamage?: number;
+  contactRange?: number;
   body: DemoBodyKind;
   /** Whether a contact attack commits through a visible wind-up instead of landing on touch. */
-  meleeWindup: boolean;
+  meleeWindup?: boolean;
   windupIntent?: DemoWindupIntent;
+  /**
+   * How much floor this body takes up, in cells: the size of its drawn blob, the reach of the shove
+   * it gives the player, and the target a thrown object has to hit.
+   *
+   * Deliberately not wall clearance, which stays one number for every body on the floor. A large
+   * slime with a large clearance wedges in corridor corners, and a body that cannot get through a
+   * doorway cannot block one either — so the circle that decides what fits and the circle that
+   * decides what is in the way are different circles on purpose.
+   */
+  footprint?: number;
   /**
    * The distance band this body tries to hold while pursuing: it backs off inside `near`, closes
    * beyond `far`, and stands still between them.
@@ -116,30 +135,87 @@ function meleeBand(contactRange: number): Readonly<{ near: number; far: number }
 const CHARGER_REACH = 0.86;
 const SWORDSMAN_REACH = 0.95;
 
-const WALKER: DemoEnemyArchetype = {
-  id: "walker",
-  name: "Slime",
+/** The small one: it goes further out of the hand and lands lighter than the other two. */
+const LIGHT_BODY_WEIGHT: DemoThrowWeight = {
+  speed: 10,
+  range: 5.2,
+  lobbed: true,
+  drag: 0.42,
+  plunge: 0.88,
+  recoil: 0.68,
+  thud: 0.8,
+  carrySlow: 0.88,
+};
+
+/**
+ * A slab of a thing. Picking one up is a commitment, throwing it barely clears the room in front of
+ * you, and every part of doing it is felt.
+ */
+const HEAVY_BODY_WEIGHT: DemoThrowWeight = {
+  speed: 7.5,
+  range: 3.6,
+  lobbed: true,
+  drag: 0.7,
+  plunge: 0.74,
+  recoil: 1.15,
+  thud: 1.25,
+  carrySlow: 0.74,
+};
+
+/**
+ * The three slimes: one behaviour, three sets of numbers, and nothing else between them.
+ *
+ * Not one entity with three appearances. A colour is something to tune rather than a tier to derive,
+ * so health, drawn size, footprint, and shove are authored per row and are monotonic on purpose —
+ * the set they replace was not, and a floor where the tallest body is the second-weakest teaches the
+ * player nothing about what they are looking at.
+ *
+ * Every one of them omits the whole attack block. That absence is the entity: a slime costs the
+ * player position rather than health, and it can do that forever because it has nothing to stop for.
+ */
+const SLIME_GREEN: DemoEnemyArchetype = {
+  id: "slimeGreen",
+  name: "Green Slime",
   appearance: "greenSlime",
-  health: 30,
+  health: 20,
+  weight: LIGHT_BODY_WEIGHT,
+  speed: 1.9,
+  rushSpeed: 2.6,
+  rushDistance: 5,
+  body: "soft",
+  footprint: 0.22,
+  jostle: 0.45,
+};
+
+const SLIME_BLUE: DemoEnemyArchetype = {
+  id: "slimeBlue",
+  name: "Blue Slime",
+  appearance: "blueSlime",
+  health: 34,
   // The ordinary body, and the one every other weight is read against.
   weight: DEFAULT_BODY_WEIGHT,
   speed: 1.9,
   rushSpeed: 2.6,
   rushDistance: 5,
-  // Nearly harmless on purpose, and the two numbers are one decision. Everything else on the floor
-  // now announces itself and can be walked out of; this one cannot be read at all, so it must not be
-  // worth reading. What it costs the player is position, not health — see `jostle`.
-  attackCooldown: 5,
-  windup: 0,
-  contactDamage: 1,
-  contactRange: 0.86,
   body: "soft",
-  meleeWindup: false,
-  // No `windupIntent`: it has no wind-up to give one to. No `band` either, and that is the whole of
-  // what a slime is now — nothing it can enter suppresses its pursuit, so it advances forever.
-  // Under a fifth of walking pace at its very worst, and only while genuinely overlapping. Enough to
-  // be shoved off a line you were holding; nowhere near enough to take control away.
+  footprint: 0.3,
   jostle: 0.6,
+};
+
+const SLIME_RED: DemoEnemyArchetype = {
+  id: "slimeRed",
+  name: "Red Slime",
+  appearance: "redSlime",
+  health: 52,
+  weight: HEAVY_BODY_WEIGHT,
+  speed: 1.9,
+  rushSpeed: 2.6,
+  rushDistance: 5,
+  body: "soft",
+  footprint: 0.38,
+  // Still a push and never a block. The largest one drags hardest at a player crossing it, and three
+  // of them together still cannot seal a doorway.
+  jostle: 0.8,
 };
 
 const RANGED: DemoEnemyArchetype = {
@@ -147,17 +223,7 @@ const RANGED: DemoEnemyArchetype = {
   name: "Spitter Slime",
   appearance: "blueSlime",
   health: 22,
-  // The small one: it goes further out of the hand and lands lighter than the other two.
-  weight: {
-    speed: 10,
-    range: 5.2,
-    lobbed: true,
-    drag: 0.42,
-    plunge: 0.88,
-    recoil: 0.68,
-    thud: 0.8,
-    carrySlow: 0.88,
-  },
+  weight: LIGHT_BODY_WEIGHT,
   speed: 1.7,
   rushSpeed: 1.7,
   rushDistance: 0,
@@ -176,18 +242,7 @@ const CHARGER: DemoEnemyArchetype = {
   name: "Charger Slime",
   appearance: "redSlime",
   health: 38,
-  // A slab of a thing. Picking one up is a commitment, throwing it barely clears the room in front
-  // of you, and every part of doing it is felt.
-  weight: {
-    speed: 7.5,
-    range: 3.6,
-    lobbed: true,
-    drag: 0.7,
-    plunge: 0.74,
-    recoil: 1.15,
-    thud: 1.25,
-    carrySlow: 0.74,
-  },
+  weight: HEAVY_BODY_WEIGHT,
   speed: 1.8,
   rushSpeed: 2.2,
   rushDistance: 5,
@@ -241,7 +296,14 @@ const SWORDSMAN: DemoEnemyArchetype = {
   band: meleeBand(SWORDSMAN_REACH),
 };
 
-export const ENEMY_ARCHETYPES = { walker: WALKER, ranged: RANGED, charger: CHARGER, swordsman: SWORDSMAN } as const;
+export const ENEMY_ARCHETYPES = {
+  slimeGreen: SLIME_GREEN,
+  slimeBlue: SLIME_BLUE,
+  slimeRed: SLIME_RED,
+  ranged: RANGED,
+  charger: CHARGER,
+  swordsman: SWORDSMAN,
+} as const;
 
 /**
  * Whether the living body can be carried whole in the player's left hand.
@@ -257,6 +319,29 @@ export function canCarry(archetype: DemoEnemyArchetype): boolean {
 /** Whether a body is drawn from authored clips rather than as a blob the scene deforms. */
 export function isBoned(archetype: DemoEnemyArchetype): boolean {
   return archetype.body === "boned";
+}
+
+/**
+ * The attack numbers, answered for a body that has no attack as well as for one that does.
+ *
+ * Zero is not a placeholder standing in for a decision nobody made. A body with no attack block has
+ * no reach to strike from, no wait between strikes, and nothing to strike for, and every branch that
+ * would resolve an attack is unreachable for it — so the arithmetic is not merely safe, it is true.
+ */
+export function attackReach(archetype: DemoEnemyArchetype): number {
+  return archetype.contactRange ?? 0;
+}
+
+export function attackWindup(archetype: DemoEnemyArchetype): number {
+  return archetype.windup ?? 0;
+}
+
+export function attackCooldown(archetype: DemoEnemyArchetype): number {
+  return archetype.attackCooldown ?? 0;
+}
+
+export function attackDamage(archetype: DemoEnemyArchetype): number {
+  return archetype.contactDamage ?? 0;
 }
 
 /**

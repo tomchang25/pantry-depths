@@ -168,16 +168,15 @@ The workbench is the only place any of this is verified, since the demo half tak
 
 ### Child overview
 
-| Child | Focus                                                                       |
-| ----- | --------------------------------------------------------------------------- |
-| 02    | Three slime entities: no attacks, no drops, own health, size, and footprint |
-| 03    | Per-clip frame counts and atlas dimensions, generator through loader        |
-| 04    | The shared death set, the bone burst, and the workbench's procedural state  |
-| 05    | The private action set, the three attack clips, a parameterised generator   |
-| 06    | The hammer-bearer, the javelineer, and the crossbowman                      |
-| 07    | The hammer: unlimited bodies, a budget of three, one use                    |
+| Child | Focus                                                                      |
+| ----- | -------------------------------------------------------------------------- |
+| 03    | Per-clip frame counts and atlas dimensions, generator through loader       |
+| 04    | The shared death set, the bone burst, and the workbench's procedural state |
+| 05    | The private action set, the three attack clips, a parameterised generator  |
+| 06    | The hammer-bearer, the javelineer, and the crossbowman                     |
+| 07    | The hammer: unlimited bodies, a budget of three, one use                   |
 
-Landing order is 02 through 07. Child 03 is a hard prerequisite for 04 and 05, which are the two re-bakes and are otherwise independent of each other. Child 06 needs 04 and 05 together, because a new type is an action set plus a band. Child 07 can land at any time; its supply arrives with 06.
+Landing order is 03 through 07. Child 03 is a hard prerequisite for 04 and 05, which are the two re-bakes and are otherwise independent of each other. Child 06 needs 04 and 05 together, because a new type is an action set plus a band. Child 07 can land at any time; its supply arrives with 06.
 
 ## Non-Goals
 
@@ -213,26 +212,6 @@ Landing order is 02 through 07. Child 03 is a hard prerequisite for 04 and 05, w
 Coordinates recorded against the codebase as it stands when this plan was written. Re-check each one against the live code before executing its child; a stale line here is expected as earlier children land. Each subsection is cut when its child ships, in the same change that cuts its row from the child overview.
 
 **What children 04 and 05 deliver is structure, not finished animation.** Both bake atlases, and the poses in the first bake are provisional by agreement: what those children own is the clip tables, the per-clip dimensions, the projection and precedence, the parameterised generator, and a bake that runs end to end. Judging whether a pose reads is a separate pass through the entity workbench against Acceptance Criteria 4, 5, and 12, and it is expected to replace keyframes rather than confirm them. Nothing in either child should be read as a claim that the artwork is right.
-
-### 02 — Three slime entities
-
-`src/demo/enemy-archetypes.ts`: `DemoArchetypeId` (line 17) drops `walker` and gains `slimeGreen`, `slimeBlue`, `slimeRed`. The `WALKER` constant (line 96) becomes three rows. Each omits `contactDamage`, `meleeWindup`, `windupIntent`, `attackCooldown`, `windup`, `contactRange`, and `band`; those fields become optional on the type, and their absence is what "has no attack" means — no boolean flag. `ENEMY_ARCHETYPES` at line 217 gains the three and loses `walker`.
-
-The three existing weight rows redistribute by size rather than by behaviour: today's `RANGED` weight (line 127, light and long) goes to green, `DEFAULT_BODY_WEIGHT` to blue, today's `CHARGER` weight (line 156, heavy and short) to red.
-
-Footprint is a new `footprint: number` on the archetype, defaulting to `ENEMY_RADIUS` for anything that omits it. Readers to change:
-
-- `jostlePlayer`, `src/demo/simulation.ts` line 105: `PLAYER_RADIUS + ENEMY_RADIUS` becomes `PLAYER_RADIUS + footprint`.
-- `PROJECTILE_HIT_RADIUS` tests in `skewerWithJavelin` (line 344), `cleaveThrough` (371), `bargeThrough` (420), `hitsSomeone` (439): add the target's footprint.
-- `SLIME_BODIES` in `src/demo/demo-scene.ts` line 989: `radius` is deleted from the record and read from the archetype instead, so drawn and bumped cannot drift. `height` and `color` stay keyed by appearance.
-
-`ENEMY_RADIUS` at `src/demo/world.ts` line 418 keeps its current value and its current role in every `slideMove` and `unstick` call — wall clearance only. Do not thread footprint into `src/demo/movement.ts`.
-
-`pickArchetype()` at `src/demo/world.ts` line 471 becomes two rolls: slime or skeleton, then which. Starting split is 40 percent slime — even thirds across the colours — and 15 percent each skeleton, which needs child 06 before the second roll has four faces.
-
-Delete `DROP_TABLE` at `src/demo/world.ts` line 912 and its roll. Bomb and axe entries both go; every prop kind stays in the union and stays throwable.
-
-Retune the three slime rows in `src/content/enemies/entity-display.json` to the drawn heights in the Design table. No schema change: `bodyScale` already exists per appearance and the validator at `src/content/enemies/entity-display-schema.ts` line 139 already refuses a missing row.
 
 ### 03 — Per-clip dimensions
 

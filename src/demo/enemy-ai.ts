@@ -24,6 +24,10 @@ import {
   CHARGE_TRIGGER_DISTANCE,
   CHARGE_WALL_DAMAGE,
   CHARGE_WALL_STUN,
+  attackCooldown,
+  attackDamage,
+  attackReach,
+  attackWindup,
   MELEE_CUT_HALF_ANGLE,
   RANGED_SHOT_DAMAGE,
   RANGED_SHOT_RANGE,
@@ -230,8 +234,8 @@ function walk(
  */
 function beginWindup(world: DemoWorld, enemy: DemoEnemy, intent: DemoEnemy["intent"]): void {
   enemy.intent = intent;
-  enemy.windupSeconds = enemy.archetype.windup;
-  enemy.windupTotal = enemy.archetype.windup;
+  enemy.windupSeconds = attackWindup(enemy.archetype);
+  enemy.windupTotal = attackWindup(enemy.archetype);
   enemy.aimX = world.player.x;
   enemy.aimY = world.player.y;
 }
@@ -258,7 +262,7 @@ function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
     blastRadius: 0,
   });
   enemy.attackPoseSeconds = STRIKE_SECONDS;
-  enemy.attackCooldown = enemy.archetype.attackCooldown;
+  enemy.attackCooldown = attackCooldown(enemy.archetype);
 }
 
 /**
@@ -275,7 +279,7 @@ function launchCharge(enemy: DemoEnemy): void {
   enemy.chargeX = dx / length;
   enemy.chargeY = dy / length;
   enemy.chargeSeconds = CHARGE_DISTANCE / CHARGE_SPEED;
-  enemy.attackCooldown = enemy.archetype.attackCooldown;
+  enemy.attackCooldown = attackCooldown(enemy.archetype);
 }
 
 /**
@@ -309,7 +313,7 @@ function honeBlade(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): vo
 
   // Started out on the arc and aimed back at the body, so they close on the blade as it is raised.
   const angle = enemy.facingAngle + (Math.random() * 2 - 1) * MELEE_CUT_HALF_ANGLE;
-  const reach = enemy.archetype.contactRange * (1.1 + Math.random() * 0.35);
+  const reach = attackReach(enemy.archetype) * (1.1 + Math.random() * 0.35);
   burst(world.particles, "ember", enemy.x + Math.cos(angle) * reach, enemy.y + Math.sin(angle) * reach, 0.62, 1, {
     speed: 1.4 + progress * 1.8,
     spreadZ: 0.5,
@@ -570,12 +574,12 @@ function stepWindup(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
     const offBearing = Math.abs(shortestTurn(Math.atan2(toY, toX) - enemy.facingAngle));
     releaseBlade(world, enemy);
 
-    if (distance <= enemy.archetype.contactRange + 0.16 && offBearing <= MELEE_CUT_HALF_ANGLE) {
-      hurtPlayer(world, enemy.archetype.contactDamage, enemy.x, enemy.y);
+    if (distance <= attackReach(enemy.archetype) + 0.16 && offBearing <= MELEE_CUT_HALF_ANGLE) {
+      hurtPlayer(world, attackDamage(enemy.archetype), enemy.x, enemy.y);
     }
 
     enemy.attackPoseSeconds = STRIKE_SECONDS;
-    enemy.attackCooldown = enemy.archetype.attackCooldown;
+    enemy.attackCooldown = attackCooldown(enemy.archetype);
     enemy.intent = "none";
     return;
   }
@@ -639,7 +643,7 @@ function tryBeginAttack(world: DemoWorld, enemy: DemoEnemy, distance: number, si
   }
 
   if (intent === "melee") {
-    if (enemy.archetype.meleeWindup && distance <= enemy.archetype.contactRange) {
+    if (enemy.archetype.meleeWindup === true && distance <= attackReach(enemy.archetype)) {
       beginWindup(world, enemy, "melee");
     }
 

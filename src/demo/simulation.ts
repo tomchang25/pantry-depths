@@ -25,9 +25,9 @@ import { propBehaviour, throwCapacity, type DemoPropFlightHit, type DemoPropLand
 import {
   announce,
   awardBless,
+  bodyFootprint,
   damageEnemy,
   dropProp,
-  ENEMY_RADIUS,
   killEnemy,
   MAX_ENEMIES,
   MORTAR_DEAD_ZONE,
@@ -59,6 +59,10 @@ export type DemoInput = Readonly<{
 
 /** How long a corpse animation runs. Exported so a workbench replays a death at its real length. */
 export const DEATH_SECONDS = 0.75;
+/**
+ * A thrown object's own reach. The target's footprint is added to it, so a large body is a large
+ * thing to hit and a small one has to be aimed at.
+ */
 const PROJECTILE_HIT_RADIUS = 0.45;
 /** What a point weapon adds for landing all of itself in one place, and the shove that comes with it. */
 const STRIKE_DAMAGE_SCALE = 1.6;
@@ -83,10 +87,10 @@ const SHAKE_DECAY = 5;
  * pressure that needs no telegraph and adds nothing to an already busy screen.
  *
  * A push and never a block, applied through the same slide the player's own movement uses, so it can
- * neither shove anyone into masonry nor seal them into a corner. It also scales with how deep the
- * overlap is, which is why it does not matter that the simulation gives every body the same radius
- * while the artwork draws them at different sizes: at the fringe, where the two disagree, the push is
- * a fraction of a fraction and nobody can feel it.
+ * neither shove anyone into masonry nor seal them into a corner. It reaches as far as the body is
+ * drawn, because the footprint is the same number in both places, and it scales with how deep the
+ * overlap is — so a large body starts dragging at the player sooner and drags harder once they are
+ * inside it.
  */
 function jostlePlayer(world: DemoWorld, deltaSeconds: number): void {
   let pushX = 0;
@@ -102,7 +106,7 @@ function jostlePlayer(world: DemoWorld, deltaSeconds: number): void {
     const dx = world.player.x - enemy.x;
     const dy = world.player.y - enemy.y;
     const distance = Math.hypot(dx, dy);
-    const contact = PLAYER_RADIUS + ENEMY_RADIUS;
+    const contact = PLAYER_RADIUS + bodyFootprint(enemy.archetype);
 
     if (distance >= contact || distance < 0.0001) {
       continue;
@@ -236,7 +240,7 @@ function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: 
  */
 function strikeWithProp(world: DemoWorld, projectile: DemoProjectile): void {
   let struck: DemoEnemy | undefined;
-  let bestDistance = PROJECTILE_HIT_RADIUS;
+  let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const enemy of world.enemies) {
     if (enemy.drowningSeconds > 0) {
@@ -245,10 +249,12 @@ function strikeWithProp(world: DemoWorld, projectile: DemoProjectile): void {
 
     const distance = Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y);
 
-    if (distance <= bestDistance) {
-      struck = enemy;
-      bestDistance = distance;
+    if (distance > PROJECTILE_HIT_RADIUS + bodyFootprint(enemy.archetype) || distance > bestDistance) {
+      continue;
     }
+
+    struck = enemy;
+    bestDistance = distance;
   }
 
   if (!struck) {
@@ -341,7 +347,10 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
       continue;
     }
 
-    if (Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) > PROJECTILE_HIT_RADIUS) {
+    if (
+      Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) >
+      PROJECTILE_HIT_RADIUS + bodyFootprint(enemy.archetype)
+    ) {
       continue;
     }
 
@@ -368,7 +377,10 @@ function cleaveThrough(world: DemoWorld, projectile: DemoProjectile): boolean {
       continue;
     }
 
-    if (Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) > PROJECTILE_HIT_RADIUS) {
+    if (
+      Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) >
+      PROJECTILE_HIT_RADIUS + bodyFootprint(enemy.archetype)
+    ) {
       continue;
     }
 
@@ -417,7 +429,10 @@ function bargeThrough(world: DemoWorld, projectile: DemoProjectile): void {
       continue;
     }
 
-    if (Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) > PROJECTILE_HIT_RADIUS) {
+    if (
+      Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) >
+      PROJECTILE_HIT_RADIUS + bodyFootprint(enemy.archetype)
+    ) {
       continue;
     }
 
@@ -436,7 +451,9 @@ function hitsSomeone(world: DemoWorld, projectile: DemoProjectile): boolean {
 
   return world.enemies.some(
     (enemy) =>
-      enemy.drowningSeconds <= 0 && Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) <= PROJECTILE_HIT_RADIUS,
+      enemy.drowningSeconds <= 0 &&
+      Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) <=
+        PROJECTILE_HIT_RADIUS + bodyFootprint(enemy.archetype),
   );
 }
 

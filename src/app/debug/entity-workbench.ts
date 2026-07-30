@@ -24,7 +24,14 @@ import {
   type DemoEntityProjection,
   type DemoEntityProjectionContext,
 } from "@/demo/demo-scene";
-import { ENEMY_ARCHETYPES, isBoned, MELEE_CUT_HALF_ANGLE, type DemoArchetypeId } from "@/demo/enemy-archetypes";
+import {
+  attackReach,
+  attackWindup,
+  ENEMY_ARCHETYPES,
+  isBoned,
+  MELEE_CUT_HALF_ANGLE,
+  type DemoArchetypeId,
+} from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
 import { DEATH_SECONDS } from "@/demo/simulation";
 import {
@@ -229,7 +236,7 @@ function attackCone(state: EntityWorkbenchState, enemy: DemoEnemy): RenderFloorD
       y: enemy.y,
       shape: {
         kind: "sector",
-        radius: enemy.archetype.contactRange,
+        radius: attackReach(enemy.archetype),
         directionX: Math.cos(enemy.facingAngle),
         directionY: Math.sin(enemy.facingAngle),
         halfAngle: MELEE_CUT_HALF_ANGLE,
@@ -259,7 +266,7 @@ function createEnemy(archetypeId: DemoArchetypeId, id = "workbench-enemy"): Demo
     repathSeconds: 0,
     waypoint: undefined,
     windupSeconds: 0,
-    windupTotal: Math.max(0.001, archetype.windup),
+    windupTotal: Math.max(0.001, attackWindup(archetype)),
     intent: "none",
     // Aimed straight down the room, so a previewed wind-up paints its lane towards the camera rather
     // than at whatever the origin cell happens to be.

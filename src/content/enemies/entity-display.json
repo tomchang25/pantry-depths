@@ -1,7 +1,7 @@
 [
   {
     "appearanceId": "greenSlime",
-    "bodyScale": 0.345,
+    "bodyScale": 0.3,
     "markerOffset": 0.08,
     "markerScale": 0.44,
     "markerSwell": 0.3
@@ -15,14 +15,14 @@
   },
   {
     "appearanceId": "blueSlime",
-    "bodyScale": 0.54,
+    "bodyScale": 0.42,
     "markerOffset": 0.08,
     "markerScale": 0.44,
     "markerSwell": 0.3
   },
   {
     "appearanceId": "redSlime",
-    "bodyScale": 0.4,
+    "bodyScale": 0.56,
     "markerOffset": 0.08,
     "markerScale": 0.44,
     "markerSwell": 0.3

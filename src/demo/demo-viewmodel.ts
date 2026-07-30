@@ -35,7 +35,7 @@ import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { slimeBody } from "@/demo/demo-scene";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
-import type { DemoWorld } from "@/demo/world";
+import { bodyFootprint, type DemoWorld } from "@/demo/world";
 import type { PresentationImages } from "@/presentation/presentation-image-loader";
 
 /**
@@ -135,11 +135,12 @@ function drawHeldSlime(
   centreY: number,
   unit: number,
   appearance: EnemyAppearanceId,
+  footprint: number,
   elapsedSeconds: number,
 ): void {
   const body = slimeBody(appearance);
   const struggle = Math.max(0, Math.sin(elapsedSeconds * 2.1)) * Math.abs(Math.sin(elapsedSeconds * 8));
-  const radius = unit * 0.4 * (body.radius / 0.3);
+  const radius = unit * 0.4 * (footprint / 0.3);
   const height = unit * 0.52 * (body.height / 0.46) * (1 + struggle * 0.18);
   const rings = 10;
   context.save();
@@ -292,7 +293,15 @@ export function drawDemoViewmodel(
     const sway = Math.sin(world.elapsedSeconds * 1.7) * 0.025;
 
     if (held.kind === "enemy") {
-      drawHeldSlime(context, carriedX, carriedY, unit, held.enemy.appearance, world.elapsedSeconds);
+      drawHeldSlime(
+        context,
+        carriedX,
+        carriedY,
+        unit,
+        held.enemy.appearance,
+        bodyFootprint(held.enemy.archetype),
+        world.elapsedSeconds,
+      );
     } else {
       const carried = images.get(DEMO_ASSET_IDS[held.prop]);
 

@@ -9,6 +9,7 @@ import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/content/viewmodel/melee-viewmodel";
 import { createBlessState, grantBless, hasBless, OVERFLOW_MAX_HP, type BlessState } from "@/demo/bless";
 import {
+  attackCooldown,
   ENEMY_ARCHETYPES,
   isBoned,
   type DemoArchetypeId,
@@ -415,6 +416,14 @@ export type DemoWorld = {
  * rate by a third for a sixth of a cell of clearance, and a one-cell corridor still has room to spare.
  */
 export const PLAYER_RADIUS = 0.32;
+/**
+ * Wall clearance for every body on the floor, and nothing else.
+ *
+ * One number on purpose. A body sized for the corridor is a body that fits through the doorway it is
+ * meant to be standing in; giving the large slime a large clearance would wedge it in corners and
+ * leave it unable to block the thing it exists to block. How much floor a body takes up against the
+ * player and against a thrown weapon is its `footprint`, which is a different circle.
+ */
 export const ENEMY_RADIUS = 0.3;
 export const PLAYER_SPEED = 3.4;
 export const REACH = 1.45;
@@ -467,23 +476,38 @@ function takeRandom<T>(pool: T[]): T | undefined {
   return pool.splice(index, 1)[0];
 }
 
-/** The ordinary slime remains common; the three specialists split the rest of the floor. */
+/** How much floor a body takes up, against the player and against anything thrown at it. */
+export function bodyFootprint(archetype: DemoEnemyArchetype): number {
+  return archetype.footprint ?? ENEMY_RADIUS;
+}
+
+/** Two thirds of a floor comes after you; the rest of it is simply in the way. */
+const SLIME_SHARE = 0.4;
+
+const SLIMES: readonly DemoEnemyArchetype[] = [
+  ENEMY_ARCHETYPES.slimeGreen,
+  ENEMY_ARCHETYPES.slimeBlue,
+  ENEMY_ARCHETYPES.slimeRed,
+];
+
+/** Everything with an attack. Even shares, which is what the three new skeletons land into. */
+const HUNTERS: readonly DemoEnemyArchetype[] = [
+  ENEMY_ARCHETYPES.ranged,
+  ENEMY_ARCHETYPES.charger,
+  ENEMY_ARCHETYPES.swordsman,
+];
+
+/**
+ * Two rolls rather than one ladder: what kind of thing this is, then which of them.
+ *
+ * The colours split their share evenly because they are three sizes of one entity and no one of them
+ * is the ordinary case. Keeping the two rolls apart is what lets a type be added to either list
+ * without silently taking floor space away from the other.
+ */
 function pickArchetype(): DemoEnemyArchetype {
-  const roll = Math.random();
-
-  if (roll < 0.2) {
-    return ENEMY_ARCHETYPES.ranged;
-  }
-
-  if (roll < 0.4) {
-    return ENEMY_ARCHETYPES.charger;
-  }
-
-  if (roll < 0.65) {
-    return ENEMY_ARCHETYPES.swordsman;
-  }
-
-  return ENEMY_ARCHETYPES.walker;
+  const pool = Math.random() < SLIME_SHARE ? SLIMES : HUNTERS;
+  const picked = pool[Math.floor(Math.random() * pool.length)];
+  return picked ?? ENEMY_ARCHETYPES.slimeGreen;
 }
 
 /** How long an emplacement holds a mark before firing, and how long it stands between shots. */
@@ -541,7 +565,7 @@ export function createEnemy(world: DemoWorld, x: number, y: number, archetype = 
     stunSeconds: 0,
     hurtSeconds: 0,
     attackPoseSeconds: 0,
-    attackCooldown: Math.random() * archetype.attackCooldown,
+    attackCooldown: Math.random() * attackCooldown(archetype),
     pushX: 0,
     pushY: 0,
     repathSeconds: 0,
@@ -903,23 +927,12 @@ export function hazardHeight(hazard: DemoHazard): number {
 }
 
 /**
- * What a corpse leaves behind.
- *
- * Weapons only. Ammunition now comes off the walls it is made of — sticks from wood, rocks from
- * stone — so killing restocks the special tools and demolition restocks the throwing arm. Each
- * entry is cumulative against one roll, so the last number is the total chance of any drop at all.
- */
-const DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: number }>[] = [
-  { kind: "axe", count: 1, upTo: 0.1 },
-  { kind: "bomb", count: 3, upTo: 0.3 },
-];
-
-/**
  * What a boned body leaves besides its own bones.
  *
  * The bones themselves are guaranteed and picked by how it died; this is the roll on top of that, and
- * it is what makes crossing a room for a skeleton worth the trip. Deliberately a separate table from
- * the soft bodies' one: a slime has no armoury on it.
+ * it is what makes crossing a room for a skeleton worth the trip. It is also the only such table
+ * left. A slime carries no armoury and now drops nothing at all, which leaves two sources of weapons
+ * on a floor: the things that were holding them, and the walls.
  */
 const BONED_DROP_TABLE: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: number }>[] = [
   { kind: "crossbow", count: 5, upTo: 0.1 },
@@ -1023,13 +1036,12 @@ export function killEnemy(
     world.player.hp = Math.min(world.player.maxHp, world.player.hp + LIFESTEAL_HEAL);
   }
 
-  if (blocksWalk(world.maze, Math.floor(enemy.x), Math.floor(enemy.y))) {
+  if (!isBoned(enemy.archetype) || blocksWalk(world.maze, Math.floor(enemy.x), Math.floor(enemy.y))) {
     return;
   }
 
   const roll = Math.random();
-  const table = isBoned(enemy.archetype) ? BONED_DROP_TABLE : DROP_TABLE;
-  const drop = table.find((entry) => roll < entry.upTo);
+  const drop = BONED_DROP_TABLE.find((entry) => roll < entry.upTo);
 
   if (drop) {
     world.props.push({ id: nextId(world, "prop"), kind: drop.kind, count: drop.count, x: enemy.x, y: enemy.y });
