@@ -62,12 +62,25 @@ export type DemoRoom = Readonly<{
   doorway: DemoCell;
 }>;
 
+/**
+ * What has already been taken out of this floor's rooms.
+ *
+ * Mutable, and hung off the floor for the same reason a pool counts the bodies it has swallowed: it
+ * has exactly the floor's lifetime, and descending is meant to wipe it.
+ */
+export type DemoRoomProgress = {
+  /** Unbroken seconds the player has stood in the blessing altar's room. */
+  heldSeconds: number;
+  blessingTaken: boolean;
+};
+
 export type DemoMaze = Readonly<{
   size: number;
   tiles: DemoTile[];
   entrance: DemoCell;
   exit: DemoCell;
   altar: DemoCell;
+  progress: DemoRoomProgress;
   /**
    * Where a run is left with everything it is carrying.
    *
@@ -556,7 +569,16 @@ export function generateDemoMaze(): DemoMaze {
   const exit = pick(away) ?? entrance;
   const altar = byRole.get("cursedAltar")?.center ?? entrance;
   const extraction = byRole.get("extraction")?.center ?? entrance;
-  return { size: DEMO_GRID_SIZE, tiles, entrance, exit, altar, extraction, rooms };
+  return {
+    size: DEMO_GRID_SIZE,
+    tiles,
+    entrance,
+    exit,
+    altar,
+    progress: { heldSeconds: 0, blessingTaken: false },
+    extraction,
+    rooms,
+  };
 }
 
 /** Which room a cell stands in, or nothing when it stands in the main region. */

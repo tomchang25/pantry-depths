@@ -21,6 +21,7 @@ import {
 import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell, tileAt } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
+import { stepRooms } from "@/demo/rooms";
 import { propBehaviour, throwCapacity, type DemoPropFlightHit, type DemoPropLanding } from "@/demo/throw-weight";
 import {
   announce,
@@ -815,6 +816,8 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
       }
     }
   }
+
+  stepRooms(world, step);
 
   const toExit = Math.hypot(world.player.x - (world.maze.exit.x + 0.5), world.player.y - (world.maze.exit.y + 0.5));
 

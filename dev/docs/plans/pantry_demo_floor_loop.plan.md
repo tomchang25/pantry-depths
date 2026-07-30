@@ -96,7 +96,6 @@ Both are decisions that whichever plan lands first will fix in place, so they ar
 
 | Child | Focus                                                                                      |
 | ----- | ------------------------------------------------------------------------------------------ |
-| 03    | What the side rooms do: smash for a curse, hold ground for a blessing, heal                |
 | 04    | Tasks: one main and three secondary, the descent locked and unmarked until the main is met |
 | 05    | The clock: run-wide level from time and depth, derived and shown only                      |
 | 06    | The modifier catalogue: numeric axes shared by stacking blessings and core rolls           |
@@ -131,20 +130,6 @@ Four of those are unavoidable and are held to single-line touches: `world.ts` at
 `src/demo/bless.ts`, `src/demo/demo-hud.ts`, `src/demo/demo-viewmodel.ts`, and `src/demo/impacts.ts` are named by the concurrent plan nowhere and are fully available.
 
 Nothing in this plan may add a test under `src/demo/` or `src/presentation/`; the repository guard at `test/unit/repository/demo-half-is-untested.test.ts` enforces it and is not to be edited.
-
-### 03 — What the side rooms do
-
-New module for altar behaviour; `src/demo/maze.ts` for the tiles.
-
-`DemoTileKind` (line 12) gains a cursed-altar kind and a blessing-altar kind. The cursed altar is smashable, so it needs hit points in the same unit as the rest — `ALTAR_HITS` at `src/demo/world.ts` line 412 is the existing precedent at 3, and the existing altar is already a smashable with a hit count, so mirror it rather than inventing a second scheme.
-
-`damageWall` at `src/demo/actions.ts` line 327 already dispatches every tile kind and is where a new smashable is registered. The concurrent plan states this function needs no change and is only _called_ differently, so adding a dispatch arm here is the declared touch point and must stay one arm.
-
-The blessing altar's five-second claim is a per-frame check: player inside the room's radius accumulates, leaving resets to zero, damage does nothing. Append it as a new step call at the tail of the step loop in `src/demo/simulation.ts` — the loop ends around line 818 and the concurrent plan's edits sit at 105, 344–439, 492–533, and 579, so an append is clear of all of them. Do not thread it into an existing step function.
-
-The hot spring is a heal-over-time on the same proximity pattern and should share it.
-
-Awarding from the blessing altar calls the same path as everything else so the card and the bar cannot drift — see the comment above `awardBless` at `src/demo/world.ts` line 733.
 
 ### 04 — Tasks
 
