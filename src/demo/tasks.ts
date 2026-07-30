@@ -10,8 +10,8 @@
  * pools closed over. Nothing here adds a signal, which is why nothing here has to be observed from
  * inside the systems that produce one.
  *
- * A floor's task list is announced rather than listed, because the only channel from here to the
- * screen that a concurrent rewrite does not own is the message line.
+ * The HUD owns how a newly arrived floor briefs these tasks. This module only establishes and settles
+ * their counters, so the message line stays available for events that actually happened in play.
  */
 
 import { takeSealed } from "@/demo/extraction";
@@ -77,19 +77,12 @@ function settle(world: DemoWorld, progress: DemoFloorProgress, task: DemoTask): 
   return true;
 }
 
-/** Announced on the floor's first step, because a floor that never said what it wants asks nothing. */
-function statement(progress: DemoFloorProgress): string {
-  const secondary = progress.secondary.map((task) => `${task.target} ${TASK_LABELS[task.kind]}`).join(", ");
-  return `This floor: ${progress.main.target} ${TASK_LABELS[progress.main.kind]} opens the way down. Also worth a blessing: ${secondary}`;
-}
-
 export function stepTasks(world: DemoWorld): void {
   const progress = world.maze.progress;
 
   if (progress.killsAtArrival === undefined || progress.wallsBrokenAtArrival === undefined) {
     progress.killsAtArrival = world.kills;
     progress.wallsBrokenAtArrival = world.wallsBroken;
-    announce(world, statement(progress), 6);
     return;
   }
 

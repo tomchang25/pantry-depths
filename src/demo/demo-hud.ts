@@ -44,11 +44,23 @@ export type DemoHudCard = Readonly<{
  * these was already being kept; the only thing missing was somewhere to put it.
  */
 export type DemoHudTask = Readonly<{
+  detail: string;
   done: number;
+  glyph: string;
   label: string;
   /** The one that opens the way down. Drawn apart from the three that pay a blessing. */
   main: boolean;
   met: boolean;
+  reward: string;
+  target: number;
+}>;
+
+export type DemoHudObjective = Readonly<{
+  detail: string;
+  done: number;
+  glyph: string;
+  label: string;
+  reward: string;
   target: number;
 }>;
 
@@ -146,6 +158,7 @@ export type DemoHudModel = Readonly<{
   maxHp: number;
   message?: string;
   minimap: DemoHudMinimap;
+  objective?: DemoHudObjective;
   overlay?: DemoHudOverlay;
   run: DemoHudRun;
   tasks: readonly DemoHudTask[];
@@ -210,10 +223,13 @@ function drawMinimap(context: CanvasRenderingContext2D, model: DemoHudMinimap): 
 /** One task line: what it is, how far along, and whether it is done with. */
 function taskRow(task: DemoHudTask): HTMLLIElement {
   const row = element("li", "demo__task");
-  const mark = element("span", "demo__taskmark", task.met ? "✓" : task.main ? "▸" : "·");
-  const kind = element("span", "demo__taskkind", task.main ? "Main" : "Bonus");
+  const glyph = element("span", "demo__taskglyph", task.met ? "✓" : task.glyph);
+  const mark = element("span", "demo__taskmark", task.met ? "✓ Complete" : task.main ? "Required" : "Optional");
+  const kind = element("span", "demo__taskkind", task.main ? "Main objective" : "Bonus");
   const label = element("span", "demo__tasklabel", task.label);
   const count = element("span", "demo__taskcount", `${Math.min(task.done, task.target)}/${task.target}`);
+  const detail = element("span", "demo__taskdetail", task.detail);
+  const reward = element("span", "demo__taskreward", task.reward);
   const track = element("span", "demo__tasktrack");
   const fill = document.createElement("i");
   fill.style.width = `${Math.min(1, task.target > 0 ? task.done / task.target : 1) * 100}%`;
@@ -222,9 +238,9 @@ function taskRow(task: DemoHudTask): HTMLLIElement {
   row.dataset.main = String(task.main);
   row.setAttribute(
     "aria-label",
-    `${task.main ? "Main objective" : "Bonus objective"}: ${task.label}, ${Math.min(task.done, task.target)} of ${task.target}${task.met ? ", complete" : ""}`,
+    `${task.main ? "Main objective" : "Bonus objective"}: ${task.label}. ${task.detail}. ${Math.min(task.done, task.target)} of ${task.target}. ${task.met ? "Complete" : task.reward}`,
   );
-  row.append(mark, kind, label, count, track);
+  row.append(glyph, kind, mark, label, count, detail, reward, track);
   return row;
 }
 
@@ -242,13 +258,15 @@ export function mountDemoHud(): MountedDemoHud {
   const root = element("div", "demo-hud");
   const run = element("section", "demo__run");
   const runHeading = element("div", "demo__runheading");
-  const runTitle = element("h3", "demo__slottitle", "Current floor");
+  const runTitle = element("h3", "demo__slottitle", "Floor contract");
   const runDepth = element("strong", "demo__rundepth");
   const runMeta = element("div", "demo__runmeta");
   const runLevel = element("strong", "demo__runlevel");
   const runClock = element("span", "demo__runclock");
   const runCore = element("span", "demo__runcore");
-  const taskList = element("ul", "demo__tasks");
+  const mainTaskList = element("ul", "demo__tasks demo__tasks--main");
+  const bonusHeading = element("div", "demo__bonusheading");
+  const bonusTaskList = element("ul", "demo__tasks demo__tasks--bonus");
   const haul = element("div", "demo__haul");
   const status = element("section", "demo__status");
   const heldSlot = element("div", "demo__slot demo__slot--held");
@@ -275,6 +293,15 @@ export function mountDemoHud(): MountedDemoHud {
   const channelTrack = element("span", "demo__channel-track");
   const channelFill = document.createElement("i");
   const message = element("p", "demo__message");
+  const objective = element("aside", "demo__objective");
+  const objectiveGlyph = element("span", "demo__objective-glyph");
+  const objectiveEyebrow = element("span", "demo__objective-eyebrow", "New floor objective");
+  const objectiveTitle = element("strong", "demo__objective-title");
+  const objectiveCount = element("span", "demo__objective-count");
+  const objectiveDetail = element("span", "demo__objective-detail");
+  const objectiveTrack = element("span", "demo__objective-track");
+  const objectiveFill = document.createElement("i");
+  const objectiveReward = element("span", "demo__objective-reward");
   const card = element("aside", "demo__card");
   const overlayButton = element("button", "demo__overlay");
   const overlayPanel = element("span", "demo__overlay-panel");
@@ -301,6 +328,8 @@ export function mountDemoHud(): MountedDemoHud {
   health.setAttribute("aria-label", "Health");
   message.setAttribute("role", "status");
   message.setAttribute("aria-atomic", "true");
+  objective.setAttribute("role", "status");
+  objective.setAttribute("aria-atomic", "true");
   runTitle.id = "demo-current-floor";
   run.setAttribute("aria-labelledby", runTitle.id);
   status.setAttribute("aria-label", "Player status");
@@ -325,7 +354,11 @@ export function mountDemoHud(): MountedDemoHud {
   health.append(healthFill);
   runHeading.append(runTitle, runDepth);
   runMeta.append(runLevel, runClock);
-  run.append(runHeading, runMeta, runCore, taskList, haul);
+  bonusHeading.append(
+    element("span", "demo__bonusheading-title", "Bonus bounties"),
+    element("span", "demo__bonusheading-reward", "+1 blessing each"),
+  );
+  run.append(runHeading, runMeta, runCore, mainTaskList, bonusHeading, bonusTaskList, haul);
   heldSlot.append(element("h3", "demo__slottitle", "Held"), heldGlyph, heldName, heldCount);
   blessSlot.append(element("h3", "demo__slottitle", "Bless"), blessBar);
   healthSlot.append(hpLabel, hp, healthState, health);
@@ -337,7 +370,17 @@ export function mountDemoHud(): MountedDemoHud {
     element("span", "demo__mapkey demo__mapkey--exit", "Stairs"),
   );
   minimapFrame.append(minimapTitle, minimap, minimapLegend);
-  root.append(run, status, minimapFrame, crosshair, channel, message, card, overlayButton);
+  objectiveTrack.append(objectiveFill);
+  objective.append(
+    objectiveGlyph,
+    objectiveEyebrow,
+    objectiveTitle,
+    objectiveCount,
+    objectiveDetail,
+    objectiveTrack,
+    objectiveReward,
+  );
+  root.append(run, status, minimapFrame, crosshair, channel, message, objective, card, overlayButton);
 
   const update = (model: DemoHudModel): void => {
     const healthShare = model.maxHp > 0 ? Math.max(0, Math.min(1, model.hp / model.maxHp)) : 0;
@@ -361,11 +404,11 @@ export function mountDemoHud(): MountedDemoHud {
     runCore.textContent = model.run.core?.text ?? "";
     runCore.hidden = model.run.core === undefined;
     runCore.style.setProperty("--core", model.run.core?.color ?? "#cdb69c");
-    taskList.replaceChildren(...model.tasks.map((task) => taskRow(task)));
+    mainTaskList.replaceChildren(...model.tasks.filter((task) => task.main).map((task) => taskRow(task)));
+    bonusTaskList.replaceChildren(...model.tasks.filter((task) => !task.main).map((task) => taskRow(task)));
     haul.replaceChildren(
+      element("span", "demo__haullabel", "Run haul"),
       element("span", "demo__haulitem", `◈ ${model.haul.sealed} sealed`),
-      element("span", "demo__haulitem", `✦ ${model.haul.blessings} bless`),
-      element("span", "demo__haulitem", `☠ ${model.haul.kills}`),
       element("span", "demo__haulitem demo__haulitem--banked", `▤ ${model.haul.banked} banked`),
     );
 
@@ -401,6 +444,19 @@ export function mountDemoHud(): MountedDemoHud {
 
     message.textContent = model.message ?? "";
     message.classList.toggle("demo__message--visible", Boolean(model.message));
+    objective.hidden = model.objective === undefined;
+
+    if (model.objective) {
+      const objectiveModel = model.objective;
+      const objectiveShare = Math.min(1, objectiveModel.target > 0 ? objectiveModel.done / objectiveModel.target : 1);
+      objectiveGlyph.textContent = objectiveModel.glyph;
+      objectiveTitle.textContent = objectiveModel.label;
+      objectiveCount.textContent = `${Math.min(objectiveModel.done, objectiveModel.target)} / ${objectiveModel.target}`;
+      objectiveDetail.textContent = objectiveModel.detail;
+      objectiveFill.style.width = `${objectiveShare * 100}%`;
+      objectiveReward.textContent = objectiveModel.reward;
+    }
+
     card.replaceChildren();
     card.classList.toggle("demo__card--visible", Boolean(model.card));
 

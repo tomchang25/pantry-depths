@@ -26,12 +26,11 @@ import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
-import { DEMO_GRID_SIZE, padRoomAt } from "@/demo/maze";
+import { DEMO_GRID_SIZE, POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/demo/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/demo/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
 import { bankedRewards, equippedCore } from "@/demo/sealed";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
-import { TASK_LABELS } from "@/demo/tasks";
 import type { DemoPropKind } from "@/demo/throw-weight";
 import {
   announce,
@@ -72,6 +71,7 @@ const MAX_PITCH_UP = 1.5;
 const MAX_PITCH_DOWN = 0.48;
 /** Mouse counts per second that read as a full-speed turn, for the comfort vignette. */
 const FULL_TURN_RATE = 2600;
+const FLOOR_OBJECTIVE_SECONDS = 6;
 
 const MOVEMENT_KEYS: Readonly<Record<string, keyof DemoInput>> = {
   w: "forward",
@@ -107,6 +107,29 @@ const MINIMAP_TILE_COLORS: Readonly<Record<string, string>> = {
   mortar: "#b8863c",
   open: "#241a2e",
 };
+
+const TASK_PRESENTATION = {
+  kills: {
+    detail: "Bring down any enemy on this floor",
+    glyph: "☠",
+    label: "Defeat enemies",
+  },
+  wallsBroken: {
+    detail: "Strike stone or timber until it gives way",
+    glyph: "▦",
+    label: "Break walls",
+  },
+  roomsVisited: {
+    detail: "Cross into rooms branching off the main floor",
+    glyph: "◇",
+    label: "Explore side rooms",
+  },
+  poolsFilled: {
+    detail: `Throw ${POOL_FILL_BODIES} bodies into one water cell`,
+    glyph: "≈",
+    label: "Fill a pool",
+  },
+} satisfies Readonly<Record<DemoTaskKind, Readonly<{ detail: string; glyph: string; label: string }>>>;
 
 function cardModel(token: string): DemoHudCard {
   // The floor getting hungrier comes through the same channel a blessing does, and has to be told
@@ -275,13 +298,20 @@ function runModel(world: DemoWorld, rising: boolean): DemoHudRun {
 /** The floor's four demands, main first. Every counter behind them is one the floor already keeps. */
 function taskModels(world: DemoWorld): DemoHudTask[] {
   const progress = world.maze.progress;
-  return [progress.main, ...progress.secondary].map((task, index) => ({
-    done: task.done,
-    label: TASK_LABELS[task.kind],
-    main: index === 0,
-    met: task.met,
-    target: task.target,
-  }));
+  return [progress.main, ...progress.secondary].map((task, index) => {
+    const presentation = TASK_PRESENTATION[task.kind];
+    const main = index === 0;
+    return {
+      detail: presentation.detail,
+      done: task.done,
+      glyph: presentation.glyph,
+      label: presentation.label,
+      main,
+      met: task.met,
+      reward: main ? "Opens stairs · +1 sealed reward" : "+1 blessing",
+      target: task.target,
+    };
+  });
 }
 
 /**
@@ -341,6 +371,7 @@ function createHudModel(
   world: DemoWorld,
   cardToken: string | undefined,
   overlay: DemoHudModel["overlay"],
+  showObjective: boolean,
 ): DemoHudModel {
   const blessIcons = BLESS_CATALOG.map((definition) => ({
     color: definition.color,
@@ -373,6 +404,8 @@ function createHudModel(
 
   const held = heldModel(world);
   const channel = channelModel(world);
+  const tasks = taskModels(world);
+  const mainTask = tasks.find((task) => task.main);
   return {
     blessIcons,
     ...(cardToken ? { card: cardModel(cardToken) } : {}),
@@ -386,7 +419,7 @@ function createHudModel(
     ...(held ? { held } : {}),
     hp: world.player.hp,
     maxHp: world.player.maxHp,
-    ...(world.messageSeconds > 0 && world.message ? { message: world.message } : {}),
+    ...(world.messageSeconds > 0 && world.message && !showObjective ? { message: world.message } : {}),
     minimap: {
       facingAngle: world.player.angle,
       height: DEMO_GRID_SIZE,
@@ -396,12 +429,24 @@ function createHudModel(
       tiles: world.maze.tiles.map((tile) => tile.kind),
       width: DEMO_GRID_SIZE,
     },
+    ...(showObjective && mainTask
+      ? {
+          objective: {
+            detail: mainTask.detail,
+            done: mainTask.done,
+            glyph: mainTask.glyph,
+            label: mainTask.label,
+            reward: mainTask.reward,
+            target: mainTask.target,
+          },
+        }
+      : {}),
     ...(overlay ? { overlay } : {}),
     // The panel flares for exactly as long as the card is up, which needs no timer of its own: the
     // card channel already carries one, and the two saying the same thing at the same time is the
     // point of tying them together.
     run: runModel(world, cardToken?.startsWith(LEVEL_CARD_PREFIX) ?? false),
-    tasks: taskModels(world),
+    tasks,
   };
 }
 
@@ -436,6 +481,8 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
   }
 
   let world = createDemoWorld();
+  let objectiveMaze = world.maze;
+  let objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
   let disposed = false;
   let frame = 0;
   let lastTime: number | undefined;
@@ -523,7 +570,8 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     return undefined;
   };
 
-  const refreshHud = (): void => hud.update(createHudModel(world, activeCardToken, overlayModel()));
+  const refreshHud = (): void =>
+    hud.update(createHudModel(world, activeCardToken, overlayModel(), objectiveSeconds > 0));
   const refreshDev = (): void =>
     dev.update({ enemiesPaused: world.enemiesPaused, fps: smoothedFps, godMode: world.godMode });
 
@@ -535,6 +583,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
    */
   const showCard = (token: string): void => {
     activeCardToken = token;
+    objectiveSeconds = 0;
 
     if (cardTimer !== undefined) {
       window.clearTimeout(cardTimer);
@@ -552,6 +601,8 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     // useless for exactly the thing it is for: dying repeatedly on purpose.
     const carriedGodMode = world.godMode;
     world = createDemoWorld();
+    objectiveMaze = world.maze;
+    objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
     world.godMode = carriedGodMode;
     paused = false;
     clearInput();
@@ -649,6 +700,14 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
         deltaSeconds,
       );
     }
+
+    if (world.maze !== objectiveMaze) {
+      objectiveMaze = world.maze;
+      objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
+    } else if (active) {
+      objectiveSeconds = Math.max(0, objectiveSeconds - deltaSeconds);
+    }
+
     renderer.resize(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio);
     const scene = createDemoScene(world);
     renderer.render(scene, world.elapsedSeconds, createDemoEffects(world), {
