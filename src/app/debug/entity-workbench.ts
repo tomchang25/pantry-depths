@@ -10,11 +10,10 @@ import {
   parseEntityDisplays,
   type EntityDisplay,
 } from "@/content/enemies/entity-display-schema";
+import { skeletonActions } from "@/content/enemies/skeleton-appearance";
+import { SKELETON_DEATH_ANIMATIONS } from "@/content/enemies/skeleton-death-definitions";
 import {
-  SKELETON_DEATH_ANIMATIONS,
-  SKELETON_SWORDSMAN_ANIMATIONS,
-} from "@/content/enemies/skeleton-swordsman-definitions";
-import {
+  ATTACK_EASE_SECONDS,
   POOL_FILL,
   projectCarriedDemoEnemy,
   projectDemoBarricade,
@@ -26,11 +25,13 @@ import {
   type DemoEntityProjectionContext,
 } from "@/demo/demo-scene";
 import {
+  attackCooldown,
   attackReach,
   attackWindup,
   ENEMY_ARCHETYPES,
   isBoned,
   MELEE_CUT_HALF_ANGLE,
+  STRIKE_SECONDS,
   type DemoArchetypeId,
 } from "@/demo/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
@@ -62,8 +63,13 @@ import type {
  */
 type EntitySituation = "room" | "water" | "barricade" | "wall" | "skewered";
 
-/** What the body is doing. `dying` opens the cause; everything else is a living clip. */
-type EntityBodyState = "idle" | "walk" | "attack" | "hurt" | "block" | "dying";
+/**
+ * What the body is doing. `dying` opens the cause; everything else is a living clip.
+ *
+ * The one attack became three, because the whole point of splitting them is that the player can tell
+ * them apart — and a tool that previewed them as one state could never answer whether they do.
+ */
+type EntityBodyState = "idle" | "walk" | "hurt" | "stunned" | "windup" | "strike" | "recovery" | "dying";
 
 type WallFace = "north" | "east" | "south" | "west";
 
@@ -120,32 +126,21 @@ const SITUATIONS: readonly Readonly<{ id: EntitySituation; label: string; settin
 const BODY_STATES: readonly Readonly<{ id: EntityBodyState; label: string }>[] = [
   { id: "idle", label: "Idle" },
   { id: "walk", label: "Walk" },
-  { id: "attack", label: "Attack" },
   { id: "hurt", label: "Hurt" },
-  // Named for the atlas, not for a mechanic. Nothing in the demo blocks an attack: this is the pose
-  // a body holds while `stunSeconds` is running — slammed by a thrown body, or a charger that beat
-  // itself against a wall — and the clip happens to be the one baked under the name `block`.
-  { id: "block", label: "Stunned (block clip)" },
+  { id: "stunned", label: "Stunned" },
+  { id: "windup", label: "Wind-up" },
+  { id: "strike", label: "Strike" },
+  { id: "recovery", label: "Recovery" },
   { id: "dying", label: "Dying" },
 ];
 
-const LIVING_STATES = ["idle", "walk", "attack", "hurt", "block"] as const;
+const LIVING_STATES = ["idle", "walk", "hurt", "stunned", "windup", "strike", "recovery"] as const;
 const DEATH_CAUSES: readonly DemoDeathCause[] = ["slain", "cleaved", "drowned", "splattered", "blasted", "impaled"];
 const WALL_FACES: readonly WallFace[] = ["north", "east", "south", "west"];
 const POOL_BODY_LABELS = ["Clear water", "One body in it", "Two bodies in it"];
 
 const DIRECTION_LABELS = ["front", "front-right", "right", "back-right", "back", "back-left", "left", "front-left"];
 const DIRECTIONS = 8;
-
-/**
- * Where in the block clip a stunned authored body is held.
- *
- * The demo picks one frame and stays on it for the whole stun rather than playing the clip, so seven
- * of the eight frames the scrubber can reach never appear in the game. The scrubber still reaches
- * them — checking that a baked sheet is right is a reason to see all of it — but the status line says
- * which one is the only one that ships.
- */
-const STUN_HELD_AT = 0.72;
 
 const ROOM_SIZE = 9;
 const ROOM_CENTRE = 4.5;
@@ -237,7 +232,7 @@ function previewDisplay(state: EntityWorkbenchState): EntityDisplay {
  * enough down ends up shorter than the arc it swings.
  */
 function attackCone(state: EntityWorkbenchState, enemy: DemoEnemy): RenderFloorDecal[] {
-  if (state.bodyState !== "attack" || !isBoned(enemy.archetype)) {
+  if (state.bodyState !== "windup" || !isBoned(enemy.archetype)) {
     return [];
   }
 
@@ -318,16 +313,20 @@ function stateEnemy(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityBodyS
 
   if (bodyState === "walk") {
     enemy.moving = true;
-  } else if (bodyState === "attack") {
-    enemy.windupTotal = 1;
-    enemy.windupSeconds = 0.4;
+  } else if (bodyState === "windup") {
+    enemy.windupTotal = Math.max(0.001, attackWindup(enemy.archetype));
+    enemy.windupSeconds = enemy.windupTotal * 0.6;
     // Whatever this creature actually winds up — a spitter rehearses a shot, a charger a charge. It
     // used to be melee for all of them, so every slime previewed its attack under a skeleton's sword.
     // The ordinary slime declares none, and so wears no mark at all, which is true of it in the game.
     enemy.intent = enemy.archetype.windupIntent ?? "none";
+  } else if (bodyState === "strike") {
+    enemy.attackPoseSeconds = STRIKE_SECONDS * 0.5;
+  } else if (bodyState === "recovery") {
+    enemy.attackCooldown = attackCooldown(enemy.archetype) * 0.5;
   } else if (bodyState === "hurt") {
     enemy.hurtSeconds = 0.14;
-  } else if (bodyState === "block") {
+  } else if (bodyState === "stunned") {
     enemy.stunSeconds = 1;
   }
 
@@ -702,19 +701,36 @@ function timelineSeconds(state: EntityWorkbenchState): number {
     return DEATH_SECONDS;
   }
 
-  if (state.archetypeId !== "swordsman") {
+  const archetype = ENEMY_ARCHETYPES[state.archetypeId];
+
+  if (!isBoned(archetype)) {
     // A blob has no frames to run out of; it deforms continuously. A second is a readable loop for
     // the wobble, and the scrubber is a percentage rather than a frame count for the same reason.
     return 1;
   }
 
-  const definition = SKELETON_SWORDSMAN_ANIMATIONS[state.bodyState];
+  // The three attack states run at the length the simulation gives them, not at the clip's own rate.
+  // That is the whole question those clips exist to answer: a wind-up has to read at three seconds as
+  // well as at one, and a recovery has to say "free hits" at six seconds as well as at 1.8.
+  if (state.bodyState === "windup") {
+    return Math.max(0.1, attackWindup(archetype));
+  }
+
+  if (state.bodyState === "strike") {
+    return STRIKE_SECONDS;
+  }
+
+  if (state.bodyState === "recovery") {
+    return Math.max(0.1, attackCooldown(archetype));
+  }
+
+  const definition = skeletonActions(archetype.appearance)[state.bodyState];
   return definition.frames / definition.framesPerSecond;
 }
 
 /** Frames in the clip the scrubber is stepping through, or zero when there is no clip to step. */
 function timelineFrames(state: EntityWorkbenchState): number {
-  if (state.archetypeId !== "swordsman" || state.situation === "water" || state.situation === "skewered") {
+  if (!isBoned(ENEMY_ARCHETYPES[state.archetypeId]) || state.situation === "water" || state.situation === "skewered") {
     return 0;
   }
 
@@ -722,7 +738,7 @@ function timelineFrames(state: EntityWorkbenchState): number {
   // answered with one number for the whole set: a death held on a single pose and a death that runs
   // eight frames are both correct, and a scrubber that splits either into eight is not.
   if (state.bodyState !== "dying") {
-    return SKELETON_SWORDSMAN_ANIMATIONS[state.bodyState].frames;
+    return skeletonActions(ENEMY_ARCHETYPES[state.archetypeId].appearance)[state.bodyState].frames;
   }
 
   // A death with no clip has nothing to step through, which is exactly what a blasted body is.
@@ -739,16 +755,24 @@ function livingProjection(
   const enemy = stateEnemy(state.archetypeId, bodyState);
   enemy.facingAngle = facingFor(context.camera, state.direction);
 
-  if (bodyState === "attack") {
-    enemy.windupSeconds = Math.max(0.0001, 1 - progress);
+  // Every state whose clip the simulation drives from a timer is scrubbed by running that timer
+  // backwards, so what the preview shows is what the game computes — including the ease-then-hold on
+  // a wind-up, which a forced linear step through the clip would quietly hide.
+  if (bodyState === "windup") {
+    enemy.windupSeconds = Math.max(0.0001, enemy.windupTotal * (1 - progress));
+  } else if (bodyState === "strike") {
+    enemy.attackPoseSeconds = Math.max(0.0001, STRIKE_SECONDS * (1 - progress));
+  } else if (bodyState === "recovery") {
+    enemy.attackCooldown = Math.max(0.0001, attackCooldown(enemy.archetype) * (1 - progress));
   } else if (bodyState === "hurt") {
     enemy.hurtSeconds = Math.max(0.0001, 0.28 * (1 - progress));
   }
 
-  // The preview forces the named clip so it can be stepped; the coverage table deliberately does not.
+  // The looping clips have no timer to run: they cycle off the clock, so the scrubber forces them.
+  const looping = bodyState === "idle" || bodyState === "walk" || bodyState === "stunned";
   const display = previewDisplay(state);
   const projected = projectDemoEnemy(context, enemy, {
-    skeletonAnimation: { animation: SKELETON_SWORDSMAN_ANIMATIONS[bodyState], progress },
+    ...(looping ? { skeletonAnimation: { animation: skeletonActions(enemy.appearance)[bodyState], progress } } : {}),
     display,
   });
   // The mark is built by the game's own placement function rather than recomputed here, so what the
@@ -1374,11 +1398,9 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
       }
     } else if (livingCoverage(state.archetypeId, state.bodyState) === "missing") {
       notes.push(`no ${state.bodyState} of its own — the preview shows a placeholder instead of falling back to idle`);
-    } else if (state.bodyState === "block" && state.archetypeId === "swordsman") {
-      const frames = timelineFrames(state);
-      const held = Math.min(frames, Math.floor(STUN_HELD_AT * frames) + 1);
+    } else if (state.bodyState === "windup" || state.bodyState === "recovery") {
       notes.push(
-        `nothing in the demo blocks an attack — this is the stun pose, and the game holds frame ${held} / ${frames} for the whole stun`,
+        `held at its final pose for the rest of the ${timelineSeconds(state).toFixed(1)}s — the clip reaches it in ${ATTACK_EASE_SECONDS}s whatever the length`,
       );
     }
 
@@ -1526,7 +1548,7 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     // A soft body's size comes from its own profile, so the scale slider has nothing to move on one.
     bodyScale.setInert(!isBoned(archetypeNow));
     // An archetype that never winds up wears no mark, so its three mark controls have nothing to show.
-    const marked = archetypeNow.windupIntent !== undefined && state.bodyState === "attack";
+    const marked = archetypeNow.windupIntent !== undefined && state.bodyState === "windup";
 
     for (const control of [markerOffset, markerScale, markerSwell]) {
       control.setInert(!marked);

@@ -168,12 +168,11 @@ The workbench is the only place any of this is verified, since the demo half tak
 
 ### Child overview
 
-| Child | Focus                                                                     |
-| ----- | ------------------------------------------------------------------------- |
-| 05    | The private action set, the three attack clips, a parameterised generator |
-| 06    | The hammer-bearer, the javelineer, and the crossbowman                    |
+| Child | Focus                                                  |
+| ----- | ------------------------------------------------------ |
+| 06    | The hammer-bearer, the javelineer, and the crossbowman |
 
-Landing order is 05 then 06. Child 06 needs 05, because a new type is an action set plus a band.
+Child 06 is all that remains: a new type is an action set, which now exists, plus a band.
 
 ## Non-Goals
 
@@ -209,20 +208,6 @@ Landing order is 05 then 06. Child 06 needs 05, because a new type is an action 
 Coordinates recorded against the codebase as it stands when this plan was written. Re-check each one against the live code before executing its child; a stale line here is expected as earlier children land. Each subsection is cut when its child ships, in the same change that cuts its row from the child overview.
 
 **What children 04 and 05 deliver is structure, not finished animation.** Both bake atlases, and the poses in the first bake are provisional by agreement: what those children own is the clip tables, the per-clip dimensions, the projection and precedence, the parameterised generator, and a bake that runs end to end. Judging whether a pose reads is a separate pass through the entity workbench against Acceptance Criteria 4, 5, and 12, and it is expected to replace keyframes rather than confirm them. Nothing in either child should be read as a claim that the artwork is right.
-
-### 05 — The private action set
-
-Per-type clip ids: `SkeletonActionId` = `idle | walk | hurt | stunned | windup | strike | recovery`. Four asset modules under `src/content/enemies/assets/skeleton-<type>/`, asset ids `enemy.skeleton.<type>.<action>`. The definitions file splits into a shared death module and a per-type action table keyed by appearance.
-
-`skeletonAnimation` at `src/demo/demo-scene.ts` line 553 is rewritten to the precedence from child 01. The two magic mappings go away: `progress * 0.68` at line 573 and `0.68 + max(0, progress) * 0.32` at line 578 become plain progress into the wind-up and strike clips. `STUN_HELD_AT` and the single-frame stun at line 582 become a looping four-frame clip.
-
-Wind-up and recovery both need ease-then-hold rather than linear progress, or a three-second wind-up advances a frame every 0.75 s. Reach the final frame in a fixed 0.45 s and hold it for the remainder; recovery runs the same curve reversed. This is the only place a clip's playback is not linear, and it is why the wind-up and strike are separate clips at all.
-
-`block` is gone as a name everywhere. Note it was never dead code: line 582 played its frame 5 for the entire stun, which is where the workbench comment at line 122 comes from.
-
-`dev/tools/skeleton-swordsman/build.py`: `main` (line 608) takes a type and a weapon. `create_character` (line 108) line 152 hardcodes `create_sword(...)` parented to `hand.R`; that becomes a weapon factory selected by argument, with hammer, javelin, and crossbow joining the sword in `dev/tools/blender-kit/primitives.py`. `create_actions` (line 156) keeps the shared poses and takes per-type overrides for the three attack clips. The entry point `dev/tools/generate-skeleton-swordsman.py` is renamed and loops the four types, baking the death set once.
-
-Workbench: `EntityBodyState` (line 58) becomes `idle | walk | hurt | stunned | windup | strike | recovery | dying`; `BODY_STATES` (line 102) and `LIVING_STATES` (line 114) follow; the swordsman-only branch at line 1332 and the frame-count read at line 684 both generalise to the selected type.
 
 ### 06 — The three new skeletons
 

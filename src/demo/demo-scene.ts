@@ -14,13 +14,13 @@ import {
   parseEntityDisplays,
   type EntityDisplay,
 } from "@/content/enemies/entity-display-schema";
+import { skeletonActions } from "@/content/enemies/skeleton-appearance";
 import {
   SKELETON_DEATH_ANIMATIONS,
-  SKELETON_SWORDSMAN_ANIMATIONS,
-  SKELETON_SWORDSMAN_DIRECTIONS,
+  SKELETON_DIRECTIONS,
+  type SkeletonClipDefinition,
   type SkeletonDeathId,
-  type SkeletonSwordsmanAnimationDefinition,
-} from "@/content/enemies/skeleton-swordsman-definitions";
+} from "@/content/enemies/skeleton-death-definitions";
 import { DEMO_ASSET_IDS, WARN_BLADE_STEPS } from "@/demo/demo-sprites";
 import {
   CHARGE_DISTANCE,
@@ -122,7 +122,7 @@ export type DemoEntityProjection = Readonly<{
 }>;
 
 export type DemoEntityProjectionOptions = Readonly<{
-  skeletonAnimation?: Readonly<{ animation: SkeletonSwordsmanAnimationDefinition; progress: number }>;
+  skeletonAnimation?: Readonly<{ animation: SkeletonClipDefinition; progress: number }>;
   /**
    * Display numbers to draw with instead of the authored ones.
    *
@@ -532,22 +532,37 @@ function skeletonDirection(cameraAngle: number, facingAngle: number): number {
   // The virtual viewer is opposite the camera's forward direction for every sprite on the plane.
   const viewerAngle = cameraAngle + Math.PI;
   const turn = (viewerAngle - facingAngle) / (Math.PI * 2);
-  return (
-    ((Math.round(turn * SKELETON_SWORDSMAN_DIRECTIONS) % SKELETON_SWORDSMAN_DIRECTIONS) +
-      SKELETON_SWORDSMAN_DIRECTIONS) %
-    SKELETON_SWORDSMAN_DIRECTIONS
-  );
+  return ((Math.round(turn * SKELETON_DIRECTIONS) % SKELETON_DIRECTIONS) + SKELETON_DIRECTIONS) % SKELETON_DIRECTIONS;
 }
 
-function animationFrame(definition: SkeletonSwordsmanAnimationDefinition, progress: number): number {
+function animationFrame(definition: SkeletonClipDefinition, progress: number): number {
   return Math.min(definition.frames - 1, Math.max(0, Math.floor(progress * definition.frames)));
 }
 
 /** One clip and where in it the body is, which is everything a boned sprite needs to be drawn. */
-type SkeletonPose = Readonly<{ definition: SkeletonSwordsmanAnimationDefinition; frame: number }>;
+type SkeletonPose = Readonly<{ definition: SkeletonClipDefinition; frame: number }>;
 
-function poseAt(definition: SkeletonSwordsmanAnimationDefinition, progress: number): SkeletonPose {
+function poseAt(definition: SkeletonClipDefinition, progress: number): SkeletonPose {
   return { definition, frame: animationFrame(definition, progress) };
+}
+
+/**
+ * How long a wind-up or a recovery takes to reach its final pose, whatever the state's own length.
+ *
+ * Every other clip plays linearly across the time it is given, which is wrong for exactly these two:
+ * a three-second wind-up spread evenly over four frames advances one frame every three quarters of a
+ * second, and a slideshow reads as a body that has stopped working rather than one that is waiting.
+ * So the raise happens quickly and the rest of the telegraph is spent holding the final pose — the
+ * raise reads as a raise, and the wait reads as a body committed and unable to change its mind.
+ *
+ * Recovery runs the same curve reversed, which is what lets a six-second reload and a 1.8-second
+ * follow-through use the same four frames and still both read.
+ */
+export const ATTACK_EASE_SECONDS = 0.45;
+
+/** Progress into a clip that reaches its end in a fixed time and then holds there. */
+function easeThenHold(elapsedSeconds: number): number {
+  return Math.min(0.999, elapsedSeconds / ATTACK_EASE_SECONDS);
 }
 
 /**
@@ -570,36 +585,49 @@ function skeletonAnimation(context: DemoEntityProjectionContext, enemy: DemoEnem
     return poseAt(SKELETON_DEATH_ANIMATIONS.drowning, drownStage(enemy));
   }
 
+  const actions = skeletonActions(enemy.appearance);
+
   if (enemy.hurtSeconds > 0) {
-    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.hurt, 1 - enemy.hurtSeconds / 0.28);
+    return poseAt(actions.hurt, 1 - enemy.hurtSeconds / 0.28);
   }
 
   if (enemy.stunSeconds > 0) {
     // Above the attack states rather than below them. The simulation skips a stunned body before it
     // reaches the wind-up, so its wind-up timer keeps whatever was left on it — which used to leave a
-    // skeleton clubbed mid-swing showing the raised sword with stars orbiting its head.
-    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.block, 0.72);
+    // skeleton clubbed mid-swing showing the raised sword with stars orbiting its head. It loops, so
+    // a five-second stun is a body swaying rather than one frame held until it wears off.
+    return loopedPose(context, enemy, actions.stunned);
   }
 
-  if (enemy.windupSeconds > 0 && enemy.intent === "melee") {
-    const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.attack, progress * 0.68);
+  if (enemy.windupSeconds > 0) {
+    return poseAt(actions.windup, easeThenHold(enemy.windupTotal - enemy.windupSeconds));
   }
 
   if (enemy.attackPoseSeconds > 0) {
-    const progress = 1 - enemy.attackPoseSeconds / STRIKE_SECONDS;
-    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.attack, 0.68 + Math.max(0, progress) * 0.32);
+    // The one attack clip that plays at its own rate across the whole state and does not stretch.
+    return poseAt(actions.strike, 1 - enemy.attackPoseSeconds / STRIKE_SECONDS);
   }
 
   if (enemy.attackCooldown > 0) {
     // Recovery: the swing running backwards, from the follow-through to the guard, over exactly the
     // cooldown. This is the window the player wants and could not previously see — a body that had
     // just committed everything it had looked identical to one that had not noticed them.
-    const progress = 1 - enemy.attackCooldown / Math.max(0.0001, attackCooldown(enemy.archetype));
-    return poseAt(SKELETON_SWORDSMAN_ANIMATIONS.attack, 1 - progress);
+    // Recovery is the wind-up's curve reversed: it leaves the follow-through quickly and then holds
+    // the guard for whatever is left of the cooldown, so the free window is legible at six seconds
+    // and at 1.8.
+    const spent = attackCooldown(enemy.archetype) - enemy.attackCooldown;
+    return poseAt(actions.recovery, easeThenHold(spent));
   }
 
-  const definition = enemy.moving ? SKELETON_SWORDSMAN_ANIMATIONS.walk : SKELETON_SWORDSMAN_ANIMATIONS.idle;
+  return loopedPose(context, enemy, enemy.moving ? actions.walk : actions.idle);
+}
+
+/** A clip cycling on its own frame rate, offset per body so a crowd does not move in lockstep. */
+function loopedPose(
+  context: DemoEntityProjectionContext,
+  enemy: DemoEnemy,
+  definition: SkeletonClipDefinition,
+): SkeletonPose {
   const phase = enemyPhase(enemy.id) / (Math.PI * 2);
   const frame = Math.floor((context.elapsedSeconds * definition.framesPerSecond + phase) % definition.frames);
   return { definition, frame };

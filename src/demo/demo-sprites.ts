@@ -6,11 +6,8 @@
  * which the renderer accepts because it only ever needs a `CanvasImageSource`.
  */
 
-import {
-  SKELETON_PICKUP_ASSETS,
-  SKELETON_PICKUP_URLS,
-  SKELETON_SWORDSMAN_ATLAS_MANIFEST,
-} from "@/content/enemies/skeleton-swordsman-definitions";
+import { SKELETON_ATLAS_MANIFEST } from "@/content/enemies/skeleton-action-definitions";
+import { SKELETON_PICKUP_ASSETS, SKELETON_PICKUP_URLS } from "@/content/enemies/skeleton-pickup-definitions";
 import { loadPresentationImages, type PresentationImages } from "@/presentation/presentation-image-loader";
 
 const SPRITE_SIZE = 512;
@@ -892,7 +889,7 @@ function marker(inner: string, outer: string, glyph: string): HTMLCanvasElement 
 export async function loadDemoImages(): Promise<PresentationImages> {
   const [shipped, skeletonAtlases, skeletonPickups] = await Promise.all([
     loadPresentationImages(),
-    loadPresentationImages(SKELETON_SWORDSMAN_ATLAS_MANIFEST),
+    loadPresentationImages(SKELETON_ATLAS_MANIFEST),
     loadPresentationImages(SKELETON_PICKUP_URLS),
   ]);
   const merged = new Map<string, CanvasImageSource>(shipped);
