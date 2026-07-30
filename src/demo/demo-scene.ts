@@ -187,17 +187,50 @@ const FLYING_RODS: Readonly<
   crossbowBolt: { length: 0.56, width: 0.038, shaft: [226, 218, 196], tip: [248, 244, 230] },
 };
 
-const HAMMER_LENGTH = 0.46;
-const HAMMER_WIDTH = 0.12;
-/** Radians of tumble per cell travelled. A thrown head is defined by turning over.  */
-const HAMMER_SPIN = 7.2;
+/**
+ * The weapons that turn over end for end on the way, and what each one looks like doing it.
+ *
+ * A table beside `FLYING_RODS` rather than a third and fourth branch in the beam loop, and the hole
+ * that motivated it was a real one: a spent crossbow declares itself a rod, so the sprite pass skips
+ * it, and the beam pass knew about the hammer and the sword by name and about nothing else — so a
+ * thrown crossbow stock was invisible for its whole flight. Two tables cover the two ways a long
+ * thing can travel, and a rod that belongs to neither is a gap somebody can find.
+ *
+ * `spin` is radians of tumble per cell travelled. The heavier and clumsier the object the slower it
+ * turns, which is most of what separates a blade whipping over from a stock cartwheeling.
+ *
+ * `guard` is the second bar a sword needs for its crosspiece, held square to the blade so the whole
+ * thing reads as a cross turning rather than as a stick.
+ */
+type TumblingRod = Readonly<{
+  length: number;
+  width: number;
+  spin: number;
+  shaft: readonly [number, number, number];
+  tip: readonly [number, number, number];
+  guard?: Readonly<{
+    length: number;
+    width: number;
+    shaft: readonly [number, number, number];
+    tip: readonly [number, number, number];
+  }>;
+}>;
 
-/** A thrown sword shares the hammer's end-over-end language, but stays long and visibly thinner. */
-const SWORD_LENGTH = 0.72;
-const SWORD_WIDTH = 0.055;
-const SWORD_GUARD_LENGTH = 0.2;
-const SWORD_GUARD_WIDTH = 0.045;
-const SWORD_SPIN = 8.4;
+const TUMBLING_RODS: Readonly<Partial<Record<DemoPropKind, TumblingRod>>> = {
+  hammer: { length: 0.46, width: 0.12, spin: 7.2, shaft: [88, 58, 32], tip: [214, 222, 232] },
+  skeletonSword: {
+    length: 0.72,
+    width: 0.055,
+    spin: 8.4,
+    shaft: [162, 171, 182],
+    tip: [238, 242, 248],
+    guard: { length: 0.2, width: 0.045, shaft: [92, 62, 28], tip: [196, 150, 70] },
+  },
+  // The stock, once the shots are gone: a shorter, blunter, heavier thing than the sword, and it
+  // turns over more slowly than either of the others because that is what a lump of timber does.
+  crossbowSpent: { length: 0.54, width: 0.09, spin: 5.6, shaft: [154, 140, 116], tip: [186, 192, 200] },
+};
+
 /** Radians of tumble per cell travelled, for a prop drawn as a picture rather than as a rod. */
 const PROP_TUMBLE = 5.6;
 
@@ -1946,41 +1979,34 @@ function beams(world: DemoWorld): RenderBeam[] {
       continue;
     }
 
-    if (projectile.kind === "hammer") {
-      built.push(
-        rodBeam(
-          projectile.id,
-          projectile.x,
-          projectile.y,
-          projectile.directionX,
-          projectile.directionY,
-          projectile.travelled * HAMMER_SPIN,
-          projectileHeight(projectile),
-          HAMMER_LENGTH,
-          HAMMER_WIDTH,
-          [88, 58, 32],
-          [214, 222, 232],
-        ),
-      );
+    const tumbling = TUMBLING_RODS[projectile.kind as DemoPropKind];
+
+    if (!tumbling) {
       continue;
     }
 
-    if (projectile.kind === "skeletonSword") {
-      const spin = projectile.travelled * SWORD_SPIN;
+    const spin = projectile.travelled * tumbling.spin;
+    const height = projectileHeight(projectile);
+    built.push(
+      rodBeam(
+        projectile.id,
+        projectile.x,
+        projectile.y,
+        projectile.directionX,
+        projectile.directionY,
+        spin,
+        height,
+        tumbling.length,
+        tumbling.width,
+        tumbling.shaft,
+        tumbling.tip,
+      ),
+    );
+
+    if (tumbling.guard) {
+      // Square to the blade and turning with it, which is what makes a sword read as a sword rather
+      // than as one more bar in the air.
       built.push(
-        rodBeam(
-          `${projectile.id}-blade`,
-          projectile.x,
-          projectile.y,
-          projectile.directionX,
-          projectile.directionY,
-          spin,
-          projectileHeight(projectile),
-          SWORD_LENGTH,
-          SWORD_WIDTH,
-          [162, 171, 182],
-          [238, 242, 248],
-        ),
         rodBeam(
           `${projectile.id}-guard`,
           projectile.x,
@@ -1988,11 +2014,11 @@ function beams(world: DemoWorld): RenderBeam[] {
           projectile.directionX,
           projectile.directionY,
           spin + Math.PI / 2,
-          projectileHeight(projectile),
-          SWORD_GUARD_LENGTH,
-          SWORD_GUARD_WIDTH,
-          [92, 62, 28],
-          [196, 150, 70],
+          height,
+          tumbling.guard.length,
+          tumbling.guard.width,
+          tumbling.guard.shaft,
+          tumbling.guard.tip,
         ),
       );
     }
