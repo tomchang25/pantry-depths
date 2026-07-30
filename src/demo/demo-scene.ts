@@ -39,8 +39,10 @@ import {
   DEMO_GRID_SIZE,
   DEMO_WALL_HEIGHT,
   holdsStains,
+  ROOM_PAD_HALF,
   tileIndex,
 } from "@/demo/maze";
+import { extractionShare } from "@/demo/extraction";
 import type { DemoParticleKind } from "@/demo/particles";
 import { BLESSING_HOLD_SECONDS } from "@/demo/rooms";
 import propDisplayJson from "@/content/presentation/prop-display.json";
@@ -1706,14 +1708,26 @@ const BLESSING_STONE_LIT: readonly [number, number, number] = [252, 251, 255];
 const SPRING_STONE: readonly [number, number, number] = [138, 164, 186];
 const SPRING_WATER: readonly [number, number, number] = [86, 158, 190];
 const CANISTER_METAL: readonly [number, number, number] = [74, 82, 70];
+const EXTRACT_LIT: readonly [number, number, number] = [150, 216, 96];
+/** The sealed stair: dead cold stone and darker iron, and no light of its own at all. */
+const SEAL_STONE: readonly [number, number, number] = [62, 58, 76];
+const SEAL_IRON: readonly [number, number, number] = [44, 46, 56];
+
+/**
+ * How far a pad reaches from the middle of its room, in world units.
+ *
+ * The three cells `padRoomAt` answers for, measured to their outer edges. Every fixture below is built
+ * to it, which is the whole point of taking the number from the maze rather than choosing one here: a
+ * dais drawn wider than the ground it claims is a dais that lies about where to stand.
+ */
+const PAD_HALF = ROOM_PAD_HALF + 0.5;
 
 /**
  * The blessing altar: a floor to stand on, not a plinth to walk around.
  *
- * The shape follows what the thing asks for. Claiming it means holding the middle of the room for five
- * seconds, so the middle of the room has to be somewhere a player can be — a low pale dais with four
- * corner posts framing it, rather than the cursed altar's single column, which anyone standing on the
- * spot would appear to be inside.
+ * The shape follows what the thing asks for. Claiming it means holding the pad for five seconds, so the
+ * dais *is* the pad — three cells across, with four corner posts standing on its corners — rather than
+ * the cursed altar's single column, which anyone standing on the spot would appear to be inside.
  *
  * Static on purpose. Structure geometry is cached against the floor, so making the posts rise with the
  * claim would rebuild every wall on the floor every frame; the claim's progress is a light instead.
@@ -1726,10 +1740,10 @@ function blessingAltarBoxes(room: DemoRoom): RenderBox[] {
       id: "blessing-dais",
       x,
       y,
-      halfX: 0.86,
-      halfY: 0.86,
+      halfX: PAD_HALF,
+      halfY: PAD_HALF,
       bottom: 0,
-      top: 0.06,
+      top: 0.07,
       color: BLESSING_STONE,
       topColor: BLESSING_STONE_LIT,
     },
@@ -1737,10 +1751,10 @@ function blessingAltarBoxes(room: DemoRoom): RenderBox[] {
       id: "blessing-inlay",
       x,
       y,
-      halfX: 0.44,
-      halfY: 0.44,
-      bottom: 0.06,
-      top: 0.09,
+      halfX: 0.66,
+      halfY: 0.66,
+      bottom: 0.07,
+      top: 0.1,
       color: BLESSING_STONE_LIT,
       topColor: BLESSING_STONE_LIT,
     },
@@ -1750,12 +1764,12 @@ function blessingAltarBoxes(room: DemoRoom): RenderBox[] {
     for (const cornerY of [-1, 1]) {
       built.push({
         id: `blessing-post-${cornerX}-${cornerY}`,
-        x: x + cornerX * 0.78,
-        y: y + cornerY * 0.78,
-        halfX: 0.11,
-        halfY: 0.11,
+        x: x + cornerX * (PAD_HALF - 0.12),
+        y: y + cornerY * (PAD_HALF - 0.12),
+        halfX: 0.12,
+        halfY: 0.12,
         bottom: 0,
-        top: 1.15,
+        top: 1.3,
         color: BLESSING_STONE,
         topColor: BLESSING_STONE_LIT,
       });
@@ -1766,22 +1780,23 @@ function blessingAltarBoxes(room: DemoRoom): RenderBox[] {
 }
 
 /**
- * The hot spring: a tiered fountain, so it reads as water that is doing something.
+ * The hot spring: a tiered fountain standing in a pool three cells across.
  *
- * Two basins and a spout. A single pool would read as one more thing on the floor not to walk into,
- * which is the opposite of what this room is for — the whole of it is that standing in it is good.
+ * The pool is the pad, for the same reason the dais is. A single small basin would read as one more
+ * thing on the floor not to walk into, which is the opposite of what this room is for — the whole of
+ * it is that standing in it is good, and the water has to cover exactly the ground that pays.
  */
 function hotSpringBoxes(room: DemoRoom): RenderBox[] {
   const x = room.center.x + 0.5;
   const y = room.center.y + 0.5;
   return [
-    { id: "spring-rim", x, y, halfX: 0.92, halfY: 0.92, bottom: 0, top: 0.14, color: SPRING_STONE },
+    { id: "spring-rim", x, y, halfX: PAD_HALF + 0.1, halfY: PAD_HALF + 0.1, bottom: 0, top: 0.14, color: SPRING_STONE },
     {
       id: "spring-pool",
       x,
       y,
-      halfX: 0.78,
-      halfY: 0.78,
+      halfX: PAD_HALF,
+      halfY: PAD_HALF,
       bottom: 0.14,
       top: 0.17,
       color: SPRING_WATER,
@@ -1826,28 +1841,198 @@ function hotSpringBoxes(room: DemoRoom): RenderBox[] {
 }
 
 /**
- * The extraction room: one canister on the floor, and nothing built.
+ * The extraction room: a marked pad with a canister standing in the middle of it.
  *
- * A room a run is left from earns no architecture. What marks it is a thing you can only see by having
- * walked in, which is the point of the room being unmarked everywhere else.
+ * It used to be one knee-high canister and nothing else, on the reasoning that a room a run is left
+ * from earns no architecture. That was right about the room and wrong about the pad: what a player has
+ * to be able to see, from the doorway and while being chased, is the exact ground that gets them out —
+ * and a plume of green smoke says roughly there. So the pad is kerbed on all four sides and posted at
+ * the corners, and everything still stops at the doorway. Finding the room is the part the floor
+ * charges for; standing in the right square once inside it is not.
  */
 function extractionBoxes(room: DemoRoom): RenderBox[] {
   const x = room.center.x + 0.5;
   const y = room.center.y + 0.5;
-  return [
-    { id: "extract-canister", x, y, halfX: 0.11, halfY: 0.11, bottom: 0, top: 0.24, color: CANISTER_METAL },
+  const built: RenderBox[] = [
+    { id: "extract-canister", x, y, halfX: 0.13, halfY: 0.13, bottom: 0, top: 0.44, color: CANISTER_METAL },
     {
       id: "extract-collar",
       x,
       y,
-      halfX: 0.14,
-      halfY: 0.14,
-      bottom: 0.24,
-      top: 0.29,
+      halfX: 0.17,
+      halfY: 0.17,
+      bottom: 0.44,
+      top: 0.52,
       color: [96, 108, 92],
-      topColor: [150, 216, 96],
+      topColor: EXTRACT_LIT,
     },
   ];
+
+  // A kerb along each edge of the pad, so the three cells that get you out have a drawn border rather
+  // than an inferred one.
+  for (const side of [-1, 1]) {
+    built.push({
+      id: `extract-kerb-x-${side}`,
+      x,
+      y: y + side * PAD_HALF,
+      halfX: PAD_HALF,
+      halfY: 0.09,
+      bottom: 0,
+      top: 0.12,
+      color: CANISTER_METAL,
+      topColor: EXTRACT_LIT,
+    });
+    built.push({
+      id: `extract-kerb-y-${side}`,
+      x: x + side * PAD_HALF,
+      y,
+      halfX: 0.09,
+      halfY: PAD_HALF,
+      bottom: 0,
+      top: 0.12,
+      color: CANISTER_METAL,
+      topColor: EXTRACT_LIT,
+    });
+  }
+
+  // Corner posts, tall enough to clear a slime and be seen over one.
+  for (const cornerX of [-1, 1]) {
+    for (const cornerY of [-1, 1]) {
+      built.push({
+        id: `extract-post-${cornerX}-${cornerY}`,
+        x: x + cornerX * PAD_HALF,
+        y: y + cornerY * PAD_HALF,
+        halfX: 0.13,
+        halfY: 0.13,
+        bottom: 0,
+        top: 1.4,
+        color: CANISTER_METAL,
+        topColor: EXTRACT_LIT,
+      });
+    }
+  }
+
+  return built;
+}
+
+/**
+ * The way down, in the two states it has.
+ *
+ * Sealed until the floor's main task is met, and sealed as a *different object* rather than as the
+ * open stair with its light turned off. The open one was always there and always lit, so a player who
+ * found it early learned where the exit was and then had it refuse them; the refusal read as the game
+ * being broken rather than as the floor being unfinished. A capstone with iron laid across it refuses
+ * on its own, before any message line has to.
+ *
+ * Cached against `terrainVersion`, which `stepTasks` bumps on the frame the lock comes off.
+ */
+function stairBoxes(world: DemoWorld): RenderBox[] {
+  const x = world.maze.exit.x + 0.5;
+  const y = world.maze.exit.y + 0.5;
+
+  if (!world.maze.progress.main.met) {
+    const built: RenderBox[] = [
+      { id: "exit-seal-base", x, y, halfX: 0.5, halfY: 0.5, bottom: 0, top: 0.14, color: SEAL_STONE },
+      {
+        id: "exit-seal-slab",
+        x,
+        y,
+        halfX: 0.42,
+        halfY: 0.42,
+        bottom: 0.14,
+        top: 0.28,
+        color: SEAL_STONE,
+        topColor: SEAL_STONE,
+      },
+    ];
+
+    // Two bands of iron laid across the capstone, and a boss where they cross. Dark on purpose: the
+    // sealed stair throws no light of its own, so it is found by walking into it like everything else
+    // a floor keeps to itself.
+    built.push({
+      id: "exit-seal-band-x",
+      x,
+      y,
+      halfX: 0.48,
+      halfY: 0.08,
+      bottom: 0.28,
+      top: 0.34,
+      color: SEAL_IRON,
+      topColor: SEAL_IRON,
+    });
+    built.push({
+      id: "exit-seal-band-y",
+      x,
+      y,
+      halfX: 0.08,
+      halfY: 0.48,
+      bottom: 0.28,
+      top: 0.34,
+      color: SEAL_IRON,
+      topColor: SEAL_IRON,
+    });
+    built.push({
+      id: "exit-seal-boss",
+      x,
+      y,
+      halfX: 0.14,
+      halfY: 0.14,
+      bottom: 0.34,
+      top: 0.44,
+      color: SEAL_IRON,
+      topColor: [74, 78, 92],
+    });
+    return built;
+  }
+
+  // A dais climbing to a lit landing, rather than a pit descending into one. The depth buffer this
+  // renderer keeps is one value per screen column, written only by the walls — the floor is never in
+  // it — so anything drawn below floor level cannot be hidden by the floor and simply sits on top of
+  // it. Geometry that stands up is the only kind this projection can honestly draw.
+  const built: RenderBox[] = [];
+
+  for (let step = 0; step < 3; step += 1) {
+    const inset = 0.46 - step * 0.09;
+    built.push({
+      id: `exit-step-${step}`,
+      x,
+      y,
+      halfX: inset,
+      halfY: inset,
+      bottom: step * 0.11,
+      top: (step + 1) * 0.11,
+      color: [74 + step * 6, 68 + step * 6, 92 + step * 6],
+      topColor: [104 + step * 10, 98 + step * 10, 128 + step * 10],
+    });
+  }
+
+  // Two posts flanking the landing, which is what makes it read as a way through rather than a step.
+  for (const side of [-1, 1]) {
+    built.push({
+      id: `exit-post-${side}`,
+      x: x + side * 0.38,
+      y,
+      halfX: 0.09,
+      halfY: 0.09,
+      bottom: 0.33,
+      top: 1.05,
+      color: [88, 80, 106],
+      topColor: [138, 128, 158],
+    });
+  }
+
+  built.push({
+    id: "exit-lintel",
+    x,
+    y,
+    halfX: 0.48,
+    halfY: 0.1,
+    bottom: 1.05,
+    top: 1.24,
+    color: [96, 88, 116],
+    topColor: [146, 136, 168],
+  });
+  return built;
 }
 
 /**
@@ -1859,8 +2044,6 @@ function extractionBoxes(room: DemoRoom): RenderBox[] {
  */
 function boxes(world: DemoWorld): RenderBox[] {
   const built: RenderBox[] = altarBoxes(world);
-  const exitX = world.maze.exit.x + 0.5;
-  const exitY = world.maze.exit.y + 0.5;
 
   // Each side room's own fixture. The cursed altar is not here: it is the plinth above, which the floor
   // already places at that room's centre.
@@ -1878,51 +2061,7 @@ function boxes(world: DemoWorld): RenderBox[] {
     }
   }
 
-  // A dais climbing to a lit landing, rather than a pit descending into one. The depth buffer this
-  // renderer keeps is one value per screen column, written only by the walls — the floor is never in
-  // it — so anything drawn below floor level cannot be hidden by the floor and simply sits on top of
-  // it. Geometry that stands up is the only kind this projection can honestly draw.
-  for (let step = 0; step < 3; step += 1) {
-    const inset = 0.46 - step * 0.09;
-    built.push({
-      id: `exit-step-${step}`,
-      x: exitX,
-      y: exitY,
-      halfX: inset,
-      halfY: inset,
-      bottom: step * 0.11,
-      top: (step + 1) * 0.11,
-      color: [74 + step * 6, 68 + step * 6, 92 + step * 6],
-      topColor: [104 + step * 10, 98 + step * 10, 128 + step * 10],
-    });
-  }
-
-  // Two posts flanking the landing, which is what makes it read as a way through rather than a step.
-  for (const side of [-1, 1]) {
-    built.push({
-      id: `exit-post-${side}`,
-      x: exitX + side * 0.38,
-      y: exitY,
-      halfX: 0.09,
-      halfY: 0.09,
-      bottom: 0.33,
-      top: 1.05,
-      color: [88, 80, 106],
-      topColor: [138, 128, 158],
-    });
-  }
-
-  built.push({
-    id: "exit-lintel",
-    x: exitX,
-    y: exitY,
-    halfX: 0.48,
-    halfY: 0.1,
-    bottom: 1.05,
-    top: 1.24,
-    color: [96, 88, 116],
-    topColor: [146, 136, 168],
-  });
+  built.push(...stairBoxes(world));
 
   // Iron caltrops: two crossed rails carrying a row of upright spikes. Deliberately sparse and open
   // — you have to be able to see through one to whatever is standing behind it.
@@ -2458,6 +2597,8 @@ const CIRCLE_EDGE: readonly [number, number, number] = [255, 74, 58];
 const CIRCLE_FILL: readonly [number, number, number] = [220, 96, 62];
 const CUT_DIM: readonly [number, number, number] = [136, 36, 40];
 const CUT_HOT: readonly [number, number, number] = [255, 128, 96];
+const EXTRACT_DIM: readonly [number, number, number] = [46, 108, 40];
+const EXTRACT_HOT: readonly [number, number, number] = [148, 246, 96];
 
 /**
  * How far a charge can run before something stops it.
@@ -2595,6 +2736,25 @@ function floorDecals(world: DemoWorld): RenderFloorDecal[] {
     pushLandingCircle(built, mortar.aimX, mortar.aimY, SHELL_BLAST_RADIUS, 1 - mortar.seconds / MORTAR_LOCK_SECONDS);
   }
 
+  for (const room of world.maze.rooms) {
+    if (room.role !== "extraction") {
+      continue;
+    }
+
+    // The pad, painted rather than built, because this is the one of the three whose fixture does not
+    // already cover its own ground: the dais and the pool *are* their pads, and the canister is a post
+    // in the middle of bare stone. The bright square grows from the middle as the hold runs, so the
+    // countdown is on the floor the player is looking at as well as on the bar they are not.
+    const x = room.center.x + 0.5;
+    const y = room.center.y + 0.5;
+    const holding = extractionShare(world);
+    pushPadSquare(built, x, y, PAD_HALF, EXTRACT_DIM, 0.5);
+
+    if (holding > 0) {
+      pushPadSquare(built, x, y, PAD_HALF * holding, EXTRACT_HOT, 0.9);
+    }
+  }
+
   for (const hazard of world.hazards) {
     if (hazard.kind !== "shell") {
       continue;
@@ -2614,6 +2774,31 @@ function floorDecals(world: DemoWorld): RenderFloorDecal[] {
   }
 
   return built;
+}
+
+/**
+ * A square of ground, centred and axis-aligned.
+ *
+ * There is no square in the decal vocabulary and there does not need to be: a lane is a strip measured
+ * forward from its own point, so starting one at the near edge and running it the full width at half
+ * that as its half-width is exactly a square. Keeping it as a lane rather than adding a shape means the
+ * renderer's decal pass is untouched by this.
+ */
+function pushPadSquare(
+  built: RenderFloorDecal[],
+  x: number,
+  y: number,
+  half: number,
+  color: readonly [number, number, number],
+  strength: number,
+): void {
+  built.push({
+    x: x - half,
+    y,
+    shape: { kind: "lane", directionX: 1, directionY: 0, length: half * 2, halfWidth: half },
+    color,
+    strength,
+  });
 }
 
 /** A landing mark: a fixed rim at the blast's true edge, and a disc closing on it as the shell falls. */
@@ -2675,12 +2860,16 @@ function roomLights(world: DemoWorld): RenderLight[] {
     }
 
     if (room.role === "extraction") {
+      // Loud, and louder while the hold runs. The way out was the one thing on the floor a player
+      // could walk past without noticing, and a room that is only worth finding is a room that has to
+      // be recognisable the moment it is found.
+      const holding = extractionShare(world);
       built.push({
         id: "demo-extract-light",
         x,
         y,
-        radius: 3.6,
-        intensity: 0.8 + Math.sin(world.elapsedSeconds * 2.4) * 0.16,
+        radius: 6 + holding * 3,
+        intensity: 1.05 + holding * 0.9 + Math.sin(world.elapsedSeconds * (2.4 + holding * 9)) * (0.2 + holding * 0.2),
         color: [130, 240, 74],
       });
     }
@@ -2703,15 +2892,22 @@ function lights(world: DemoWorld): RenderLight[] {
       color: [255, 176, 104],
       intensity: 1.35 * flicker,
     },
-    {
+  ];
+
+  // The green over the stairs belongs to the stairs being open, and only to that. It used to burn from
+  // the first second of the floor, which made the way down the brightest thing on it while it was also
+  // the one thing that would refuse you — and gave away where it was for free, which is what the main
+  // task is supposed to be bought with.
+  if (world.maze.progress.main.met) {
+    built.push({
       id: "demo-exit-light",
       x: world.maze.exit.x + 0.5,
       y: world.maze.exit.y + 0.5,
       radius: 5,
       color: [110, 240, 172],
       intensity: 0.95,
-    },
-  ];
+    });
+  }
 
   if (world.altar.hp > 0) {
     // Pulses slowly, so an unspent altar reads as waiting rather than as scenery — and contracts as
@@ -2846,14 +3042,17 @@ function emitters(world: DemoWorld): RenderEmitter[] {
     .map((enemy) => ({ id: `${enemy.id}-drown`, x: enemy.x, y: enemy.y, kind: "steam" as const, density: 9 }));
 
   // The two things worth walking towards get their own signal in the air above them, so they read
-  // as live from further away than their light reaches.
-  built.push({
-    id: "demo-exit-motes",
-    x: world.maze.exit.x + 0.5,
-    y: world.maze.exit.y + 0.5,
-    kind: "steam",
-    density: 6,
-  });
+  // as live from further away than their light reaches. The stairs earn theirs by being open; before
+  // that they are a sealed capstone and give off nothing.
+  if (world.maze.progress.main.met) {
+    built.push({
+      id: "demo-exit-motes",
+      x: world.maze.exit.x + 0.5,
+      y: world.maze.exit.y + 0.5,
+      kind: "steam",
+      density: 6,
+    });
+  }
 
   if (world.altar.hp > 0) {
     built.push({
@@ -2876,8 +3075,28 @@ function emitters(world: DemoWorld): RenderEmitter[] {
 
     // A canister venting rather than a fountain of it: the plume drifts like steam and is the wrong
     // colour for anything else on a floor, so green in the air means one thing only.
+    //
+    // One plume in the middle of the room was too little of it — from the doorway, at torchlight
+    // distance, it read as one more piece of drifting dust. It vents from the middle and from all four
+    // posts now, and harder while the hold runs, so the room announces itself and then announces that
+    // it is working.
     if (room.role === "extraction") {
-      built.push({ id: "demo-extract-smoke", x, y, kind: "steam", density: 14, color: [136, 238, 78] });
+      const holding = extractionShare(world);
+      const density = Math.round(20 + holding * 22);
+      built.push({ id: "demo-extract-smoke", x, y, kind: "steam", density, color: [136, 238, 78] });
+
+      for (const cornerX of [-1, 1]) {
+        for (const cornerY of [-1, 1]) {
+          built.push({
+            id: `demo-extract-smoke-${cornerX}-${cornerY}`,
+            x: x + cornerX * PAD_HALF,
+            y: y + cornerY * PAD_HALF,
+            kind: "steam",
+            density: Math.round(10 + holding * 12),
+            color: [136, 238, 78],
+          });
+        }
+      }
     }
   }
 

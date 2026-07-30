@@ -35,8 +35,6 @@ import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { slimeBody } from "@/demo/demo-scene";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
-import { runLevel } from "@/demo/run-level";
-import { equippedCore } from "@/demo/sealed";
 import { bodyFootprint, type DemoWorld } from "@/demo/world";
 import type { PresentationImages } from "@/presentation/presentation-image-loader";
 
@@ -57,11 +55,11 @@ const PROP_DISPLAYS = propDisplaysByKind(parsePropDisplays(propDisplayJson));
 export type DemoViewmodelModel = Pick<
   DemoWorld,
   | "damageMarks"
-  | "depth"
   | "elapsedSeconds"
   | "held"
   | "impact"
   | "player"
+  | "soakSeconds"
   | "swing"
   | "swingKind"
   | "swingTarget"
@@ -326,49 +324,74 @@ export function drawDemoViewmodel(
   }
 
   drawCarriedLight(context, world.elapsedSeconds);
-  drawRunLevel(context, world);
+  // Under the damage marks, deliberately. Being healed is good news and news you can wait a moment
+  // for; being hit is not, and the frame must never be the thing that hides an arc.
+  drawSoakFrame(context, world);
   // Last, over everything including the arm. A warning that the thing in your hand can hide is not
   // one you can rely on in the moment it matters.
   drawDamageMarks(context, world);
 }
 
+/** How far in from the edge the soak glow reaches, as a fraction of the smaller axis. */
+const SOAK_FRAME_FRACTION = 0.19;
+
 /**
- * The run's difficulty level, top left, always on.
+ * The four edges of the frame, as which axis they run along and which end of it they sit at.
  *
- * Drawn in this pass rather than in the DOM heads-up display for the reason the damage marks are: the
- * number is derived from a clock that moves every frame, and the bar updates when discrete state
- * changes. Top left because it is the one corner of the frame nothing else occupies.
- *
- * It is the whole of what reads the level. Nothing in the simulation consults it yet, deliberately —
- * the tables that would carry the scaling are being rewritten elsewhere.
+ * A table rather than four near-identical blocks: every edge is the same gradient and the same
+ * rectangle with two numbers swapped, and writing that out four times is four places for one of the
+ * numbers to be wrong.
  */
-function drawRunLevel(context: CanvasRenderingContext2D, world: DemoViewmodelModel): void {
+const SOAK_EDGES: readonly Readonly<{ far: boolean; vertical: boolean }>[] = [
+  { far: false, vertical: true },
+  { far: true, vertical: true },
+  { far: false, vertical: false },
+  { far: true, vertical: false },
+];
+
+/**
+ * A green pulse around the edge of the frame while the spring is working.
+ *
+ * The mirror image of what a hit does, and mirrored on purpose: damage arrives as red at the edge of
+ * vision, so healing arriving the same way needs no explaining. Without it the spring paid in a number
+ * on a bar at the bottom of the screen — the one thing a player looking for the next body is not
+ * reading — and standing in the right square felt like standing in the wrong one.
+ *
+ * It breathes rather than holds, so a full-health soak still reads as the room doing something while
+ * the bar is saying nothing.
+ */
+function drawSoakFrame(context: CanvasRenderingContext2D, world: DemoViewmodelModel): void {
+  if (world.soakSeconds <= 0) {
+    return;
+  }
+
+  const width = context.canvas.width;
   const height = context.canvas.height;
-  const size = Math.max(13, height * 0.026);
-  const x = Math.max(12, context.canvas.width * 0.016);
-  const y = Math.max(20, height * 0.036);
+  // Swells in over the first moment so stepping on does not slam, then breathes.
+  const arrival = Math.min(1, world.soakSeconds * 2.4);
+  const breath = 0.62 + Math.sin(world.soakSeconds * 4.4) * 0.38;
+  const strength = arrival * (0.3 + breath * 0.42);
+  const reach = Math.min(width, height) * SOAK_FRAME_FRACTION;
   context.save();
-  context.textAlign = "left";
-  context.textBaseline = "top";
-  context.fillStyle = "rgb(6 4 10 / 62%)";
-  context.font = `600 ${size}px system-ui, sans-serif`;
-  context.fillText(`LV ${runLevel(world)}`, x + 1, y + 1);
-  context.fillStyle = "#e8c98a";
-  context.fillText(`LV ${runLevel(world)}`, x, y);
-  context.fillStyle = "rgb(232 201 138 / 62%)";
-  context.font = `500 ${size * 0.66}px system-ui, sans-serif`;
-  context.fillText(`${Math.floor(world.elapsedSeconds / 60)}m · B${world.depth}`, x, y + size * 1.15);
+  context.globalCompositeOperation = "lighter";
 
-  // The core this run is swinging, and what it rolled. On screen because a curse that can roll worse
-  // than clean is only a curse if the player can see which way this one went.
-  const equipped = equippedCore();
-
-  if (equipped) {
-    const rolls = Object.entries(equipped.rolls)
-      .map(([axis, amount]) => `${axis === "maxHp" ? "HP" : "DMG"} ${(amount ?? 0) >= 0 ? "+" : ""}${amount}`)
-      .join(" ");
-    context.fillStyle = equipped.source === "cursed" ? "rgb(226 88 95 / 82%)" : "rgb(159 224 208 / 82%)";
-    context.fillText(`${equipped.core.name} · ${rolls}`, x, y + size * 1.95);
+  for (const edge of SOAK_EDGES) {
+    const span = edge.vertical ? height : width;
+    // The gradient runs inward from the edge itself, so the near end is opaque wherever the edge is.
+    const from = edge.far ? span : 0;
+    const to = edge.far ? span - reach : reach;
+    const gradient = edge.vertical
+      ? context.createLinearGradient(0, from, 0, to)
+      : context.createLinearGradient(from, 0, to, 0);
+    gradient.addColorStop(0, `rgba(96, 232, 132, ${strength})`);
+    gradient.addColorStop(1, "rgba(96, 232, 132, 0)");
+    context.fillStyle = gradient;
+    context.fillRect(
+      edge.vertical ? 0 : Math.min(from, to),
+      edge.vertical ? Math.min(from, to) : 0,
+      edge.vertical ? width : reach,
+      edge.vertical ? reach : height,
+    );
   }
 
   context.restore();

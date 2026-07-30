@@ -7,6 +7,148 @@
 }
 
 /*
+ * The run, top left.
+ *
+ * The level and the clock used to be painted into the canvas by the viewmodel pass, on the reasoning
+ * that a number moving every frame does not belong in a DOM layer that updates on discrete change.
+ * The layer updates every frame — it always did — so what that bought was a second readout in the one
+ * corner the task list also wanted, drawn by a different module in a different font.
+ */
+.demo__run {
+  position: absolute;
+  inset: 0.9rem auto auto 0.9rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.1rem 0.6rem;
+  width: 17.5rem;
+  padding: 0.5rem 0.7rem 0.6rem;
+  border: 1px solid rgb(203 151 105 / 35%);
+  border-radius: 0.3rem;
+  background: rgb(14 8 20 / 82%);
+  pointer-events: none;
+}
+
+.demo__run .demo__slottitle {
+  grid-column: 1 / -1;
+}
+
+.demo__runlevel {
+  color: #e8c98a;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 1.45rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.demo__runclock {
+  align-self: end;
+  color: #cdb69c;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.demo__runcore {
+  grid-column: 1 / -1;
+  color: var(--core, #cdb69c);
+  font-size: 0.72rem;
+}
+
+.demo__runcore[hidden] {
+  display: none;
+}
+
+/* A rise in the threat is a thing that happened to the floor, so the readout answers for a moment. */
+.demo__run[data-rising="true"] .demo__runlevel {
+  color: #ff8f6a;
+  animation: demo-threat 700ms ease-out 3;
+}
+
+@keyframes demo-threat {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.demo__tasks {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.16rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.demo__task {
+  display: grid;
+  grid-template-columns: 0.9rem minmax(0, 1fr) auto;
+  gap: 0 0.3rem;
+  align-items: baseline;
+  color: #cdb69c;
+  font-size: 0.74rem;
+}
+
+.demo__task[data-main="true"] {
+  color: #f4dfc7;
+  font-size: 0.82rem;
+}
+
+.demo__task[data-met="true"] {
+  color: #7fd8a2;
+}
+
+.demo__taskmark {
+  text-align: center;
+}
+
+.demo__tasklabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo__taskcount {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.demo__tasktrack {
+  grid-column: 2 / -1;
+  height: 2px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.demo__tasktrack i {
+  display: block;
+  height: 100%;
+  background: currentcolor;
+}
+
+/* What walking out right now would be worth, which is the number the extraction room is asking about. */
+.demo__haul {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.55rem;
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  color: #9d8794;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.68rem;
+  border-top: 1px solid rgb(203 151 105 / 25%);
+}
+
+.demo__haulitem--banked {
+  color: #7fd8a2;
+}
+
+/*
  * The player's own state, bottom-centre.
  *
  * Which is the one part of the lower frame nothing else is in: `demo-viewmodel` paints the carried
@@ -246,6 +388,82 @@
   width: 1px;
 }
 
+/*
+ * What the pad underfoot is doing, just below the crosshair.
+ *
+ * Here rather than on the message line, which is where the blessing altar's countdown used to be told
+ * — twice a second, in prose, overwriting everything else the floor had to say for the whole five
+ * seconds. A hold is a bar, and it belongs where the eyes already are.
+ */
+.demo__channel {
+  position: absolute;
+  inset: 57% auto auto 50%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.7rem;
+  width: min(19rem, calc(100% - 3rem));
+  padding: 0.45rem 0.7rem 0.5rem;
+  color: #f4dfc7;
+  border: 1px solid color-mix(in srgb, var(--channel) 55%, transparent);
+  border-radius: 0.25rem;
+  background: rgb(14 8 20 / 84%);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.demo__channel[hidden] {
+  display: none;
+}
+
+.demo__channel[data-tone="extract"] {
+  --channel: #8cf05c;
+}
+
+.demo__channel[data-tone="bless"] {
+  --channel: #f0eeff;
+}
+
+.demo__channel[data-tone="spring"] {
+  --channel: #7ec4e2;
+}
+
+.demo__channel-label {
+  color: var(--channel);
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+}
+
+.demo__channel-remaining {
+  color: var(--channel);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.demo__channel-remaining[hidden] {
+  display: none;
+}
+
+.demo__channel-track {
+  grid-column: 1 / -1;
+  height: 0.32rem;
+  border: 1px solid color-mix(in srgb, var(--channel) 35%, transparent);
+  background: rgb(0 0 0 / 55%);
+}
+
+.demo__channel-track i {
+  display: block;
+  height: 100%;
+  background: var(--channel);
+}
+
+.demo__channel-detail {
+  grid-column: 1 / -1;
+  color: #cdb69c;
+  font-size: 0.72rem;
+}
+
 .demo__message {
   position: absolute;
   inset: auto auto 33% 50%;
@@ -272,7 +490,6 @@
   inset: 0;
   display: grid;
   place-content: center;
-  gap: 0.6rem;
   padding: 2rem;
   color: #f4dfc7;
   text-align: center;
@@ -287,15 +504,140 @@
   display: none;
 }
 
+/*
+ * A run ends as a result, so the screen it ends on is a sheet rather than a paragraph.
+ *
+ * Both endings were one line of prose with the rewards joined by middots, which is the only place in
+ * the demo a player ever sees what the seals were hiding — the single most-read screen in the loop,
+ * written as a log line. `--tone` is what the two endings differ by and nothing else: the parts are
+ * the same, and what changes is whether the run kept them.
+ */
+.demo__overlay-panel {
+  display: grid;
+  gap: 0.75rem;
+  width: min(34rem, 100%);
+  padding: 1.4rem 1.6rem 1.2rem;
+  border: 1px solid color-mix(in srgb, var(--tone, #cb9769) 55%, transparent);
+  border-radius: 0.4rem;
+  background: rgb(18 10 24 / 92%);
+  box-shadow: 0 1.4rem 4rem rgb(0 0 0 / 65%);
+}
+
+.demo__overlay[data-tone="out"] .demo__overlay-panel {
+  --tone: #7fd8a2;
+}
+
+.demo__overlay[data-tone="lost"] .demo__overlay-panel {
+  --tone: #e2585f;
+}
+
 .demo__overlay-title {
   margin: 0;
-  font-size: 1.9rem;
+  color: var(--tone, #f4dfc7);
+  font-size: 2.1rem;
+  letter-spacing: 0.06em;
 }
 
 .demo__overlay-body {
   margin: 0;
   line-height: 1.6;
   white-space: pre-line;
+}
+
+.demo__overlay-body[hidden] {
+  display: none;
+}
+
+.demo__overlay-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  padding: 0.6rem 0;
+  border-block: 1px solid rgb(203 151 105 / 25%);
+}
+
+.demo__overlay-stats[hidden] {
+  display: none;
+}
+
+.demo__overlay-stat {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.demo__overlay-stat small {
+  color: #9d8794;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.demo__overlay-stat strong {
+  color: #f4dfc7;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.demo__overlay-rewardstitle {
+  color: #cdb69c;
+  font-size: 0.82rem;
+}
+
+.demo__overlay-rewardstitle[hidden] {
+  display: none;
+}
+
+.demo__overlay-rewards {
+  display: grid;
+  gap: 0.35rem;
+  text-align: left;
+}
+
+.demo__overlay-rewards[hidden] {
+  display: none;
+}
+
+.demo__overlay-reward {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr);
+  gap: 0 0.7rem;
+  align-items: center;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--bless, #cb9769) 35%, transparent);
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--bless, #cb9769) 8%, transparent);
+}
+
+.demo__overlay-rewardglyph {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  color: var(--bless, #f4dfc7);
+  font-size: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--bless, #f4dfc7) 50%, transparent);
+  border-radius: 0.2rem;
+}
+
+.demo__overlay-reward strong {
+  font-size: 0.9rem;
+}
+
+.demo__overlay-reward small {
+  color: #cdb69c;
+  font-size: 0.74rem;
+}
+
+.demo__overlay-footer {
+  color: #9d8794;
+  font-size: 0.78rem;
+}
+
+.demo__overlay-footer[hidden] {
+  display: none;
 }
 
 .demo__overlay kbd {

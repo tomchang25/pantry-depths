@@ -130,9 +130,30 @@ function defaultHudModel(): DemoHudModel {
     ],
     held: { color: "#c9c2b4", count: 3, glyph: "●", name: "Rocks" },
     card: { color: "#f2c96b", detail: "Live card layout preview", glyph: "✦", name: "Ember" },
+    channel: {
+      detail: "Stay on the dais 5s · being hit does not break it, stepping off does",
+      label: "Claiming a blessing",
+      remaining: "2.4s",
+      share: 0.52,
+      tone: "bless",
+    },
+    haul: { banked: 2, blessings: 2, kills: 31, sealed: 1 },
     hp: 72,
     maxHp: 100,
     message: "The pantry answers from below.",
+    run: {
+      clock: "4:12",
+      core: { color: "#9fe0d0", text: "Cleaver · DMG +3 HP +10" },
+      depth: 2,
+      level: 14,
+      rising: false,
+    },
+    tasks: [
+      { done: 13, label: "bodies down", main: true, met: false, target: 20 },
+      { done: 12, label: "walls broken", main: false, met: true, target: 12 },
+      { done: 2, label: "side rooms entered", main: false, met: false, target: 4 },
+      { done: 0, label: "pool closed over with bodies", main: false, met: false, target: 1 },
+    ],
     minimap: {
       facingAngle: -Math.PI / 2,
       height: 12,
@@ -551,7 +572,7 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
         // The workbench previews the arm, not being hit: no marks, and a pose the bearing maths can
         // read without meaning anything, since nothing here ever records a hit to point at.
         damageMarks: [],
-        depth: 1,
+        soakSeconds: 0,
         player: { ...CAMERA, pitch: 0, pushX: 0, pushY: 0, hp: 1, maxHp: 1 },
         elapsedSeconds: timing.elapsedSeconds,
         held: undefined,

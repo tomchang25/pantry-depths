@@ -12,14 +12,26 @@ import { PROP_KINDS } from "@/content/presentation/prop-display-schema";
 import { grabAction, primaryAction, PROP_LABELS } from "@/demo/actions";
 import { BLESS_CATALOG, hasBless, findBless, type BlessDefinition } from "@/demo/bless";
 import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
-import { runEndOverlay } from "@/demo/extraction";
-import { mountDemoHud, type DemoHudCard, type DemoHudHeld, type DemoHudModel } from "@/demo/demo-hud";
+import { EXTRACTION_HOLD_SECONDS, extractionShare, runEndOverlay, SEALED_CARD_PREFIX } from "@/demo/extraction";
+import {
+  mountDemoHud,
+  type DemoHudCard,
+  type DemoHudChannel,
+  type DemoHudHeld,
+  type DemoHudModel,
+  type DemoHudRun,
+  type DemoHudTask,
+} from "@/demo/demo-hud";
 import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
-import { DEMO_GRID_SIZE } from "@/demo/maze";
+import { DEMO_GRID_SIZE, padRoomAt } from "@/demo/maze";
+import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/demo/rooms";
+import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
+import { bankedRewards, equippedCore } from "@/demo/sealed";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
+import { TASK_LABELS } from "@/demo/tasks";
 import type { DemoPropKind } from "@/demo/throw-weight";
 import {
   announce,
@@ -28,6 +40,7 @@ import {
   flattenFloorForTesting,
   killEnemy,
   MAX_ENEMIES,
+  runClockSeconds,
   spawnReinforcement,
   type DemoWorld,
 } from "@/demo/world";
@@ -86,6 +99,36 @@ const MINIMAP_TILE_COLORS: Readonly<Record<string, string>> = {
 };
 
 function cardModel(token: string): DemoHudCard {
+  // The floor getting hungrier comes through the same channel a blessing does, and has to be told
+  // apart from one before the catalogue is asked. It reads as the dungeon changing rather than as the
+  // player gaining something, because that is what happened: the number rose off minutes spent and
+  // floors taken, both of which are costs.
+  if (token.startsWith(LEVEL_CARD_PREFIX)) {
+    const level = token.slice(LEVEL_CARD_PREFIX.length);
+    return {
+      color: "#e2585f",
+      detail: `Threat ${level}. Whatever is down here has been given time, and it has used it.`,
+      glyph: "☠",
+      name: "The depths stir",
+    };
+  }
+
+  // Taking a sealed reward is the one thing a run is actually for, and it used to arrive on the same
+  // line a reinforcement crawling out uses. A card, on the same channel a blessing gets, and worded so
+  // that what a cursed one risks is on screen at the moment it is taken rather than at the moment it
+  // is opened.
+  if (token.startsWith(SEALED_CARD_PREFIX)) {
+    const cursed = token.slice(SEALED_CARD_PREFIX.length) === "cursed";
+    return {
+      color: cursed ? "#e2585f" : "#9fe0d0",
+      detail: cursed
+        ? "It opens only if you walk out with it, and a cursed one can roll worse than nothing at all."
+        : "It opens only if you walk out with it. Die down here and it is gone unopened.",
+      glyph: "◈",
+      name: cursed ? "Cursed seal taken" : "Clean seal taken",
+    };
+  }
+
   const definition = token === "overflow" ? undefined : findBless(token as BlessDefinition["id"]);
 
   if (definition) {
@@ -183,6 +226,107 @@ function heldModel(world: DemoWorld): DemoHudHeld | undefined {
   };
 }
 
+function clockText(seconds: number): string {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/**
+ * The run's own line: level, clock, floor, and the core it is swinging.
+ *
+ * Seconds as well as minutes, because a level is bought a minute at a time and a readout that only
+ * counted whole minutes could not say how close the next one was — which is the whole decision the
+ * clock exists to inform. The core is here because a curse that can roll worse than clean is only a
+ * curse if the player can see which way this one went.
+ */
+function runModel(world: DemoWorld, rising: boolean): DemoHudRun {
+  const equipped = equippedCore();
+  // The run's clock, not the world's. They part company the moment the run ends: the world keeps
+  // ticking so the picture behind the end screen still breathes, and the readout must not.
+  const seconds = runClockSeconds(world);
+  const core = equipped
+    ? {
+        color: equipped.source === "cursed" ? "#e2585f" : "#9fe0d0",
+        text: `${equipped.core.name} · ${Object.entries(equipped.rolls)
+          .map(([axis, amount]) => `${axis === "maxHp" ? "HP" : "DMG"} ${(amount ?? 0) >= 0 ? "+" : ""}${amount}`)
+          .join(" ")}`,
+      }
+    : undefined;
+
+  return {
+    clock: clockText(seconds),
+    ...(core ? { core } : {}),
+    depth: world.depth,
+    level: runLevel({ depth: world.depth, elapsedSeconds: seconds }),
+    rising,
+  };
+}
+
+/** The floor's four demands, main first. Every counter behind them is one the floor already keeps. */
+function taskModels(world: DemoWorld): DemoHudTask[] {
+  const progress = world.maze.progress;
+  return [progress.main, ...progress.secondary].map((task, index) => ({
+    done: task.done,
+    label: TASK_LABELS[task.kind],
+    main: index === 0,
+    met: task.met,
+    target: task.target,
+  }));
+}
+
+/**
+ * What the pad under the player is doing, or nothing when they are not on one.
+ *
+ * Built here rather than by the systems that run the pads, because which of the three is talking is a
+ * question about the player's feet and the three answers share one element. The constants come from
+ * the modules that enforce them, so the bar cannot count down to a moment the simulation disagrees with.
+ */
+function channelModel(world: DemoWorld): DemoHudChannel | undefined {
+  const room = padRoomAt(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
+  const progress = world.maze.progress;
+
+  // Every label names what the pad pays, and every detail names the rule that decides whether you get
+  // it. "Holding the dais" told a first-time player what their feet were doing and nothing about why,
+  // which is the one thing a five-second wait in a room full of bodies has to justify.
+  if (room?.role === "extraction") {
+    const sealed = world.carried.length;
+    return {
+      detail:
+        sealed > 0
+          ? `Hold 5s to end the run · ${sealed} sealed ${sealed === 1 ? "reward opens" : "rewards open"} the moment you are out`
+          : "Hold 5s to end the run · you are carrying nothing sealed",
+      label: "Walking out with the lot",
+      remaining: `${Math.max(0, EXTRACTION_HOLD_SECONDS - progress.extractionSeconds).toFixed(1)}s`,
+      share: extractionShare(world),
+      tone: "extract",
+    };
+  }
+
+  if (room?.role === "blessingAltar" && !progress.blessingTaken) {
+    return {
+      detail: `Stay on the dais ${BLESSING_HOLD_SECONDS}s · being hit does not break it, stepping off does`,
+      label: "Claiming a blessing",
+      remaining: `${Math.max(0, BLESSING_HOLD_SECONDS - progress.heldSeconds).toFixed(1)}s`,
+      share: Math.min(1, progress.heldSeconds / BLESSING_HOLD_SECONDS),
+      tone: "bless",
+    };
+  }
+
+  if (room?.role === "hotSpring") {
+    const full = world.player.hp >= world.player.maxHp;
+    return {
+      detail: full
+        ? "Nothing left open to close · come back hurt"
+        : `+${HOT_SPRING_HEAL_PER_SECOND} health a second while you stand in it`,
+      label: full ? "Fully healed" : "Healing",
+      share: world.player.maxHp > 0 ? Math.min(1, world.player.hp / world.player.maxHp) : 1,
+      tone: "spring",
+    };
+  }
+
+  return undefined;
+}
+
 function createHudModel(
   world: DemoWorld,
   cardToken: string | undefined,
@@ -218,9 +362,17 @@ function createHudModel(
   ];
 
   const held = heldModel(world);
+  const channel = channelModel(world);
   return {
     blessIcons,
     ...(cardToken ? { card: cardModel(cardToken) } : {}),
+    ...(channel ? { channel } : {}),
+    haul: {
+      banked: bankedRewards().length,
+      blessings: world.bless.owned.length,
+      kills: world.kills,
+      sealed: world.carried.length,
+    },
     ...(held ? { held } : {}),
     hp: world.player.hp,
     maxHp: world.player.maxHp,
@@ -235,6 +387,11 @@ function createHudModel(
       width: DEMO_GRID_SIZE,
     },
     ...(overlay ? { overlay } : {}),
+    // The panel flares for exactly as long as the card is up, which needs no timer of its own: the
+    // card channel already carries one, and the two saying the same thing at the same time is the
+    // point of tying them together.
+    run: runModel(world, cardToken?.startsWith(LEVEL_CARD_PREFIX) ?? false),
+    tasks: taskModels(world),
   };
 }
 
@@ -327,7 +484,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     if (!locked()) {
       return {
         title: "Pantry Depths — Demo",
-        body: "Click the screen or press Esc to start. WASD move · mouse to look · Left attack / throw · Right grab / drop · Tab pause · R restart · Esc release the mouse. Four rooms hang off the floor and nothing says which is which — walk in and look. The red altar wants breaking, the white one wants holding, the spring heals, and the green smoke is the way out with everything you are carrying.",
+        body: "Click the screen or press Esc to start. WASD move · mouse to look · Left attack / throw · Right grab / drop · Tab pause · R restart · Esc release the mouse. Four rooms hang off the floor and nothing says which is which — walk in and look. The red altar wants breaking; the white dais and the green pad each want five seconds stood on them, which nothing but stepping off can break. The green one is the way out with everything you are carrying. The stairs are sealed until the floor's main task is done.",
       };
     }
 

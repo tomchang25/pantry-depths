@@ -18,8 +18,8 @@ import { takeSealed } from "@/demo/extraction";
 import { roomAt, type DemoFloorProgress, type DemoTask, type DemoTaskKind } from "@/demo/maze";
 import { announce, awardBless, type DemoWorld } from "@/demo/world";
 
-/** How each task reads on the message line. Second person, because it is being asked of the player. */
-const TASK_LABELS: Readonly<Record<DemoTaskKind, string>> = {
+/** How each task reads on the message line and in the panel. Second person, because it is being asked of the player. */
+export const TASK_LABELS: Readonly<Record<DemoTaskKind, string>> = {
   kills: "bodies down",
   wallsBroken: "walls broken",
   roomsVisited: "side rooms entered",
@@ -103,7 +103,11 @@ export function stepTasks(world: DemoWorld): void {
 
   if (settle(world, progress, progress.main)) {
     takeSealed(world, "clean");
-    announce(world, "The way down is open, and now you can see where it is", 4);
+    // The stairs stand sealed until this moment and are built as a different thing while they are, so
+    // the floor's structures have to be rebuilt on the frame the lock comes off. Geometry is cached
+    // against this counter; without the bump the slab stays over the steps for the rest of the floor.
+    world.terrainVersion += 1;
+    announce(world, "The seal breaks - the way down is open, and now you can see where it is", 4);
     return;
   }
 

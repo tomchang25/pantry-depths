@@ -86,8 +86,16 @@ export type DemoTask = {
  * has exactly the floor's lifetime, and descending is meant to wipe it.
  */
 export type DemoFloorProgress = {
-  /** Unbroken seconds the player has stood in the blessing altar's room. */
+  /** Unbroken seconds the player has stood on the blessing altar's pad. */
   heldSeconds: number;
+  /**
+   * Unbroken seconds the player has stood on the extraction pad.
+   *
+   * Floor state rather than run state, and correctly so: stepping off is what cancels it, and a
+   * descent has taken the pad with it. Damage does not touch it — the hold is broken by leaving and
+   * by nothing else, the same rule the blessing altar runs on and for the same reason.
+   */
+  extractionSeconds: number;
   blessingTaken: boolean;
   /** Pools this floor has closed over with bodies. */
   poolsFilled: number;
@@ -114,6 +122,7 @@ export type DemoFloorProgress = {
 function createFloorProgress(): DemoFloorProgress {
   return {
     heldSeconds: 0,
+    extractionSeconds: 0,
     blessingTaken: false,
     poolsFilled: 0,
     roomsVisited: [],
@@ -638,6 +647,25 @@ export function generateDemoMaze(): DemoMaze {
 /** Which room a cell stands in, or nothing when it stands in the main region. */
 export function roomAt(maze: DemoMaze, x: number, y: number): DemoRoom | undefined {
   return maze.rooms.find((room) => x >= room.minX && y >= room.minY && x <= room.maxX && y <= room.maxY);
+}
+
+/**
+ * Which room's pad a cell stands on, or nothing.
+ *
+ * A room is five cells across and its business used to run across all of it, which made the fixture
+ * in the middle a decoration rather than the thing being used: you could claim the blessing standing
+ * in a doorway, and the spring healed you anywhere in its room. The pad is the three cells around the
+ * fixture, so what the room does happens where the room looks like it happens.
+ *
+ * One definition, read by the two systems that run a pad and by the scene that draws it. Three
+ * separate distance checks is how the drawn extent and the working extent drift apart.
+ */
+export const ROOM_PAD_HALF = 1;
+
+export function padRoomAt(maze: DemoMaze, x: number, y: number): DemoRoom | undefined {
+  return maze.rooms.find(
+    (room) => Math.abs(x - room.center.x) <= ROOM_PAD_HALF && Math.abs(y - room.center.y) <= ROOM_PAD_HALF,
+  );
 }
 
 export function tileAt(maze: DemoMaze, x: number, y: number): DemoTile | undefined {

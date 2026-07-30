@@ -19,6 +19,15 @@
 export const LEVEL_PER_MINUTE = 1;
 export const LEVEL_PER_DESCENT = 5;
 
+/**
+ * How a rise in the number reaches the card on screen.
+ *
+ * The card channel carries one token, and every other token it has ever carried names a blessing. A
+ * prefix is what keeps this one from being looked up as one, and putting it here rather than at either
+ * end keeps the writer and the reader agreeing on it by construction.
+ */
+export const LEVEL_CARD_PREFIX = "threat:";
+
 export type RunClock = Readonly<{ elapsedSeconds: number; depth: number }>;
 
 export function runLevel(run: RunClock): number {

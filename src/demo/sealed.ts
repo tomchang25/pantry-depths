@@ -20,7 +20,6 @@ import { BLESS_CATALOG, BLESS_STACKING_CATALOG, type BlessId, type StackingBless
 import {
   CORE_CATALOG,
   findCore,
-  findModifier,
   rollCoreModifiers,
   type CoreCurse,
   type CoreDefinition,
@@ -92,22 +91,6 @@ function rollCore(source: CoreCurse): ResolvedCore {
 /** Opens one sealed reward. Called at extraction and never before it. */
 export function resolveReward(reward: SealedReward): ResolvedReward {
   return Math.random() < CORE_SHARE[reward.source] ? rollCore(reward.source) : rollFragment(reward.source);
-}
-
-/** How a resolved reward reads on the run-end screen, where its rolls are seen for the first time. */
-export function describeReward(reward: ResolvedReward): string {
-  if (reward.kind === "fragment") {
-    return `${reward.source === "cursed" ? "Cursed" : "Clean"} fragment (${reward.effects.join(", ")})`;
-  }
-
-  const rolls = Object.entries(reward.rolls)
-    .map(([axis, amount]) => {
-      const definition = findModifier(axis as ModifierAxis);
-      const sign = (amount ?? 0) >= 0 ? "+" : "";
-      return `${definition?.name ?? axis} ${sign}${amount}`;
-    })
-    .join(", ");
-  return `${reward.source === "cursed" ? "Cursed" : "Clean"} ${reward.core.name} core (${rolls})`;
 }
 
 /**

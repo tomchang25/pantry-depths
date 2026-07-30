@@ -5,28 +5,46 @@
  * a continuous choice rather than a gate at the end, and knowing where to leave from is something the
  * floor charges time for. There is no lock on it and never will be — the lock is on the descent.
  *
- * Walking into it ends the run and opens everything the run was carrying. That is the only way anything
- * reaches the bank; dying loses the lot, which is what makes the room worth finding on the first floor
- * rather than on the last.
+ * Standing on its pad for five unbroken seconds ends the run and opens everything the run was carrying.
+ * That is the only way anything reaches the bank; dying loses the lot, which is what makes the room
+ * worth finding on the first floor rather than on the last.
+ *
+ * Five seconds rather than a step across a line, because walking out was the one irreversible thing on
+ * the floor that could happen by accident. Damage does not interrupt it — at depth nothing that can be
+ * interrupted can be finished — so the hold is broken by stepping off the pad and by nothing else.
  */
 
-import type { DemoHudModel } from "@/demo/demo-hud";
-import { bankReward, describeReward, resolveReward, type ResolvedReward } from "@/demo/sealed";
-import { announce, type DemoWorld } from "@/demo/world";
+import type { DemoHudOverlay, DemoHudOverlayReward } from "@/demo/demo-hud";
+import { findBless } from "@/demo/bless";
+import { padRoomAt } from "@/demo/maze";
+import { bankReward, bankedRewards, resolveReward, type ResolvedReward } from "@/demo/sealed";
+import { announce, endRun, runClockSeconds, type DemoWorld } from "@/demo/world";
 
-/** The same shape as the descent's, so the two ways off a floor feel like the same verb. */
-const EXTRACTION_RADIUS = 0.55;
+/** Unbroken seconds on the pad that end the run. The same five the blessing altar asks for. */
+export const EXTRACTION_HOLD_SECONDS = 5;
+
+/**
+ * How a sealed reward reaches the card on screen.
+ *
+ * Taking one used to be a line on the message line and nothing else — the same channel a reinforcement
+ * crawling out uses — so the single thing a run is *for* arrived quieter than a slime did. A blessing
+ * pops a card; the thing you are risking the run to carry out has more claim to one than that.
+ */
+export const SEALED_CARD_PREFIX = "sealed:";
 
 /** What the last extraction opened, kept so the run-end screen can show it after the world is frozen. */
 let lastResolved: readonly ResolvedReward[] = [];
 
 export function takeSealed(world: DemoWorld, source: "clean" | "cursed"): void {
   world.carried.push({ source });
-  announce(
-    world,
-    `Something sealed, and ${source === "cursed" ? "cursed" : "clean"} - you will not know what until you are out`,
-    3,
-  );
+  world.pendingCard = `${SEALED_CARD_PREFIX}${source}`;
+  announce(world, `Sealed and ${source === "cursed" ? "cursed" : "clean"} - carry it out or lose it`, 3);
+}
+
+/** Whether the player is standing on the extraction pad this step. */
+export function onExtractionPad(world: DemoWorld): boolean {
+  const room = padRoomAt(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
+  return room?.role === "extraction";
 }
 
 function extract(world: DemoWorld): void {
@@ -38,39 +56,104 @@ function extract(world: DemoWorld): void {
 
   lastResolved = resolved;
   world.carried = [];
-  world.status = "extracted";
+  endRun(world, "extracted");
   announce(world, "Out, with everything you were carrying", 6);
 }
 
-export function stepExtraction(world: DemoWorld): void {
-  const away = Math.hypot(
-    world.player.x - (world.maze.extraction.x + 0.5),
-    world.player.y - (world.maze.extraction.y + 0.5),
-  );
+export function stepExtraction(world: DemoWorld, seconds: number): void {
+  const progress = world.maze.progress;
 
-  if (away < EXTRACTION_RADIUS) {
+  if (!onExtractionPad(world)) {
+    if (progress.extractionSeconds > 0) {
+      announce(world, "You stepped off - the extraction canister settles", 2);
+    }
+
+    progress.extractionSeconds = 0;
+    return;
+  }
+
+  progress.extractionSeconds += seconds;
+
+  if (progress.extractionSeconds >= EXTRACTION_HOLD_SECONDS) {
     extract(world);
   }
+}
+
+/**
+ * How much of the hold is done, from nothing to all of it. Read by the scene and by the HUD, so the
+ * light, the ground, and the countdown are three views of one number rather than three timers.
+ */
+export function extractionShare(world: DemoWorld): number {
+  return Math.min(1, world.maze.progress.extractionSeconds / EXTRACTION_HOLD_SECONDS);
+}
+
+/** One opened reward, as a row on the run-end screen. */
+function rewardRow(reward: ResolvedReward): DemoHudOverlayReward {
+  const cursed = reward.source === "cursed";
+
+  if (reward.kind === "core") {
+    const rolls = Object.entries(reward.rolls)
+      .map(([axis, amount]) => `${axis === "maxHp" ? "HP" : "DMG"} ${(amount ?? 0) >= 0 ? "+" : ""}${amount}`)
+      .join(" · ");
+    return {
+      color: reward.core.color,
+      glyph: reward.core.glyph,
+      name: `${cursed ? "Cursed" : "Clean"} ${reward.core.name} core`,
+      detail: rolls,
+    };
+  }
+
+  const effects = reward.effects.map((id) => findBless(id)?.name ?? id);
+  return {
+    color: cursed ? "#e2585f" : "#9fe0d0",
+    glyph: "◈",
+    name: `${cursed ? "Cursed" : "Clean"} fragment`,
+    detail: effects.join(" · "),
+  };
+}
+
+function clock(seconds: number): string {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
 /**
  * The screen a run ends on, either way it ended.
  *
  * Both endings live here rather than beside the frame loop, because what separates them is what the run
- * kept: extraction lists everything it opened, and death lists what it lost without saying what it was.
+ * kept: extraction lists everything it opened, one row per thing with what it rolled, and death lists
+ * only how much went down with you — a run that died never learns what it was carrying, which is the
+ * whole of why walking out early is a decision.
  */
-export function runEndOverlay(world: DemoWorld): DemoHudModel["overlay"] {
-  const reached = `Reached floor B${world.depth}, killed ${world.kills}, carried ${world.bless.owned.length} blessings.`;
+export function runEndOverlay(world: DemoWorld): DemoHudOverlay {
+  const stats = [
+    { label: "Floor", value: `B${world.depth}` },
+    { label: "Time", value: clock(runClockSeconds(world)) },
+    { label: "Killed", value: String(world.kills) },
+    { label: "Blessings", value: String(world.bless.owned.length) },
+  ];
 
   if (world.status === "extracted") {
-    const opened =
-      lastResolved.length > 0 ? lastResolved.map((reward) => describeReward(reward)).join(" · ") : "nothing";
-    return { title: "Out", body: `${reached} Opened: ${opened}. Press R to run again.` };
+    return {
+      title: "Out",
+      tone: "out",
+      stats,
+      rewardsTitle: lastResolved.length > 0 ? "Opened on the way out" : "You walked out with nothing sealed",
+      rewards: lastResolved.map((reward) => rewardRow(reward)),
+      footer: `${bankedRewards().length} in the bank · press R to run again`,
+    };
   }
 
   const lost = world.carried.length;
   return {
     title: "Eaten",
-    body: `${reached} ${lost > 0 ? `${lost} sealed rewards went down with you.` : "You were carrying nothing sealed."} Press R to run again.`,
+    tone: "lost",
+    stats,
+    rewardsTitle:
+      lost > 0
+        ? `${lost} sealed ${lost === 1 ? "reward" : "rewards"} went down with you, unopened`
+        : "You were carrying nothing sealed",
+    rewards: [],
+    footer: `${bankedRewards().length} in the bank · press R to run again`,
   };
 }

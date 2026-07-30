@@ -382,6 +382,15 @@ export type DemoWorld = {
   status: DemoStatus;
   elapsedSeconds: number;
   /**
+   * Where the run's clock stopped, or unset while it is still running.
+   *
+   * `elapsedSeconds` cannot be that clock on its own: it drives the torch's flicker, the walk bob, and
+   * every drifting plume, so freezing it would freeze the picture behind the end screen. It keeps
+   * running and this records the moment the run stopped counting — which is what the level, the
+   * readout, and the ending's own Time stat are actually asking for.
+   */
+  finishedSeconds: number | undefined;
+  /**
    * Seconds left of the animation, counting down from `swingTotal`. Presentation reads these two.
    *
    * Also the whole of the input gate: a press while this is above zero is ignored outright. There is
@@ -414,6 +423,21 @@ export type DemoWorld = {
   /** Recent hits with a known origin, newest last. Presentation points at them; nothing else reads them. */
   damageMarks: DemoDamageMark[];
   walkBob: number;
+  /**
+   * Unbroken seconds the player has stood on the hot spring's pad.
+   *
+   * Presentation reads it and nothing else does: the healing is applied per step from the step's own
+   * length, so this is here to drive the green edge the screen answers a soak with — the counterpart
+   * of the red arcs a hit leaves. Zeroed the moment the pad is left.
+   */
+  soakSeconds: number;
+  /**
+   * The difficulty level the run has already told the player about.
+   *
+   * The level itself is derived from the clock and the depth and is never stored; this is only the
+   * last value that was announced, so a rise can be noticed exactly once.
+   */
+  announcedLevel: number;
   message: string;
   messageSeconds: number;
   /** Set when a blessing is awarded; the surface turns it into the card and then clears it. */
@@ -707,6 +731,7 @@ export function createDemoWorld(): DemoWorld {
     godMode: false,
     status: "playing",
     elapsedSeconds: 0,
+    finishedSeconds: undefined,
     swing: 0,
     swingTotal: 0,
     swingKind: "horizontal-left",
@@ -718,6 +743,8 @@ export function createDemoWorld(): DemoWorld {
     hitFlash: 0,
     damageMarks: [],
     walkBob: 0,
+    soakSeconds: 0,
+    announcedLevel: 0,
     message: "WASD to move - mouse to look - left click attacks - right click grabs - find the four side rooms",
     messageSeconds: 6,
     pendingCard: undefined,
@@ -798,6 +825,24 @@ export function awardBless(world: DemoWorld): void {
   world.player.hp = Math.min(world.player.maxHp, world.player.hp + healthGain);
   world.pendingCard = granted.id;
   announce(world, `Blessing gained: ${granted.name}`, 3);
+}
+
+/**
+ * Ends the run, whichever way it ended.
+ *
+ * One door out of `playing`, so the things that have to happen on the way through it cannot be done by
+ * one exit and forgotten by the other: the clock stops, and any pad the player was standing on stops
+ * paying into the screen.
+ */
+export function endRun(world: DemoWorld, status: "dead" | "extracted"): void {
+  world.status = status;
+  world.finishedSeconds = world.elapsedSeconds;
+  world.soakSeconds = 0;
+}
+
+/** How long the run has been going, which stops counting when the run does. */
+export function runClockSeconds(world: DemoWorld): number {
+  return world.finishedSeconds ?? world.elapsedSeconds;
 }
 
 export function announce(world: DemoWorld, message: string, seconds = 2.2): void {

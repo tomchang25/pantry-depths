@@ -39,6 +39,7 @@ import { burst } from "@/demo/particles";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import {
   announce,
+  endRun,
   ENEMY_RADIUS,
   hasLineOfSight,
   markDamageFrom,
@@ -496,7 +497,7 @@ export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fro
 
   if (world.player.hp <= 0) {
     world.player.hp = 0;
-    world.status = "dead";
+    endRun(world, "dead");
   }
 }
 

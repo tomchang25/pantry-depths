@@ -30,6 +30,7 @@ import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
 import { stepRooms } from "@/demo/rooms";
+import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
 import { stepTasks } from "@/demo/tasks";
 import {
   breaksThroughWalls,
@@ -845,6 +846,26 @@ export function descend(world: DemoWorld): void {
   announce(world, `Down to floor B${world.depth}`, 3);
 }
 
+/**
+ * Says so when the floor gets harder, once per step of it.
+ *
+ * Deliberately not phrased as the player gaining anything. The number rises with the minutes spent
+ * and the floors taken, and every one of them is a cost — a card reading "level up" would be telling
+ * the player they had been rewarded for the one thing this loop charges them for. What rose is the
+ * dungeon's appetite, so that is what the card says.
+ */
+function stepRunLevel(world: DemoWorld): void {
+  const level = runLevel(world);
+
+  if (level <= world.announcedLevel) {
+    return;
+  }
+
+  world.announcedLevel = level;
+  world.pendingCard = `${LEVEL_CARD_PREFIX}${level}`;
+  announce(world, `The depths stir - threat ${level}`, 3);
+}
+
 export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
   const step = Math.min(deltaSeconds, 0.05);
   world.elapsedSeconds += step;
@@ -882,6 +903,7 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
     return;
   }
 
+  stepRunLevel(world);
   stepPlayer(world, input, step);
 
   // The debug pause freezes thinking, movement, reinforcement, and the floor's artillery together.
@@ -911,5 +933,5 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
     return;
   }
 
-  stepExtraction(world);
+  stepExtraction(world, step);
 }
