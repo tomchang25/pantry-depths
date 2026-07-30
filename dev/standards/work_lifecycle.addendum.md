@@ -22,14 +22,35 @@ No probe currently exists in this repository, so adopting this narrowing costs n
 
 The language follows the same reasoning: it is the author's working document, and the audience is one person who writes in Chinese.
 
-This deviation is scoped to that one document. Every other plan in this repository follows the standard as written, and a new plan does not inherit the exemption by pointing at this section.
+This deviation is scoped to that one document. Every other plan in this repository follows the standard as written, and a new plan does not inherit the exemption by pointing at this section — the general relaxation below is what a new plan uses instead, and it is narrower: it keeps the reviewable half clean and confines the coordinates to a declared section.
+
+## Every Plan May Carry An Execution Half
+
+This supersedes, for every plan in this repository, `dev/foundation/core/workflows/plan_standard.md`'s requirement that a plan contain no file paths, line numbers, code snippets, or function and class names, and its expectation that implementation-facing shape waits for a child sketch. A plan here has two halves with two different contracts.
+
+**The conceptual half — `Goal`, `Requirements`, `Design`, `Non-Goals`, `Acceptance Criteria` — is unchanged.** Every rule in the plan standard still applies to it: English, no code coordinates, systems referred to by role, the why stated inline, full design depth in behavioural terms. This half exists to be reviewed by a person deciding whether the direction is right, and a coordinate in it costs that reader attention on something they are not being asked to judge.
+
+**After `Acceptance Criteria`, a plan may carry an `Execution` section under no such limits.** It may name files, line numbers, symbols, and commands; quote code; hold tables of concrete values, migration steps, per-child file maps, and anything else `/implement` would otherwise have to rediscover. There is no length discipline on it. **English still applies** — the language rule is not part of this relaxation, and every section of a plan in this repository is written in English.
+
+**Why:** the plan standard's stated reason for the ban is that a plan should stay valid as the codebase changes, and it pays for that with a mandatory rediscovery step — every child re-derives the same coordinates through a sketch before a spec can be written, and the answers were already known when the direction was chosen. Splitting the document buys both: the half that gets reviewed stays durable and reviewable, and the half that gets executed carries what execution needs. The cost is accepted explicitly, not sidestepped.
+
+Three rules keep the second half from rotting into a lie:
+
+- **The `Execution` half is perishable and says so.** It is a record of the codebase at the moment the plan was written. Whoever executes a child re-checks its coordinates against the live code first; a stale line there is expected, not a defect in the plan.
+- **It is forward-only, exactly as the child overview table is.** When a child ships, its `Execution` subsection is cut in the same change that cuts its row from the overview table. The section shrinks as the plan lands and is gone when the plan is done.
+- **A conflict between the halves is resolved by the conceptual half.** If the `Execution` notes describe something the `Requirements` do not ask for, the notes are wrong. Design decisions are never made in the second half; it only says where.
+
+**A child whose `Execution` subsection already answers its implementation shape skips the sketch and goes straight to a spec through `/implement`.** That is the point of the relaxation. A child still needs a sketch when its shape is genuinely open — when the plan recorded the target but not the approach, or when an earlier child changed the ground under it.
+
+This relaxation is general and has no expiry. It does not extend to sketches, implementation specs, reviews, or closeouts, each of which keeps its own standard as written.
 
 ## Practical Routing
 
 | Situation                                                                                | Artifact                              |
 | ---------------------------------------------------------------------------------------- | ------------------------------------- |
 | A problem or tension is worth recording, but no direction is chosen                      | Probe                                 |
-| The direction is chosen and the slice belongs to an existing plan                        | Sketch as that plan's child           |
+| The slice belongs to an existing plan whose `Execution` half already answers its shape   | Implementation spec, via `/implement` |
+| The direction is chosen and the slice belongs to an existing plan, shape still open      | Sketch as that plan's child           |
 | The direction is chosen and no plan owns the area yet                                    | Standalone sketch                     |
 | The direction is chosen and the work needs its own requirements, non-goals, and children | Plan                                  |
 | The slice is ready to execute                                                            | Implementation spec, via `/implement` |
