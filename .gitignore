@@ -8,6 +8,7 @@ Thumbs.db
 tmp/
 test-results/
 playwright-report/
+capture-output/
 
 .vscode
 .codex

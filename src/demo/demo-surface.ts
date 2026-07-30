@@ -48,6 +48,16 @@ import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer"
 
 export type MountedDemo = Readonly<{ dispose: () => void }>;
 
+/**
+ * Capture mode: `?capture` on a development build treats the pointer as locked from the first frame.
+ *
+ * The world then steps and no overlay covers the picture with nobody at the mouse, which is the one
+ * thing a headless browser cannot arrange for itself — pointer lock needs a user gesture the
+ * screenshot harness in `dev/tools/capture-scenes.mjs` does not have. Everything else the harness
+ * does goes through the same keys and clicks a person uses. Production builds never read the flag.
+ */
+const captureMode = import.meta.env.DEV && new URLSearchParams(window.location.search).has("capture");
+
 const MOUSE_SENSITIVITY = 0.0026;
 /**
  * Vertical look limits, asymmetric on purpose.
@@ -474,7 +484,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     input.strafeRight = false;
   };
 
-  const locked = (): boolean => document.pointerLockElement === canvas;
+  const locked = (): boolean => captureMode || document.pointerLockElement === canvas;
 
   const overlayModel = (): DemoHudModel["overlay"] => {
     if (world.status !== "playing") {
