@@ -1,10 +1,20 @@
 import * as THREE from "three";
 
-import type { PreviewDebugOptions, PreviewSceneId, PreviewShowcase, PreviewStatus } from "./preview-contracts";
+import { readBodyScale } from "./body-frame";
+import { guardFindings, guardRegister, measureGuard, type MeasuredGuard } from "./guard-metrics";
+import type {
+  PreviewDebugOptions,
+  PreviewReadout,
+  PreviewReadoutRow,
+  PreviewSceneId,
+  PreviewShowcase,
+  PreviewStatus,
+} from "./preview-contracts";
 import { ProceduralAltar, ProceduralMortar } from "./procedural-models";
 import { bisectSkeleton, BurstParticles, explodeSkeleton, RigidEffect } from "./rigid-effects";
 import { SkeletonSwordsman } from "./skeleton-swordsman";
-import { ATTACK_DURATION_SECONDS, sampleSwordAttack, type AttackSample } from "./sword-attack-motion";
+import { applySwordGuardPose, SWORD_GRIP_SPAN, SWORD_GUARD_POSES, type SwordGuardPose } from "./sword-guard-poses";
+import { ATTACK_DURATION_SECONDS, sampleSwordAttack } from "./sword-attack-motion";
 import { createStandardMaterial, disposeObject, setObjectWireframe } from "./preview-utils";
 
 abstract class BaseShowcase implements PreviewShowcase {
@@ -45,16 +55,61 @@ abstract class BaseShowcase implements PreviewShowcase {
   }
 }
 
+const GUARD_LABELS: Readonly<Record<SwordGuardPose, string>> = {
+  middle: "Middle",
+  high: "High",
+  low: "Low",
+  backRight: "Back right",
+  hangingRight: "Hanging right",
+  insideLeft: "Inside left",
+  closeLeft: "Close left",
+  hangingLeft: "Hanging left",
+  insideRight: "Inside right",
+  closeRight: "Close right",
+  short: "Short",
+  long: "Long",
+  side: "Side",
+  backLeft: "Back left",
+};
+
+/**
+ * The three the reference plate leads with, and the only three tuned so far.
+ *
+ * The remaining eleven are selectable and are first drafts. Naming them here
+ * rather than leaving the distinction in a commit message keeps the picker
+ * honest about which poses have been looked at.
+ */
+const TUNED_GUARDS: ReadonlySet<SwordGuardPose> = new Set<SwordGuardPose>(["middle", "high", "low"]);
+
+/**
+ * Three-quarter, still facing the way the plate's figures face.
+ *
+ * A dead-on profile was tried first and does not survive a solid body. The
+ * plate is a line drawing, so its figure hides nothing; a rendered skeleton
+ * viewed from exactly the side puts both arms on the far centre line behind an
+ * opaque ribcage, and three guards shipped looking armless while every
+ * measurement agreed the arms were exactly where they should be — a hidden arm
+ * reaches as far as a visible one.
+ *
+ * Turning the chest partly toward the camera brings the arms out in front of
+ * the ribs without losing the silhouette the plate is read by. Orbit for the
+ * true profile when the silhouette is the question.
+ */
+const GUARD_FACING = -Math.PI / 2 + 0.62;
+
 class SwordAttackShowcase extends BaseShowcase {
   readonly description =
-    "Quaternion-slerped full-body sword attack with readable anticipation, step, slash, recovery, and a live sword-tip trail.";
+    "One long-sword guard at a time, turned to the profile the reference plate draws. Middle, High and Low are tuned; the other eleven are first drafts.";
   readonly id = "sword-attack" as const;
-  readonly title = "Skeleton Sword Attack";
+  readonly poseOptions = SWORD_GUARD_POSES.map((pose) => ({
+    label: TUNED_GUARDS.has(pose) ? GUARD_LABELS[pose] : `${GUARD_LABELS[pose]} (draft)`,
+    value: pose,
+  }));
+  readonly title = "Long-Sword Guard";
 
-  private attack: AttackSample = { finished: false, normalizedTime: 0, phase: "idle" };
-  private skeleton!: SkeletonSwordsman;
-  private trail!: THREE.Line;
-  private readonly trailPoints: THREE.Vector3[] = [];
+  private pose: SwordGuardPose = "middle";
+  private readout: PreviewReadout | undefined;
+  private skeleton: SkeletonSwordsman | undefined;
 
   constructor() {
     super();
@@ -63,62 +118,112 @@ class SwordAttackShowcase extends BaseShowcase {
 
   reset(): void {
     this.clear();
-    this.skeleton = new SkeletonSwordsman();
-    this.skeleton.root.rotation.y = -0.28;
-    this.root.add(this.skeleton.root);
-    const trailGeometry = new THREE.BufferGeometry();
-    const trailPositions = new THREE.BufferAttribute(new Float32Array(28 * 3), 3);
-    trailPositions.setUsage(THREE.DynamicDrawUsage);
-    trailGeometry.setAttribute("position", trailPositions);
-    trailGeometry.setDrawRange(0, 0);
-    this.trail = new THREE.Line(
-      trailGeometry,
-      new THREE.LineBasicMaterial({
-        blending: THREE.AdditiveBlending,
-        color: 0xffca66,
-        transparent: true,
-        opacity: 0.82,
-      }),
-    );
-    this.trail.frustumCulled = false;
-    this.root.add(this.trail);
-    this.trailPoints.length = 0;
-    this.skeleton.setDebug(this.debug);
-    this.update(0);
+
+    const skeleton = new SkeletonSwordsman();
+    applySwordGuardPose(skeleton, this.pose);
+    skeleton.root.rotation.y = GUARD_FACING;
+    skeleton.root.updateMatrixWorld(true);
+    skeleton.setDebug(this.debug);
+    this.root.add(skeleton.root);
+    this.skeleton = skeleton;
+
+    // Every guard is still measured on each rebuild, not only the visible one:
+    // the register is a property of the set, and a pose tuned in isolation can
+    // quietly collide with one nobody is looking at.
+    this.readout = buildGuardReadout(measureEveryGuard(), this.pose, skeleton);
+    this.update();
   }
 
-  update(deltaSeconds: number): void {
-    this.elapsed += deltaSeconds;
-    this.attack = sampleSwordAttack(this.skeleton, this.elapsed);
-    const tip = this.skeleton.swordTipWorld();
-    this.root.worldToLocal(tip);
-    this.trailPoints.push(tip);
-    if (this.trailPoints.length > 28) this.trailPoints.shift();
-    const positions = this.trail.geometry.getAttribute("position");
-    if (positions instanceof THREE.BufferAttribute) {
-      for (let index = 0; index < this.trailPoints.length; index += 1) {
-        const point = this.trailPoints[index];
-        if (point) positions.setXYZ(index, point.x, point.y, point.z);
-      }
-      positions.needsUpdate = true;
-      this.trail.geometry.setDrawRange(0, this.trailPoints.length);
-    }
-    const trailMaterial = this.trail.material;
-    if (trailMaterial instanceof THREE.LineBasicMaterial) {
-      trailMaterial.opacity = this.attack.phase === "slash" ? 0.95 : 0.34;
-    }
+  update(): void {
+    const row = this.readout?.rows.find((entry) => entry.label === GUARD_LABELS[this.pose]);
     this.status = {
-      detail: `sword tip ${tip.x.toFixed(2)}, ${tip.y.toFixed(2)}, ${tip.z.toFixed(2)}`,
-      normalizedTime: this.attack.normalizedTime,
-      phase: this.attack.phase,
-      state: this.attack.finished ? "complete" : "playing",
+      detail: row?.flagged === true ? "the instrument flagged this guard" : "reachable, grounded, balanced",
+      normalizedTime: 0,
+      phase: GUARD_LABELS[this.pose],
+      state: TUNED_GUARDS.has(this.pose) ? "tuned against the plate" : "first draft, not yet looked at",
     };
+  }
+
+  readReadout(): PreviewReadout | undefined {
+    return this.readout;
+  }
+
+  setPose(value: string): void {
+    if ((SWORD_GUARD_POSES as readonly string[]).includes(value)) {
+      this.pose = value as SwordGuardPose;
+      this.reset();
+    }
   }
 
   override setDebug(options: PreviewDebugOptions): void {
     super.setDebug(options);
-    this.skeleton.setDebug(options);
+    this.skeleton?.setDebug(options);
   }
+}
+
+/** Pose a throwaway body once per guard, so the register covers the set rather than the visible one. */
+function measureEveryGuard(): MeasuredGuard[] {
+  const probe = new SkeletonSwordsman();
+  const measured = SWORD_GUARD_POSES.map((pose) => {
+    applySwordGuardPose(probe, pose);
+    return { label: GUARD_LABELS[pose], metrics: measureGuard(probe) };
+  });
+
+  probe.dispose();
+  return measured;
+}
+
+/**
+ * Turn the measurements into something readable without opening the source.
+ *
+ * The register goes in the notes rather than the table because it is a property
+ * of the set rather than of any one guard, and with fourteen poses the failure
+ * that matters is not one looking wrong but two looking alike.
+ */
+function buildGuardReadout(
+  measured: readonly MeasuredGuard[],
+  selected: SwordGuardPose,
+  sample: SkeletonSwordsman,
+): PreviewReadout {
+  const findings = guardFindings(measured, SWORD_GRIP_SPAN);
+  const flagged = new Set(findings.map((finding) => finding.guard));
+  const rows: PreviewReadoutRow[] = measured.map(({ label, metrics }) => ({
+    cells: [
+      `${metrics.reachRight.toFixed(2)} / ${metrics.reachLeft.toFixed(2)}`,
+      `${metrics.hilt.up.toFixed(2)} ${metrics.hilt.forward.toFixed(2)} ${metrics.hilt.side.toFixed(2)}`,
+      `${metrics.tip.height.toFixed(2)} ${Math.round(metrics.tip.pitch)}° ${Math.round(metrics.tip.yaw)}°`,
+      `${Math.round(metrics.edge)}°`,
+      metrics.balance.toFixed(2),
+    ],
+    flagged: flagged.has(label),
+    label,
+    selected: label === GUARD_LABELS[selected],
+  }));
+
+  const notes: string[] = [];
+  const scale = readBodyScale(sample);
+  notes.push(
+    `Rig: arm ${scale.arm.toFixed(2)}, leg ${scale.leg.toFixed(2)}, ` +
+      `arm is ${((100 * scale.arm) / scale.shoulderHeight).toFixed(0)}% of shoulder height (human is near 36%).`,
+  );
+  if (findings.length === 0) {
+    notes.push(
+      "No findings: every arm within reach, every foot on the floor, every grip at span, every body over its feet.",
+    );
+  }
+  for (const finding of findings) {
+    notes.push(`${finding.guard} — ${finding.detail}`);
+  }
+  for (const collision of guardRegister(measured).slice(0, 3)) {
+    notes.push(`Closest pair: ${collision.left} ~ ${collision.right} at ${collision.distance.toFixed(2)}`);
+  }
+
+  return {
+    columns: ["Guard", "Reach R/L", "Hilt u·f·s", "Tip h·pitch·yaw", "Edge", "Balance"],
+    notes,
+    rows,
+    title: "Guard measurements",
+  };
 }
 
 class BisectShowcase extends BaseShowcase {

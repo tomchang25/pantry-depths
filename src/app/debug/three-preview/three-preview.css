@@ -187,6 +187,56 @@
   text-align: right;
 }
 
+.three-preview__readout {
+  gap: 0.4rem;
+}
+
+.three-preview__readout-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #d5cbd9;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.three-preview__readout-table th,
+.three-preview__readout-table td {
+  padding: 0.18rem 0.3rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.three-preview__readout-table thead th {
+  border-bottom: 1px solid #3d3348;
+  color: #9b8ea3;
+  font-weight: 600;
+}
+
+.three-preview__readout-table tbody th {
+  color: #ece3ef;
+  font-weight: 600;
+  text-align: left;
+}
+
+.three-preview__readout-table tbody tr.is-selected th,
+.three-preview__readout-table tbody tr.is-selected td {
+  background: rgba(194, 123, 223, 0.18);
+  color: #f3e6fa;
+}
+
+.three-preview__readout-table tbody tr.is-flagged th,
+.three-preview__readout-table tbody tr.is-flagged td {
+  background: rgba(214, 96, 96, 0.16);
+  color: #f4b4b4;
+}
+
+.three-preview__readout-note {
+  margin: 0;
+  color: #a99fae;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
 .three-preview__fallback {
   position: absolute;
   inset: 1rem;

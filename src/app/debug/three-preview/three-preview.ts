@@ -3,6 +3,7 @@ import { createDebugPage } from "@/app/debug/debug-shell";
 import {
   PREVIEW_SCENE_IDS,
   type PreviewLightMode,
+  type PreviewReadout,
   type PreviewRendererMode,
   type PreviewSceneId,
 } from "./preview-contracts";
@@ -36,6 +37,63 @@ function createSelectRow(
   for (const option of options) select.append(createOption(option.value, option.label));
   row.append(label, select);
   return { row, select };
+}
+
+/**
+ * Draw a showcase's measurements into the sidebar.
+ *
+ * The panel hides itself when the scene has nothing to measure rather than
+ * standing empty, so its presence is itself the signal that this scene is one
+ * with numbers behind it.
+ */
+function renderReadout(panel: HTMLElement, readout: PreviewReadout | undefined): void {
+  panel.hidden = readout === undefined;
+  panel.replaceChildren();
+  if (!readout) {
+    return;
+  }
+
+  const title = document.createElement("h2");
+  const table = document.createElement("table");
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  const body = document.createElement("tbody");
+  title.textContent = readout.title;
+  table.className = "three-preview__readout-table";
+
+  for (const column of readout.columns) {
+    const cell = document.createElement("th");
+    cell.textContent = column;
+    headRow.append(cell);
+  }
+  head.append(headRow);
+
+  for (const row of readout.rows) {
+    const line = document.createElement("tr");
+    const name = document.createElement("th");
+    name.scope = "row";
+    name.textContent = row.label;
+    line.className = [row.flagged ? "is-flagged" : "", row.selected === true ? "is-selected" : ""]
+      .filter(Boolean)
+      .join(" ");
+    line.append(name);
+    for (const value of row.cells) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      line.append(cell);
+    }
+    body.append(line);
+  }
+
+  table.append(head, body);
+  panel.append(title, table);
+
+  for (const note of readout.notes) {
+    const line = document.createElement("p");
+    line.className = "three-preview__readout-note";
+    line.textContent = note;
+    panel.append(line);
+  }
 }
 
 function createToggle(labelText: string): Readonly<{ input: HTMLInputElement; label: HTMLLabelElement }> {
@@ -73,6 +131,7 @@ export function renderThreePreview(mount: HTMLElement): void {
   const playButton = document.createElement("button");
   const resetButton = document.createElement("button");
   const statusPanel = document.createElement("section");
+  const readoutPanel = document.createElement("section");
   const statusTitle = document.createElement("h2");
   const phaseOutput = document.createElement("strong");
   const stateOutput = document.createElement("span");
@@ -96,6 +155,8 @@ export function renderThreePreview(mount: HTMLElement): void {
   resetButton.type = "button";
   resetButton.textContent = "Reset";
   statusPanel.className = "three-preview__panel three-preview__status";
+  readoutPanel.className = "three-preview__panel three-preview__readout";
+  readoutPanel.hidden = true;
   statusTitle.textContent = "Live diagnostics";
   phaseOutput.className = "three-preview__phase";
   stateOutput.className = "three-preview__state";
@@ -109,6 +170,8 @@ export function renderThreePreview(mount: HTMLElement): void {
     "Showcase",
     PREVIEW_SCENE_IDS.map((id) => ({ label: SCENE_LABELS[id], value: id })),
   );
+  const poseField = createSelectRow("Pose", []);
+  poseField.row.hidden = true;
   const speedField = createSelectRow("Playback speed", [
     { label: "0.25×", value: "0.25" },
     { label: "0.5×", value: "0.5" },
@@ -150,6 +213,7 @@ export function renderThreePreview(mount: HTMLElement): void {
   controls.append(
     controlsTitle,
     sceneField.row,
+    poseField.row,
     transport,
     speedField.row,
     rendererField.row,
@@ -159,7 +223,7 @@ export function renderThreePreview(mount: HTMLElement): void {
     wireframe.label,
   );
   statusPanel.append(statusTitle, phaseOutput, stateOutput, detailOutput, progress, metrics);
-  sidebar.append(controls, statusPanel);
+  sidebar.append(controls, statusPanel, readoutPanel);
   stageHeader.append(sceneTitle, sceneDescription);
   stage.append(stageHeader, viewport);
   layout.append(stage, sidebar);
@@ -180,6 +244,16 @@ export function renderThreePreview(mount: HTMLElement): void {
         onScene(showcase) {
           sceneTitle.textContent = showcase.title;
           sceneDescription.textContent = showcase.description;
+          renderReadout(readoutPanel, showcase.readReadout?.());
+
+          const options = showcase.poseOptions;
+          poseField.row.hidden = options === undefined;
+          if (options && poseField.select.options.length !== options.length) {
+            poseField.select.replaceChildren();
+            for (const option of options) {
+              poseField.select.append(createOption(option.value, option.label));
+            }
+          }
         },
         onStatus(status) {
           phaseOutput.textContent = status.phase;
@@ -224,6 +298,9 @@ export function renderThreePreview(mount: HTMLElement): void {
   );
   resetButton.addEventListener("click", () => runtime.reset(), { signal: abortController.signal });
   sceneField.select.addEventListener("change", () => runtime.setScene(sceneField.select.value as PreviewSceneId), {
+    signal: abortController.signal,
+  });
+  poseField.select.addEventListener("change", () => runtime.setPose(poseField.select.value), {
     signal: abortController.signal,
   });
   speedField.select.addEventListener("change", () => runtime.setSpeed(Number(speedField.select.value)), {

@@ -2,6 +2,12 @@ import * as THREE from "three";
 
 export function disposeObject(root: THREE.Object3D): void {
   root.traverse((object) => {
+    if (object instanceof THREE.Sprite) {
+      object.material.map?.dispose();
+      object.material.dispose();
+      return;
+    }
+
     if (!(object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points)) {
       return;
     }
@@ -9,6 +15,9 @@ export function disposeObject(root: THREE.Object3D): void {
     object.geometry.dispose();
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     for (const material of materials) {
+      if ("map" in material && material.map instanceof THREE.Texture) {
+        material.map.dispose();
+      }
       material.dispose();
     }
   });

@@ -32,6 +32,22 @@ const BONE_COLOR = 0xd7c9a4;
 const DARK_BONE_COLOR = 0x9d8f70;
 const STEEL_COLOR = 0xc8d0d8;
 
+/**
+ * The sword's own axes, expressed in the hand bone's local space.
+ *
+ * The model is built with its blade along `+Y` and its edges along `±X` — the
+ * blade box is wider than it is thick — and it is then parented to the hand
+ * turned a quarter turn about `Z`, which maps `+Y` to `−X` and `+X` to `+Y`.
+ *
+ * Both axes are exported because orienting a sword needs both. Aiming the blade
+ * alone leaves the roll to whatever the shortest rotation arc happened to
+ * produce, and a longsword guard is partly defined by which way its edge faces:
+ * several of the fourteen share a hilt and a blade direction and are told apart
+ * by nothing else.
+ */
+export const SWORD_BLADE_AXIS = new THREE.Vector3(-1, 0, 0);
+export const SWORD_EDGE_AXIS = new THREE.Vector3(0, 1, 0);
+
 function segment(length: number, radius = 0.105, color = BONE_COLOR): THREE.Mesh {
   const mesh = new THREE.Mesh(
     new THREE.CylinderGeometry(radius * 0.72, radius, length, 7),
@@ -194,6 +210,12 @@ export class SkeletonSwordsman {
       attachPart(this.parts, this.getBone(footName), foot, footName, "lower", 0.25);
     }
 
+    for (const handName of ["leftHand", "rightHand"] as const) {
+      const hand = joint(0.12);
+      hand.scale.set(0.78, 1.15, 0.72);
+      attachPart(this.parts, this.getBone(handName), hand, handName, "upper", 0.12);
+    }
+
     if (options.sword !== false) {
       const sword = createSword();
       this.swordTip = sword.tip;
@@ -238,6 +260,21 @@ export class SkeletonSwordsman {
       throw new Error(`Skeleton bone not found: ${name}`);
     }
     return bone;
+  }
+
+  /**
+   * Where a bone sits before anything poses it.
+   *
+   * The body's own ruler is derived from these — arm length, leg length, the
+   * height a foot rests at — so the measurements a guard reports stay tied to
+   * the rig rather than to constants copied out of it.
+   */
+  restPosition(name: SkeletonBoneName): THREE.Vector3 {
+    const position = this.basePositions.get(name);
+    if (!position) {
+      throw new Error(`Skeleton bone not found: ${name}`);
+    }
+    return position.clone();
   }
 
   resetPose(): void {
