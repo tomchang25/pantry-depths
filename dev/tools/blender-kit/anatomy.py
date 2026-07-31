@@ -428,11 +428,14 @@ def skull(
     built: list[bpy.types.Object] = []
     unit = height
 
+    # A skull is read by three things and the rest is decoration: a dome, two dark holes, and a jaw
+    # line under them. The first version had eleven small boxes at eleven angles and read as gravel,
+    # because every one of them competed with those three.
     built.append(
         shaped_sphere(
             "Cranium",
-            tuple(base + Vector((0, -0.02 * unit, 0.66 * unit))),
-            (0.30 * unit, 0.33 * unit, 0.34 * unit),
+            tuple(base + Vector((0, -0.025 * unit, 0.605 * unit))),
+            (0.173 * unit, 0.192 * unit, 0.19 * unit),
             (0, 0, 0),
             assigned_material,
             rig,
@@ -441,11 +444,26 @@ def skull(
         )
     )
     built.append(
+        shaped_sphere(
+            "Occiput",
+            tuple(base + Vector((0, -0.115 * unit, 0.545 * unit))),
+            (0.125 * unit, 0.105 * unit, 0.125 * unit),
+            (0, 0, 0),
+            assigned_material,
+            rig,
+            bone_name,
+            "head",
+            subdivisions=1,
+        )
+    )
+    # The brow is one bar across both sockets, not a ridge per eye: it is the shadow line that tells
+    # a viewer at any distance which way the head is facing.
+    built.append(
         shaped_box(
             "BrowRidge",
-            tuple(base + Vector((0, 0.235 * unit, 0.60 * unit))),
-            (0.44 * unit, 0.13 * unit, 0.10 * unit),
-            (math.radians(-12), 0, 0),
+            tuple(base + Vector((0, 0.108 * unit, 0.535 * unit))),
+            (0.30 * unit, 0.10 * unit, 0.055 * unit),
+            (math.radians(-11), 0, 0),
             assigned_material,
             rig,
             bone_name,
@@ -455,10 +473,34 @@ def skull(
     built.append(
         shaped_box(
             "Maxilla",
-            tuple(base + Vector((0, 0.185 * unit, 0.34 * unit))),
-            (0.34 * unit, 0.20 * unit, 0.19 * unit),
+            tuple(base + Vector((0, 0.078 * unit, 0.325 * unit))),
+            (0.163 * unit, 0.135 * unit, 0.098 * unit),
             (0, 0, 0),
             assigned_material,
+            rig,
+            bone_name,
+            "head",
+        )
+    )
+    built.append(
+        shaped_box(
+            "Teeth",
+            tuple(base + Vector((0, 0.084 * unit, 0.268 * unit))),
+            (0.148 * unit, 0.118 * unit, 0.03 * unit),
+            (0, 0, 0),
+            socket_material,
+            rig,
+            bone_name,
+            "head",
+        )
+    )
+    built.append(
+        shaped_box(
+            "NasalAperture",
+            tuple(base + Vector((0, 0.118 * unit, 0.383 * unit))),
+            (0.055 * unit, 0.06 * unit, 0.085 * unit),
+            (0, 0, math.radians(45)),
+            socket_material,
             rig,
             bone_name,
             "head",
@@ -467,23 +509,12 @@ def skull(
 
     for sign in (-1, 1):
         side = "L" if sign < 0 else "R"
-        built.append(
-            shaped_box(
-                f"Zygomatic.{side}",
-                tuple(base + Vector((0.185 * sign * unit, 0.12 * unit, 0.44 * unit))),
-                (0.13 * unit, 0.20 * unit, 0.075 * unit),
-                (0, 0, math.radians(11 * sign)),
-                assigned_material,
-                rig,
-                bone_name,
-                "head",
-            )
-        )
+        # Deep and large. A shallow socket reads as a painted dot; the hole is the face.
         built.append(
             shaped_sphere(
                 f"EyeSocket.{side}",
-                tuple(base + Vector((0.125 * sign * unit, 0.175 * unit, 0.505 * unit))),
-                (0.115 * unit, 0.10 * unit, 0.125 * unit),
+                tuple(base + Vector((0.083 * sign * unit, 0.098 * unit, 0.452 * unit))),
+                (0.062 * unit, 0.06 * unit, 0.058 * unit),
                 (0, 0, 0),
                 socket_material,
                 rig,
@@ -492,13 +523,37 @@ def skull(
                 subdivisions=1,
             )
         )
-        # The jaw is two angled halves meeting at the chin, not a block.
         built.append(
             shaped_box(
-                f"Mandible.{side}",
-                tuple(base + Vector((0.115 * sign * unit, 0.075 * unit, 0.155 * unit))),
-                (0.085 * unit, 0.33 * unit, 0.14 * unit),
-                (0, 0, math.radians(-15 * sign)),
+                f"Zygomatic.{side}",
+                tuple(base + Vector((0.118 * sign * unit, 0.052 * unit, 0.372 * unit))),
+                (0.05 * unit, 0.135 * unit, 0.045 * unit),
+                (0, 0, math.radians(9 * sign)),
+                assigned_material,
+                rig,
+                bone_name,
+                "head",
+            )
+        )
+        # The jaw hangs as a rising branch behind and a bar forward, meeting at the chin.
+        built.append(
+            shaped_box(
+                f"MandibleRamus.{side}",
+                tuple(base + Vector((0.098 * sign * unit, -0.015 * unit, 0.305 * unit))),
+                (0.042 * unit, 0.065 * unit, 0.165 * unit),
+                (0, 0, 0),
+                assigned_material,
+                rig,
+                bone_name,
+                "head",
+            )
+        )
+        built.append(
+            shaped_box(
+                f"MandibleBody.{side}",
+                tuple(base + Vector((0.072 * sign * unit, 0.055 * unit, 0.228 * unit))),
+                (0.048 * unit, 0.165 * unit, 0.058 * unit),
+                (0, 0, math.radians(-13 * sign)),
                 assigned_material,
                 rig,
                 bone_name,
@@ -509,26 +564,13 @@ def skull(
     built.append(
         shaped_box(
             "Chin",
-            tuple(base + Vector((0, 0.20 * unit, 0.15 * unit))),
-            (0.20 * unit, 0.10 * unit, 0.13 * unit),
+            tuple(base + Vector((0, 0.112 * unit, 0.218 * unit))),
+            (0.112 * unit, 0.062 * unit, 0.068 * unit),
             (0, 0, 0),
             assigned_material,
             rig,
             bone_name,
             "head",
-        )
-    )
-    built.append(
-        shaped_sphere(
-            "NasalAperture",
-            tuple(base + Vector((0, 0.235 * unit, 0.40 * unit))),
-            (0.055 * unit, 0.06 * unit, 0.085 * unit),
-            (0, 0, 0),
-            socket_material,
-            rig,
-            bone_name,
-            "head",
-            subdivisions=1,
         )
     )
     return built

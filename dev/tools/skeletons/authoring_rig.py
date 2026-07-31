@@ -67,9 +67,9 @@ Point = tuple[float, float, float]
 # Tuned against the report below rather than reasoned about, because the kit scales a sphere by its
 # radius and a box by its full width, so a skull written in one set of fractions is twice the size
 # it reads as on paper. The number that matters is the heads-tall the report prints.
-HEAD_UNIT = 0.295
+HEAD_UNIT = 0.455
 UPPER_ARM = 0.382
-FOREARM = 0.367
+FOREARM = 0.335
 THIGH = 0.431
 SHIN = 0.421
 
@@ -210,6 +210,11 @@ def create_rig(table: dict[str, tuple[Point, Point]]) -> bpy.types.Object:
         # Blender would refuse to solve it.
         "grip.L": "sword",
         "grip.R": "sword",
+        # …and the sword hangs off the hips, so that lowering the body carries the weapon down with
+        # it. Left free, the first crouch dropped the skeleton out from under its own sword: the
+        # hips fell twenty centimetres, the blade stayed exactly where it was, and the pose read as
+        # a rig that could not bend rather than one that had.
+        "sword": "root",
     }
 
     for name, (head, tail) in table.items():
@@ -230,18 +235,27 @@ def create_rig(table: dict[str, tuple[Point, Point]]) -> bpy.types.Object:
         if parent:
             bone.parent = armature.edit_bones[parent]
 
+    # One bone above everything, on the floor, for moving the whole figure at once. Without it the
+    # only way to walk the skeleton across the scene is to drag the hips and then chase them with
+    # both feet.
+    control("ctrl_master", Vector((0, 0, 0)), Vector((0, 0.3, 0)))
+    armature.edit_bones["root"].parent = armature.edit_bones["ctrl_master"]
+
     for side, sign in (("L", -1), ("R", 1)):
         ankle = Vector(table[f"shin.{side}"][1])
-        control(f"ctrl_foot.{side}", ankle, ankle + Vector((0, 0.23, 0)))
+        control(f"ctrl_foot.{side}", ankle, ankle + Vector((0, 0.23, 0)), "ctrl_master")
 
         knee = Vector(table[f"thigh.{side}"][1])
-        control(f"pole_knee.{side}", knee + Vector((0, 0.55, 0)), knee + Vector((0, 0.55, 0.12)))
+        control(f"pole_knee.{side}", knee + Vector((0, 0.55, 0)), knee + Vector((0, 0.55, 0.12)), "ctrl_master")
 
+        # Elbow poles ride the chest rather than the floor, so turning the torso does not leave both
+        # elbows pointing where the body used to be.
         elbow = Vector(table[f"forearm.{side}"][0])
         control(
             f"pole_elbow.{side}",
             elbow + Vector((0.3 * sign, -0.45, -0.1)),
             elbow + Vector((0.3 * sign, -0.45, 0.02)),
+            "spine",
         )
 
     armature.edit_bones["sword"].use_deform = True
@@ -274,18 +288,26 @@ def create_body(rig: bpy.types.Object, table: dict[str, tuple[Point, Point]], as
     built.extend(pelvis(hips, assigned["bone"], rig, "root"))
     built.extend(skull(neck, HEAD_UNIT, assigned["bone"], assigned["socket"], rig, "head"))
 
-    built.append(
-        shaped_box(
-            "HelmetBand",
-            tuple(neck + Vector((0, -0.01 * HEAD_UNIT, 0.72 * HEAD_UNIT))),
-            (0.335 * HEAD_UNIT, 0.36 * HEAD_UNIT, 0.075 * HEAD_UNIT),
-            (0, 0, 0),
-            assigned["iron"],
-            rig,
-            "head",
-            "head",
+    # Cervical vertebrae. Without them the skull floats a hand's width clear of the ribs: the spine
+    # column stops at the chest and the jaw starts above it, and nothing was ever built across the
+    # gap — visible the moment anything was rendered close enough to see a face.
+    for index in range(3):
+        fraction = (index + 0.5) / 3
+        built.append(
+            shaped_box(
+                f"Cervical.{index}",
+                tuple(neck + Vector((0, -0.004, 0.10 * HEAD_UNIT * fraction * 2.1))),
+                (0.052, 0.05, 0.028),
+                (0, 0, 0),
+                assigned["bone"],
+                rig,
+                "head",
+                # Moves with the head bone, but counted as torso: tagged "head" it lands in the
+                # skull's own span and reported a head reaching down to the collarbones, which took
+                # the body from seven heads tall to five.
+                "torso",
+            )
         )
-    )
 
     limbs = (
         ("upper_arm.L", 0.030, "arm.L"),
@@ -507,7 +529,11 @@ def add_constraints(rig: bpy.types.Object, table: dict[str, tuple[Point, Point]]
         "pole_elbow.R": ("WGT.sphere", (1, 1, 1)),
         "grip.L": ("WGT.circle", (0.85, 0.85, 0.85)),
         "grip.R": ("WGT.circle", (0.85, 0.85, 0.85)),
-        "root": ("WGT.circle", (2.6, 2.6, 2.6)),
+        # The hip control is what a crouch is dragged by, so it is drawn as a cage around the pelvis
+        # rather than as a ring inside it. The ring version sat flat inside the hip bone and was
+        # invisible from the side, which is the angle a body is posed from.
+        "root": ("WGT.cube", (3.4, 2.2, 2.6)),
+        "ctrl_master": ("WGT.circle", (4.4, 4.4, 4.4)),
     }
 
     for bone_name, (widget, scale) in shapes.items():
@@ -521,7 +547,7 @@ def add_constraints(rig: bpy.types.Object, table: dict[str, tuple[Point, Point]]
         "Sword": ("THEME09", ("sword", "grip.L", "grip.R")),
         "Targets": ("THEME01", ("ctrl_foot.L", "ctrl_foot.R")),
         "Poles": ("THEME04", ("pole_elbow.L", "pole_elbow.R", "pole_knee.L", "pole_knee.R")),
-        "Body": ("THEME03", ("root", "spine", "head")),
+        "Body": ("THEME03", ("ctrl_master", "root", "spine", "head")),
     }
 
     for group_name, (colour, members) in groups.items():
