@@ -12,6 +12,7 @@ import "./three-preview.css";
 
 const SCENE_LABELS: Readonly<Record<PreviewSceneId, string>> = {
   altar: "Ritual altar",
+  "authored-swordsman": "Authored swordsman (Blender)",
   "bone-explosion": "Bone explosion",
   mortar: "Mortar impact",
   "skeleton-bisect": "Skeleton bisection",

@@ -1,6 +1,13 @@
 import type * as THREE from "three";
 
-export const PREVIEW_SCENE_IDS = ["sword-attack", "skeleton-bisect", "bone-explosion", "altar", "mortar"] as const;
+export const PREVIEW_SCENE_IDS = [
+  "authored-swordsman",
+  "sword-attack",
+  "skeleton-bisect",
+  "bone-explosion",
+  "altar",
+  "mortar",
+] as const;
 
 export type PreviewSceneId = (typeof PREVIEW_SCENE_IDS)[number];
 

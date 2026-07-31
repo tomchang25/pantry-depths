@@ -1,5 +1,6 @@
 import * as THREE from "three";
 
+import { AuthoredSwordsmanShowcase } from "./authored-swordsman";
 import { readBodyScale } from "./body-frame";
 import { guardFindings, guardRegister, measureGuard, type MeasuredGuard } from "./guard-metrics";
 import type {
@@ -554,6 +555,8 @@ class MortarShowcase extends BaseShowcase {
 
 export function createPreviewShowcase(id: PreviewSceneId): PreviewShowcase {
   switch (id) {
+    case "authored-swordsman":
+      return new AuthoredSwordsmanShowcase();
     case "sword-attack":
       return new SwordAttackShowcase();
     case "skeleton-bisect":

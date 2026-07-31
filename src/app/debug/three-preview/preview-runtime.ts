@@ -298,7 +298,10 @@ export class PreviewRuntime {
   }
 
   private applyCameraPreset(id: PreviewSceneId): void {
-    if (id === "sword-attack") {
+    if (id === "authored-swordsman") {
+      this.camera.position.set(1.9, 3.1, 5.9);
+      this.controls.target.set(0, 2.0, 0);
+    } else if (id === "sword-attack") {
       // Close, and framed on the guard rather than on the whole body. The arms
       // are thinner than the legs and the same colour as the ribs they cross,
       // so at a full-body distance a correctly solved arm is indistinguishable
