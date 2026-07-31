@@ -1,0 +1,1568 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pantry Depths — Structure 盤點</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f5f2;
+        --panel: #ffffff;
+        --panel-alt: #f0ece6;
+        --ink: #1c1a18;
+        --ink-soft: #5c554d;
+        --line: #ddd6cc;
+        --accent: #8a4b2a;
+        --accent-soft: #f3e4d8;
+        --drop: #a8632c;
+        --entity: #6c4a86;
+        --world: #2f6b62;
+        --warn: #9a3b2f;
+        --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Consolas", monospace;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #17151a;
+          --panel: #201d24;
+          --panel-alt: #26222b;
+          --ink: #ece7f0;
+          --ink-soft: #a49bab;
+          --line: #3a3441;
+          --accent: #e0a27a;
+          --accent-soft: #35272a;
+          --drop: #e0a27a;
+          --entity: #b79ad6;
+          --world: #79c8bb;
+          --warn: #e5836f;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0 1.25rem 6rem;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+        line-height: 1.7;
+        font-size: 16px;
+      }
+
+      main {
+        max-width: 68rem;
+        margin: 0 auto;
+      }
+
+      header.masthead {
+        padding: 3rem 0 1.5rem;
+        border-bottom: 3px double var(--line);
+        margin-bottom: 2rem;
+      }
+
+      header.masthead h1 {
+        margin: 0 0 0.35rem;
+        font-size: clamp(1.7rem, 4.5vw, 2.6rem);
+        letter-spacing: -0.01em;
+      }
+
+      header.masthead p {
+        margin: 0;
+        color: var(--ink-soft);
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem 1.5rem;
+        margin-top: 1rem;
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+        font-family: var(--mono);
+      }
+
+      h2 {
+        margin: 3.5rem 0 0.5rem;
+        font-size: 1.5rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h3 {
+        margin: 2.25rem 0 0.5rem;
+        font-size: 1.12rem;
+        color: var(--accent);
+      }
+
+      h4 {
+        margin: 1.5rem 0 0.4rem;
+        font-size: 0.98rem;
+      }
+
+      p {
+        margin: 0.6rem 0;
+      }
+
+      code,
+      .mono {
+        font-family: var(--mono);
+        font-size: 0.86em;
+        background: var(--panel-alt);
+        padding: 0.08em 0.35em;
+        border-radius: 3px;
+      }
+
+      a {
+        color: var(--accent);
+      }
+
+      .scroll {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 34rem;
+        font-size: 0.86rem;
+      }
+
+      caption {
+        text-align: left;
+        padding: 0.7rem 0.9rem;
+        font-weight: 700;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel-alt);
+      }
+
+      th,
+      td {
+        padding: 0.42rem 0.7rem;
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+        white-space: nowrap;
+      }
+
+      td.wrap,
+      th.wrap {
+        white-space: normal;
+        min-width: 14rem;
+      }
+
+      thead th {
+        background: var(--panel-alt);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        position: sticky;
+        top: 0;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      tbody tr:hover {
+        background: var(--accent-soft);
+      }
+
+      td.num {
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 0.82rem;
+      }
+
+      td.id {
+        font-family: var(--mono);
+        font-size: 0.8rem;
+      }
+
+      .note {
+        border-left: 3px solid var(--accent);
+        background: var(--panel);
+        padding: 0.75rem 1rem;
+        margin: 1.25rem 0;
+        border-radius: 0 5px 5px 0;
+      }
+
+      .note.warn {
+        border-left-color: var(--warn);
+      }
+
+      .note strong {
+        color: var(--accent);
+      }
+
+      .note.warn strong {
+        color: var(--warn);
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+        gap: 1rem;
+        margin: 1.25rem 0;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 0.9rem 1rem;
+        background: var(--panel);
+      }
+
+      .card h4 {
+        margin: 0 0 0.35rem;
+        font-size: 1rem;
+      }
+
+      .card p {
+        margin: 0.3rem 0 0;
+        font-size: 0.88rem;
+        color: var(--ink-soft);
+      }
+
+      .card.drop {
+        border-top: 4px solid var(--drop);
+      }
+
+      .card.entity {
+        border-top: 4px solid var(--entity);
+      }
+
+      .card.world {
+        border-top: 4px solid var(--world);
+      }
+
+      .tag {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--ink-soft);
+        white-space: nowrap;
+      }
+
+      .tag.drop {
+        border-color: var(--drop);
+        color: var(--drop);
+      }
+
+      .tag.entity {
+        border-color: var(--entity);
+        color: var(--entity);
+      }
+
+      .tag.world {
+        border-color: var(--world);
+        color: var(--world);
+      }
+
+      .tag.gap {
+        border-color: var(--warn);
+        color: var(--warn);
+      }
+
+      ul,
+      ol {
+        margin: 0.6rem 0;
+        padding-left: 1.4rem;
+      }
+
+      li {
+        margin: 0.25rem 0;
+      }
+
+      .toc {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 1rem 1.25rem;
+        margin: 2rem 0;
+      }
+
+      .toc ol {
+        margin: 0;
+        columns: 2;
+        column-gap: 2rem;
+      }
+
+      @media (max-width: 46rem) {
+        .toc ol {
+          columns: 1;
+        }
+      }
+
+      .chain {
+        font-family: var(--mono);
+        font-size: 0.82rem;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 0.9rem 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        margin: 1rem 0;
+      }
+
+      footer {
+        margin-top: 4rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--line);
+        color: var(--ink-soft);
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="masthead">
+        <h1>Pantry Depths — Structure 盤點</h1>
+        <p>掉落物、entity、立體結構三族的完整清單，以「structure」為未來統一稱呼。</p>
+        <div class="meta">
+          <span>快照日期：2026-07-31</span>
+          <span>基準 commit：ae83ce5</span>
+          <span>資料來源：<code>src/</code></span>
+        </div>
+      </header>
+
+      <div class="note">
+        <strong>這份文件的效力。</strong>
+        全部數值都是從 <code>src/</code> 逐檔抄下來的當日快照，沒有引用 <code>dev/docs/design/</code> 或
+        <code>dev/docs/reports/</code> 的任何既有文件。程式一動它就過期 —— 依專案的凍結目錄規則，日後
+        <em>不要</em>回頭改這份檔案讓它跟程式一致，需要新的就寫新的一份。要問「現在到底是幾」，權威永遠是程式碼。
+      </div>
+
+      <nav class="toc">
+        <ol>
+          <li><a href="#overview">structure 三族總覽</a></li>
+          <li><a href="#drop">Drop structures（掉落物）</a></li>
+          <li><a href="#drop-source">掉落來源</a></li>
+          <li><a href="#entity">Entity structures</a></li>
+          <li><a href="#world">World structures（立體）</a></li>
+          <li><a href="#naming">命名整併建議</a></li>
+        </ol>
+      </nav>
+
+      <h2 id="overview">1. structure 三族總覽</h2>
+
+      <p>
+        你說的三類在程式裡沒有共同的父型別，也沒有共同的詞。它們是三組彼此獨立的表，分散在三個層裡，靠
+        <code>PropKind</code> 與 <code>EnemyAppearanceId</code> 兩個 union 串起來。以下是各族的實際邊界。
+      </p>
+
+      <div class="cards">
+        <div class="card drop">
+          <h4>Drop / 掉落物</h4>
+          <p><span class="tag drop">PropKind</span> 13 種。躺在地上、能撿、能丟、能射。三張表分別管行為、重量、外觀。</p>
+        </div>
+        <div class="card entity">
+          <h4>Entity / 實體</h4>
+          <p>
+            <span class="tag entity">DemoArchetypeId</span> 7 種 demo 行為 ×
+            <span class="tag entity">EnemyAppearanceId</span> 10 種外觀 × 4 套骨骼圖集。另有一組 9 筆的舊表尚存。
+          </p>
+        </div>
+        <div class="card world">
+          <h4>World / 立體結構</h4>
+          <p>
+            沒有 3D 模型檔。是 <span class="tag world">RenderScene</span> 的 11 種繪製基元、8 種 tile kind、7 組
+            box 佈景、4 個 decor preset。
+          </p>
+        </div>
+      </div>
+
+      <h3>1.1 「3D model」在這個專案裡實際是什麼</h3>
+
+      <p>
+        專案裡沒有 mesh、沒有 glTF、沒有 voxel，渲染器是 <code>canvas-gameplay-renderer.ts</code> 的 raycaster。
+        因此「立體」是靠四種手段做出來的，四種各有自己的資料形狀：
+      </p>
+
+      <ul>
+        <li><strong>柱體幾何</strong>：<code>RenderBox</code>，軸對齊方盒，會被深度緩衝正確遮擋、逐面著色，繞著走輪廓會變。祭壇、樓梯、路障、迫擊砲都是一堆 box 疊出來的。</li>
+        <li><strong>軟體</strong>：<code>RenderBlob</code>，一疊會形變的環，用來畫史萊姆 —— 它不是圖片，所以能被壓扁、拉長、劈成兩半。</li>
+        <li><strong>看板</strong>：<code>RenderSprite</code>，永遠面向鏡頭的圖，三種擺法（billboard / ground / wall）。骷髏、掉落物、裝飾都走這條。</li>
+        <li><strong>牆與地板</strong>：不是物件，是逐像素從材質取樣的 <code>RenderSurface</code> / <code>RenderFloorMaterial</code> / <code>RenderFloorDecal</code>。</li>
+      </ul>
+
+      <h3>1.2 層與依賴方向</h3>
+
+      <div class="chain">src/core/        規則基元（grid、combat、run-state）
+     ▲
+src/content/     授權資料：PROP_KINDS、EnemyAppearanceId、骨骼圖集、decor preset、三張 JSON 表
+     ▲                              ▲
+src/demo/        行為表：throw-weight、enemy-archetypes、maze、world
+     ▲
+src/presentation/ 繪製語彙：RenderScene 型別 + raycaster</div>
+
+      <div class="note">
+        <strong>一個刻意的倒掛。</strong>
+        <code>PROP_KINDS</code> 這個「有哪些掉落物」的清單住在 <code>src/content/presentation/prop-display-schema.ts</code>，
+        而不是住在使用它的 <code>src/demo/throw-weight.ts</code> 旁邊。原因是層規則：<code>content</code> 只能 import
+        <code>content</code> 與 <code>core</code>，驗證器沒辦法往上抓 demo 的 union。所以清單放下層、demo 用
+        <code>type DemoPropKind = PropKind</code> 別名接回來 —— 這是唯一能保證「新增一種掉落物就一定得補顯示列，否則編不過」的排法。
+      </div>
+
+      <h2 id="drop">2. Drop structures（掉落物）</h2>
+
+      <p>
+        13 種。每一種在三張表裡各占一列，缺任何一列都是編譯期或載入期錯誤。權威檔案：
+        <code>src/demo/throw-weight.ts</code>（行為＋重量）、
+        <code>src/content/presentation/prop-display.json</code>（外觀）、
+        <code>src/demo/actions.ts</code>（顯示名稱）。
+      </p>
+
+      <h3>2.1 行為表</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>PROP_BEHAVIOURS — 怎麼用、飛行中做什麼、落地做什麼、留下什麼</caption>
+          <thead>
+            <tr>
+              <th>kind</th>
+              <th>顯示名</th>
+              <th>use</th>
+              <th>counts</th>
+              <th>flightHit</th>
+              <th class="num">capacity</th>
+              <th>landing</th>
+              <th class="num">wallDmg</th>
+              <th>leaves</th>
+              <th>form</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">stick</td>
+              <td>Stakes</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>skewer</td>
+              <td class="num">1</td>
+              <td>pin</td>
+              <td class="num">2</td>
+              <td>—</td>
+              <td>rod</td>
+            </tr>
+            <tr>
+              <td class="id">rock</td>
+              <td>Rocks</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>stop</td>
+              <td class="num">1</td>
+              <td>burst</td>
+              <td class="num">4</td>
+              <td>—</td>
+              <td>billboard</td>
+            </tr>
+            <tr>
+              <td class="id">bomb</td>
+              <td>Bombs</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>stop</td>
+              <td class="num">1</td>
+              <td>detonate</td>
+              <td class="num">2</td>
+              <td>—</td>
+              <td>billboard</td>
+            </tr>
+            <tr>
+              <td class="id">hammer</td>
+              <td>Hammer</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td><strong>reap</strong></td>
+              <td class="num">3</td>
+              <td>spend</td>
+              <td class="num">4</td>
+              <td>—</td>
+              <td>rod</td>
+            </tr>
+            <tr>
+              <td class="id">skeletonSword</td>
+              <td>Skeleton Sword</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>cleave</td>
+              <td class="num">3</td>
+              <td>spend</td>
+              <td class="num">3</td>
+              <td class="id">skeletonSword</td>
+              <td>rod</td>
+            </tr>
+            <tr>
+              <td class="id">skeletonSkull</td>
+              <td>Skull</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>stop</td>
+              <td class="num">1</td>
+              <td>burst</td>
+              <td class="num">2</td>
+              <td>—</td>
+              <td>tumbling</td>
+            </tr>
+            <tr>
+              <td class="id">skeletonFemur</td>
+              <td>Femur</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>stop</td>
+              <td class="num">1</td>
+              <td>strike</td>
+              <td class="num">2</td>
+              <td class="id">skeletonFemurCracked</td>
+              <td>tumbling</td>
+            </tr>
+            <tr>
+              <td class="id">skeletonFemurCracked</td>
+              <td>Cracked Femur</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>stop</td>
+              <td class="num">1</td>
+              <td>strike</td>
+              <td class="num">1</td>
+              <td>—</td>
+              <td>tumbling</td>
+            </tr>
+            <tr>
+              <td class="id">skeletonJavelin</td>
+              <td>Skeleton Javelin</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>skewer</td>
+              <td class="num">3</td>
+              <td>pin</td>
+              <td class="num">2</td>
+              <td class="id">skeletonJavelinCracked</td>
+              <td>rod</td>
+            </tr>
+            <tr>
+              <td class="id">skeletonJavelinCracked</td>
+              <td>Bent Javelin</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>skewer</td>
+              <td class="num">3</td>
+              <td>pin</td>
+              <td class="num">1</td>
+              <td>—</td>
+              <td>rod</td>
+            </tr>
+            <tr>
+              <td class="id">crossbow</td>
+              <td>Bone Crossbow</td>
+              <td><strong>shoot</strong></td>
+              <td><strong>charges</strong></td>
+              <td>stop</td>
+              <td class="num">1</td>
+              <td>spend</td>
+              <td class="num">1</td>
+              <td>— <span class="tag">spends → crossbowSpent</span></td>
+              <td>billboard</td>
+            </tr>
+            <tr>
+              <td class="id">crossbowSpent</td>
+              <td>Spent Crossbow</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>cleave</td>
+              <td class="num">3</td>
+              <td>spend</td>
+              <td class="num">2</td>
+              <td>—</td>
+              <td>rod</td>
+            </tr>
+            <tr>
+              <td class="id">crossbowBolt</td>
+              <td>Bolt</td>
+              <td>throw</td>
+              <td>objects</td>
+              <td>stop</td>
+              <td class="num">1</td>
+              <td>strike</td>
+              <td class="num">1</td>
+              <td>—</td>
+              <td>rod</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>各欄位的語意：</p>
+
+      <div class="scroll">
+        <table>
+          <caption>行為欄位的值域</caption>
+          <thead>
+            <tr>
+              <th>欄位</th>
+              <th>值</th>
+              <th class="wrap">意思</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id" rowspan="2">use</td>
+              <td class="id">throw</td>
+              <td class="wrap">手裡的東西本身飛出去</td>
+            </tr>
+            <tr>
+              <td class="id">shoot</td>
+              <td class="wrap">扣扳機，飛出去的不是手裡的東西，手裡的東西還在</td>
+            </tr>
+            <tr>
+              <td class="id" rowspan="2">counts</td>
+              <td class="id">objects</td>
+              <td class="wrap">count 是幾個物件（地上畫幾個）</td>
+            </tr>
+            <tr>
+              <td class="id">charges</td>
+              <td class="wrap">count 是同一個物件裡剩幾發</td>
+            </tr>
+            <tr>
+              <td class="id" rowspan="4">flightHit</td>
+              <td class="id">stop</td>
+              <td class="wrap">撞到第一個東西就停</td>
+            </tr>
+            <tr>
+              <td class="id">skewer</td>
+              <td class="wrap">串起來帶著飛，最多 capacity 個，全部釘在終點</td>
+            </tr>
+            <tr>
+              <td class="id">cleave</td>
+              <td class="wrap">切穿，最多 capacity 個</td>
+            </tr>
+            <tr>
+              <td class="id">reap</td>
+              <td class="wrap">屍體不算數：無視血量殺穿全部，改用「打穿幾面牆」計費（唯一：hammer）</td>
+            </tr>
+            <tr>
+              <td class="id" rowspan="5">landing</td>
+              <td class="id">spend</td>
+              <td class="wrap">停在那裡（配合 leaves 決定地上有沒有東西）</td>
+            </tr>
+            <tr>
+              <td class="id">burst</td>
+              <td class="wrap">碎掉，噴碎屑</td>
+            </tr>
+            <tr>
+              <td class="id">detonate</td>
+              <td class="wrap">爆炸，範圍傷害</td>
+            </tr>
+            <tr>
+              <td class="id">pin</td>
+              <td class="wrap">把串著的屍體釘在落點</td>
+            </tr>
+            <tr>
+              <td class="id">strike</td>
+              <td class="wrap">全部力道打進撞到的那一個</td>
+            </tr>
+            <tr>
+              <td class="id" rowspan="3">form</td>
+              <td class="id">billboard</td>
+              <td class="wrap">飛行中畫成面向鏡頭的圖</td>
+            </tr>
+            <tr>
+              <td class="id">tumbling</td>
+              <td class="wrap">同上但會自轉（<code>RenderSprite.spin</code>）</td>
+            </tr>
+            <tr>
+              <td class="id">rod</td>
+              <td class="wrap">畫成 <code>RenderBeam</code>，兩端投影，朝鏡頭飛會縮成一截</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>2.2 重量表</h3>
+
+      <p>
+        重量是一整筆記錄而不是一個數字，因為「重」在這個遊戲裡是八個可見的量一起講出來的。<code>plunge</code>
+        是唯一被允許改變飛行形狀的旋鈕 —— 它不動起點也不動落點，只動「高度花在哪一段」。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>PROP_WEIGHTS</caption>
+          <thead>
+            <tr>
+              <th>kind</th>
+              <th class="num">speed<br /><small>cell/s</small></th>
+              <th class="num">range<br /><small>cell</small></th>
+              <th>lobbed</th>
+              <th class="num">drag</th>
+              <th class="num">plunge</th>
+              <th class="num">recoil</th>
+              <th class="num">thud</th>
+              <th class="num">carrySlow</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">stick</td><td class="num">22</td><td class="num">40</td><td>否</td><td class="num">0</td><td class="num">1</td><td class="num">0.12</td><td class="num">0.1</td><td class="num">1</td></tr>
+            <tr><td class="id">skeletonJavelin</td><td class="num">22</td><td class="num">40</td><td>否</td><td class="num">0</td><td class="num">1</td><td class="num">0.16</td><td class="num">0.14</td><td class="num">1</td></tr>
+            <tr><td class="id">skeletonJavelinCracked</td><td class="num">22</td><td class="num">40</td><td>否</td><td class="num">0</td><td class="num">1</td><td class="num">0.16</td><td class="num">0.14</td><td class="num">1</td></tr>
+            <tr><td class="id">crossbowBolt</td><td class="num">30</td><td class="num">40</td><td>否</td><td class="num">0</td><td class="num">1</td><td class="num">0.1</td><td class="num">0.08</td><td class="num">1</td></tr>
+            <tr><td class="id">crossbow</td><td class="num">12</td><td class="num">6</td><td>是</td><td class="num">0.5</td><td class="num">0.9</td><td class="num">0.5</td><td class="num">0.6</td><td class="num">0.92</td></tr>
+            <tr><td class="id">crossbowSpent</td><td class="num">14</td><td class="num">7</td><td>否</td><td class="num">0.2</td><td class="num">1</td><td class="num">0.5</td><td class="num">0.6</td><td class="num">0.92</td></tr>
+            <tr><td class="id">rock</td><td class="num">14</td><td class="num">8</td><td>是</td><td class="num">0.1</td><td class="num">1.15</td><td class="num">0.2</td><td class="num">0.35</td><td class="num">1</td></tr>
+            <tr><td class="id">bomb</td><td class="num">12</td><td class="num">9</td><td>是</td><td class="num">0.08</td><td class="num">1.1</td><td class="num">0.15</td><td class="num">0.2</td><td class="num">1</td></tr>
+            <tr><td class="id">hammer</td><td class="num">16</td><td class="num">10</td><td>否</td><td class="num">0.04</td><td class="num">1</td><td class="num">0.22</td><td class="num">0.25</td><td class="num">0.96</td></tr>
+            <tr><td class="id">skeletonSword</td><td class="num">15</td><td class="num">8.5</td><td>否</td><td class="num">0.22</td><td class="num">1</td><td class="num">0.2</td><td class="num">0.32</td><td class="num">0.97</td></tr>
+            <tr><td class="id">skeletonSkull</td><td class="num">12</td><td class="num">7</td><td>是</td><td class="num">0.18</td><td class="num">1.05</td><td class="num">0.24</td><td class="num">0.42</td><td class="num">0.98</td></tr>
+            <tr><td class="id">skeletonFemur</td><td class="num">17</td><td class="num">10</td><td>是</td><td class="num">0.08</td><td class="num">0.98</td><td class="num">0.18</td><td class="num">0.28</td><td class="num">0.98</td></tr>
+            <tr><td class="id">skeletonFemurCracked</td><td class="num">15</td><td class="num">7</td><td>是</td><td class="num">0.16</td><td class="num">0.98</td><td class="num">0.14</td><td class="num">0.22</td><td class="num">0.99</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        身體也走同一張重量結構，但每個 archetype 自己帶一列（見
+        <a href="#entity">第 4 節</a>）。丟失 payload 的投擲會落到 <code>DEFAULT_BODY_WEIGHT</code>，也就是藍史萊姆那筆：
+        <span class="mono">speed 9 / range 4.5 / lobbed / drag 0.55 / plunge 0.82 / recoil 0.9 / thud 1 / carrySlow 0.82</span>。
+      </p>
+
+      <h3>2.3 顯示表</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>prop-display.json — 授權於 Prop Workbench，經 authoring endpoint 存回</caption>
+          <thead>
+            <tr>
+              <th>kind</th>
+              <th class="num">floorScale</th>
+              <th class="num">floorAnchor</th>
+              <th class="num">handScale</th>
+              <th class="num">handRotation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">stick</td><td class="num">0.5</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">rock</td><td class="num">0.42</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">bomb</td><td class="num">0.4</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">hammer</td><td class="num">0.5</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">skeletonSword</td><td class="num">0.58</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">skeletonSkull</td><td class="num">0.42</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">skeletonFemur</td><td class="num">0.48</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">skeletonFemurCracked</td><td class="num">0.4</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">skeletonJavelin</td><td class="num">0.62</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">skeletonJavelinCracked</td><td class="num">0.6</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">crossbow</td><td class="num">0.54</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">crossbowSpent</td><td class="num">0.54</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+            <tr><td class="id">crossbowBolt</td><td class="num">0.4</td><td class="num">0.28</td><td class="num">1</td><td class="num">-0.18</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <strong>三個可見的缺口。</strong>
+        <span class="tag gap">未授權</span>
+        <ul>
+          <li>
+            <code>floorAnchor</code> 十三列全是 <code>0.28</code>、<code>handScale</code> 全是 <code>1</code>、
+            <code>handRotation</code> 全是 <code>-0.18</code>。欄位是為了「炸彈躺在土裡、木樁斜靠著」才拆出來的，
+            但沒有任何一列真的被調過 —— 目前只有 <code>floorScale</code> 在做事。
+          </li>
+          <li>
+            掉落物有三個被畫出來的情境：地上、手上、<strong>飛行中</strong>。飛行中那一組沒有授權表，
+            數值仍寫死在場景裡。註解說這是刻意的：在有預覽可看之前不要盲調。
+          </li>
+          <li>
+            <code>crossbowBolt</code> 永遠不會躺在地上（既不掉落也不能撿），但仍占滿三張表的三列。這不是錯，
+            是 union 完整性換來的代價。
+          </li>
+        </ul>
+      </div>
+
+      <h3>2.4 磨損鏈</h3>
+
+      <p>
+        耐久度沒有欄位，整件事只用 <code>leaves</code> 一欄表達：丟出去之後地上出現的是「下一階」。手上的圖就是剩餘次數。
+      </p>
+
+      <div class="chain">skeletonFemur   ──丟──▶ skeletonFemurCracked ──丟──▶ （無）        兩次用完
+skeletonJavelin ──丟──▶ skeletonJavelinCracked ──丟──▶（無）      兩次用完
+skeletonSword   ──丟──▶ skeletonSword                             永不磨損，代價是走回去撿
+crossbow  ──射 3 發──▶ crossbowSpent（在手上，spends）──丟──▶（無）
+rock / bomb / stick / skull / bolt ──▶（無）                       一次性</div>
+
+      <h2 id="drop-source">3. 掉落來源</h2>
+
+      <p>整層樓的掉落物只有四個來源，沒有第五個。</p>
+
+      <div class="scroll">
+        <table>
+          <caption>掉落來源與機率</caption>
+          <thead>
+            <tr>
+              <th class="wrap">來源</th>
+              <th>條件</th>
+              <th>產出</th>
+              <th class="num">count</th>
+              <th class="wrap">出處</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="wrap">開場散落</td>
+              <td>每層建立時</td>
+              <td class="id">stick ×4 處 / rock ×5 處 / bomb ×2 處</td>
+              <td class="num">3</td>
+              <td class="wrap"><code>world.ts</code> <span class="mono">LOOSE_PROPS</span></td>
+            </tr>
+            <tr>
+              <td class="wrap">破牆</td>
+              <td>20%</td>
+              <td class="id">木牆 → stick、石牆 → rock</td>
+              <td class="num">3</td>
+              <td class="wrap"><code>actions.ts</code> <span class="mono">WALL_DROP_CHANCE</span></td>
+            </tr>
+            <tr>
+              <td class="wrap">骸骨表</td>
+              <td>roll &lt; 0.3</td>
+              <td class="id">skeletonSkull</td>
+              <td class="num">1</td>
+              <td class="wrap"><code>world.ts</code> <span class="mono">BONE_DROPS</span></td>
+            </tr>
+            <tr>
+              <td class="wrap">骸骨表</td>
+              <td>0.3 ≤ roll &lt; 0.5</td>
+              <td class="id">skeletonFemur</td>
+              <td class="num">1</td>
+              <td class="wrap">同上</td>
+            </tr>
+            <tr>
+              <td class="wrap">武器庫</td>
+              <td>0.5 ≤ roll &lt; 0.6</td>
+              <td class="id">依外觀：見下表</td>
+              <td class="num">1 或 3</td>
+              <td class="wrap"><code>world.ts</code> <span class="mono">SKELETON_ARMOURY</span></td>
+            </tr>
+            <tr>
+              <td class="wrap">（無）</td>
+              <td>roll ≥ 0.6</td>
+              <td>什麼都沒有 —— 十具屍體有四具空手</td>
+              <td class="num">—</td>
+              <td class="wrap">同上</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="scroll">
+        <table>
+          <caption>SKELETON_ARMOURY — 身上帶什麼由外觀決定，因為武器是畫進圖裡的</caption>
+          <thead>
+            <tr>
+              <th>appearance</th>
+              <th>掉落</th>
+              <th class="num">count</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">skeletonSwordsman</td><td class="id">skeletonSword</td><td class="num">1</td></tr>
+            <tr><td class="id">skeletonHammerman</td><td class="id">hammer</td><td class="num">1</td></tr>
+            <tr><td class="id">skeletonJavelineer</td><td class="id">skeletonJavelin</td><td class="num">1</td></tr>
+            <tr><td class="id">skeletonCrossbowman</td><td class="id">crossbow</td><td class="num">3 <span class="tag">charges</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <strong>史萊姆不掉東西。</strong>
+        整段擲骰包在 <code>if (isBoned(...))</code> 裡，軟體直接跳過。所以整層樓的武器只有兩個來源：拿著武器的東西，
+        以及牆。落點若在不可走的格子上（例如死在牆裡）也不產出。
+      </div>
+
+      <h2 id="entity">4. Entity structures</h2>
+
+      <p>
+        Entity 被拆成三個彼此獨立的軸，任何一軸都能單獨換：<strong>行為</strong>（<code>DemoArchetypeId</code>，7 種）、
+        <strong>外觀</strong>（<code>EnemyAppearanceId</code>，10 種）、<strong>骨骼型</strong>（<code>SkeletonTypeId</code>，4 種，
+        決定手上是哪把武器的圖集）。
+      </p>
+
+      <h3>4.1 Demo archetype 主表</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>ENEMY_ARCHETYPES（src/demo/enemy-archetypes.ts）—— 這是實際在跑的七隻</caption>
+          <thead>
+            <tr>
+              <th>id</th>
+              <th>名稱</th>
+              <th>body</th>
+              <th class="num">HP</th>
+              <th class="num">speed</th>
+              <th class="num">rushSpeed</th>
+              <th class="num">rushDist</th>
+              <th class="num">cooldown</th>
+              <th class="num">windup</th>
+              <th>intent</th>
+              <th class="num">damage</th>
+              <th class="num">reach</th>
+              <th class="num">turnRate</th>
+              <th>band</th>
+              <th class="num">footprint</th>
+              <th class="num">drag</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">slimeGreen</td><td>Green Slime</td><td>soft</td>
+              <td class="num">40</td><td class="num">1.9</td><td class="num">2.6</td><td class="num">5</td>
+              <td class="num">—</td><td class="num">—</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td>
+              <td class="mono">0 / 0.8</td><td class="num">0.22</td><td class="num">0.18</td>
+            </tr>
+            <tr>
+              <td class="id">slimeBlue</td><td>Blue Slime</td><td>soft</td>
+              <td class="num">60</td><td class="num">1.9</td><td class="num">2.6</td><td class="num">5</td>
+              <td class="num">—</td><td class="num">—</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td>
+              <td class="mono">0 / 0.8</td><td class="num">0.3</td><td class="num">0.25</td>
+            </tr>
+            <tr>
+              <td class="id">slimeRed</td><td>Red Slime</td><td>soft</td>
+              <td class="num">80</td><td class="num">1.9</td><td class="num">2.6</td><td class="num">5</td>
+              <td class="num">—</td><td class="num">—</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td>
+              <td class="mono">0 / 0.8</td><td class="num">0.38</td><td class="num">0.35</td>
+            </tr>
+            <tr>
+              <td class="id">swordsman</td><td>Skeleton Swordsman</td><td>boned</td>
+              <td class="num">120</td><td class="num">1.65</td><td class="num">2.35</td><td class="num">4.5</td>
+              <td class="num">1.8</td><td class="num">1</td><td>melee</td><td class="num">16</td><td class="num">0.95</td><td class="num">4.4</td>
+              <td class="mono">0.808 / 0.95</td><td class="num">—</td><td class="num">—</td>
+            </tr>
+            <tr>
+              <td class="id">hammerman</td><td>Skeleton Hammer-bearer</td><td>boned</td>
+              <td class="num">120</td><td class="num">1.8</td><td class="num">2.2</td><td class="num">5</td>
+              <td class="num">3.5</td><td class="num">3</td><td>charge</td><td class="num">6</td><td class="num">0.86</td><td class="num">3.2</td>
+              <td class="mono">0.731 / 0.86</td><td class="num">—</td><td class="num">—</td>
+            </tr>
+            <tr>
+              <td class="id">javelineer</td><td>Skeleton Javelineer</td><td>boned</td>
+              <td class="num">60</td><td class="num">1.7</td><td class="num">1.7</td><td class="num">0</td>
+              <td class="num">0</td><td class="num">3</td><td>shoot</td><td class="num">—</td><td class="num">—</td><td class="num">4.4</td>
+              <td class="mono">2 / 4</td><td class="num">—</td><td class="num">—</td>
+            </tr>
+            <tr>
+              <td class="id">crossbowman</td><td>Skeleton Crossbowman</td><td>boned</td>
+              <td class="num">60</td><td class="num">1.7</td><td class="num">1.7</td><td class="num">0</td>
+              <td class="num">0</td><td class="num">3</td><td>shoot</td><td class="num">—</td><td class="num">—</td><td class="num">4.4</td>
+              <td class="mono">4 / 8</td><td class="num">—</td><td class="num">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        「—」是欄位<em>不存在</em>，不是零。史萊姆整組攻擊欄位都省略，那個缺席就是牠：牠付出的代價是位置而不是血量，
+        所以沒有任何分支能讓牠進入攻擊狀態、停下腳步。近戰的 band 是從 <code>contactRange × 0.85</code> 推的，
+        兩者不可能對不上。
+      </p>
+
+      <h4>射擊參數</h4>
+
+      <div class="scroll">
+        <table>
+          <caption>shot —— 兩個遠程型的差別全在這四個數字與 band</caption>
+          <thead>
+            <tr><th>id</th><th class="num">speed</th><th class="num">damage</th><th class="num">range</th><th class="num">knockback</th><th class="wrap">意圖</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">javelineer</td><td class="num">6</td><td class="num">18</td><td class="num">6</td><td class="num">3.5</td>
+              <td class="wrap">4 格是走得到的距離；答案是「衝上去」</td>
+            </tr>
+            <tr>
+              <td class="id">crossbowman</td><td class="num">8</td><td class="num">12</td><td class="num">12</td><td class="num">0</td>
+              <td class="wrap">8 格是一個房間外；答案是掩體或那段路</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>身體重量（可被撿起與丟出時）</h4>
+
+      <div class="scroll">
+        <table>
+          <caption>archetype 自帶的 DemoThrowWeight</caption>
+          <thead>
+            <tr>
+              <th>套用於</th><th>常數</th>
+              <th class="num">speed</th><th class="num">range</th><th>lobbed</th>
+              <th class="num">drag</th><th class="num">plunge</th><th class="num">recoil</th><th class="num">thud</th><th class="num">carrySlow</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">slimeGreen / javelineer / crossbowman</td><td class="id">LIGHT_BODY_WEIGHT</td>
+              <td class="num">10</td><td class="num">5.2</td><td>是</td><td class="num">0.42</td><td class="num">0.88</td><td class="num">0.68</td><td class="num">0.8</td><td class="num">0.88</td>
+            </tr>
+            <tr>
+              <td class="id">slimeBlue</td><td class="id">DEFAULT_BODY_WEIGHT</td>
+              <td class="num">9</td><td class="num">4.5</td><td>是</td><td class="num">0.55</td><td class="num">0.82</td><td class="num">0.9</td><td class="num">1</td><td class="num">0.82</td>
+            </tr>
+            <tr>
+              <td class="id">slimeRed / hammerman</td><td class="id">HEAVY_BODY_WEIGHT</td>
+              <td class="num">7.5</td><td class="num">3.6</td><td>是</td><td class="num">0.7</td><td class="num">0.74</td><td class="num">1.15</td><td class="num">1.25</td><td class="num">0.74</td>
+            </tr>
+            <tr>
+              <td class="id">swordsman</td><td class="id">（內聯）</td>
+              <td class="num">7.2</td><td class="num">3.4</td><td>是</td><td class="num">0.72</td><td class="num">0.76</td><td class="num">1.2</td><td class="num">1.3</td><td class="num">0.7</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <strong>能不能撿由材質決定，不是旗標。</strong>
+        <code>canCarry()</code> 直接回 <code>body === "soft"</code>。所以四隻骷髏全部帶著重量表卻永遠撿不起來 ——
+        那些數字只有在被 <em>當成投擲物打到別人</em> 的路徑上才有機會被讀到。這是刻意的：日後新增的骷髏不可能因為忘了設旗標而變成可撿。
+      </div>
+
+      <h3>4.2 外觀與繪製數值</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>entity-display.json × 繪製管線 —— 授權於 Entity Workbench</caption>
+          <thead>
+            <tr>
+              <th>appearanceId</th>
+              <th>畫法</th>
+              <th class="num">bodyScale</th>
+              <th class="num">markerOffset</th>
+              <th class="num">markerScale</th>
+              <th class="num">markerSwell</th>
+              <th class="wrap">被誰使用</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">greenSlime</td><td>RenderBlob</td><td class="num">0.3</td><td class="num">0.08</td><td class="num">0.44</td><td class="num">0.3</td><td class="wrap">slimeGreen</td></tr>
+            <tr><td class="id">yellowSlime</td><td>RenderBlob</td><td class="num">0.46</td><td class="num">0.08</td><td class="num">0.44</td><td class="num">0.3</td><td class="wrap">demo 未使用</td></tr>
+            <tr><td class="id">blueSlime</td><td>RenderBlob</td><td class="num">0.42</td><td class="num">0.08</td><td class="num">0.44</td><td class="num">0.3</td><td class="wrap">slimeBlue</td></tr>
+            <tr><td class="id">redSlime</td><td>RenderBlob</td><td class="num">0.56</td><td class="num">0.08</td><td class="num">0.44</td><td class="num">0.3</td><td class="wrap">slimeRed</td></tr>
+            <tr><td class="id">purpleSlime</td><td>RenderBlob</td><td class="num">0.46</td><td class="num">0.08</td><td class="num">0.44</td><td class="num">0.3</td><td class="wrap">demo 未使用</td></tr>
+            <tr><td class="id">skeletonSwordsman</td><td>圖集 sprite</td><td class="num">0.755</td><td class="num">-0.015</td><td class="num">0.2</td><td class="num">0.065</td><td class="wrap">swordsman</td></tr>
+            <tr><td class="id">skeletonHammerman</td><td>圖集 sprite</td><td class="num">0.755</td><td class="num">-0.015</td><td class="num">0.2</td><td class="num">0.065</td><td class="wrap">hammerman</td></tr>
+            <tr><td class="id">skeletonJavelineer</td><td>圖集 sprite</td><td class="num">0.755</td><td class="num">-0.015</td><td class="num">0.2</td><td class="num">0.065</td><td class="wrap">javelineer</td></tr>
+            <tr><td class="id">skeletonCrossbowman</td><td>圖集 sprite</td><td class="num">0.755</td><td class="num">-0.015</td><td class="num">0.2</td><td class="num">0.065</td><td class="wrap">crossbowman</td></tr>
+            <tr><td class="id">placeholder</td><td>單張 PNG</td><td class="num">0.46</td><td class="num">0.08</td><td class="num">0.44</td><td class="num">0.3</td><td class="wrap">舊表的 bat/goblin/guard</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        <code>markerOffset</code> 為負是刻意的取捨，不是打錯：正值把預警標記浮在頭上，負值把它壓進身體。
+        高個子頭上的標記在「這東西已經有危險」的距離會離開畫面，所以往下壓是用剪影乾淨度換可見度 ——
+        Entity Workbench 旁邊有距離滑桿就是為了這個判斷。
+      </p>
+
+      <div class="note warn">
+        <strong>bodyScale 只有骷髏在讀。</strong>
+        軟體的尺寸來自自己的 profile（radius / height / colour 一起），不走這張表。五筆史萊姆的
+        <code>bodyScale</code> 目前是躺著的資料。
+      </div>
+
+      <h3>4.3 骨骼圖集</h3>
+
+      <p>
+        四型 × 七個動作 = 28 張私有圖集，加上五張共用死亡圖集，共 33 張。四型之間<strong>沒有共用任何動作</strong>：
+        武器是畫進身體的，共用一套走路會讓拿鎚的骷髏手上長出劍。共用的只有「怎麼倒下」。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>SKELETON_ACTIONS —— 每型各一份，frames / fps / loop 四型相同</caption>
+          <thead>
+            <tr><th>action</th><th class="num">frames</th><th class="num">directions</th><th class="num">fps</th><th>loop</th><th class="wrap">說什麼</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">idle</td><td class="num">4</td><td class="num">8</td><td class="num">7</td><td>是</td><td class="wrap">站著</td></tr>
+            <tr><td class="id">walk</td><td class="num">4</td><td class="num">8</td><td class="num">10</td><td>是</td><td class="wrap">移動</td></tr>
+            <tr><td class="id">hurt</td><td class="num">4</td><td class="num">8</td><td class="num">14</td><td>否</td><td class="wrap">吃到一下</td></tr>
+            <tr><td class="id">stunned</td><td class="num">4</td><td class="num">8</td><td class="num">8</td><td>是</td><td class="wrap">倒地不起</td></tr>
+            <tr><td class="id">windup</td><td class="num">4</td><td class="num">8</td><td class="num">9</td><td>否</td><td class="wrap">閃開</td></tr>
+            <tr><td class="id">strike</td><td class="num">4</td><td class="num">8</td><td class="num">12</td><td>否</td><td class="wrap">來不及了</td></tr>
+            <tr><td class="id">recovery</td><td class="num">4</td><td class="num">8</td><td class="num">10</td><td>否</td><td class="wrap">現在是白打的窗口</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="scroll">
+        <table>
+          <caption>SKELETON_DEATH_ANIMATIONS —— 四型共用一份</caption>
+          <thead>
+            <tr><th>clip</th><th class="num">frames</th><th class="num">fps</th><th>由哪個 DemoDeathCause 觸發</th><th class="wrap">為什麼是這個長度</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">collapse</td><td class="num">8</td><td class="num">10</td><td class="id">slain</td><td class="wrap">玩家會從頭看到尾</td></tr>
+            <tr><td class="id">drowning</td><td class="num">8</td><td class="num">10</td><td class="id">drowned</td><td class="wrap">同上</td></tr>
+            <tr><td class="id">cleaved</td><td class="num">4</td><td class="num">8</td><td class="id">cleaved</td><td class="wrap">從完整到裂開</td></tr>
+            <tr><td class="id">slammed</td><td class="num">1</td><td class="num">1</td><td class="id">splattered</td><td class="wrap">撞進石牆的身體不會再動</td></tr>
+            <tr><td class="id">impaled</td><td class="num">1</td><td class="num">1</td><td class="id">impaled</td><td class="wrap">騎在矛桿上的身體不會再動</td></tr>
+            <tr><td>（無）</td><td class="num">—</td><td class="num">—</td><td class="id">blasted</td><td class="wrap">炸彈不會讓骷髏倒下，是讓牠不再存在 —— 整個死亡就是一團骨頭爆散</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        圖集尺寸不是存的而是<em>推的</em>：<code>width = frames × 256</code>、<code>height = 8 × 256</code>。
+        載入器拿實際 PNG 尺寸去比對這個推算值，所以改了 frames 而沒重跑
+        <code>dev/tools/generate-skeletons.py</code> 會在載入時就炸掉，而不是靜靜畫錯。
+      </p>
+
+      <h4>死亡的暴力度</h4>
+
+      <div class="scroll">
+        <table>
+          <caption>deathViolence —— 骨頭噴多開</caption>
+          <thead><tr><th>cause</th><th class="num">violence</th><th class="wrap">說明</th></tr></thead>
+          <tbody>
+            <tr><td class="id">blasted</td><td class="num">1</td><td class="wrap">全開</td></tr>
+            <tr><td class="id">cleaved / splattered</td><td class="num">0.65</td><td class="wrap"></td></tr>
+            <tr><td class="id">impaled</td><td class="num">0.3</td><td class="wrap"></td></tr>
+            <tr><td class="id">slain</td><td class="num">0.25</td><td class="wrap"></td></tr>
+            <tr><td class="id">drowned</td><td class="num">0</td><td class="wrap">沉下去的身體不會散開，散出來的骨頭也會浮在剛消失的水面上</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>4.4 尚存的舊 entity 表</h3>
+
+      <div class="note warn">
+        <strong>同名不同物。</strong>
+        <code>src/content/combat/enemies.ts</code> 裡另有一組叫 <code>ENEMY_ARCHETYPES</code> 的常數，9 筆，
+        欄位是 <code>health / attack / defense / displayScale / verticalAnchor</code> —— 回合制時期的表，數值級距完全不同
+        （HP 3～30 對上 demo 的 40～120）。它與 demo 那組<strong>同名</strong>，靠 import 路徑區分。
+        demo 只從這個檔案拿 <code>EnemyAppearanceId</code> 這個型別。
+      </div>
+
+      <div class="scroll">
+        <table>
+          <caption>content/combat/enemies.ts —— 遺留表，demo 不讀其數值</caption>
+          <thead>
+            <tr><th>id</th><th>name</th><th class="num">health</th><th class="num">attack</th><th class="num">defense</th><th>appearanceId</th><th class="num">displayScale</th><th class="num">verticalAnchor</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">greenSlime</td><td>Green Slime</td><td class="num">3</td><td class="num">2</td><td class="num">0</td><td class="id">greenSlime</td><td class="num">0.4</td><td class="num">0</td></tr>
+            <tr><td class="id">yellowSlime</td><td>Yellow Slime</td><td class="num">6</td><td class="num">4</td><td class="num">0</td><td class="id">yellowSlime</td><td class="num">0.7</td><td class="num">0</td></tr>
+            <tr><td class="id">blueSlime</td><td>Blue Slime</td><td class="num">10</td><td class="num">6</td><td class="num">1</td><td class="id">blueSlime</td><td class="num">0.85</td><td class="num">0</td></tr>
+            <tr><td class="id">redSlime</td><td>Red Slime</td><td class="num">20</td><td class="num">10</td><td class="num">3</td><td class="id">redSlime</td><td class="num">1.05</td><td class="num">0</td></tr>
+            <tr><td class="id">purpleSlime</td><td>Purple Slime</td><td class="num">30</td><td class="num">14</td><td class="num">5</td><td class="id">purpleSlime</td><td class="num">1.3</td><td class="num">0</td></tr>
+            <tr><td class="id">bat</td><td>Bat</td><td class="num">3</td><td class="num">2</td><td class="num">0</td><td class="id">placeholder</td><td class="num">0.4</td><td class="num">-0.25</td></tr>
+            <tr><td class="id">goblin</td><td>Goblin</td><td class="num">6</td><td class="num">4</td><td class="num">0</td><td class="id">placeholder</td><td class="num">0.7</td><td class="num">0</td></tr>
+            <tr><td class="id">skeleton</td><td>Skeleton</td><td class="num">10</td><td class="num">6</td><td class="num">1</td><td class="id">skeletonSwordsman</td><td class="num">0.85</td><td class="num">0</td></tr>
+            <tr><td class="id">guard</td><td>Guard</td><td class="num">20</td><td class="num">10</td><td class="num">3</td><td class="id">placeholder</td><td class="num">1.05</td><td class="num">0</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="world">5. World structures（立體）</h2>
+
+      <h3>5.1 RenderScene 繪製基元</h3>
+
+      <p>
+        這是 demo 與 renderer 之間唯一的詞彙表。每個基元都是為了「上一個做不到的某件事」而存在的，
+        所以看起來重複的其實不能互換。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>RenderScene 的 11 種基元</caption>
+          <thead>
+            <tr><th>型別</th><th class="wrap">是什麼</th><th class="wrap">為什麼不能用別的代替</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">RenderSurface</td>
+              <td class="wrap">一格牆，帶材質與可選高度</td>
+              <td class="wrap">高度只在開天空時有意義：有天花板就得頂到天花板</td>
+            </tr>
+            <tr>
+              <td class="id">RenderBox</td>
+              <td class="wrap">軸對齊方盒，可設頂面色，bottom 可為負（沉入地板）</td>
+              <td class="wrap">貼在地上的圖是貼紙；盒子有輪廓、會被遮擋、逐面著色</td>
+            </tr>
+            <tr>
+              <td class="id">RenderBlob</td>
+              <td class="wrap">形變環堆疊：squash / lean / wobble / sink / droop / flash / split</td>
+              <td class="wrap">看板永遠是同一張圖；軟體要能被壓扁、癱軟、劈成兩半</td>
+            </tr>
+            <tr>
+              <td class="id">RenderSprite</td>
+              <td class="wrap">billboard / ground / wall 三種擺法，支援 frame（圖集）、spin、flash、submerged、xray</td>
+              <td class="wrap">授權美術唯一的入口</td>
+            </tr>
+            <tr>
+              <td class="id">RenderBeam</td>
+              <td class="wrap">兩端點的桿，端點各自投影</td>
+              <td class="wrap">丟向鏡頭深處的木樁，用看板畫是「一張木樁的圖在後退」</td>
+            </tr>
+            <tr>
+              <td class="id">RenderParticle</td>
+              <td class="wrap">帶高度的彩色圓點，可加成混合</td>
+              <td class="wrap">sprite 走圖片快取，四百顆三像素的碎屑走那條會爆</td>
+            </tr>
+            <tr>
+              <td class="id">RenderFloorPatch</td>
+              <td class="wrap">整格換地板材質</td>
+              <td class="wrap">地板是逐像素取樣的，不同的地板得用名字講，不能蓋圖</td>
+            </tr>
+            <tr>
+              <td class="id">RenderFloorOverlay</td>
+              <td class="wrap">整格混入材質，帶 amount</td>
+              <td class="wrap">血是地板的一部分，要能被踩過、被光照、被霧吃掉</td>
+            </tr>
+            <tr>
+              <td class="id">RenderFloorDecal</td>
+              <td class="wrap">次格解析度形狀：disc / ring / lane / sector</td>
+              <td class="wrap">整格畫不出「兩格寬的圓」或「四十度角的走道」；獨立通道才不會擦掉已有的血</td>
+            </tr>
+            <tr>
+              <td class="id">RenderLight</td>
+              <td class="wrap">點光源</td>
+              <td class="wrap">—</td>
+            </tr>
+            <tr>
+              <td class="id">RenderEmitter</td>
+              <td class="wrap">embers / steam 兩種，可覆寫顏色</td>
+              <td class="wrap">kind 說「怎麼飄」，color 說「是什麼做的」</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        場景層級還有 <code>RenderSky</code>（把天花板整個換掉的漸層背景 + 螢幕空間星點）、
+        <code>wallHeight</code> / <code>eyeHeight</code>（預設 1.5，就是原本寫死的那組算式）、<code>ambient</code>。
+      </p>
+
+      <h3>5.2 材質</h3>
+
+      <div class="cards">
+        <div class="card world">
+          <h4>RenderSurfaceMaterial · 15</h4>
+          <p class="mono" style="font-size: 0.76rem">
+            stoneWall · oldBrickWall · ironBarWall · doorRed · doorBlue · doorYellow · breakableWall ·
+            demoFoundation · demoAshlar · demoAshlarWorn · demoAshlarCracked · demoAshlarFailing ·
+            woodWall · woodWallCracked · splinteredWoodWall
+          </p>
+          <p>
+            四階 <code>demoAshlar*</code> 是「每一點血一個材質」—— 打破一面牆是看得見的過程，不是打到一半忽然變樣。
+            <code>demo*</code> 系列是 demo 專用，出貨關卡不會授權，因此出貨畫面不受影響。
+          </p>
+        </div>
+        <div class="card world">
+          <h4>RenderFloorMaterial · 7</h4>
+          <p class="mono" style="font-size: 0.76rem">
+            water · waterFouled · waterChoked · demoCarrion · demoFlagstone · demoVault · demoBlood
+          </p>
+          <p>
+            水的三階是「吞了幾具屍體」。它們是<em>地板</em>材質而不是躺在水上的屍體：在水面之下的東西不能被畫成站在水面上的東西。
+          </p>
+        </div>
+      </div>
+
+      <h3>5.3 Tile kind（迷宮格）</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>DemoTileKind —— 35×35 格，五個區塊（中央 21 + 四側各 7）拼成</caption>
+          <thead>
+            <tr><th>kind</th><th class="num">HP</th><th>擋走</th><th>擋投射</th><th class="wrap">說明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">open</td><td class="num">0</td><td>否</td><td>否</td><td class="wrap">地板</td></tr>
+            <tr><td class="id">border</td><td class="num">∞</td><td>是</td><td>是</td><td class="wrap">區塊環與外框，永遠打不破 —— 五塊的形狀不會被玩家改變</td></tr>
+            <tr><td class="id">stone</td><td class="num">4</td><td>是</td><td>是</td><td class="wrap">四次徒手揮擊；一顆石頭一發</td></tr>
+            <tr><td class="id">wood</td><td class="num">2</td><td>是</td><td>是</td><td class="wrap">佔內牆 42%</td></tr>
+            <tr><td class="id">water</td><td class="num">—</td><td>否</td><td>否</td><td class="wrap">每格吞 3 具屍體後變 filled；3～6 個池，每池 1～4 格</td></tr>
+            <tr><td class="id">filled</td><td class="num">—</td><td>否</td><td>否</td><td class="wrap">被屍體填平的水 —— 一塊用命換來的通路</td></tr>
+            <tr><td class="id">barricade</td><td class="num">8</td><td>是</td><td>是</td><td class="wrap">鐵蒺藜，4～7 個。比任何牆都硬，因為它擋不住你 —— 你可以繞</td></tr>
+            <tr><td class="id">mortar</td><td class="num">8</td><td>是</td><td>是</td><td class="wrap">迫擊砲，2～3 座。兩格死角，走到旁邊拆它永遠安全</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        內牆碎裂機率 <code>PERFORATION_CHANCE = 0.16</code>（挖完之後再打通 16%，製造迴圈與小房間）。
+        牆的血量單位就是攻擊花費的單位：徒手 1、投擲基準 2、爆炸 4。
+      </p>
+
+      <h3>5.4 Box 佈景</h3>
+
+      <p>七組。每一組都是「原本是貼在地上的圖，所以讀起來像記號而不像地方」被改掉的結果。</p>
+
+      <div class="scroll">
+        <table>
+          <caption>由 RenderBox 疊出來的世界結構</caption>
+          <thead>
+            <tr><th class="wrap">結構</th><th>放在哪</th><th class="wrap">組成</th><th class="wrap">會隨狀態變的部分</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="wrap">詛咒祭壇</td>
+              <td>maze.altar</td>
+              <td class="wrap">base + shaft + cap（3 HP）</td>
+              <td class="wrap">每挨一下：頂石偏移、變窄、下沉，石色轉暗，柱身變矮 —— 從房間對面就看得出被打過幾下</td>
+            </tr>
+            <tr>
+              <td class="wrap">祝福祭壇</td>
+              <td>blessingAltar 房中心</td>
+              <td class="wrap">dais + inlay + 立柱</td>
+              <td class="wrap">刻意靜態：幾何快取綁在樓層上，柱子要隨進度長高就得每幀重建整層的牆。進度改用光表示</td>
+            </tr>
+            <tr>
+              <td class="wrap">溫泉</td>
+              <td>hotSpring 房中心</td>
+              <td class="wrap">rim + pool</td>
+              <td class="wrap">池子本身就是判定墊 —— 站進去有好處，水就得剛好蓋住有好處的那塊地</td>
+            </tr>
+            <tr>
+              <td class="wrap">撤離點</td>
+              <td>extraction 房中心</td>
+              <td class="wrap">canister + collar + 四邊路緣</td>
+              <td class="wrap">全程開放、不做任何標記。找到房間是樓層收費的部分；進去之後站對格子不是</td>
+            </tr>
+            <tr>
+              <td class="wrap">樓梯（封印）</td>
+              <td>maze.exit</td>
+              <td class="wrap">seal-base + seal-slab + 兩道鐵條 + 交叉處鉚釘</td>
+              <td class="wrap">主線任務未達成時的形態，不發光，得走進去才會發現</td>
+            </tr>
+            <tr>
+              <td class="wrap">樓梯（開啟）</td>
+              <td>maze.exit</td>
+              <td class="wrap">三階往上收的台座 + 亮起的平台</td>
+              <td class="wrap">是「往上的台」而不是「往下的坑」：深度緩衝一列只存一個值且只由牆寫入，地板不在裡面，所以低於地板的幾何無法被地板遮住</td>
+            </tr>
+            <tr>
+              <td class="wrap">路障</td>
+              <td>barricade tile</td>
+              <td class="wrap">兩道交叉鐵軌 + 5 根立刺（中/東/西/南/北）</td>
+              <td class="wrap">wear 讓鐵色變暗。刻意稀疏 —— 必須能看穿它看到後面站著什麼</td>
+            </tr>
+            <tr>
+              <td class="wrap">迫擊砲</td>
+              <td>mortar tile</td>
+              <td class="wrap">木製砲架 + 兩側頰板 + 鐵砲管</td>
+              <td class="wrap">wear 讓整體變暗 42%。砲管永遠朝上：它旋轉對稱，不會謊報下一發往哪打</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>5.5 Decor preset</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>decor-presets.json —— 授權於 Decor Workbench</caption>
+          <thead>
+            <tr><th>id</th><th>label</th><th>assetId</th><th>placement</th><th class="num">scale</th><th class="num">verticalAnchor</th><th class="num">offsetX/Y</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">wall-torch-warm</td><td>Wall torch · warm</td><td class="id">presentation.wallTorch</td><td>wall</td><td class="num">0.72</td><td class="num">-0.22</td><td class="num">0 / 0</td></tr>
+            <tr><td class="id">wall-spikes</td><td>Wall spikes</td><td class="id">presentation.wallSpikes</td><td>wall</td><td class="num">1.05</td><td class="num">0.02</td><td class="num">0 / 0</td></tr>
+            <tr><td class="id">floor-bones</td><td>Floor bones</td><td class="id">presentation.bones</td><td>ground</td><td class="num">0.7</td><td class="num">0.04</td><td class="num">0 / 0</td></tr>
+            <tr><td class="id">hot-spring</td><td>Hot spring</td><td class="id">presentation.hotSpring</td><td>ground</td><td class="num">1.3</td><td class="num">0.08</td><td class="num">0 / 0</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        preset 只講「這個變體長什麼樣」；格子座標與貼哪一面牆由地圖放置時另外給。四筆的 offset 都是 0，
+        跟 prop-display 一樣有欄位沒人調。
+      </p>
+
+      <h3>5.6 資產清單</h3>
+
+      <div class="cards">
+        <div class="card world">
+          <h4>授權 PNG</h4>
+          <p>
+            5 色史萊姆 × 3 態（15）、劍士單張 × 3、entity-placeholder、
+            骷髏圖集 28（4 型 × 7 動作）、共用死亡圖集 5、
+            骷髏可撿部件 4（sword / skull / femur / femurCracked）、
+            表現資產 9（stair / block-placeholder / hot-spring / bones / wall-torch / wall-spikes / key ×3）。
+          </p>
+        </div>
+        <div class="card world">
+          <h4>程序生成 · DEMO_ASSET_IDS · 38</h4>
+          <p class="mono" style="font-size: 0.72rem">
+            stick · rock · bomb · hammer · stickPile · rockPile · bombPile · exit · entrance · altar ·
+            altarSpent · blast · spark · hitSpark · rune · shaft · groundGlow · dropShadow · bloodDrop ·
+            stoneChip · woodChip · dustPuff · skeletonJavelin · skeletonJavelinCracked · crossbow ·
+            crossbowSpent · crossbowBolt · hazardOrb · warnShoot · warnCharge · warnMelee · stunStar ·
+            bubble · wallSplat（＋ 4 個從授權 PNG 轉入的骷髏部件）
+          </p>
+          <p>demo 專用的美術一次畫進離屏 canvas 再併進圖片表 —— renderer 只要 <code>CanvasImageSource</code>。</p>
+        </div>
+      </div>
+
+      <h3>5.7 授權工具</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>哪個 workbench 調哪張表</caption>
+          <thead><tr><th class="wrap">工具</th><th>路由</th><th class="wrap">寫回哪個檔</th></tr></thead>
+          <tbody>
+            <tr><td class="wrap">Entity Workbench · entity 分頁</td><td class="id">/debug/entity-workbench</td><td class="wrap"><code>entity-display.json</code></td></tr>
+            <tr><td class="wrap">Entity Workbench · prop 分頁</td><td class="id">同上</td><td class="wrap"><code>prop-display.json</code>（地面情境）</td></tr>
+            <tr><td class="wrap">Entity Workbench · decor 分頁</td><td class="id">同上</td><td class="wrap"><code>decor-presets.json</code></td></tr>
+            <tr><td class="wrap">HUD Workbench · carried</td><td class="id">/debug/hud-attack-workbench</td><td class="wrap"><code>prop-display.json</code>（手持情境）、<code>melee-attacks.json</code></td></tr>
+            <tr><td class="wrap">Floor Set Workbench</td><td class="id">/debug/floor-workbench</td><td class="wrap"><code>provisional-floor-set.json</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <strong>驗證器必須原形回傳。</strong>
+        authoring endpoint 會把驗證器回傳的東西直接寫檔，所以驗證器交出的形狀必須跟收到的一樣。
+        entity 表曾因驗證器回傳「以 appearance 為鍵的物件」而寫壞檔案，下次載入拒收，整個 debug hub 一起掛掉。
+        三張表現在一律回傳陣列，要查表的人自己用 <code>*ByKind</code> / <code>*ByAppearance</code> 建。
+      </div>
+
+      <h2 id="naming">6. 命名整併建議</h2>
+
+      <p>
+        以下是建議，<strong>不是已完成的變更</strong>，程式碼一行未動。目前描述「世界裡的東西」的詞有六個，
+        彼此重疊且各自的分界線不在同一個維度上。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>現有六個詞的實際指涉</caption>
+          <thead>
+            <tr><th>詞</th><th class="wrap">在程式裡指</th><th class="wrap">問題</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">prop</td>
+              <td class="wrap">13 種可撿可丟的東西</td>
+              <td class="wrap">同時被用作「掉落物」與「場景道具」兩義，<code>propBehaviour</code> 與 <code>volumetric props</code>（指 box）的註解就衝突</td>
+            </tr>
+            <tr>
+              <td class="id">pickup</td>
+              <td class="wrap">同上，但只在骷髏部件與顯示表的註解裡</td>
+              <td class="wrap"><code>SKELETON_PICKUP_ASSETS</code> 與 <code>PROP_KINDS</code> 講同一件事，兩個詞</td>
+            </tr>
+            <tr>
+              <td class="id">entity</td>
+              <td class="wrap">敵人。<code>entity-display.json</code>、Entity Workbench</td>
+              <td class="wrap">名字承諾「任何實體」，實際只涵蓋敵人的繪製數值</td>
+            </tr>
+            <tr>
+              <td class="id">decor</td>
+              <td class="wrap">4 個貼牆／貼地的裝飾 sprite</td>
+              <td class="wrap">與 box 佈景的界線是「用 sprite 還是用盒子畫」，不是「是不是裝飾」</td>
+            </tr>
+            <tr>
+              <td class="id">box</td>
+              <td class="wrap">祭壇、樓梯、路障、迫擊砲的幾何</td>
+              <td class="wrap">是繪製手段的名字，不是東西的名字 —— 沒有「祭壇」這個型別，只有一堆 id 叫 <code>altar-*</code> 的盒子</td>
+            </tr>
+            <tr>
+              <td class="id">tile</td>
+              <td class="wrap">8 種格子</td>
+              <td class="wrap">barricade / mortar 同時是 tile（碰撞、血量）也是 box 群組（外觀），兩邊沒有共同的識別</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>6.1 建議的分類</h3>
+
+      <p>若統一叫 <code>structure</code>，建議照「它在世界裡的存在方式」切三類，而不是照畫法切：</p>
+
+      <div class="cards">
+        <div class="card drop">
+          <h4>ItemStructure</h4>
+          <p>可被拿起、被消耗、位置是暫時的。今日的 <code>PropKind</code> 全數。</p>
+          <p class="mono" style="font-size: 0.74rem">PropKind → ItemStructureId<br />propBehaviour → itemStructureBehaviour<br />prop-display.json → item-structure-display.json</p>
+        </div>
+        <div class="card entity">
+          <h4>BodyStructure</h4>
+          <p>會自己行動、有血量、會死。今日的 <code>DemoArchetypeId</code> + <code>EnemyAppearanceId</code>。</p>
+          <p class="mono" style="font-size: 0.74rem">DemoEnemyArchetype → BodyStructure<br />entity-display.json → body-structure-display.json</p>
+        </div>
+        <div class="card world">
+          <h4>FixtureStructure</h4>
+          <p>固定在格子上、不會移動、可能有血量。祭壇／樓梯／路障／迫擊砲／溫泉／撤離點／decor。</p>
+          <p class="mono" style="font-size: 0.74rem">（今日不存在此型別）<br />decor-presets.json → fixture-structure-presets.json</p>
+        </div>
+      </div>
+
+      <p>三類之外，<code>RenderBox</code> / <code>RenderBlob</code> / <code>RenderSprite</code> / <code>RenderBeam</code> 維持原名 —— 它們是<strong>畫法</strong>，任何一類 structure 都可以用任何一種畫法畫出來，把它們也叫 structure 會讓這個詞失去區分力。</p>
+
+      <h3>6.2 這件事最大的實質收穫</h3>
+
+      <div class="note">
+        <strong>FixtureStructure 目前完全不存在，這是三類裡唯一有真實成本的缺口。</strong>
+        路障與迫擊砲的「碰撞＋血量」住在 tile 上，「外觀」住在 <code>demo-scene.ts</code> 的一個 build 函式裡，
+        兩者沒有任何共同識別；祭壇的血量住在 <code>world.altar</code>，樓梯的狀態住在 <code>maze.progress</code>，
+        溫泉與撤離點根本沒有狀態。新增第八種固定物要同時改四個地方，且沒有任何一處會在漏掉時失敗。
+        相較之下 Item 與 Body 兩類今天已經有可用的中心表，改名只是改名。
+      </div>
+
+      <h3>6.3 會被牽動的檔案</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>若真的執行整併，需要動到的檔案</caption>
+          <thead><tr><th class="wrap">檔案</th><th class="wrap">牽動內容</th></tr></thead>
+          <tbody>
+            <tr><td class="wrap"><code>src/content/presentation/prop-display-schema.ts</code></td><td class="wrap">union 名、型別名、驗證器名、錯誤訊息字串</td></tr>
+            <tr><td class="wrap"><code>src/content/presentation/prop-display.json</code></td><td class="wrap">檔名、每列的鍵名 <code>kind</code></td></tr>
+            <tr><td class="wrap"><code>src/content/presentation/decor-preset-schema.ts</code> · <code>decor-presets.json</code></td><td class="wrap">同上</td></tr>
+            <tr><td class="wrap"><code>src/content/enemies/entity-display-schema.ts</code> · <code>entity-display.json</code></td><td class="wrap">同上</td></tr>
+            <tr><td class="wrap"><code>src/content/enemies/skeleton-pickup-definitions.ts</code></td><td class="wrap"><code>SKELETON_PICKUP_ASSETS</code> → item 命名；asset id 字串 <code>demo.*</code> 會外溢到程序生成表</td></tr>
+            <tr><td class="wrap"><code>src/demo/throw-weight.ts</code></td><td class="wrap"><code>DemoPropKind</code>、<code>DemoPropBehaviour</code>、<code>propBehaviour</code>、<code>propWeight</code></td></tr>
+            <tr><td class="wrap"><code>src/demo/world.ts</code></td><td class="wrap"><code>DemoProp</code>、<code>world.props</code>、<code>dropProp</code>、<code>LOOSE_PROPS</code>、<code>BONE_DROPS</code>、<code>SKELETON_ARMOURY</code></td></tr>
+            <tr><td class="wrap"><code>src/demo/actions.ts</code></td><td class="wrap"><code>PROP_LABELS</code>、<code>THROW_CALLS</code></td></tr>
+            <tr><td class="wrap"><code>src/demo/enemy-archetypes.ts</code></td><td class="wrap"><code>DemoEnemyArchetype</code> → <code>BodyStructure</code></td></tr>
+            <tr><td class="wrap"><code>src/demo/demo-scene.ts</code> · <code>demo-viewmodel.ts</code> · <code>demo-surface.ts</code></td><td class="wrap">全部讀端；<code>demo-scene.ts</code> 是三千行的大檔，box 建構函式也在這裡</td></tr>
+            <tr><td class="wrap"><code>src/app/debug/{entity,prop,decor,carried}-workbench.ts</code></td><td class="wrap">分頁標題、欄位標籤、authoring endpoint 的路徑鍵</td></tr>
+            <tr><td class="wrap"><code>dev/tools/generate-skeletons.py</code></td><td class="wrap">若動到 asset id 命名，產圖工具與載入器的比對值要一起動</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <strong>兩個會咬人的地方。</strong>
+        <ul>
+          <li>
+            asset id 是<strong>字串</strong>（<code>"demo.skeletonSword"</code>、<code>"presentation.wallTorch"</code>、
+            <code>"enemy.skeleton.swordsman.idle"</code>），不是型別。改名編譯器不會幫你，錯了只會在執行時少一張圖。
+          </li>
+          <li>
+            三個 JSON 是<strong>被工具寫回</strong>的。改檔名或鍵名必須同時改驗證器、workbench 與 authoring
+            endpoint，否則下一次存檔會產生載入期就被拒絕的檔案 —— 這個故障模式已經發生過一次。
+          </li>
+        </ul>
+      </div>
+
+      <footer>
+        <p>
+          Pantry Depths structure 盤點 · 2026-07-31 · 基準 ae83ce5<br />
+          資料全部來自 <code>src/</code>。這是一份快照，不是規格；程式改了就以程式為準，不要回頭改這份文件。
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>
