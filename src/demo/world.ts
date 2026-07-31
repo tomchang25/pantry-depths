@@ -22,9 +22,10 @@ import {
 import {
   blocksProjectile,
   blocksWalk,
-  DEMO_GRID_SIZE,
   generateDemoMaze,
+  gridArea,
   holdsStains,
+  isInsideGrid,
   isWaterCell,
   sinkBody,
   tileIndex,
@@ -543,8 +544,8 @@ export function nextId(world: DemoWorld, prefix: string): string {
 function walkableCells(maze: DemoMaze): DemoCell[] {
   const cells: DemoCell[] = [];
 
-  for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
-    for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
+  for (let y = 1; y < maze.height - 1; y += 1) {
+    for (let x = 1; x < maze.width - 1; x += 1) {
       if (!blocksWalk(maze, x, y)) {
         cells.push({ x, y });
       }
@@ -621,9 +622,9 @@ export const SHELL_BLAST_RADIUS = 1;
 export function collectMortars(maze: DemoMaze): DemoMortar[] {
   const built: DemoMortar[] = [];
 
-  for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
-    for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
-      if (maze.tiles[tileIndex(x, y)]?.kind !== "mortar") {
+  for (let y = 0; y < maze.height; y += 1) {
+    for (let x = 0; x < maze.width; x += 1) {
+      if (maze.tiles[tileIndex(maze, x, y)]?.kind !== "mortar") {
         continue;
       }
 
@@ -694,7 +695,7 @@ export function populateFloor(world: DemoWorld): void {
   // Pointing at a body on the floor above is worse than pointing nowhere.
   world.damageMarks = [];
   world.particles = createParticleField();
-  world.stains = new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE);
+  world.stains = new Float32Array(gridArea(maze));
   world.stainsVersion += 1;
   world.deaths = [];
   world.terrainVersion += 1;
@@ -764,7 +765,7 @@ export function createDemoWorld(): DemoWorld {
     mortars: [],
     vfx: [],
     particles: createParticleField(),
-    stains: new Float32Array(DEMO_GRID_SIZE * DEMO_GRID_SIZE),
+    stains: new Float32Array(gridArea(maze)),
     stainsVersion: 0,
     deaths: [],
     terrainVersion: 0,
@@ -808,9 +809,9 @@ export function createDemoWorld(): DemoWorld {
  * flattened floor. Enemy count is topped up to the cap so every sprite is on screen at once.
  */
 export function flattenFloorForTesting(world: DemoWorld): void {
-  for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
-    for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
-      const tile = world.maze.tiles[tileIndex(x, y)];
+  for (let y = 1; y < world.maze.height - 1; y += 1) {
+    for (let x = 1; x < world.maze.width - 1; x += 1) {
+      const tile = world.maze.tiles[tileIndex(world.maze, x, y)];
 
       if (tile && (tile.kind === "stone" || tile.kind === "wood")) {
         tile.kind = "open";
@@ -899,7 +900,7 @@ export function stainFloor(world: DemoWorld, x: number, y: number, amount: numbe
   const cellX = Math.floor(x);
   const cellY = Math.floor(y);
 
-  if (cellX < 0 || cellY < 0 || cellX >= DEMO_GRID_SIZE || cellY >= DEMO_GRID_SIZE) {
+  if (!isInsideGrid(world.maze, cellX, cellY)) {
     return;
   }
 
@@ -909,7 +910,7 @@ export function stainFloor(world: DemoWorld, x: number, y: number, amount: numbe
     return;
   }
 
-  const index = cellY * DEMO_GRID_SIZE + cellX;
+  const index = tileIndex(world.maze, cellX, cellY);
   world.stains[index] = Math.min(MAX_STAIN, (world.stains[index] ?? 0) + amount);
   world.stainsVersion += 1;
 }

@@ -70,7 +70,6 @@ Naming a map in the address costs one parameter and one branch, and it has no se
 
 | Child | Focus                                                            | Form             |
 | ----- | ---------------------------------------------------------------- | ---------------- |
-| 01    | The grid's extent becomes a property of the map                  | Spec via `/goal` |
 | 02    | The main region becomes a room; caps and respawn move onto rooms | Spec via `/goal` |
 | 03    | A map and its rooms become a file, refused at both ends          | Spec via `/goal` |
 | 04    | The game plays a named map, and today's floor ships as one       | Spec via `/goal` |
@@ -106,14 +105,6 @@ Children 01, 02 and 04 are demo-half work — the surface is `src/demo/` and `sr
 
 The whole plan is judged against a run that has not changed. `npm run capture` is the instrument: it seeds `Math.random`, drives the same debug keys, and writes `capture-output/latest/` plus a contact sheet putting the previous run beside the latest. It asserts nothing and judges nothing — read the pictures.
 
-### Child 01 — The grid's extent becomes a property of the map
-
-- `src/demo/maze.ts` — `DEMO_GRID_SIZE = 35` at line 21, with 18 uses inside the module. `tileIndex(x, y)` at line 235 and `isInsideGrid(x, y)` at line 239 are the two accessors everything else goes through; they gain the map as their first argument, and the stride stops being importable.
-- `src/demo/demo-scene.ts` — 14 uses. Loop bounds at 435, 2078, 2209, 2339 and 3288; the minimap's declared `width`/`height` at 3303 and 3304, which are already data and only need a different source. `tileIndex` is called at 437, 2080 and 2211.
-- `src/demo/world.ts` — 11 uses. Loop bounds at 546, 624 and 811; `tileIndex` at 626 and 813. The four real flat indices are here: the `Float32Array` of stains allocated at 697 and 767, and the bounds check plus index at 902 and 912.
-- `src/demo/demo-surface.ts` — the minimap's `width`/`height` at 425 and 430, same shape as the scene's.
-- The stated maximum area belongs with the validator in child 03, but the number it enforces is discovered here — the scene sweeps the grid five times per rebuild, so measure a sweep before choosing one.
-
 ### Child 02 — The main region becomes a room
 
 - `src/demo/maze.ts` — `DemoRoomSide` (line 40), `DemoRoomRole` (line 49), `DemoRoom` (line 51) and the assembled map type (line 140). `roomAt()` at 648 currently returns nothing for most of the grid, and `padRoomAt()` at 665 with `ROOM_PAD_HALF` at 663 exist because the side rooms need a margin the main region does not have; both need re-reading once the centre is a room like the others.
@@ -129,6 +120,7 @@ The whole plan is judged against a run that has not changed. `npm run capture` i
 - `dev/tools/authoring/authoring-api.ts` is already multi-target; a `map` target with its own validator joins the whitelist there rather than growing a second endpoint. `dev/tools/run-authoring-request.ts` is the endpoint.
 - The tile vocabulary is `DemoTileKind` at `src/demo/maze.ts` line 23 — eight kinds today, including `mortar`. The schema names those and nothing else.
 - Save-time and load-time validation are two functions with two jobs, not one function called twice. The save-time one sees declarations; the load-time one sees a draw.
+- The maximum area, measured in child 01 rather than guessed: one full terrain rebuild over today's 1225 cells has a median cost of 0.20 ms and a worst sample of 0.87 ms, over 200 rebuilds under Node. That is 0.16 ms per thousand cells, so a linear 8 ms budget would allow roughly 49,000 cells. **Enforce 4096 (a 64-square map), not that number.** The measurement omits the browser's own per-frame area-proportional work — the minimap copies every tile kind each frame — and a limit an author can hit without noticing is worth less than an order of magnitude of headroom.
 
 ### Child 04 — The game plays a named map
 

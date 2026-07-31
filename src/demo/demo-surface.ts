@@ -26,7 +26,7 @@ import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
-import { DEMO_GRID_SIZE, POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/demo/maze";
+import { POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/demo/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/demo/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
 import { bankedRewards, equippedCore } from "@/demo/sealed";
@@ -422,12 +422,12 @@ function createHudModel(
     ...(world.messageSeconds > 0 && world.message && !showObjective ? { message: world.message } : {}),
     minimap: {
       facingAngle: world.player.angle,
-      height: DEMO_GRID_SIZE,
+      height: world.maze.height,
       player: { x: world.player.x, y: world.player.y, radius: 3, color: "#ffe6b0" },
       points,
       tileColors: MINIMAP_TILE_COLORS,
       tiles: world.maze.tiles.map((tile) => tile.kind),
-      width: DEMO_GRID_SIZE,
+      width: world.maze.width,
     },
     ...(showObjective && mainTask
       ? {

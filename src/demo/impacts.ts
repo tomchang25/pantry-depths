@@ -11,7 +11,7 @@
 
 import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/demo/actions";
 import { hasBless } from "@/demo/bless";
-import { isBarricadeCell, isWaterCell } from "@/demo/maze";
+import { isBarricadeCell, isWaterCell, tileIndex } from "@/demo/maze";
 import { burst } from "@/demo/particles";
 import { addVfx, damageEnemy, killEnemy, stunEnemy, type DemoEnemy, type DemoWorld } from "@/demo/world";
 
@@ -164,7 +164,7 @@ function shatterWalls(
 
   for (let cellY = minY; cellY <= maxY; cellY += 1) {
     for (let cellX = minX; cellX <= maxX; cellX += 1) {
-      const tile = world.maze.tiles[cellY * world.maze.size + cellX];
+      const tile = world.maze.tiles[tileIndex(world.maze, cellX, cellY)];
 
       // Barricades and mortars included: a blast that flattens a stone wall but leaves the iron
       // spikes in front of it standing would read as the spikes being scenery, and the same goes for

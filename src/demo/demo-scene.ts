@@ -36,7 +36,6 @@ import {
   blocksFlung,
   blocksProjectile,
   blocksWalk,
-  DEMO_GRID_SIZE,
   DEMO_WALL_HEIGHT,
   holdsStains,
   ROOM_PAD_HALF,
@@ -432,9 +431,9 @@ function drownedCorpseStage(progress: number): number {
 function surfaces(world: DemoWorld): RenderSurface[] {
   const built: RenderSurface[] = [];
 
-  for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
-    for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
-      const tile = world.maze.tiles[tileIndex(x, y)];
+  for (let y = 0; y < world.maze.height; y += 1) {
+    for (let x = 0; x < world.maze.width; x += 1) {
+      const tile = world.maze.tiles[tileIndex(world.maze, x, y)];
 
       // A barricade is boxes, not a wall face, and so is a mortar. Leaving either in here is what
       // made a broken wood wall render as a cracked stone one: the cell was still emitting a
@@ -2075,9 +2074,9 @@ function boxes(world: DemoWorld): RenderBox[] {
   // any visible iron with clear floor in between. Nothing can be done about that from the collision
   // side: every blocker in the demo is a whole cell, and a barricade is the only one whose art chose
   // not to fill one.
-  for (let y = 1; y < DEMO_GRID_SIZE - 1; y += 1) {
-    for (let x = 1; x < DEMO_GRID_SIZE - 1; x += 1) {
-      const tile = world.maze.tiles[tileIndex(x, y)];
+  for (let y = 1; y < world.maze.height - 1; y += 1) {
+    for (let x = 1; x < world.maze.width - 1; x += 1) {
+      const tile = world.maze.tiles[tileIndex(world.maze, x, y)];
 
       if (tile?.kind === "mortar") {
         const wear = tile.maxHp > 0 ? 1 - tile.hp / tile.maxHp : 0;
@@ -2206,9 +2205,9 @@ export const POOL_FILL: readonly RenderFloorMaterial[] = ["water", "waterFouled"
 function floorPatches(world: DemoWorld): RenderFloorPatch[] {
   const built: RenderFloorPatch[] = [];
 
-  for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
-    for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
-      const tile = world.maze.tiles[tileIndex(x, y)];
+  for (let y = 0; y < world.maze.height; y += 1) {
+    for (let x = 0; x < world.maze.width; x += 1) {
+      const tile = world.maze.tiles[tileIndex(world.maze, x, y)];
       built.push({ cell: { x, y }, material: floorMaterial(tile) });
     }
   }
@@ -2336,9 +2335,9 @@ function beams(world: DemoWorld): RenderBeam[] {
 function floorOverlays(world: DemoWorld): RenderFloorOverlay[] {
   const built: RenderFloorOverlay[] = [];
 
-  for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
-    for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
-      const amount = world.stains[y * DEMO_GRID_SIZE + x] ?? 0;
+  for (let y = 0; y < world.maze.height; y += 1) {
+    for (let x = 0; x < world.maze.width; x += 1) {
+      const amount = world.stains[tileIndex(world.maze, x, y)] ?? 0;
 
       // Water washes it away — a red pool reads as a rendering mistake rather than as carnage — and
       // a pool the bodies have filled in carries its own colour already.
@@ -3285,10 +3284,10 @@ export function createDemoScene(world: DemoWorld): RenderScene {
   const terrain = cachedTerrain(world);
   const rows: string[] = [];
 
-  for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
+  for (let y = 0; y < world.maze.height; y += 1) {
     let row = "";
 
-    for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
+    for (let x = 0; x < world.maze.width; x += 1) {
       // Asked as the walk question rather than by kind, so a pool the bodies have filled in reads
       // as the floor it now is. Every other kind answers exactly as it did before.
       row += blocksWalk(world.maze, x, y) ? "#" : ".";
@@ -3300,8 +3299,8 @@ export function createDemoScene(world: DemoWorld): RenderScene {
   return {
     floorId: `demo-${world.depth}`,
     theme: "demo",
-    width: DEMO_GRID_SIZE,
-    height: DEMO_GRID_SIZE,
+    width: world.maze.width,
+    height: world.maze.height,
     tiles: rows,
     camera: {
       x: world.player.x,

@@ -6,10 +6,12 @@
  * recursive backtracker and then perforated so it reads as a dungeon rather than a puzzle; a room is
  * open floor throughout, because each one exists to hold exactly one piece of business.
  *
- * **Square is load-bearing, not aesthetic.** Modules outside this one read the floor's dimension, and
- * every one of those reads is a loop bound or a flat index that keeps working while there is one
- * number and breaks the moment there are two. The corners the assembly leaves over are filled with
- * boundary brick, which costs a slightly emptier map and buys the whole shape staying inside this file.
+ * **The extent belongs to the floor, not to this module.** A maze carries its own width and height,
+ * and the four accessors below are the only code anywhere that turns a coordinate into a flat index
+ * or an index back into a coordinate. Nothing outside them multiplies by a stride, which is what lets
+ * a floor of another shape be wrong loudly instead of silently. The corners the assembly leaves over
+ * are filled with boundary brick, which costs a slightly emptier map and buys the whole shape staying
+ * inside this file.
  *
  * Block rings are boundary brick rather than masonry, so the five blocks keep their shape however hard
  * the player swings; the only ways between them are the doorways punched below. Entrance and descent
@@ -18,7 +20,18 @@
  * room is always reachable.
  */
 
-export const DEMO_GRID_SIZE = 35;
+/**
+ * How much floor there is, in cells.
+ *
+ * Two numbers rather than one, because a map that can be authored is a map that can be oblong. Every
+ * floor-shaped thing satisfies this — a maze is one — so the accessors below take the floor itself.
+ */
+export type DemoGridExtent = Readonly<{ width: number; height: number }>;
+
+/** The side length the shipped assembly happens to use. Not the grid's authority; the maze is. */
+const DEMO_GRID_SIDE = 35;
+
+const DEMO_GRID_EXTENT: DemoGridExtent = { width: DEMO_GRID_SIDE, height: DEMO_GRID_SIDE };
 
 export type DemoTileKind = "open" | "border" | "stone" | "wood" | "water" | "barricade" | "filled" | "mortar";
 
@@ -138,7 +151,8 @@ function createFloorProgress(): DemoFloorProgress {
 }
 
 export type DemoMaze = Readonly<{
-  size: number;
+  width: number;
+  height: number;
   tiles: DemoTile[];
   entrance: DemoCell;
   exit: DemoCell;
@@ -210,12 +224,12 @@ const ROOM_BLOCK_SIZE = 7;
 const MAIN_BLOCK: DemoBlock = {
   x: ROOM_BLOCK_SIZE,
   y: ROOM_BLOCK_SIZE,
-  size: DEMO_GRID_SIZE - ROOM_BLOCK_SIZE * 2,
+  size: DEMO_GRID_SIDE - ROOM_BLOCK_SIZE * 2,
 };
 
 /** Rooms sit centred on the side they hang off, so the assembly is symmetric on both axes. */
-const ROOM_INSET = (DEMO_GRID_SIZE - ROOM_BLOCK_SIZE) / 2;
-const ROOM_FAR_EDGE = DEMO_GRID_SIZE - ROOM_BLOCK_SIZE;
+const ROOM_INSET = (DEMO_GRID_SIDE - ROOM_BLOCK_SIZE) / 2;
+const ROOM_FAR_EDGE = DEMO_GRID_SIDE - ROOM_BLOCK_SIZE;
 
 const ROOM_SIDES: Readonly<Record<DemoRoomSide, Readonly<{ block: DemoBlock; inward: DemoCell }>>> = {
   north: { block: { x: ROOM_INSET, y: 0, size: ROOM_BLOCK_SIZE }, inward: { x: 0, y: 1 } },
@@ -232,12 +246,28 @@ function blockCenter(block: DemoBlock): DemoCell {
   return { x: block.x + half, y: block.y + half };
 }
 
-export function tileIndex(x: number, y: number): number {
-  return y * DEMO_GRID_SIZE + x;
+/**
+ * The four questions anyone can ask about a grid's shape, and the only place a stride is spelled out.
+ *
+ * A flat index written with the wrong one of two extents type-checks perfectly and is wrong only on a
+ * floor that is not square — which is exactly the first interesting floor anybody authors. Keeping the
+ * multiplication here means there is one place for that mistake to be made and it has already been
+ * made correctly.
+ */
+export function tileIndex(extent: DemoGridExtent, x: number, y: number): number {
+  return y * extent.width + x;
 }
 
-export function isInsideGrid(x: number, y: number): boolean {
-  return x >= 0 && y >= 0 && x < DEMO_GRID_SIZE && y < DEMO_GRID_SIZE;
+export function cellFromIndex(extent: DemoGridExtent, index: number): DemoCell {
+  return { x: index % extent.width, y: Math.floor(index / extent.width) };
+}
+
+export function isInsideGrid(extent: DemoGridExtent, x: number, y: number): boolean {
+  return x >= 0 && y >= 0 && x < extent.width && y < extent.height;
+}
+
+export function gridArea(extent: DemoGridExtent): number {
+  return extent.width * extent.height;
 }
 
 function between(minimum: number, maximum: number): number {
@@ -262,11 +292,11 @@ function shuffled<T>(values: readonly T[]): T[] {
   return copy;
 }
 
-function carve(solid: boolean[], block: DemoBlock): void {
+function carve(extent: DemoGridExtent, solid: boolean[], block: DemoBlock): void {
   const start: DemoCell = { x: block.x + 1, y: block.y + 1 };
   const last: DemoCell = { x: block.x + block.size - 2, y: block.y + block.size - 2 };
   const stack: DemoCell[] = [start];
-  solid[tileIndex(start.x, start.y)] = false;
+  solid[tileIndex(extent, start.x, start.y)] = false;
 
   while (stack.length > 0) {
     const current = stack[stack.length - 1] as DemoCell;
@@ -286,12 +316,12 @@ function carve(solid: boolean[], block: DemoBlock): void {
         continue;
       }
 
-      if (!solid[tileIndex(nextX, nextY)]) {
+      if (!solid[tileIndex(extent, nextX, nextY)]) {
         continue;
       }
 
-      solid[tileIndex(nextX, nextY)] = false;
-      solid[tileIndex(current.x + step.x / 2, current.y + step.y / 2)] = false;
+      solid[tileIndex(extent, nextX, nextY)] = false;
+      solid[tileIndex(extent, current.x + step.x / 2, current.y + step.y / 2)] = false;
       stack.push({ x: nextX, y: nextY });
       advanced = true;
       break;
@@ -305,13 +335,19 @@ function carve(solid: boolean[], block: DemoBlock): void {
 
 /** Floods a few small pools into already-open floor. Pools grow by random adjacency, so none is a
  * neat rectangle and most end up hugging a corridor edge where something can be knocked into them. */
-function floodPools(tiles: DemoTile[], open: DemoCell[], block: DemoBlock, keepClear: ReadonlySet<number>): void {
+function floodPools(
+  extent: DemoGridExtent,
+  tiles: DemoTile[],
+  open: DemoCell[],
+  block: DemoBlock,
+  keepClear: ReadonlySet<number>,
+): void {
   const pools = between(POOL_COUNT.minimum, POOL_COUNT.maximum);
 
   for (let pool = 0; pool < pools; pool += 1) {
     const seed = pick(open);
 
-    if (!seed || tiles[tileIndex(seed.x, seed.y)]?.kind !== "open") {
+    if (!seed || tiles[tileIndex(extent, seed.x, seed.y)]?.kind !== "open") {
       continue;
     }
 
@@ -320,9 +356,9 @@ function floodPools(tiles: DemoTile[], open: DemoCell[], block: DemoBlock, keepC
 
     for (let filled = 0; filled < size && frontier.length > 0; filled += 1) {
       const cell = frontier.splice(Math.floor(Math.random() * frontier.length), 1)[0] as DemoCell;
-      const tile = tiles[tileIndex(cell.x, cell.y)];
+      const tile = tiles[tileIndex(extent, cell.x, cell.y)];
 
-      if (!tile || tile.kind !== "open" || keepClear.has(tileIndex(cell.x, cell.y))) {
+      if (!tile || tile.kind !== "open" || keepClear.has(tileIndex(extent, cell.x, cell.y))) {
         continue;
       }
 
@@ -359,7 +395,7 @@ function floodPools(tiles: DemoTile[], open: DemoCell[], block: DemoBlock, keepC
  * onto is only interesting where the fighting happens, and where the fighting happens is not where
  * the walls were.
  */
-function scatterBarricades(tiles: DemoTile[], open: DemoCell[]): void {
+function scatterBarricades(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCell[]): void {
   const wanted = between(BARRICADE_COUNT.minimum, BARRICADE_COUNT.maximum);
   const placed: DemoCell[] = [];
   const pool = shuffled(open);
@@ -375,7 +411,7 @@ function scatterBarricades(tiles: DemoTile[], open: DemoCell[]): void {
       continue;
     }
 
-    const tile = tiles[tileIndex(cell.x, cell.y)];
+    const tile = tiles[tileIndex(extent, cell.x, cell.y)];
 
     if (!tile || tile.kind !== "open") {
       continue;
@@ -395,7 +431,7 @@ function scatterBarricades(tiles: DemoTile[], open: DemoCell[]): void {
  * same patch of floor and turn a readable hazard into a coin flip. The floor is small enough that a
  * handful of them reach everywhere between them.
  */
-function scatterMortars(tiles: DemoTile[], open: DemoCell[]): void {
+function scatterMortars(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCell[]): void {
   const wanted = between(MORTAR_COUNT.minimum, MORTAR_COUNT.maximum);
   const placed: DemoCell[] = [];
 
@@ -408,7 +444,7 @@ function scatterMortars(tiles: DemoTile[], open: DemoCell[]): void {
       continue;
     }
 
-    const tile = tiles[tileIndex(cell.x, cell.y)];
+    const tile = tiles[tileIndex(extent, cell.x, cell.y)];
 
     if (!tile || tile.kind !== "open") {
       continue;
@@ -425,12 +461,12 @@ function isBlockInterior(block: DemoBlock, x: number, y: number): boolean {
   return x > block.x && y > block.y && x < block.x + block.size - 1 && y < block.y + block.size - 1;
 }
 
-function walkableCells(tiles: readonly DemoTile[], block: DemoBlock): DemoCell[] {
+function walkableCells(extent: DemoGridExtent, tiles: readonly DemoTile[], block: DemoBlock): DemoCell[] {
   const cells: DemoCell[] = [];
 
   for (let y = block.y + 1; y < block.y + block.size - 1; y += 1) {
     for (let x = block.x + 1; x < block.x + block.size - 1; x += 1) {
-      if (tiles[tileIndex(x, y)]?.kind === "open") {
+      if (tiles[tileIndex(extent, x, y)]?.kind === "open") {
         cells.push({ x, y });
       }
     }
@@ -450,17 +486,17 @@ function openTile(): DemoTile {
  * the corners the five-block assembly leaves over, and each block's own wall ring. That is what keeps
  * the five blocks five blocks — the doorways punched afterwards are the only ways between them.
  */
-function assembleTiles(solid: readonly boolean[], blocks: readonly DemoBlock[]): DemoTile[] {
+function assembleTiles(extent: DemoGridExtent, solid: readonly boolean[], blocks: readonly DemoBlock[]): DemoTile[] {
   const tiles: DemoTile[] = [];
 
-  for (let y = 0; y < DEMO_GRID_SIZE; y += 1) {
-    for (let x = 0; x < DEMO_GRID_SIZE; x += 1) {
+  for (let y = 0; y < extent.height; y += 1) {
+    for (let x = 0; x < extent.width; x += 1) {
       if (!blocks.some((block) => isBlockInterior(block, x, y))) {
         tiles.push({ kind: "border", hp: Number.POSITIVE_INFINITY, maxHp: Number.POSITIVE_INFINITY, bodies: 0 });
         continue;
       }
 
-      if (!solid[tileIndex(x, y)]) {
+      if (!solid[tileIndex(extent, x, y)]) {
         tiles.push(openTile());
         continue;
       }
@@ -484,7 +520,13 @@ function assembleTiles(solid: readonly boolean[], blocks: readonly DemoBlock[]):
  * the main region's interior on the far side. All five are forced open and recorded as clear, so
  * neither the carve nor anything scattered afterwards can seal a room the player is promised.
  */
-function attachRoom(tiles: DemoTile[], keepClear: Set<number>, side: DemoRoomSide, role: DemoRoomRole): DemoRoom {
+function attachRoom(
+  extent: DemoGridExtent,
+  tiles: DemoTile[],
+  keepClear: Set<number>,
+  side: DemoRoomSide,
+  role: DemoRoomRole,
+): DemoRoom {
   const { block, inward } = ROOM_SIDES[side];
   const center = blockCenter(block);
   const half = (block.size - 1) / 2;
@@ -493,8 +535,8 @@ function attachRoom(tiles: DemoTile[], keepClear: Set<number>, side: DemoRoomSid
   for (let step = -1; step <= 3; step += 1) {
     const x = doorway.x + inward.x * step;
     const y = doorway.y + inward.y * step;
-    tiles[tileIndex(x, y)] = openTile();
-    keepClear.add(tileIndex(x, y));
+    tiles[tileIndex(extent, x, y)] = openTile();
+    keepClear.add(tileIndex(extent, x, y));
   }
 
   return {
@@ -525,17 +567,16 @@ function isHazardKind(kind: DemoTileKind): boolean {
  * Searches over floor and hazards together, which always succeeds: the carve leaves every open cell
  * in the main region on one tree, and every doorway was forced open onto it.
  */
-function clearWalkToRooms(tiles: DemoTile[], from: DemoCell, rooms: readonly DemoRoom[]): void {
+function clearWalkToRooms(extent: DemoGridExtent, tiles: DemoTile[], from: DemoCell, rooms: readonly DemoRoom[]): void {
   const cameFrom = new Map<number, number>();
-  const queue: number[] = [tileIndex(from.x, from.y)];
+  const queue: number[] = [tileIndex(extent, from.x, from.y)];
   const seen = new Set<number>(queue);
   let head = 0;
 
   while (head < queue.length) {
     const current = queue[head] as number;
     head += 1;
-    const currentX = current % DEMO_GRID_SIZE;
-    const currentY = Math.floor(current / DEMO_GRID_SIZE);
+    const { x: currentX, y: currentY } = cellFromIndex(extent, current);
 
     for (const step of [
       { x: 1, y: 0 },
@@ -546,11 +587,11 @@ function clearWalkToRooms(tiles: DemoTile[], from: DemoCell, rooms: readonly Dem
       const nextX = currentX + step.x;
       const nextY = currentY + step.y;
 
-      if (!isInsideGrid(nextX, nextY)) {
+      if (!isInsideGrid(extent, nextX, nextY)) {
         continue;
       }
 
-      const next = tileIndex(nextX, nextY);
+      const next = tileIndex(extent, nextX, nextY);
       const kind = tiles[next]?.kind;
 
       if (kind === undefined || seen.has(next) || !(isFloorKind(kind) || isHazardKind(kind))) {
@@ -564,9 +605,9 @@ function clearWalkToRooms(tiles: DemoTile[], from: DemoCell, rooms: readonly Dem
   }
 
   for (const room of rooms) {
-    let cursor = tileIndex(room.doorway.x, room.doorway.y);
+    let cursor = tileIndex(extent, room.doorway.x, room.doorway.y);
 
-    while (cursor !== tileIndex(from.x, from.y)) {
+    while (cursor !== tileIndex(extent, from.x, from.y)) {
       const tile = tiles[cursor];
 
       if (tile && isHazardKind(tile.kind)) {
@@ -585,13 +626,14 @@ function clearWalkToRooms(tiles: DemoTile[], from: DemoCell, rooms: readonly Dem
 }
 
 export function generateDemoMaze(): DemoMaze {
-  const solid: boolean[] = Array.from({ length: DEMO_GRID_SIZE * DEMO_GRID_SIZE }, () => true);
-  carve(solid, MAIN_BLOCK);
+  const extent = DEMO_GRID_EXTENT;
+  const solid: boolean[] = Array.from({ length: gridArea(extent) }, () => true);
+  carve(extent, solid, MAIN_BLOCK);
 
   for (let y = MAIN_BLOCK.y + 1; y < MAIN_BLOCK.y + MAIN_BLOCK.size - 1; y += 1) {
     for (let x = MAIN_BLOCK.x + 1; x < MAIN_BLOCK.x + MAIN_BLOCK.size - 1; x += 1) {
-      if (solid[tileIndex(x, y)] && Math.random() < PERFORATION_CHANCE) {
-        solid[tileIndex(x, y)] = false;
+      if (solid[tileIndex(extent, x, y)] && Math.random() < PERFORATION_CHANCE) {
+        solid[tileIndex(extent, x, y)] = false;
       }
     }
   }
@@ -603,37 +645,46 @@ export function generateDemoMaze(): DemoMaze {
   for (const block of roomBlocks) {
     for (let y = block.y + 1; y < block.y + block.size - 1; y += 1) {
       for (let x = block.x + 1; x < block.x + block.size - 1; x += 1) {
-        solid[tileIndex(x, y)] = false;
+        solid[tileIndex(extent, x, y)] = false;
       }
     }
   }
 
-  const tiles = assembleTiles(solid, [MAIN_BLOCK, ...roomBlocks]);
+  const tiles = assembleTiles(extent, solid, [MAIN_BLOCK, ...roomBlocks]);
   const keepClear = new Set<number>();
   const roles = shuffled(ROOM_ROLES);
-  const rooms = ROOM_SIDE_ORDER.map((side, index) => attachRoom(tiles, keepClear, side, roles[index] as DemoRoomRole));
+  const rooms = ROOM_SIDE_ORDER.map((side, index) =>
+    attachRoom(extent, tiles, keepClear, side, roles[index] as DemoRoomRole),
+  );
   const byRole = new Map(rooms.map((room) => [room.role, room]));
 
   // Hazards belong to the main region. A pool in the hot spring or caltrops around an altar is not a
   // decision, it is noise on top of the one thing that room is for.
-  const scatterable = walkableCells(tiles, MAIN_BLOCK).filter((cell) => !keepClear.has(tileIndex(cell.x, cell.y)));
-  floodPools(tiles, scatterable, MAIN_BLOCK, keepClear);
-  const afterPools = walkableCells(tiles, MAIN_BLOCK).filter((cell) => !keepClear.has(tileIndex(cell.x, cell.y)));
-  scatterBarricades(tiles, afterPools);
-  const afterBarricades = walkableCells(tiles, MAIN_BLOCK).filter((cell) => !keepClear.has(tileIndex(cell.x, cell.y)));
-  scatterMortars(tiles, afterBarricades);
+  const scatterable = walkableCells(extent, tiles, MAIN_BLOCK).filter(
+    (cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)),
+  );
+  floodPools(extent, tiles, scatterable, MAIN_BLOCK, keepClear);
+  const afterPools = walkableCells(extent, tiles, MAIN_BLOCK).filter(
+    (cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)),
+  );
+  scatterBarricades(extent, tiles, afterPools);
+  const afterBarricades = walkableCells(extent, tiles, MAIN_BLOCK).filter(
+    (cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)),
+  );
+  scatterMortars(extent, tiles, afterBarricades);
 
   // Both the arrival and the descent stand in the main region, because descending is the main
   // region's business and a room only ever holds one thing.
-  const open = walkableCells(tiles, MAIN_BLOCK);
+  const open = walkableCells(extent, tiles, MAIN_BLOCK);
   const entrance = pick(open) ?? blockCenter(MAIN_BLOCK);
-  clearWalkToRooms(tiles, entrance, rooms);
+  clearWalkToRooms(extent, tiles, entrance, rooms);
   const away = open.filter((cell) => cell.x !== entrance.x || cell.y !== entrance.y);
   const exit = pick(away) ?? entrance;
   const altar = byRole.get("cursedAltar")?.center ?? entrance;
   const extraction = byRole.get("extraction")?.center ?? entrance;
   return {
-    size: DEMO_GRID_SIZE,
+    width: extent.width,
+    height: extent.height,
     tiles,
     entrance,
     exit,
@@ -669,7 +720,7 @@ export function padRoomAt(maze: DemoMaze, x: number, y: number): DemoRoom | unde
 }
 
 export function tileAt(maze: DemoMaze, x: number, y: number): DemoTile | undefined {
-  return isInsideGrid(x, y) ? maze.tiles[tileIndex(x, y)] : undefined;
+  return isInsideGrid(maze, x, y) ? maze.tiles[tileIndex(maze, x, y)] : undefined;
 }
 
 /**
@@ -846,7 +897,7 @@ export function isBarricadeCell(maze: DemoMaze, x: number, y: number): boolean {
  * onto a barricade still gets asked where it is going, and the answer is somewhere off it.
  */
 export function randomReachableCell(maze: DemoMaze, from: DemoCell): DemoCell | undefined {
-  const queue: number[] = [tileIndex(from.x, from.y)];
+  const queue: number[] = [tileIndex(maze, from.x, from.y)];
   const reachable: number[] = [];
   const seen = new Set<number>(queue);
   let head = 0;
@@ -854,8 +905,7 @@ export function randomReachableCell(maze: DemoMaze, from: DemoCell): DemoCell | 
   while (head < queue.length) {
     const current = queue[head] as number;
     head += 1;
-    const currentX = current % DEMO_GRID_SIZE;
-    const currentY = Math.floor(current / DEMO_GRID_SIZE);
+    const { x: currentX, y: currentY } = cellFromIndex(maze, current);
 
     for (const step of [
       { x: 1, y: 0 },
@@ -866,11 +916,11 @@ export function randomReachableCell(maze: DemoMaze, from: DemoCell): DemoCell | 
       const nextX = currentX + step.x;
       const nextY = currentY + step.y;
 
-      if (!isInsideGrid(nextX, nextY) || blocksWalk(maze, nextX, nextY)) {
+      if (!isInsideGrid(maze, nextX, nextY) || blocksWalk(maze, nextX, nextY)) {
         continue;
       }
 
-      const next = tileIndex(nextX, nextY);
+      const next = tileIndex(maze, nextX, nextY);
 
       if (seen.has(next)) {
         continue;
@@ -888,7 +938,7 @@ export function randomReachableCell(maze: DemoMaze, from: DemoCell): DemoCell | 
     return undefined;
   }
 
-  return { x: chosen % DEMO_GRID_SIZE, y: Math.floor(chosen / DEMO_GRID_SIZE) };
+  return cellFromIndex(maze, chosen);
 }
 
 /** Open cells reachable from a start cell, ignoring destructibility. Used only by enemy pathing. */
@@ -898,8 +948,8 @@ export function breadthFirstStep(maze: DemoMaze, from: DemoCell, to: DemoCell): 
   }
 
   const cameFrom = new Map<number, number>();
-  const queue: number[] = [tileIndex(from.x, from.y)];
-  const goal = tileIndex(to.x, to.y);
+  const queue: number[] = [tileIndex(maze, from.x, from.y)];
+  const goal = tileIndex(maze, to.x, to.y);
   const seen = new Set<number>(queue);
   let found = false;
   // Read position instead of `shift()`: shifting re-indexes the whole remaining queue, which made
@@ -909,8 +959,7 @@ export function breadthFirstStep(maze: DemoMaze, from: DemoCell, to: DemoCell): 
   while (head < queue.length && !found) {
     const current = queue[head] as number;
     head += 1;
-    const currentX = current % DEMO_GRID_SIZE;
-    const currentY = Math.floor(current / DEMO_GRID_SIZE);
+    const { x: currentX, y: currentY } = cellFromIndex(maze, current);
 
     for (const step of [
       { x: 1, y: 0 },
@@ -921,11 +970,11 @@ export function breadthFirstStep(maze: DemoMaze, from: DemoCell, to: DemoCell): 
       const nextX = currentX + step.x;
       const nextY = currentY + step.y;
 
-      if (!isInsideGrid(nextX, nextY) || blocksWalk(maze, nextX, nextY)) {
+      if (!isInsideGrid(maze, nextX, nextY) || blocksWalk(maze, nextX, nextY)) {
         continue;
       }
 
-      const next = tileIndex(nextX, nextY);
+      const next = tileIndex(maze, nextX, nextY);
 
       if (seen.has(next)) {
         continue;
@@ -949,9 +998,9 @@ export function breadthFirstStep(maze: DemoMaze, from: DemoCell, to: DemoCell): 
 
   let cursor = goal;
 
-  while (cameFrom.get(cursor) !== undefined && cameFrom.get(cursor) !== tileIndex(from.x, from.y)) {
+  while (cameFrom.get(cursor) !== undefined && cameFrom.get(cursor) !== tileIndex(maze, from.x, from.y)) {
     cursor = cameFrom.get(cursor) as number;
   }
 
-  return { x: cursor % DEMO_GRID_SIZE, y: Math.floor(cursor / DEMO_GRID_SIZE) };
+  return cellFromIndex(maze, cursor);
 }
