@@ -301,6 +301,10 @@ function createEnemy(archetypeId: DemoArchetypeId, id = "workbench-enemy"): Demo
     pushY: 0,
     repathSeconds: 0,
     waypoint: undefined,
+    // Nothing here steps a mind — the workbench drives poses directly — so this is only the shape the
+    // type asks for, at the value a body that has not thought about anything yet would hold.
+    mind: "idle",
+    idleSeconds: 0,
     wanderCell: undefined,
     windupSeconds: 0,
     windupTotal: Math.max(0.001, attackWindup(archetype)),

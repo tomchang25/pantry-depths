@@ -11,8 +11,10 @@ import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState
 import { coreBonus, type SealedReward } from "@/demo/sealed";
 import {
   attackCooldown,
+  DISENGAGE_RANGE,
   ENEMY_ARCHETYPES,
   isBoned,
+  rollIdleSeconds,
   type DemoArchetypeId,
   type DemoEnemyArchetype,
   type DemoWindupIntent,
@@ -43,6 +45,22 @@ export type DemoCellLike = Readonly<{ x: number; y: number }>;
  */
 export type DemoIntent = "none" | DemoWindupIntent;
 
+/**
+ * What a body is currently doing about the player, as one of five mutually exclusive answers.
+ *
+ * The five are exclusive because each one wants the body somewhere different: idling holds ground,
+ * wandering walks away on an errand of its own, chasing closes, attacking is committed and cannot
+ * move at all, and retreating backs off. A body cannot be doing two of those, which is why this is one
+ * field rather than a set of flags — the flags version drifts into a body that is both chasing and
+ * wandering and moves at the average of the two.
+ *
+ * Being stunned, hurt, drowning, or held is deliberately *not* in here. Those interrupt whatever the
+ * body was doing and hand it back afterwards, so they are conditions layered over a mind rather than
+ * minds of their own; encoding one here would mean storing what it was doing before, which is the same
+ * field twice and two chances to disagree.
+ */
+export type DemoEnemyMind = "idle" | "wander" | "chase" | "attack" | "retreat";
+
 export type DemoEnemy = {
   id: string;
   archetype: DemoEnemyArchetype;
@@ -59,13 +77,23 @@ export type DemoEnemy = {
   pushY: number;
   repathSeconds: number;
   waypoint: DemoCell | undefined;
+  /** What this body is doing about the player. Every movement decision is dispatched on it. */
+  mind: DemoEnemyMind;
   /**
-   * Where a body that has lost interest in the player is walking, or nothing when it is chasing.
+   * How long an idling body has left before it goes looking for somewhere to be.
    *
-   * Both halves of one state: holding a cell is what makes a wander a walk to somewhere rather than
-   * a heading re-rolled every frame, and holding it *at all* is the flag that says this body is
-   * currently wandering — which is what the re-acquire distance is measured against. Two fields
-   * saying that would be two fields that can disagree.
+   * Drawn from a range rather than fixed, and that is not decoration. A floor's bodies are created in
+   * one pass and would otherwise share a phase forever: the whole room stops, waits, and sets off
+   * again in step, which reads as a single mechanism rather than as a dozen creatures each minding its
+   * own business.
+   */
+  idleSeconds: number;
+  /**
+   * Where a wandering body is walking, or nothing when it has not chosen yet.
+   *
+   * A cell rather than a heading. A re-rolled heading produces a body shivering on one square and a
+   * held heading produces one walking into a wall until a timer says otherwise; committing to a
+   * destination and pathing to it means a wandering body crosses rooms and goes through doorways.
    */
   wanderCell: DemoCell | undefined;
   /** Counts down through the telegraph; while above zero the enemy is committed and visibly winding up. */
@@ -630,6 +658,10 @@ export function createEnemy(world: DemoWorld, x: number, y: number, archetype = 
     pushY: 0,
     repathSeconds: 0,
     waypoint: undefined,
+    // Idling rather than wandering, so a body that spawns inside the player's notice takes them up on
+    // its first frame instead of turning away to run an errand first.
+    mind: "idle",
+    idleSeconds: rollIdleSeconds(),
     wanderCell: undefined,
     windupSeconds: 0,
     windupTotal: 0,
@@ -1189,10 +1221,34 @@ export function damageEnemy(
 
   enemy.hp -= amount;
   enemy.hurtSeconds = 0.28;
+  provoke(world, enemy);
 
   if (enemy.hp <= 0) {
     killEnemy(world, enemy, cause, direction);
   }
+}
+
+/**
+ * Turns a body that has just been hit onto the player, if the player is close enough to be blamed.
+ *
+ * Being shot is the one thing that has to reach a body regardless of what it was doing, because the
+ * alternative is a creature standing in the open taking hits and going about its errand — which reads
+ * as broken however defensible the distance rule behind it is.
+ *
+ * Bounded by the same distance that ends a chase, so the rule composes with itself: a body will not be
+ * provoked into a pursuit it would abandon on the very next frame. Past that it genuinely does not
+ * respond, which is what makes reaching across a floor to soften something a real option rather than
+ * a way of summoning it.
+ */
+function provoke(world: DemoWorld, enemy: DemoEnemy): void {
+  if (Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y) > DISENGAGE_RANGE) {
+    return;
+  }
+
+  enemy.mind = "chase";
+  // The errand is off. Keeping it would have the body resume a walk to somewhere it chose before it
+  // was attacked, the moment the player stepped away.
+  enemy.wanderCell = undefined;
 }
 
 /** True when the straight segment between two points crosses no wall. Water does not block. */

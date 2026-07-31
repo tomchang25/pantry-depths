@@ -1,26 +1,31 @@
 /**
- * Enemy behaviour, as two systems that never run in the same frame.
+ * Enemy behaviour, as one mind with five states and nothing outside it deciding where a body goes.
  *
- * **Pursuit** is what a body does when it is not attacking, and it reads two things: the distance band
- * its archetype wants to hold, and how far it is willing to care at all. Beyond a few cells it
- * navigates the grid toward the player's cell, inside that it drops the path and runs straight at
- * them, and it stops when it is in the band.
+ * **Idle** stands about and counts down. **Wander** draws a cell it can reach and walks the grid to
+ * it, then goes back to idling. Those two are the floor's resting condition, and between them they
+ * are why a room is somewhere creatures live rather than a set of arrows pointed at wherever the
+ * player was standing when the floor was built: what you run into, you ran into.
  *
- * A body that declares a leash has a third state past all of that: **wandering**. Out past the leash
- * the player is not a destination any more, so it draws a reachable cell of its own and walks the
- * grid to it, then draws another. That is what stops a floor being a set of arrows all pointing at
- * the player from wherever they were standing when the floor was built, and it is why running into
- * a slime is now something you did rather than something that was aimed at you.
+ * **Chase** closes on the player until it is inside the distance its archetype attacks from, then
+ * stops and holds. **Attack** is that arrival paid off, and it is the committed half — while a wind-up
+ * or a strike is live the body cannot move, cannot turn, and shows which of the two it is in.
+ * **Retreat** is the same rule read from the other side: a shooter crowded inside its minimum walks
+ * backwards until it has its distance again.
  *
- * **Attacking** runs only for a body that has an attack and reads only its own timers. The wind-up
- * and the strike are the committed half: while either is live the body cannot move, cannot turn, and
- * shows which of the two it is in. The cooldown afterwards is not — a body between attacks walks and
- * chases as usual, it simply cannot start another one, so what a cooldown costs it is the attack and
- * not the fight.
+ * Two distances govern all five, and both are the same for every body on the floor: notice at
+ * `SIGHT_RANGE`, forget at `DISENGAGE_RANGE`. Both are straight lines measured through walls. Losing
+ * sight of a body sheds nothing — it only decides *how* the body closes, which is the one thing sight
+ * is read for: seen, it runs straight at the player; unseen, it walks the grid route to their cell.
+ * That is what makes cover a way of buying time rather than a way of disappearing, and it is what
+ * stopped bodies from grinding into the wall between themselves and a player they were beelining at.
  *
- * The split is what makes both ends honest. A slime has no attack, therefore no committed state,
- * therefore nothing that can ever stop it advancing. A skeleton has both, so the seconds either side
- * of a swing are the ones worth walking around it in.
+ * A cooldown is not a state. A body between attacks is an ordinary chasing body that happens to be
+ * unable to start another one, so what a cooldown costs it is the attack and not the fight. Nor is
+ * being stunned, hurt, drowning or carried: each of those interrupts whatever the body was doing and
+ * hands it back afterwards, which is a condition layered over a mind rather than a mind of its own.
+ *
+ * A slime has no attack at all, so two of the five are unreachable for it: it closes to `hold` and
+ * stops, and nothing exists that could ever stop it advancing before then.
  */
 
 import { damageWall } from "@/demo/actions";
@@ -29,13 +34,15 @@ import {
   CHARGE_DISTANCE,
   CHARGE_KNOCKBACK,
   CHARGE_SPEED,
-  CHARGE_TRIGGER_DISTANCE,
   CHARGE_WALL_DAMAGE,
   CHARGE_WALL_STUN,
+  DISENGAGE_RANGE,
+  SIGHT_RANGE,
   attackCooldown,
   attackDamage,
   attackReach,
   attackWindup,
+  rollIdleSeconds,
   MELEE_CUT_HALF_ANGLE,
   STRIKE_SECONDS,
 } from "@/demo/enemy-archetypes";
@@ -59,16 +66,6 @@ import {
 
 const REPATH_SECONDS = 0.4;
 const SEPARATION = 0.62;
-
-/**
- * How far inside its leash a wandering body has to be caught before it takes an interest again.
- *
- * The hysteresis, and the reason there are two distances rather than one: a player standing exactly
- * on the leash would otherwise flip the body between chasing and wandering every frame, and those two
- * want opposite directions — so it reads as a body vibrating rather than as one making its mind up.
- * Giving up happens at the leash and taking up again happens inside it, so neither edge is a coin.
- */
-const REACQUIRE_SHARE = 0.85;
 
 function decayTimers(enemy: DemoEnemy, deltaSeconds: number): void {
   enemy.stunSeconds = Math.max(0, enemy.stunSeconds - deltaSeconds);
@@ -571,8 +568,7 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
 
     const distance = Math.max(0.0001, Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y));
     const sighted = hasLineOfSight(world.maze, enemy.x, enemy.y, world.player.x, world.player.y);
-    pursue(world, enemy, distance, sighted, deltaSeconds);
-    tryBeginAttack(world, enemy, distance, sighted);
+    stepMind(world, enemy, distance, sighted, deltaSeconds);
   }
 }
 
@@ -634,91 +630,111 @@ function stepWindup(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
 }
 
 /**
- * Closes on the player, or holds off them, according to the one band the archetype declares.
+ * One frame of whatever this body is currently doing, and the only place a mind changes.
  *
- * This replaces a melee routine and a shooter routine that differed in nothing but which distance
- * they wanted. Sight gates the band rather than the closing, because a body holding a standoff
- * against a wall it cannot see through is holding it against nothing — it should come round.
+ * A transition sets the field and returns rather than running the state it just entered. The frame it
+ * costs is invisible at sixty of them a second, and what it buys is that no state can be entered from
+ * inside another one — which is the failure this shape exists to prevent, because a chain of states
+ * calling each other is a chain that can loop.
  *
- * The leash is checked before any of it, because a body that has lost interest is not pursuing badly
- * — it is doing something else entirely, and every number below describes a body that wants to be
- * near the player.
+ * Chase and retreat are the one exception, and they earn it by sharing a threshold. Everywhere else
+ * the two states either side of a boundary want the body to do different things at distances that do
+ * not overlap, so a dropped frame is a body pausing imperceptibly. Those two want opposite things at
+ * the same distance: a shooter walked down by the player would spend one frame deciding to back off,
+ * one backing off, one deciding to stop, and one stopped — visibly retreating at a quarter of its
+ * pace. They hand off directly, which terminates because the condition that sends a body one way is
+ * the exact negation of the one that sends it back.
+ *
+ * Attack is handled by coercion rather than by a branch. Reaching this function at all means no
+ * wind-up, strike or charge is live, since every one of those is caught upstream and stops the frame
+ * there; so a body still holding the attack mind here is one whose attack has just ended — or one
+ * whose attack was cut short by a stun. Treating both as "back to chasing" is what keeps a stunned
+ * charger from waking up in a state nothing will ever leave.
  */
-function pursue(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean, deltaSeconds: number): void {
-  const leash = enemy.archetype.leash;
+function stepMind(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean, deltaSeconds: number): void {
+  const mind = enemy.mind === "attack" ? "chase" : enemy.mind;
+  enemy.mind = mind;
 
-  if (leash !== undefined && !holdsInterest(enemy, distance, leash)) {
-    wander(world, enemy, deltaSeconds);
+  if (mind === "idle") {
+    stepIdle(world, enemy, distance, deltaSeconds);
     return;
   }
 
-  // Dropped the moment the player is worth chasing, so a wanderer that gets caught up with does not
-  // keep a stale errand to resume the next time they walk away.
+  if (mind === "wander") {
+    stepWander(world, enemy, distance, deltaSeconds);
+    return;
+  }
+
+  if (mind === "retreat") {
+    stepRetreat(world, enemy, distance, sighted, deltaSeconds);
+    return;
+  }
+
+  if (mind === "chase") {
+    stepChase(world, enemy, distance, sighted, deltaSeconds);
+    return;
+  }
+
+  mind satisfies never;
+  throw new Error("unknown enemy mind");
+}
+
+/** Sends a body back to standing about, with a fresh pause and no errand left over. */
+function rest(enemy: DemoEnemy): void {
+  enemy.mind = "idle";
+  enemy.idleSeconds = rollIdleSeconds();
   enemy.wanderCell = undefined;
-  const band = enemy.archetype.band;
-  const towardX = (world.player.x - enemy.x) / distance;
-  const towardY = (world.player.y - enemy.y) / distance;
-
-  if (band !== undefined && sighted) {
-    if (distance < band.near) {
-      walk(world, enemy, -towardX, -towardY, enemy.archetype.speed, deltaSeconds);
-      return;
-    }
-
-    if (distance <= band.far) {
-      // Holding station, and turning to keep the player in front while it does. Standing still used
-      // to leave the facing wherever the last step of walking left it, so a shooter that had reached
-      // its band and stopped was drawn facing the direction it had arrived from for as long as it
-      // stood there.
-      faceThePlayer(enemy, Math.atan2(towardY, towardX), deltaSeconds);
-      return;
-    }
-  }
-
-  const close = distance <= enemy.archetype.rushDistance;
-
-  if (close) {
-    // Dropping the waypoint alone would leave the rusher stalled for a whole cooldown when the
-    // player breaks back out of rush range; zeroing it makes the next path request immediate.
-    enemy.waypoint = undefined;
-    enemy.repathSeconds = 0;
-  }
-
-  const goal = { x: Math.floor(world.player.x), y: Math.floor(world.player.y) };
-  // A body with no route to the player still walks: the separation in `walk` is what keeps a stalled
-  // crowd from stacking into one point, and it was the old behaviour of a failed search too.
-  const heading = close ? { x: towardX, y: towardY } : (pathHeading(world, enemy, goal) ?? { x: 0, y: 0 });
-  walk(world, enemy, heading.x, heading.y, close ? enemy.archetype.rushSpeed : enemy.archetype.speed, deltaSeconds);
 }
 
 /**
- * Whether a leashed body still counts the player as its business.
+ * Standing about, until either the player turns up or the body thinks of somewhere to be.
  *
- * Holding a wander cell is what "currently wandering" means, so the two distances key off that rather
- * than off a second flag: a chasing body gives up at the leash, and a wandering one only takes the
- * player up again once they are well inside it.
+ * It still walks, at a heading of nothing. That looks like a contradiction and is the point: the crowd
+ * separation lives inside `walk`, so a body that skips it is a body that can be stood inside. Bodies
+ * arrive at their pauses in groups — a wave that lost the player, a doorway three of them came through
+ * — and without this they would spend the whole pause occupying one square.
  */
-function holdsInterest(enemy: DemoEnemy, distance: number, leash: number): boolean {
-  return enemy.wanderCell === undefined ? distance <= leash : distance <= leash * REACQUIRE_SHARE;
+function stepIdle(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSeconds: number): void {
+  if (distance <= SIGHT_RANGE) {
+    enemy.mind = "chase";
+    return;
+  }
+
+  enemy.idleSeconds -= deltaSeconds;
+
+  if (enemy.idleSeconds <= 0) {
+    enemy.mind = "wander";
+    return;
+  }
+
+  walk(world, enemy, 0, 0, enemy.archetype.speed, deltaSeconds);
 }
 
 /**
- * Walking somewhere of its own choosing, which is what a body out past its leash does instead of
- * standing still.
+ * Walking somewhere of its own choosing.
  *
  * A cell rather than a heading, and drawn from everything it can actually reach rather than from the
- * eight directions around it. Both halves matter: a re-rolled heading produces a body shivering on
- * one square, and a heading held for a while produces one walking into a wall until the timer says
+ * eight directions around it. Both halves matter: a re-rolled heading produces a body shivering on one
+ * square, and a heading held for a while produces one walking into a wall until the timer says
  * otherwise. Committing to a destination and pathing to it along the grid means a wandering slime
  * crosses rooms, goes through doorways, and ends up somewhere the player did not put it.
  *
- * Arrival is the only thing that ends a trip, and it is standing in the cell rather than being some
- * distance from its middle. A radius would have been a second number disagreeing with the grid the
- * route was drawn on: too small and a body that has plainly got there keeps shuffling toward a point,
- * too large and it gives up a cell early. There is no timer either, because the point is that this is
- * the body's own business rather than a pause in the player's — it goes where it was going.
+ * Arrival is standing in the cell rather than being some distance from its middle. A radius would have
+ * been a second number disagreeing with the grid the route was drawn on: too small and a body that has
+ * plainly got there keeps shuffling toward a point, too large and it gives up a cell early.
+ *
+ * Every way a trip can end sends the body back to idling, including the two failures. That is not
+ * tidiness — a body sealed in with nowhere to go used to hold no destination and therefore ask for a
+ * new one, which is a flood of the whole open floor, every frame, forever. Resting on failure is what
+ * bounds that search to once a pause.
  */
-function wander(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+function stepWander(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSeconds: number): void {
+  if (distance <= SIGHT_RANGE) {
+    enemy.mind = "chase";
+    enemy.wanderCell = undefined;
+    return;
+  }
+
   const cell = { x: Math.floor(enemy.x), y: Math.floor(enemy.y) };
 
   if (enemy.wanderCell === undefined) {
@@ -730,26 +746,134 @@ function wander(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void 
 
   const goal = enemy.wanderCell;
 
-  // Sealed in with nothing walkable next to it. Standing still is the honest answer.
+  // Sealed in with nothing walkable next to it.
   if (goal === undefined) {
+    rest(enemy);
     return;
   }
 
   if (goal.x === cell.x && goal.y === cell.y) {
-    enemy.wanderCell = undefined;
+    rest(enemy);
     return;
   }
 
   const heading = pathHeading(world, enemy, goal);
 
-  // No route left to somewhere that had one when it was drawn: the body has been knocked somewhere
-  // else since. Drawing a fresh destination from where it is now is the whole recovery.
+  // No route left to somewhere that had one when it was drawn: the body has been knocked elsewhere
+  // since. Standing about and drawing a fresh destination from where it is now is the whole recovery.
   if (heading === undefined) {
-    enemy.wanderCell = undefined;
+    rest(enemy);
     return;
   }
 
   walk(world, enemy, heading.x, heading.y, enemy.archetype.speed, deltaSeconds);
+}
+
+/**
+ * Closing on the player until this body is standing where it can attack from, and holding there.
+ *
+ * Sight decides how it closes and nothing else. Seen, it runs the straight line; unseen, it walks the
+ * grid route to the player's cell — which is the same body pursuing the same target, differing only in
+ * whether it has to go round. The waypoint is dropped on every sighted frame so that the first unsighted
+ * one searches immediately rather than standing through the rest of a path cooldown, which is exactly
+ * the frame a body rounds a corner and would otherwise be seen to hesitate on it.
+ *
+ * Reaching the attack range ends the closing whether or not an attack actually starts. A body on
+ * cooldown holds its ground rather than walking further in: where it stops is where it strikes from,
+ * and a charger that crept closer between charges would be launching from somewhere its own telegraph
+ * had not described.
+ */
+function stepChase(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean, deltaSeconds: number): void {
+  if (distance > DISENGAGE_RANGE) {
+    rest(enemy);
+    return;
+  }
+
+  const attack = enemy.archetype.attack;
+  const towardX = (world.player.x - enemy.x) / distance;
+  const towardY = (world.player.y - enemy.y) / distance;
+
+  if (attack !== undefined && sighted) {
+    // Crowded, and it can see what is crowding it. Backing off a player it cannot see would have it
+    // pace at the edge of its own minimum while trying to walk round a wall to reach them.
+    if (distance < attack.min) {
+      enemy.mind = "retreat";
+      stepRetreat(world, enemy, distance, sighted, deltaSeconds);
+      return;
+    }
+
+    if (distance <= attack.max) {
+      if (beginAttack(world, enemy)) {
+        enemy.mind = "attack";
+        return;
+      }
+
+      holdGround(world, enemy, towardX, towardY, deltaSeconds);
+      return;
+    }
+  }
+
+  // What a body with no attack has instead: somewhere it stops, and nothing to do when it gets there.
+  const hold = enemy.archetype.hold;
+
+  if (hold !== undefined && distance <= hold) {
+    holdGround(world, enemy, towardX, towardY, deltaSeconds);
+    return;
+  }
+
+  if (sighted) {
+    // Zeroed rather than merely dropped, so losing sight next frame costs no cooldown.
+    enemy.waypoint = undefined;
+    enemy.repathSeconds = 0;
+    walk(world, enemy, towardX, towardY, enemy.archetype.speed, deltaSeconds);
+    return;
+  }
+
+  const goal = { x: Math.floor(world.player.x), y: Math.floor(world.player.y) };
+  // A body with no route to the player still walks: the separation in `walk` is what keeps a stalled
+  // crowd from stacking into one point, and it was the old behaviour of a failed search too.
+  const heading = pathHeading(world, enemy, goal) ?? { x: 0, y: 0 };
+  walk(world, enemy, heading.x, heading.y, enemy.archetype.speed, deltaSeconds);
+}
+
+/**
+ * Backing away from a player who has closed inside the distance this body needs.
+ *
+ * A straight line rather than a route, because fleeing is the one thing a body does not need to plan:
+ * it wants to be further away, and every direction that achieves that is equally good. Cornered, it
+ * presses into the wall, which is the honest picture of a shooter that has been run down.
+ */
+function stepRetreat(
+  world: DemoWorld,
+  enemy: DemoEnemy,
+  distance: number,
+  sighted: boolean,
+  deltaSeconds: number,
+): void {
+  const attack = enemy.archetype.attack;
+
+  if (attack === undefined || distance >= attack.min) {
+    enemy.mind = "chase";
+    stepChase(world, enemy, distance, sighted, deltaSeconds);
+    return;
+  }
+
+  const awayX = (enemy.x - world.player.x) / distance;
+  const awayY = (enemy.y - world.player.y) / distance;
+  walk(world, enemy, awayX, awayY, enemy.archetype.speed, deltaSeconds);
+}
+
+/**
+ * Standing where it wants to be, still being jostled, and turning to keep the player in front.
+ *
+ * The walk comes first and the facing second on purpose. Walking at a heading of nothing still applies
+ * crowd separation and still points the body wherever that shove sent it, so a body that turned first
+ * would end the frame facing whichever neighbour last pushed it — which is how a shooter ends up
+ * aiming at its own flank.
+ */
+function holdGround(world: DemoWorld, enemy: DemoEnemy, towardX: number, towardY: number, deltaSeconds: number): void {
+  walk(world, enemy, 0, 0, enemy.archetype.speed, deltaSeconds);
+  faceThePlayer(enemy, Math.atan2(towardY, towardX), deltaSeconds);
 }
 
 /** Swings a standing body's facing toward the player, at its own turn rate if it has one. */
@@ -765,46 +889,41 @@ function faceThePlayer(enemy: DemoEnemy, desiredAngle: number, deltaSeconds: num
 }
 
 /**
- * Opens an attack if this body has one and the conditions it declares are met.
+ * Opens an attack, if this body has one and is free to start it. Answers whether one began.
  *
- * The cooldown is checked here rather than upstream, because a body on cooldown is now an ordinary
- * chasing body: it reaches this function every frame and this is the only thing turning it away.
+ * The distance and the line of sight are the caller's to check and are not rechecked here. That is the
+ * whole gain from folding the standoff band and the attack trigger into one range: a body attacks from
+ * exactly where it decided to stop, so there is no second opinion about the geometry that could
+ * disagree with the first. What is left here is only what differs between the three kinds of attack.
+ *
+ * The cooldown stays here rather than upstream, because a body on cooldown is still an ordinary
+ * chasing body — the false answer is what tells the caller to hold its ground instead of striking.
  */
-function tryBeginAttack(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean): void {
+function beginAttack(world: DemoWorld, enemy: DemoEnemy): boolean {
   const intent = enemy.archetype.windupIntent;
 
   if (intent === undefined || enemy.attackCooldown > 0) {
-    return;
+    return false;
   }
 
   if (intent === "melee") {
-    if (enemy.archetype.meleeWindup === true && distance <= attackReach(enemy.archetype)) {
-      beginWindup(world, enemy, "melee");
+    // The one row that lands on touch instead of committing has nothing to open.
+    if (enemy.archetype.meleeWindup !== true) {
+      return false;
     }
 
-    return;
+    beginWindup(world, enemy, "melee");
+    return true;
   }
 
   if (intent === "charge") {
-    if (sighted && distance <= CHARGE_TRIGGER_DISTANCE) {
-      beginWindup(world, enemy, "charge");
-    }
-
-    return;
+    beginWindup(world, enemy, "charge");
+    return true;
   }
 
   if (intent === "shoot") {
-    // The band is the whole condition: its far edge is the range it will open fire at, and its near
-    // edge is the distance it would rather be walking away from than shooting at. A shooter caught
-    // inside that edge still finishes the shot it had started — a committed telegraph is never
-    // taken back — and then leaves rather than starting another. A body with no band has no shot.
-    const band = enemy.archetype.band;
-
-    if (band !== undefined && sighted && distance >= band.near && distance <= band.far) {
-      beginWindup(world, enemy, "shoot");
-    }
-
-    return;
+    beginWindup(world, enemy, "shoot");
+    return true;
   }
 
   intent satisfies never;

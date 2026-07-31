@@ -2,15 +2,20 @@
  * The seven things on a floor, and how each one announces itself.
  *
  * Three of them are slimes and have no attack at all: what they cost the player is position, and none
- * of them is fast enough to take it from someone walking away. Its interest reaches ten cells and no
- * further, so a slime you have not gone near is a body wandering the floor on its own errand, and the
- * three colours are three answers to how much it costs to go through one rather than round it.
+ * of them is fast enough to take it from someone walking away. The three colours are three answers to
+ * how much it costs to go through one rather than round it.
  *
- * The other four are skeletons, and they follow from anywhere; every attack they have is telegraphed
- * before it lands, because every attack is avoidable if you read it — a shooter can be broken
- * line-of-sight on, and a charge commits to a straight lane you can step out of, then beats itself
- * against the wall. The wind-up numbers are the whole difficulty knob; the damage barely matters
- * next to them.
+ * The other four are skeletons, and what tells them apart is the distance each one wants. Every body
+ * on the floor notices the player at the same range and gives up at the same range; what differs is
+ * where it stops once it has closed, and that is the attack range on the row. A crossbowman is content
+ * six cells out, a swordsman is not content until it is at arm's length, and everything either of them
+ * does follows from that one pair of numbers.
+ *
+ * Every attack they have is telegraphed before it lands, because every attack is avoidable if you read
+ * it — a shot is aimed at a spot you can leave, and a charge commits to a straight lane you can step
+ * out of, then beats itself against the wall. Breaking line of sight does not shake anything off; it
+ * only means the body has to walk the grid to reach you rather than run straight. The wind-up numbers
+ * are the whole difficulty knob; the damage barely matters next to them.
  *
  * A skeleton has a front, which costs it the freedom a blob has — it must turn before it can go, and
  * it strikes at what it is looking at — and buys the only thing that makes an authored eight-way body
@@ -40,8 +45,8 @@ export type DemoBodyKind = "soft" | "boned";
 /**
  * What an archetype's wind-up commits to, declared once here rather than inferred from its numbers.
  *
- * Behaviour still decides *when* a wind-up begins — a charger needs the range and the line of sight, a
- * shooter needs its standoff band — but which of the three it will be is a fixed fact about the
+ * Behaviour still decides *when* a wind-up begins — the body has to be inside its attack range with a
+ * line of sight along it — but which of the three it will be is a fixed fact about the
  * creature, and nothing outside this file should have to work it out. A preview that guessed got it
  * wrong in the obvious way: it assumed melee, so every slime rehearsed its attack wearing the
  * skeleton's sword.
@@ -65,12 +70,16 @@ export type DemoEnemyArchetype = Readonly<{
    * never being able to move one without moving the other.
    */
   weight: DemoThrowWeight;
-  /** Ordinary movement, used while pathing toward the player. */
+  /**
+   * How fast this body travels, and the only speed it has.
+   *
+   * There used to be a second one for the last few cells of a chase. What killed it is that closing
+   * is no longer a distance: a body runs straight when it can see the player and walks the grid when
+   * it cannot, so "beelining" stopped being a phase with an edge to change speed at. Two numbers
+   * either had to key off sight — making every sighted body permanently the faster one, which is the
+   * same as having one number — or off a distance nothing else read any more.
+   */
   speed: number;
-  /** Speed while beelining inside the charge distance; the charger's dash is separate. */
-  rushSpeed: number;
-  /** Grid distance at which pathing is abandoned for a straight line at the player. */
-  rushDistance: number;
   /**
    * Everything about having an attack, and every one of them optional together.
    *
@@ -109,15 +118,29 @@ export type DemoEnemyArchetype = Readonly<{
    */
   shot?: Readonly<{ speed: number; damage: number; range: number; knockback: number }>;
   /**
-   * The distance band this body tries to hold while pursuing: it backs off inside `near`, closes
-   * beyond `far`, and stands still between them.
+   * The distance this body attacks from: it closes beyond `max`, backs away inside `min`, and strikes
+   * between them.
    *
-   * Pursuit reads nothing else, which is what lets one routine steer a swordsman and a shooter. A
-   * melee body's band is its own reach, so it stops exactly where it can hit; a shooter's is the
-   * standoff it wants. Omitted means the body holds no distance at all and walks into the player
-   * forever — that is the slime, and it is the reason this is optional rather than defaulted.
+   * One pair of numbers where there used to be two, and the consolidation is the point. A standoff
+   * band said where a body wanted to stand and a separate trigger said when it would attack, so the
+   * charger wanted to stand at arm's length and opened fire from five cells — two answers to one
+   * question, and the body obeyed whichever was asked first. Saying it once means where it stops is
+   * where it strikes from, always.
+   *
+   * `min` above zero is what makes a body back off rather than be crowded, so it is the two shooters
+   * and nothing else: a swordsman has no distance it dislikes being at. Omitted altogether means the
+   * body has no attack, and therefore no distance it wants at all — see `hold`.
    */
-  band?: Readonly<{ near: number; far: number }>;
+  attack?: Readonly<{ min: number; max: number }>;
+  /**
+   * How close a body with no attack presses, in cells.
+   *
+   * The slime's version of an attack range, and the only reason it is a separate field: a body that
+   * has somewhere it wants to be but nothing to do when it arrives is not the same shape as one that
+   * strikes on arrival, and giving slimes an attack range with no attack behind it would mean every
+   * reader of that field has to ask whether the attack is real.
+   */
+  hold?: number;
   /**
    * Radians per second the body may swing its facing, for a body that has a front.
    *
@@ -144,28 +167,7 @@ export type DemoEnemyArchetype = Readonly<{
    * short of that on its own — so standing near a crowd is free and pushing into one is not.
    */
   drag?: number;
-  /**
-   * How far from the player this body stays interested, in cells. Omitted means it never loses
-   * interest and walks the whole floor to reach them, which is what every skeleton does.
-   *
-   * Set it and the body stops being a homing missile: past this distance it goes about its own
-   * business — see the wander in the behaviour module — and takes the player up again only when they
-   * come back inside. That is what a slime is now, and the difference it makes is that a room is
-   * somewhere with bodies moving around in it rather than a room with a line of bodies pointed at
-   * you: what you run into, you ran into.
-   */
-  leash?: number;
 }>;
-
-/**
- * The band a body with a contact attack holds: just inside its own reach.
- *
- * Derived from the reach rather than authored beside it, because the two can never disagree without
- * producing a body that walks to a spot it cannot strike from.
- */
-function meleeBand(contactRange: number): Readonly<{ near: number; far: number }> {
-  return { near: contactRange * 0.85, far: contactRange };
-}
 
 const CHARGER_REACH = 0.86;
 const SWORDSMAN_REACH = 0.95;
@@ -173,21 +175,10 @@ const SWORDSMAN_REACH = 0.95;
 /**
  * Where a slime stops, which is just short of the player rather than inside them.
  *
- * A near edge of zero is deliberate: a slime never backs off from anything, it only stops advancing.
  * Walking into the player was what put the two bodies on top of each other in the first place, and
  * everything that was wrong about the contact followed from that.
  */
-const SLIME_BAND = { near: 0, far: 0.8 } as const;
-
-/**
- * How far a slime will follow, in cells.
- *
- * Ten is most of a room away: far enough that a slime which has seen you is a commitment you have to
- * answer rather than something you stroll out of, short enough that the far half of a floor is still
- * going about its own business. What it buys is that the slimes on a floor are not all facing you —
- * the ones that come are the ones you got near, and there is somewhere on the floor that is not that.
- */
-const SLIME_LEASH = 10;
+const SLIME_HOLD = 0.8;
 
 /** The small one: it goes further out of the hand and lands lighter than the other two. */
 const LIGHT_BODY_WEIGHT: DemoThrowWeight = {
@@ -240,14 +231,11 @@ const SLIME_GREEN: DemoEnemyArchetype = {
   // Three quarters of what a slime used to move at, and the fastest of the three. Still well under
   // the player, so outrunning a green one is free and the cost of one is where it stands.
   speed: 1.425,
-  rushSpeed: 1.95,
-  rushDistance: 5,
   body: "soft",
   footprint: 0.22,
-  band: SLIME_BAND,
+  hold: SLIME_HOLD,
   // Three quarters of pace: the one you barge through, and the reason the other two read as heavy.
   drag: 0.25,
-  leash: SLIME_LEASH,
 };
 
 const SLIME_BLUE: DemoEnemyArchetype = {
@@ -260,14 +248,11 @@ const SLIME_BLUE: DemoEnemyArchetype = {
   // Half. A blue slime no longer arrives anywhere — it is somewhere, and the question is whether you
   // are going through it.
   speed: 0.95,
-  rushSpeed: 1.3,
-  rushDistance: 5,
   body: "soft",
   footprint: 0.3,
-  band: SLIME_BAND,
+  hold: SLIME_HOLD,
   // Half of pace. Crossing one is a decision now rather than a texture.
   drag: 0.5,
-  leash: SLIME_LEASH,
 };
 
 const SLIME_RED: DemoEnemyArchetype = {
@@ -278,19 +263,16 @@ const SLIME_RED: DemoEnemyArchetype = {
   weight: HEAVY_BODY_WEIGHT,
   // A quarter, which at an eighth of the player's pace stops being pursuit at all. A red slime is
   // terrain: it holds the ground it is on, it drags hardest at whoever crosses it, and it will never
-  // reach anybody who does not walk back to it. The leash and the wander are what keep it from being
-  // scenery — it is slowly going somewhere, and where it ends up is not where you left it.
+  // reach anybody who does not walk back to it. Losing interest and wandering are what keep it from
+  // being scenery — it is slowly going somewhere, and where it ends up is not where you left it.
   speed: 0.475,
-  rushSpeed: 0.65,
-  rushDistance: 5,
   body: "soft",
   footprint: 0.38,
-  band: SLIME_BAND,
+  hold: SLIME_HOLD,
   // A third of pace, which is the hardest single body on the floor to get past — and three of them
   // together still cannot seal a doorway, because the crowd slowdown is floored well above a
   // standstill. Walking through a red one is meant to be a thing you notice you decided to do.
   drag: 2 / 3,
-  leash: SLIME_LEASH,
 };
 
 const SWORDSMAN: DemoEnemyArchetype = {
@@ -308,9 +290,11 @@ const SWORDSMAN: DemoEnemyArchetype = {
     thud: 1.3,
     carrySlow: 0.7,
   },
-  speed: 1.65,
-  rushSpeed: 2.35,
-  rushDistance: 4.5,
+  // The fastest thing on the floor that is not the player, and it has to be: everything it does
+  // happens at arm's length, so a swordsman that cannot get there is not an enemy. It used to keep a
+  // second, higher speed for the last few cells; folding the two into one means the number the row
+  // states is the number you are outrun by.
+  speed: 2.2,
   attackCooldown: 1.8,
   // A full second, standing still and pointed where it decided to point. That is a long time to be a
   // statue at arm's reach, and it is meant to be: the swing is now a cone rather than a circle and
@@ -326,7 +310,9 @@ const SWORDSMAN: DemoEnemyArchetype = {
   meleeWindup: true,
   windupIntent: "melee",
   turnRate: 4.4,
-  band: meleeBand(SWORDSMAN_REACH),
+  // No minimum, so it is never crowded off the player: a swordsman has nothing it can do at range and
+  // therefore no distance it would rather be at than as close as it can get.
+  attack: { min: 0, max: SWORDSMAN_REACH },
 };
 
 /**
@@ -343,9 +329,7 @@ const HAMMERMAN: DemoEnemyArchetype = {
   appearance: "skeletonHammerman",
   health: 120,
   weight: HEAVY_BODY_WEIGHT,
-  speed: 1.8,
-  rushSpeed: 2.2,
-  rushDistance: 5,
+  speed: 2.1,
   attackCooldown: 3.5,
   windup: 3,
   contactDamage: 6,
@@ -353,7 +337,13 @@ const HAMMERMAN: DemoEnemyArchetype = {
   body: "boned",
   meleeWindup: false,
   windupIntent: "charge",
-  band: meleeBand(CHARGER_REACH),
+  // Four cells out, which is where it stops walking and starts gathering — and it is also the length
+  // of the charge, so the two together are the whole geometry. A charge launched from the far edge
+  // spends itself exactly where the player was standing; one launched from closer than that carries
+  // the difference past them and into whatever is behind. That is why a hammer-bearer is dangerous in
+  // a corridor and merely loud in a hall: the wall you are standing in front of is its weapon and its
+  // punishment at once.
+  attack: { min: 0, max: 4 },
   turnRate: 3.2,
 };
 
@@ -365,8 +355,10 @@ const HAMMERMAN: DemoEnemyArchetype = {
  * without changing a line of how it thinks.
  *
  * Neither has a contact attack, and that is not an oversight. A body whose whole threat is at range
- * should have nothing at all at zero, so the reward for closing that distance is that the thing
- * stops being dangerous — and its own band then walks it back out of your reach.
+ * should have nothing at all at zero, so the reward for closing that distance is that the thing stops
+ * being dangerous. They are also the only two rows with a minimum, which is the other half of the
+ * same statement: crowded inside it, a shooter walks backwards until it has its distance again rather
+ * than standing there holding a weapon it cannot use.
  *
  * Neither has a cooldown either. What paces a shooter is how long it takes to aim, and a second
  * timer after the shot was a pause with nothing to look at. The rhythm is the wind-up repeating, and
@@ -379,17 +371,16 @@ const JAVELINEER: DemoEnemyArchetype = {
   health: 60,
   weight: LIGHT_BODY_WEIGHT,
   speed: 1.7,
-  rushSpeed: 1.7,
-  rushDistance: 0,
   attackCooldown: 0,
   windup: 3,
   body: "boned",
   windupIntent: "shoot",
   // Four cells is close enough to walk to, which is the point of the longer telegraph: it is the
   // shooter you answer by closing, and it backs away below two rather than letting you arrive.
-  band: { near: 2, far: 4 },
+  attack: { min: 2, max: 4 },
   turnRate: 4.4,
-  // Half again the band, so a shot loosed at the far edge still reaches a player who stepped back.
+  // Half again the attack range, so a javelin loosed at the far edge still reaches a player who
+  // stepped back rather than dying in the air exactly where they had been standing.
   shot: { speed: 6, damage: 18, range: 6, knockback: 3.5 },
 };
 
@@ -400,16 +391,15 @@ const CROSSBOWMAN: DemoEnemyArchetype = {
   health: 60,
   weight: LIGHT_BODY_WEIGHT,
   speed: 1.7,
-  rushSpeed: 1.7,
-  rushDistance: 0,
   // The same three seconds the javelineer takes, and nothing afterwards. What separates the two is
-  // not the rhythm any more but the ground: eight cells is a room away, so the answer to this one is
-  // cover or the walk, and the answer to the other is that you can reach it.
+  // not the rhythm but the two cells between where each stops: a javelineer is standing at the far
+  // end of the room you are in, a crossbowman is standing in the next one, and the walk between those
+  // two facts is what you spend the telegraph on.
   attackCooldown: 0,
   windup: 3,
   body: "boned",
   windupIntent: "shoot",
-  band: { near: 4, far: 8 },
+  attack: { min: 2, max: 6 },
   turnRate: 4.4,
   shot: { speed: 8, damage: 12, range: 12, knockback: 0 },
 };
@@ -482,9 +472,44 @@ export const MELEE_CUT_HALF_ANGLE = 0.75;
  */
 export const STRIKE_SECONDS = 0.22;
 
-export const CHARGE_TRIGGER_DISTANCE = 5;
+/**
+ * How far from the player a body takes an interest, in cells, and how far out it gives up again.
+ *
+ * One pair for every body on the floor rather than a number per row, because what a creature is is
+ * the distance it fights at — the range at which it notices you is a fact about the dungeon. Making
+ * it per-archetype produced rooms where the same doorway woke half its occupants.
+ *
+ * A straight line through walls both ways, and that is the whole trick. Losing sight of a body does
+ * not shake it: it just means the body has to walk the grid to reach you instead of running straight,
+ * so cover buys time and never buys escape. Escaping is the twelve, and the gap between the two is
+ * wide on purpose — a body noticed at eight has to be pulled four cells further before it forgets, so
+ * standing on the edge of a room cannot flicker it between minding you and minding its own business.
+ */
+export const SIGHT_RANGE = 8;
+export const DISENGAGE_RANGE = 12;
+
+/**
+ * How long a body stands about before deciding where to go next.
+ *
+ * A range, rolled per body per pause. The point of the pause is that a floor reads as somewhere
+ * creatures live rather than a set of patrols, and a fixed length would defeat that on its own: bodies
+ * created in one pass stay in phase forever, so the whole room would stop and start together.
+ */
+export function rollIdleSeconds(): number {
+  return 2 + Math.random() * 2;
+}
+
 export const CHARGE_SPEED = 9;
-export const CHARGE_DISTANCE = 6;
+/**
+ * How far a charge runs, which is deliberately the charger's own attack range.
+ *
+ * The two being one number is what makes the lane readable. A charger launches from somewhere inside
+ * its range and always runs the same length, so how far it carries past the player is exactly how far
+ * inside that range it was — nothing when it fired from the edge, most of the lane when it fired from
+ * your face. There is no separate overshoot to tune, and the strip painted on the floor during the
+ * wind-up is the true extent of the thing every time.
+ */
+export const CHARGE_DISTANCE = 4;
 export const CHARGE_DAMAGE = 18;
 export const CHARGE_KNOCKBACK = 11;
 /** What a charger costs itself for missing: the window the whole attack is balanced around. */
