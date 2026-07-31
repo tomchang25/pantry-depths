@@ -943,7 +943,9 @@
 .demo__overlay-panel {
   display: grid;
   gap: 0.9rem;
-  width: min(38rem, 100%);
+  /* Wide enough for a nine-row roster to keep its descriptions on one or two lines, and narrow
+   * enough to clear the development overlay pinned in the bottom-right corner. */
+  width: min(42rem, 100%);
   padding: 1.6rem 1.8rem 1.4rem;
   border: 1px solid color-mix(in srgb, var(--tone, #cb9769) 55%, transparent);
   border-radius: 0.4rem;
@@ -1004,10 +1006,122 @@
   display: none;
 }
 
-.demo__overlay-controls {
+/*
+ * The blessing roster, and the one screen it can be read on.
+ *
+ * Every description in the catalogue was already written and already computed, and until this list
+ * existed the only way to reach one was to hover a glyph in the play-time bar — with the pointer
+ * locked for the whole of a run, which means never. The rows are quiet on purpose: the name carries
+ * the weight, the sentence sits under it at lower contrast, and whether the run holds it is a property
+ * of the row rather than another column of words.
+ */
+.demo__overlay-rostertitle {
+  color: #c79e73;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.demo__overlay-rostertitle[hidden] {
+  display: none;
+}
+
+.demo__overlay-roster {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.45rem;
+  gap: 0.28rem;
+  text-align: left;
+}
+
+.demo__overlay-roster[hidden] {
+  display: none;
+}
+
+/*
+ * Held and not held differ by colour and nothing else.
+ *
+ * Border, padding and both type sizes are identical in the two states, because the roster's whole
+ * claim is that pausing looks the same whatever the run is carrying — a row that changed size as it
+ * filled in would teach the player that pausing is unstable.
+ */
+.demo__overlay-rosterrow {
+  display: grid;
+  grid-template-columns: 1.9rem minmax(0, 1fr);
+  gap: 0.05rem 0.6rem;
+  align-items: center;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--bless, #cb9769) 32%, transparent);
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--bless, #cb9769) 7%, transparent);
+}
+
+.demo__overlay-rosterrow[data-owned="false"] {
+  --bless: #8f8296;
+
+  background: rgb(255 255 255 / 2.5%);
+}
+
+.demo__overlay-rosterglyph {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  color: var(--bless, #f4dfc7);
+  font-size: 1.02rem;
+  border: 1px solid color-mix(in srgb, var(--bless, #f4dfc7) 45%, transparent);
+  border-radius: 0.2rem;
+}
+
+.demo__overlay-rostername {
+  color: #f4dfc7;
+  font-size: 0.84rem;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+.demo__overlay-rosterrow[data-owned="false"] .demo__overlay-rostername {
+  color: #b3a3ad;
+}
+
+.demo__overlay-rosterdetail {
+  color: #cdb69c;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.demo__overlay-rosterrow[data-owned="false"] .demo__overlay-rosterdetail {
+  color: #8f8296;
+}
+
+/* Several catalogue glyphs are emoji, which ignore `color` and stay bright in a row that is meant to
+ * read as not held. Draining them is the only way the two states look like two states. */
+.demo__overlay-rosterrow[data-owned="false"] .demo__overlay-rosterglyph {
+  filter: grayscale(1) opacity(70%);
+}
+
+/*
+ * A screen carrying the roster gives it the room, and takes it from the title.
+ *
+ * The ending sheets keep the full title: they are a result, and the word is the result. A pause is a
+ * list, so the list is what the height is spent on.
+ */
+.demo__overlay-panel:has(.demo__overlay-roster:not([hidden])) .demo__overlay-title {
+  font-size: clamp(1.7rem, 3.4vw, 2.4rem);
+}
+
+/*
+ * Centred and wrapping rather than five fixed columns.
+ *
+ * The title screen lists five keys and the pause lists two, and a five-column grid left the pause's
+ * pair pinned to the left edge under a centred title.
+ */
+.demo__overlay-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1.6rem;
+  justify-content: center;
 }
 
 .demo__overlay-controls[hidden] {
@@ -1017,6 +1131,7 @@
 .demo__overlay-control {
   display: grid;
   gap: 0.32rem;
+  min-width: 4.4rem;
   justify-items: center;
   color: #a9939f;
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -1177,6 +1292,35 @@
   }
 }
 
+/*
+ * Nine rows is the tallest thing the overlay ever holds, and the window is not always 800 pixels.
+ *
+ * Its own breakpoint rather than the HUD-wide one below: at this height the four corners are still
+ * fine and only the roster is running out of room, so compacting the whole interface would be paying
+ * for the fix somewhere it was not needed.
+ */
+@media (max-height: 820px) {
+  .demo__overlay {
+    padding: 1.4rem;
+  }
+
+  .demo__overlay-panel {
+    gap: 0.7rem;
+  }
+
+  .demo__overlay-roster {
+    gap: 0.22rem;
+  }
+
+  .demo__overlay-rosterrow {
+    padding: 0.22rem 0.5rem;
+  }
+
+  .demo__overlay-rosterdetail {
+    line-height: 1.3;
+  }
+}
+
 @media (max-width: 900px), (max-height: 650px) {
   .demo__run {
     inset: 0.55rem auto auto 0.55rem;
@@ -1235,6 +1379,30 @@
     font-size: 0.8rem;
   }
 
+  .demo__overlay-roster {
+    gap: 0.2rem;
+  }
+
+  .demo__overlay-rosterrow {
+    grid-template-columns: 1.55rem minmax(0, 1fr);
+    padding: 0.2rem 0.4rem;
+  }
+
+  .demo__overlay-rosterglyph {
+    width: 1.55rem;
+    height: 1.55rem;
+    font-size: 0.88rem;
+  }
+
+  .demo__overlay-rostername {
+    font-size: 0.78rem;
+  }
+
+  .demo__overlay-rosterdetail {
+    font-size: 0.67rem;
+    line-height: 1.28;
+  }
+
   .demo__objective {
     bottom: 27%;
     width: min(27rem, calc(100% - 1.5rem));
@@ -1262,7 +1430,7 @@
   }
 
   .demo__overlay-controls {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem 0.9rem;
   }
 
   .demo__overlay-action {

@@ -50,10 +50,9 @@ A pause screen is a good place to put everything, and this one deliberately hold
 
 | Child | Focus                                                | Form             |
 | ----- | ---------------------------------------------------- | ---------------- |
-| 01    | The pause screen can carry a roster instead of prose | Spec via `/goal` |
 | 02    | Both blessing tiers rendered, with totals and counts | Spec via `/goal` |
 
-Landing order is 01 then 02: the first opens the shape, the second fills it.
+Child 01 has shipped: the overlay carries a roster, and pausing lists the tier that never repeats with every description readable without a pointer. What remains is filling it with the tier that stacks.
 
 ## Non-Goals
 
@@ -79,13 +78,6 @@ Landing order is 01 then 02: the first opens the shape, the second fills it.
 Perishable: this records the codebase on 2026-07-31. Re-check every coordinate against live code before acting on it.
 
 Both children are demo-half work — the surface is `src/demo/` — so `dev/agent_rules/implement_operations.md` applies: the spec is a short architectural note, and verification is `npm run verify` plus playing it.
-
-### Child 01 — The pause screen can carry a roster
-
-- `src/demo/demo-hud.ts` — `DemoHudOverlay` at about line 120 is the full-surface screen for both pauses and both endings. Its comment states the split being extended: `body` is prose for the pauses, while an ending arrives as its parts. It already carries `stats` (label/value rows) and `rewards` (`DemoHudOverlayReward`), so the shape to copy is there; add an optional roster field beside them rather than overloading either.
-- `src/demo/demo-surface.ts` — `overlayModel()` at about line 540 returns the three overlay shapes. The `paused` branch (about line 558) is the one that gains the roster; the unlocked branch above it is the title screen and keeps its controls list. The pause toggle itself is at about line 751 and is not touched.
-- `src/demo/demo-hud.ts` renders the overlay lower in the same file, using the local `element()` helper; `src/demo/demo.css` owns its classes. Follow the existing overlay-section naming rather than inventing a parallel one.
-- `src/app/debug/hud-attack-workbench.ts` at about line 125 builds a `DemoHudModel` by hand, including `blessIcons`. A newly required field breaks it; keep the new field optional, or feed the workbench a roster so the screen can be judged there without playing to a pause.
 
 ### Child 02 — Both tiers, with totals and counts
 

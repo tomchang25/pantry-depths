@@ -112,10 +112,26 @@ export type DemoHudOverlayReward = Readonly<{
 }>;
 
 /**
+ * One line of the pause screen's roster: what a blessing is, and whether the run has it.
+ *
+ * Its own type rather than the bless bar's `DemoHudBlessIcon`, which is a glyph in a strip and carries
+ * its description only as a hover title — a thing the run's locked pointer means nobody has ever read.
+ * Sharing one row between the two would make the bar carry fields it has no room to draw.
+ */
+export type DemoHudOverlayRosterEntry = Readonly<{
+  color: string;
+  detail: string;
+  glyph: string;
+  name: string;
+  owned: boolean;
+}>;
+
+/**
  * The full-surface screen: the two pauses, and the two ways a run ends.
  *
  * `body` is for the pauses, which are prose. An ending is a result, so it arrives as its parts — the
- * run's numbers and one row per thing the seals opened — and the screen lays them out.
+ * run's numbers and one row per thing the seals opened — and the screen lays them out. A pause now
+ * arrives as parts too: `roster` is the blessing list, which is the one readout with nowhere else to be.
  */
 export type DemoHudOverlay = Readonly<{
   action?: string;
@@ -126,6 +142,8 @@ export type DemoHudOverlay = Readonly<{
   objective?: string;
   rewards?: readonly DemoHudOverlayReward[];
   rewardsTitle?: string;
+  roster?: readonly DemoHudOverlayRosterEntry[];
+  rosterTitle?: string;
   stats?: readonly Readonly<{ label: string; value: string }>[];
   title: string;
   tone?: "lost" | "out";
@@ -309,6 +327,8 @@ export function mountDemoHud(): MountedDemoHud {
   const overlayTitle = element("span", "demo__overlay-title");
   const overlayBody = element("span", "demo__overlay-body");
   const overlayObjective = element("span", "demo__overlay-objective");
+  const overlayRosterTitle = element("span", "demo__overlay-rostertitle");
+  const overlayRoster = element("span", "demo__overlay-roster");
   const overlayControls = element("span", "demo__overlay-controls");
   const overlayStats = element("span", "demo__overlay-stats");
   const overlayRewardsTitle = element("span", "demo__overlay-rewardstitle");
@@ -343,6 +363,8 @@ export function mountDemoHud(): MountedDemoHud {
     overlayTitle,
     overlayBody,
     overlayObjective,
+    overlayRosterTitle,
+    overlayRoster,
     overlayControls,
     overlayStats,
     overlayRewardsTitle,
@@ -483,6 +505,32 @@ export function mountDemoHud(): MountedDemoHud {
       overlayBody.hidden = overlay.body === undefined;
       overlayObjective.textContent = overlay.objective ?? "";
       overlayObjective.hidden = overlay.objective === undefined;
+      // Every row is drawn, held or not. A list that grows a row at a time cannot be read at a
+      // glance, and the gaps are what say there is still something to go and get.
+      overlayRoster.replaceChildren(
+        ...(overlay.roster ?? []).map((entry) => {
+          const row = element("span", "demo__overlay-rosterrow");
+          const glyph = element("span", "demo__overlay-rosterglyph", entry.glyph);
+          row.dataset.owned = String(entry.owned);
+
+          // Only a held row is given its colour. An inline custom property beats every stylesheet
+          // rule on the same element, so setting it on both states would leave the unowned rule with
+          // nothing to override and every row would read as held.
+          if (entry.owned) {
+            row.style.setProperty("--bless", entry.color);
+          }
+
+          row.append(
+            glyph,
+            element("strong", "demo__overlay-rostername", entry.name),
+            element("small", "demo__overlay-rosterdetail", entry.detail),
+          );
+          return row;
+        }),
+      );
+      overlayRoster.hidden = (overlay.roster ?? []).length === 0;
+      overlayRosterTitle.textContent = overlay.rosterTitle ?? "";
+      overlayRosterTitle.hidden = overlay.rosterTitle === undefined || overlayRoster.hidden;
       overlayControls.replaceChildren(
         ...(overlay.controls ?? []).map((control) => {
           const item = element("span", "demo__overlay-control");

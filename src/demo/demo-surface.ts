@@ -19,6 +19,7 @@ import {
   type DemoHudChannel,
   type DemoHudHeld,
   type DemoHudModel,
+  type DemoHudOverlayRosterEntry,
   type DemoHudRun,
   type DemoHudTask,
 } from "@/demo/demo-hud";
@@ -368,6 +369,24 @@ function channelModel(world: DemoWorld): DemoHudChannel | undefined {
   return undefined;
 }
 
+/**
+ * The whole blessing roster, as the pause screen reads it.
+ *
+ * Built beside the play-time bar's icons rather than from them: the bar shows only the tier that
+ * never repeats plus a synthetic entry for surplus health, and it is a different readout with a
+ * different job. Unowned rows are listed rather than filtered, because the gaps are the half of the
+ * list that says there is something left to go and get.
+ */
+function blessRoster(world: DemoWorld): readonly DemoHudOverlayRosterEntry[] {
+  return BLESS_CATALOG.map((definition) => ({
+    color: definition.color,
+    detail: definition.detail,
+    glyph: definition.glyph,
+    name: definition.name,
+    owned: hasBless(world.bless, definition.id),
+  }));
+}
+
 function createHudModel(
   world: DemoWorld,
   cardToken: string | undefined,
@@ -572,6 +591,8 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
           { key: "R", label: "Restart run" },
         ],
         eyebrow: "The depths are waiting",
+        roster: blessRoster(world),
+        rosterTitle: "Blessings",
         title: "Paused",
       };
     }

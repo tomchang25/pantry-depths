@@ -206,6 +206,81 @@ function defaultHudModel(): DemoHudModel {
   };
 }
 
+/**
+ * A hand-written stand-in for the run's blessing roster, at the length the real one will be.
+ *
+ * Hand-written rather than read from the catalogue, like every other field in `defaultHudModel`: this
+ * tab exists to judge the picture, and a preview wired to live content changes shape whenever the
+ * content does. Nine rows because nine is what the pause screen will carry, and the density of nine
+ * is the whole thing being looked at.
+ */
+const PREVIEW_ROSTER: readonly Readonly<{ color: string; detail: string; glyph: string; name: string }>[] = [
+  {
+    color: "#e8a24c",
+    detail: "Far more melee reach and damage, and every hit knocks back",
+    glyph: "⚔",
+    name: "Heavy Strike",
+  },
+  {
+    color: "#e2585f",
+    detail: "A thrown enemy detonates on impact: double damage, wider reach, and knockback",
+    glyph: "☄",
+    name: "Explosive Body",
+  },
+  {
+    color: "#8fd4f0",
+    detail: "A landed rock arcs lightning, which may keep chaining outward",
+    glyph: "⚡",
+    name: "Storm Stone",
+  },
+  { color: "#7fd8a2", detail: "Every kill heals you", glyph: "✚", name: "Bloodthirst" },
+  {
+    color: "#c79ae8",
+    detail:
+      "While you hold an enemy it takes the damage coming at your front; when it dies you are left holding ammunition",
+    glyph: "✋",
+    name: "Hostage Guard",
+  },
+  {
+    color: "#f0e0a0",
+    detail: "More maximum health, and the difference healed on the spot",
+    glyph: "✜",
+    name: "Vigour",
+  },
+  {
+    color: "#e8875c",
+    detail: "Every swing lands harder, and so does everything you throw",
+    glyph: "⁂",
+    name: "Brutality",
+  },
+  { color: "#9fe0d0", detail: "You cross a floor faster", glyph: "»", name: "Swiftness" },
+  { color: "#c0c8e8", detail: "You strike from further out", glyph: "⟶", name: "Long Reach" },
+] as const;
+
+type RosterPreview = "off" | "empty" | "partial" | "full";
+
+/** How many of the nine the preview holds. Four is the state the screen is hardest to lay out in. */
+const ROSTER_PREVIEW_OWNED: Readonly<Record<Exclude<RosterPreview, "off">, number>> = {
+  empty: 0,
+  partial: 4,
+  full: PREVIEW_ROSTER.length,
+};
+
+function previewPauseOverlay(state: Exclude<RosterPreview, "off">): NonNullable<DemoHudModel["overlay"]> {
+  const owned = ROSTER_PREVIEW_OWNED[state];
+  return {
+    action: "Press Tab to resume",
+    controls: [
+      { key: "ESC", label: "Release mouse" },
+      { key: "R", label: "Restart run" },
+    ],
+    eyebrow: "The depths are waiting",
+    roster: PREVIEW_ROSTER.map((entry, index) => ({ ...entry, owned: index < owned })),
+    rosterTitle: "Blessings",
+    title: "Paused",
+  };
+}
+
 function field(label: string, input: HTMLInputElement | HTMLSelectElement): HTMLLabelElement {
   const wrapper = document.createElement("label");
   wrapper.className = "debug-field";
@@ -384,6 +459,30 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
     refreshHud();
   });
   hudGrid.append(field("Show blessing card", showCard));
+
+  // Off by default: the pause screen is a full-surface button, so leaving it up would cover the four
+  // corners this tab exists to check against the picture behind them.
+  const rosterPreview = document.createElement("select");
+
+  for (const [value, label] of [
+    ["off", "Off"],
+    ["empty", "Paused · nothing taken"],
+    ["partial", "Paused · four taken"],
+    ["full", "Paused · all taken"],
+  ] as const) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    rosterPreview.append(option);
+  }
+
+  rosterPreview.addEventListener("change", () => {
+    const state = rosterPreview.value as RosterPreview;
+    const { overlay: _overlay, ...withoutOverlay } = hudModel;
+    hudModel = state === "off" ? withoutOverlay : { ...withoutOverlay, overlay: previewPauseOverlay(state) };
+    refreshHud();
+  });
+  hudGrid.append(field("Pause screen", rosterPreview));
 
   const devFps = numberInput(devModel.fps);
   devFps.addEventListener("input", () => {
