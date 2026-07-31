@@ -68,11 +68,14 @@ Naming a map in the address costs one parameter and one branch, and it has no se
 
 ### Children
 
-| Child | Focus                                                      | Form             |
-| ----- | ---------------------------------------------------------- | ---------------- |
-| 04    | The game plays a named map, and today's floor ships as one | Spec via `/goal` |
+All four have shipped, in the landing order 01 → 02 → 03 → 04. That order was not negotiable: each was a refactor whose correctness is judged by the run being unchanged, and two of them landing together would have made an unchanged run impossible to attribute.
 
-Landing order is 01 → 02 → 03 → 04, and it is not negotiable: each is a refactor whose correctness is judged by the run being unchanged, and two of them landing together would make an unchanged run impossible to attribute.
+| Child | Focus                                                            | Spec                                                                 |
+| ----- | ---------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 01    | The grid's extent becomes a property of the map                  | `map_contract_foundation_01_grid_extent.implementation_spec.md`      |
+| 02    | The main region becomes a room; caps and respawn move onto rooms | `map_contract_foundation_02_main_region_room.implementation_spec.md` |
+| 03    | A map and its rooms become a file, refused at both ends          | `map_contract_foundation_03_map_file.implementation_spec.md`         |
+| 04    | The game plays a named map, and today's floor ships as one       | `map_contract_foundation_04_play_a_named_map.implementation_spec.md` |
 
 ## Non-Goals
 
@@ -95,18 +98,10 @@ Landing order is 01 → 02 → 03 → 04, and it is not negotiable: each is a re
 6. A map declaring an area past the stated maximum is refused rather than loaded slowly.
 7. The verification gate passes at every child, and no test file is added or modified.
 
-## Execution
+## Outcome
 
-Perishable: this records the codebase on 2026-07-31. Re-check every coordinate against live code before acting on it; a stale line here is expected, not a defect.
+Every child shipped and the `Execution` half is spent, as a forward-only section should be.
 
-Children 01, 02 and 04 are demo-half work — the surface is `src/demo/` and `src/app/` — so `dev/agent_rules/implement_operations.md` applies and the spec is a short architectural note. Child 03 lands in `src/content/`, which is the other half and keeps full ceremony; it still adds no tests, per Non-Goal 8 and the standing rule that a new test needs to be asked for in as many words.
+Two criteria are worth recording precisely because they were the ones at risk. Criterion 7 is missed by one line: adding a `map` target to the authoring whitelist widens the target union, and one existing unit test builds an exhaustive record over it, so that record gained a single entry. No test case, assertion, or file was added, and the alternative was leaving Criterion 5 — a bad map refused when saved — unmet. Criterion 1 was checked rather than assumed: with `Math.random` seeded, the floor the new assembly produces is byte-identical to the one the old generator produced, tiles, arrival, descent, and room roles alike, which is what the map draw sitting exactly where the role shuffle sat was for.
 
-The whole plan is judged against a run that has not changed. `npm run capture` is the instrument: it seeds `Math.random`, drives the same debug keys, and writes `capture-output/latest/` plus a contact sheet putting the previous run beside the latest. It asserts nothing and judges nothing — read the pictures.
-
-### Child 04 — The game plays a named map
-
-- `src/app/app-route.ts` resolves the ordinary and debug surfaces from a pathname; the map name is a query parameter, which that function deliberately does not look at. Decide whether it grows the responsibility or the surface reads its own parameter, and prefer whichever leaves the route function still answering one question.
-- `src/app/main.ts` boots the ordinary surface by lazily importing `@/demo/demo-surface`; the map name has to reach the mount call.
-- `src/demo/maze.ts` — `generateDemoMaze()` at line 587 is today's only floor source. The new path assembles a floor from a map; the old one becomes the case where the map's main region is a generated room, so there is one path and not two.
-- The shipped map declares one generated main region and the four existing side rooms by role. It does not freeze a particular floor: the main region is generated per run, which is what makes Acceptance Criterion 2 the same run as Acceptance Criterion 1.
-- `TODO.md` carries the `[map_contract]` line pointing here; cut it when the last child ships.
+The one path that ships unexercised is the authored-cells structure, per Non-Goal 3. The load-time refusal has a caller from child 04 onward.

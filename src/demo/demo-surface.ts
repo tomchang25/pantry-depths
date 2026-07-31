@@ -26,6 +26,7 @@ import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
+import { mapNamed } from "@/demo/maps";
 import { POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/demo/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/demo/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
@@ -450,7 +451,15 @@ function createHudModel(
   };
 }
 
-export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
+/**
+ * Mounts the game on a map.
+ *
+ * The name comes from the address the game is already played at, resolved here rather than by the
+ * route function: which surface a pathname wants and which map a run plays are two questions, and the
+ * route function keeps answering only the first.
+ */
+export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<MountedDemo> {
+  const map = mapNamed(mapName);
   const surface = document.createElement("main");
   const canvas = document.createElement("canvas");
   const hud = mountDemoHud();
@@ -480,7 +489,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     throw new Error("demo: scene canvas is unavailable");
   }
 
-  let world = createDemoWorld();
+  let world = createDemoWorld(map);
   let objectiveMaze = world.maze;
   let objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
   let disposed = false;
@@ -600,7 +609,7 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
     // A cheat is a property of the session, not of the run. Losing god mode on every R would make it
     // useless for exactly the thing it is for: dying repeatedly on purpose.
     const carriedGodMode = world.godMode;
-    world = createDemoWorld();
+    world = createDemoWorld(map);
     objectiveMaze = world.maze;
     objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
     world.godMode = carriedGodMode;

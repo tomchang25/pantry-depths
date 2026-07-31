@@ -22,7 +22,7 @@ import {
 import {
   blocksProjectile,
   blocksWalk,
-  generateDemoMaze,
+  buildDemoFloor,
   gridArea,
   holdsStains,
   isInsideGrid,
@@ -34,6 +34,7 @@ import {
   type DemoCrowd,
   type DemoMaze,
 } from "@/demo/maze";
+import type { MapSource } from "@/content/maps/map-schema";
 import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/demo/particles";
 import type { DemoPropKind, DemoThrowKind } from "@/demo/throw-weight";
 
@@ -380,6 +381,8 @@ export type DemoAltar = {
 };
 
 export type DemoWorld = {
+  /** The map this run plays. Descending draws a new floor from it rather than from somewhere else. */
+  map: MapSource;
   maze: DemoMaze;
   depth: number;
   player: DemoPlayer;
@@ -749,12 +752,13 @@ export function populateFloor(world: DemoWorld): void {
   }
 }
 
-export function createDemoWorld(): DemoWorld {
-  const maze = generateDemoMaze();
+export function createDemoWorld(map: MapSource): DemoWorld {
+  const maze = buildDemoFloor(map);
   // A cursed core can roll health downward, so the floor of one is what a run starts with rather than
   // the base: a bad roll makes a run harder, never unplayable before it begins.
   const startingMaxHp = Math.max(50, PLAYER_BASE_MAX_HP + coreBonus("maxHp"));
   const world: DemoWorld = {
+    map,
     maze,
     depth: 1,
     player: {

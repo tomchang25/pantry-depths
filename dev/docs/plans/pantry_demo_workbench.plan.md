@@ -6,7 +6,7 @@
 
 ## 已定案的前提
 
-- Workbench 存出來的單位是**一張 Map**，不是一個 floor。floor 是 runtime 組裝出來的，不是編輯器的儲存單位。（術語已定案：**map** 是一份內容、**room** 是 map 裡的一塊、**floor** 是一次 run 對一張 map 的使用、**level** 是難度數字且已被佔用，四個字的完整定義在 `map_contract_foundation.plan.md`。）
+- Workbench 存出來的單位是**一張 Map**，不是一個 floor。floor 是 runtime 組裝出來的，不是編輯器的儲存單位。（術語已定案：**map** 是一份內容、**room** 是 map 裡的一塊、**floor** 是一次 run 對一張 map 的使用、**level** 是難度數字且已被佔用，四個字的完整定義在 `dev/docs/archived/map_contract_foundation.plan.md`。）
 - `dev/tools/floor-set/generator.ts` 留著當新 Map 產生器的骨架。
 - **所有 authored 數值走同一條存檔路徑。** 一個開發期端點、一張白名單、一個目標一個驗證器。Map 是它的下一個目標，不是自己長一套。這條已經做完了，第 5 到 7 階直接接上去。
 
@@ -14,7 +14,7 @@
 
 **第 0 到 4 階全部做完。** 交付的內容記在 `CHANGELOG.md` 的 `The Demo Tool Chain`：可嵌入的 render 面板、Entity Workbench、HUD Workbench、裝飾分頁，加上後來長出來的 body／pickup／carried 三個調參分頁；`src/ui/` 刪掉了；多目標存檔端點在 `dev/tools/run-authoring-request.ts`。
 
-**第 5 階起未開始，而且它現在的前置條件是另一份計畫**：`dev/docs/plans/map_contract_foundation.plan.md`。
+**第 5 階起未開始，而且它現在的前置條件是另一份計畫**：`dev/docs/archived/map_contract_foundation.plan.md`。
 
 刪剩下的連帶狀態，維持原判：`src/content/floor/floor-catalog.ts`、`src/content/floors/provisional-floor-set.json`、`src/core/run-state.ts` 目前只有測試在用，它們跟舊 schema 一起死在第 5 階。完整刪除清單在第 5 階那一節。`src/content/combat/enemies.ts` 讓 demo 透過 `EnemyAppearanceId` 拖著整套回合制戰鬥數學，這件事不在本計畫範圍，**而且目前沒有任何計畫擁有它**。
 
@@ -30,12 +30,12 @@
 
 ## 階段順序
 
-| 階  | 內容                 | 依賴                                             |
-| --- | -------------------- | ------------------------------------------------ |
-| 5   | Map / Room Workbench | `dev/docs/plans/map_contract_foundation.plan.md` |
-| 6   | 新 Room 產生器       | 5                                                |
+| 階  | 內容                 | 依賴                                                |
+| --- | -------------------- | --------------------------------------------------- |
+| 5   | Map / Room Workbench | `dev/docs/archived/map_contract_foundation.plan.md` |
+| 6   | 新 Room 產生器       | 5                                                   |
 
-原本的第 5 階同時包含「Map 契約」與「Map Workbench」。**契約那半已經拆出去**，成為 `dev/docs/plans/map_contract_foundation.plan.md`，理由是它是機械改動、驗收條件是「跑起來一模一樣」、可以被 `/goal` 一路跑完，而編輯器三樣都不是。本計畫從此只擁有編輯器與產生器。
+原本的第 5 階同時包含「Map 契約」與「Map Workbench」。**契約那半已經拆出去**，成為 `dev/docs/archived/map_contract_foundation.plan.md`，理由是它是機械改動、驗收條件是「跑起來一模一樣」、可以被 `/goal` 一路跑完，而編輯器三樣都不是。本計畫從此只擁有編輯器與產生器。
 
 **原本的第 6 階「在 Map 裡試玩」砍掉**，改成主頁吃 `?map=<id>`，由契約計畫交付。舊的第 7 階遞補成第 6 階，而且它的單位從 Map 降成 Room。
 
@@ -45,7 +45,7 @@
 
 ## 第 5 階　Map / Room Workbench
 
-契約、驗證、載入路徑、`?map=` 全部由 `map_contract_foundation.plan.md` 交付。這一階開工的前提是那份計畫四個 child 全部落地，因為編輯器要寫進去的那個格式在那之前不存在。
+契約、驗證、載入路徑、`?map=` 全部由 `dev/docs/archived/map_contract_foundation.plan.md` 交付。這一階開工的前提是那份計畫四個 child 全部落地，因為編輯器要寫進去的那個格式在那之前不存在。
 
 ### 兩個編輯面
 

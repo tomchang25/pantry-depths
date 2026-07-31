@@ -1,39 +1,48 @@
 /**
- * Demo maze generation.
+ * Assembling one floor from one map.
  *
- * Thirty-five cells square, assembled from five blocks: a twenty-one-square main region in the middle
- * with a seven-square room attached to each of its four sides. The main region is carved by a
- * recursive backtracker and then perforated so it reads as a dungeon rather than a puzzle; a room is
- * open floor throughout, because each one exists to hold exactly one piece of business.
+ * A floor is a grid of boundary brick that its rooms paint themselves onto: the main region in the
+ * middle, and a room in each side slot the map's draw filled. How a room paints is the room's own
+ * declaration — carved by a recursive backtracker and then perforated so it reads as a dungeon rather
+ * than a puzzle, open floor throughout for a room holding one piece of business, or the cells exactly
+ * as somebody authored them.
  *
- * **The extent belongs to the floor, not to this module.** A maze carries its own width and height,
+ * **The extent belongs to the floor, not to this module.** A floor carries its own width and height,
  * and the four accessors below are the only code anywhere that turns a coordinate into a flat index
  * or an index back into a coordinate. Nothing outside them multiplies by a stride, which is what lets
- * a floor of another shape be wrong loudly instead of silently. The corners the assembly leaves over
- * are filled with boundary brick, which costs a slightly emptier map and buys the whole shape staying
- * inside this file.
+ * a floor of another shape be wrong loudly instead of silently. Whatever the rooms do not paint stays
+ * boundary brick, which costs a slightly emptier map and buys the whole shape staying in this file.
  *
- * Block rings are boundary brick rather than masonry, so the five blocks keep their shape however hard
- * the player swings; the only ways between them are the doorways punched below. Entrance and descent
- * are drawn uniformly from the main region's open cells with no reachability check at all — a sealed
- * descent is a legal floor here, on purpose — but the doorways are never drawn and never blocked, so a
- * room is always reachable.
+ * Block rings are boundary brick rather than masonry, so the blocks keep their shape however hard the
+ * player swings; the only ways between them are the doorways punched below. Entrance and descent are
+ * drawn uniformly from the main region's open cells with no reachability check here — that refusal
+ * belongs to the map contract, and it is made once the floor exists rather than while it is built.
  */
+
+import {
+  validateDrawnFloor,
+  type MapRoom,
+  type MapRoomRole,
+  type MapSource,
+  type MapTileKind,
+} from "@/content/maps/map-schema";
 
 /**
  * How much floor there is, in cells.
  *
  * Two numbers rather than one, because a map that can be authored is a map that can be oblong. Every
- * floor-shaped thing satisfies this — a maze is one — so the accessors below take the floor itself.
+ * floor-shaped thing satisfies this — a floor is one — so the accessors below take the floor itself.
  */
 export type DemoGridExtent = Readonly<{ width: number; height: number }>;
 
-/** The side length the shipped assembly happens to use. Not the grid's authority; the maze is. */
-const DEMO_GRID_SIDE = 35;
-
-const DEMO_GRID_EXTENT: DemoGridExtent = { width: DEMO_GRID_SIDE, height: DEMO_GRID_SIDE };
-
-export type DemoTileKind = "open" | "border" | "stone" | "wood" | "water" | "barricade" | "filled" | "mortar";
+/**
+ * The tile vocabulary, owned by the content layer and aliased here.
+ *
+ * One list, not two that have to be kept equal by hand. The content layer may not import the demo, so
+ * it declares the kinds and this half — which may import content — takes them as its own. A kind added
+ * there without a branch here then fails to compile, which is the whole point of the arrangement.
+ */
+export type DemoTileKind = MapTileKind;
 
 export type DemoCell = Readonly<{ x: number; y: number }>;
 
@@ -52,14 +61,8 @@ export type DemoTile = {
 /** The four sides a room can hang off. */
 export type DemoRoomSide = "north" | "south" | "west" | "east";
 
-/**
- * What a side room is for.
- *
- * The set is fixed rather than drawn: three kinds of business for three slots means a draw of three
- * from three is not a draw. Which side each one lands on *is* drawn, because the extraction room is
- * never marked and a room that is always north would be learned once and then known forever.
- */
-export type DemoRoomRole = "cursedAltar" | "blessingAltar" | "hotSpring" | "extraction";
+/** What business a room holds. Owned by the map contract and aliased here, the same as the tiles. */
+export type DemoRoomRole = MapRoomRole;
 
 /**
  * How many bodies a room holds, and how fast it puts them back.
@@ -241,46 +244,23 @@ const POOL_SIZE = { minimum: 1, maximum: 4 };
 export const POOL_FILL_BODIES = 3;
 
 /**
- * One of the five blocks the floor is assembled from: a square, wall ring included.
+ * The patch of grid one room stands on, wall ring included.
  *
- * Square here for the same reason the floor is. A block with two dimensions would put a width and a
- * height into every loop below and buy nothing a bigger square does not.
+ * Two dimensions rather than one, because a map that can be authored is a map whose rooms can be
+ * oblong. Everything below reads the block it was handed rather than a size the module knows.
  */
-type DemoBlock = Readonly<{ x: number; y: number; size: number }>;
+type DemoBlock = Readonly<{ x: number; y: number; width: number; height: number }>;
 
-const ROOM_BLOCK_SIZE = 7;
-const MAIN_BLOCK: DemoBlock = {
-  x: ROOM_BLOCK_SIZE,
-  y: ROOM_BLOCK_SIZE,
-  size: DEMO_GRID_SIDE - ROOM_BLOCK_SIZE * 2,
+/** Which way a side room faces the region it hangs off. */
+const SLOT_INWARD: Readonly<Record<DemoRoomSide, DemoCell>> = {
+  north: { x: 0, y: 1 },
+  south: { x: 0, y: -1 },
+  west: { x: 1, y: 0 },
+  east: { x: -1, y: 0 },
 };
-
-/** Rooms sit centred on the side they hang off, so the assembly is symmetric on both axes. */
-const ROOM_INSET = (DEMO_GRID_SIDE - ROOM_BLOCK_SIZE) / 2;
-const ROOM_FAR_EDGE = DEMO_GRID_SIDE - ROOM_BLOCK_SIZE;
-
-const ROOM_SIDES: Readonly<Record<DemoRoomSide, Readonly<{ block: DemoBlock; inward: DemoCell }>>> = {
-  north: { block: { x: ROOM_INSET, y: 0, size: ROOM_BLOCK_SIZE }, inward: { x: 0, y: 1 } },
-  south: { block: { x: ROOM_INSET, y: ROOM_FAR_EDGE, size: ROOM_BLOCK_SIZE }, inward: { x: 0, y: -1 } },
-  west: { block: { x: 0, y: ROOM_INSET, size: ROOM_BLOCK_SIZE }, inward: { x: 1, y: 0 } },
-  east: { block: { x: ROOM_FAR_EDGE, y: ROOM_INSET, size: ROOM_BLOCK_SIZE }, inward: { x: -1, y: 0 } },
-};
-
-const ROOM_SIDE_ORDER: readonly DemoRoomSide[] = ["north", "south", "west", "east"];
-const ROOM_ROLES: readonly DemoRoomRole[] = ["cursedAltar", "blessingAltar", "hotSpring", "extraction"];
-
-/**
- * What a generated floor holds, declared once and given to every room on it.
- *
- * One set of numbers for all five rooms, deliberately: these were floor-wide constants until the
- * middle became a room, and a floor that started holding a different crowd in the same change would
- * make the change impossible to judge by playing it.
- */
-const GENERATED_CROWD: DemoCrowd = { cap: 20, starting: 14, respawnSeconds: 5 };
 
 function blockCenter(block: DemoBlock): DemoCell {
-  const half = (block.size - 1) / 2;
-  return { x: block.x + half, y: block.y + half };
+  return { x: block.x + Math.floor((block.width - 1) / 2), y: block.y + Math.floor((block.height - 1) / 2) };
 }
 
 /**
@@ -331,7 +311,7 @@ function shuffled<T>(values: readonly T[]): T[] {
 
 function carve(extent: DemoGridExtent, solid: boolean[], block: DemoBlock): void {
   const start: DemoCell = { x: block.x + 1, y: block.y + 1 };
-  const last: DemoCell = { x: block.x + block.size - 2, y: block.y + block.size - 2 };
+  const last: DemoCell = { x: block.x + block.width - 2, y: block.y + block.height - 2 };
   const stack: DemoCell[] = [start];
   solid[tileIndex(extent, start.x, start.y)] = false;
 
@@ -415,8 +395,8 @@ function floodPools(
         if (
           nextX > block.x &&
           nextY > block.y &&
-          nextX < block.x + block.size - 1 &&
-          nextY < block.y + block.size - 1
+          nextX < block.x + block.width - 1 &&
+          nextY < block.y + block.height - 1
         ) {
           frontier.push({ x: nextX, y: nextY });
         }
@@ -494,15 +474,11 @@ function scatterMortars(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCel
   }
 }
 
-function isBlockInterior(block: DemoBlock, x: number, y: number): boolean {
-  return x > block.x && y > block.y && x < block.x + block.size - 1 && y < block.y + block.size - 1;
-}
-
 function walkableCells(extent: DemoGridExtent, tiles: readonly DemoTile[], block: DemoBlock): DemoCell[] {
   const cells: DemoCell[] = [];
 
-  for (let y = block.y + 1; y < block.y + block.size - 1; y += 1) {
-    for (let x = block.x + 1; x < block.x + block.size - 1; x += 1) {
+  for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
+    for (let x = block.x + 1; x < block.x + block.width - 1; x += 1) {
       if (tiles[tileIndex(extent, x, y)]?.kind === "open") {
         cells.push({ x, y });
       }
@@ -516,89 +492,144 @@ function openTile(): DemoTile {
   return { kind: "open", hp: 0, maxHp: 0, bodies: 0 };
 }
 
-/**
- * Turns the carve into tiles.
- *
- * Everything outside every block's interior is boundary brick in one branch: the grid's outer ring,
- * the corners the five-block assembly leaves over, and each block's own wall ring. That is what keeps
- * the five blocks five blocks — the doorways punched afterwards are the only ways between them.
- */
-function assembleTiles(extent: DemoGridExtent, solid: readonly boolean[], blocks: readonly DemoBlock[]): DemoTile[] {
-  const tiles: DemoTile[] = [];
+function borderTile(): DemoTile {
+  return { kind: "border", hp: Number.POSITIVE_INFINITY, maxHp: Number.POSITIVE_INFINITY, bodies: 0 };
+}
 
-  for (let y = 0; y < extent.height; y += 1) {
-    for (let x = 0; x < extent.width; x += 1) {
-      if (!blocks.some((block) => isBlockInterior(block, x, y))) {
-        tiles.push({ kind: "border", hp: Number.POSITIVE_INFINITY, maxHp: Number.POSITIVE_INFINITY, bodies: 0 });
-        continue;
-      }
+function wallTile(): DemoTile {
+  return Math.random() < WOOD_SHARE
+    ? { kind: "wood", hp: WOOD_WALL_HP, maxHp: WOOD_WALL_HP, bodies: 0 }
+    : { kind: "stone", hp: STONE_WALL_HP, maxHp: STONE_WALL_HP, bodies: 0 };
+}
 
-      if (!solid[tileIndex(extent, x, y)]) {
-        tiles.push(openTile());
-        continue;
-      }
-
-      const wood = Math.random() < WOOD_SHARE;
-      tiles.push(
-        wood
-          ? { kind: "wood", hp: WOOD_WALL_HP, maxHp: WOOD_WALL_HP, bodies: 0 }
-          : { kind: "stone", hp: STONE_WALL_HP, maxHp: STONE_WALL_HP, bodies: 0 },
-      );
-    }
+function tileOfKind(kind: DemoTileKind): DemoTile {
+  if (kind === "stone") {
+    return { kind, hp: STONE_WALL_HP, maxHp: STONE_WALL_HP, bodies: 0 };
   }
 
-  return tiles;
+  if (kind === "wood") {
+    return { kind, hp: WOOD_WALL_HP, maxHp: WOOD_WALL_HP, bodies: 0 };
+  }
+
+  if (kind === "barricade") {
+    return { kind, hp: BARRICADE_HP, maxHp: BARRICADE_HP, bodies: 0 };
+  }
+
+  if (kind === "mortar") {
+    return { kind, hp: MORTAR_HP, maxHp: MORTAR_HP, bodies: 0 };
+  }
+
+  if (kind === "border") {
+    return borderTile();
+  }
+
+  return { kind, hp: 0, maxHp: 0, bodies: 0 };
 }
 
 /**
- * Opens one room's doorway and reports the room.
+ * Paints one room onto the floor, the way the room itself says it is built.
  *
- * Five cells in a line: two of the room's own interior, the two rings the doorway goes through, and
- * the main region's interior on the far side. All five are forced open and recorded as clear, so
- * neither the carve nor anything scattered afterwards can seal a room the player is promised.
+ * Only the block's interior is ever written: the ring stays the boundary brick the floor started as,
+ * which is what keeps the blocks blocks — the doorways punched afterwards are the only ways between
+ * them. This is the whole of what "the main region is a room like the others" buys, and the reason a
+ * map can carry an authored room beside a carved one without either knowing the other exists.
+ */
+function paintRoom(extent: DemoGridExtent, tiles: DemoTile[], block: DemoBlock, room: MapRoom): void {
+  if ("authored" in room.structure) {
+    for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
+      for (let x = block.x + 1; x < block.x + block.width - 1; x += 1) {
+        const kind = room.structure.authored[y - block.y]?.[x - block.x];
+        tiles[tileIndex(extent, x, y)] = kind === undefined ? borderTile() : tileOfKind(kind);
+      }
+    }
+
+    return;
+  }
+
+  if (room.structure.generated === "open") {
+    for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
+      for (let x = block.x + 1; x < block.x + block.width - 1; x += 1) {
+        tiles[tileIndex(extent, x, y)] = openTile();
+      }
+    }
+
+    return;
+  }
+
+  const solid: boolean[] = Array.from({ length: gridArea(extent) }, () => true);
+  carve(extent, solid, block);
+
+  // Perforated after the carve rather than instead of it: a backtracker leaves one route between any
+  // two cells, and knocking a share of the surviving walls out is what turns a puzzle into a dungeon.
+  for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
+    for (let x = block.x + 1; x < block.x + block.width - 1; x += 1) {
+      if (solid[tileIndex(extent, x, y)] && Math.random() < PERFORATION_CHANCE) {
+        solid[tileIndex(extent, x, y)] = false;
+      }
+    }
+  }
+
+  for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
+    for (let x = block.x + 1; x < block.x + block.width - 1; x += 1) {
+      tiles[tileIndex(extent, x, y)] = solid[tileIndex(extent, x, y)] ? wallTile() : openTile();
+    }
+  }
+}
+
+/** Where a room stands on the floor, in the terms everything that walks and draws asks in. */
+function roomOn(block: DemoBlock, source: MapRoom): DemoRoom {
+  return {
+    ...(source.role === undefined ? {} : { role: source.role }),
+    minX: block.x + 1,
+    minY: block.y + 1,
+    maxX: block.x + block.width - 2,
+    maxY: block.y + block.height - 2,
+    center: blockCenter(block),
+    crowd: source.crowd,
+  };
+}
+
+/**
+ * Opens one side room's doorway and reports the room.
+ *
+ * A line of cells from one inside the room's inward edge, through both wall rings and whatever
+ * boundary stands between them, to the main region's first interior cell. Every one is forced open and
+ * recorded as clear, so neither a carve nor anything scattered afterwards can seal a room the player
+ * is promised. For a room as deep as the margin it hangs in — which is every room the shipped map has
+ * — that is the same five cells it has always been.
  */
 function attachRoom(
   extent: DemoGridExtent,
   tiles: DemoTile[],
   keepClear: Set<number>,
-  side: DemoRoomSide,
-  role: DemoRoomRole,
+  placed: Readonly<{ block: DemoBlock; side: DemoRoomSide; main: DemoBlock; source: MapRoom }>,
 ): DemoRoom {
-  const { block, inward } = ROOM_SIDES[side];
+  const { block, side, main, source } = placed;
+  const inward = SLOT_INWARD[side];
   const center = blockCenter(block);
-  const half = (block.size - 1) / 2;
-  const doorway: DemoCell = { x: center.x + inward.x * (half - 1), y: center.y + inward.y * (half - 1) };
+  const vertical = inward.x === 0;
+  const step2 = vertical ? inward.y : inward.x;
+  // The room's last interior cell on the side facing the main region.
+  const edge = Math.floor(((vertical ? block.height : block.width) - 1) / 2) - 1;
+  const doorway: DemoCell = { x: center.x + inward.x * edge, y: center.y + inward.y * edge };
+  // The main region's first interior cell on the same line, however much boundary lies between.
+  const target = vertical
+    ? inward.y > 0
+      ? main.y + 1
+      : main.y + main.height - 2
+    : inward.x > 0
+      ? main.x + 1
+      : main.x + main.width - 2;
+  const reach = (target - (vertical ? doorway.y : doorway.x)) * step2;
 
-  for (let step = -1; step <= 3; step += 1) {
+  for (let step = -1; step <= reach; step += 1) {
     const x = doorway.x + inward.x * step;
     const y = doorway.y + inward.y * step;
     tiles[tileIndex(extent, x, y)] = openTile();
     keepClear.add(tileIndex(extent, x, y));
   }
 
-  return {
-    role,
-    side,
-    minX: block.x + 1,
-    minY: block.y + 1,
-    maxX: block.x + block.size - 2,
-    maxY: block.y + block.size - 2,
-    center,
-    doorway,
-    crowd: GENERATED_CROWD,
-  };
-}
-
-/** The region the side rooms hang off: no side, no doorway, and no business of its own. */
-function carvedRegion(block: DemoBlock): DemoRoom {
-  return {
-    minX: block.x + 1,
-    minY: block.y + 1,
-    maxX: block.x + block.size - 2,
-    maxY: block.y + block.size - 2,
-    center: blockCenter(block),
-    crowd: GENERATED_CROWD,
-  };
+  return { ...roomOn(block, source), side, doorway };
 }
 
 /** Neither masonry nor boundary: something in the way that a walk cannot pass and a floor still owns. */
@@ -679,66 +710,139 @@ function clearWalkToRooms(extent: DemoGridExtent, tiles: DemoTile[], from: DemoC
   }
 }
 
-export function generateDemoMaze(): DemoMaze {
-  const extent = DEMO_GRID_EXTENT;
-  const solid: boolean[] = Array.from({ length: gridArea(extent) }, () => true);
-  carve(extent, solid, MAIN_BLOCK);
+/**
+ * Where a room stands, given the slot it landed in.
+ *
+ * The main region sits centred in the grid; a side room sits flush against its own grid edge and
+ * centred on the other axis. Both are whole-cell placements, which is what the map contract's at-rest
+ * rules were written to guarantee — this function trusts them rather than re-deriving them.
+ */
+function blockForSlot(map: MapSource, slot: DemoRoomSide | "main", room: MapRoom, main: MapRoom): DemoBlock {
+  const mainX = Math.floor((map.width - main.width) / 2);
+  const mainY = Math.floor((map.height - main.height) / 2);
 
-  for (let y = MAIN_BLOCK.y + 1; y < MAIN_BLOCK.y + MAIN_BLOCK.size - 1; y += 1) {
-    for (let x = MAIN_BLOCK.x + 1; x < MAIN_BLOCK.x + MAIN_BLOCK.size - 1; x += 1) {
-      if (solid[tileIndex(extent, x, y)] && Math.random() < PERFORATION_CHANCE) {
-        solid[tileIndex(extent, x, y)] = false;
-      }
-    }
+  if (slot === "main") {
+    return { x: mainX, y: mainY, width: main.width, height: main.height };
   }
 
-  const roomBlocks = ROOM_SIDE_ORDER.map((side) => ROOM_SIDES[side].block);
-
-  // A room is floor throughout. It holds one piece of business, and a maze inside it would only be
-  // somewhere for that business to hide.
-  for (const block of roomBlocks) {
-    for (let y = block.y + 1; y < block.y + block.size - 1; y += 1) {
-      for (let x = block.x + 1; x < block.x + block.size - 1; x += 1) {
-        solid[tileIndex(extent, x, y)] = false;
-      }
-    }
+  if (slot === "north") {
+    return { x: mainX + Math.floor((main.width - room.width) / 2), y: 0, width: room.width, height: room.height };
   }
 
-  const tiles = assembleTiles(extent, solid, [MAIN_BLOCK, ...roomBlocks]);
+  if (slot === "south") {
+    return {
+      x: mainX + Math.floor((main.width - room.width) / 2),
+      y: map.height - room.height,
+      width: room.width,
+      height: room.height,
+    };
+  }
+
+  if (slot === "west") {
+    return { x: 0, y: mainY + Math.floor((main.height - room.height) / 2), width: room.width, height: room.height };
+  }
+
+  return {
+    x: map.width - room.width,
+    y: mainY + Math.floor((main.height - room.height) / 2),
+    width: room.width,
+    height: room.height,
+  };
+}
+
+const SIDE_ORDER: readonly DemoRoomSide[] = ["north", "south", "west", "east"];
+
+/**
+ * Assembles one floor from one map, and refuses it if the draw left no way out.
+ *
+ * The order here is load-bearing in one place that does not look it: the draw happens after the
+ * always-present rooms have painted and before the drawn ones do. Moving it earlier would shift every
+ * subsequent draw in a seeded run, which is the one cheap piece of evidence this whole change has —
+ * the same seed has to produce the same floor it produced before there were maps.
+ */
+export function buildDemoFloor(map: MapSource): DemoMaze {
+  const extent: DemoGridExtent = { width: map.width, height: map.height };
+  const mainPlacement = map.fixed.find((placement) => placement.slot === "main");
+
+  if (!mainPlacement) {
+    throw new TypeError(`Map "${map.name}" has no main region to hang a floor off.`);
+  }
+
+  const main = mainPlacement.room;
+  const mainBlock = blockForSlot(map, "main", main, main);
+  const tiles: DemoTile[] = Array.from({ length: gridArea(extent) }, () => borderTile());
+  const fixedSides = map.fixed.filter((placement) => placement.slot !== "main");
+
+  paintRoom(extent, tiles, mainBlock, main);
+
+  for (const placement of fixedSides) {
+    const side = placement.slot as DemoRoomSide;
+    paintRoom(extent, tiles, blockForSlot(map, side, placement.room, main), placement.room);
+  }
+
+  const takenSides = new Set(fixedSides.map((placement) => placement.slot as DemoRoomSide));
+  const freeSides = SIDE_ORDER.filter((side) => !takenSides.has(side));
+  const drawn = shuffled(map.pool).slice(0, map.draw);
+  const placedSides = drawn.map((room, index) => ({ side: freeSides[index] as DemoRoomSide, room }));
+
+  for (const placed of placedSides) {
+    paintRoom(extent, tiles, blockForSlot(map, placed.side, placed.room, main), placed.room);
+  }
+
   const keepClear = new Set<number>();
-  const roles = shuffled(ROOM_ROLES);
-  const sideRooms = ROOM_SIDE_ORDER.map((side, index) =>
-    attachRoom(extent, tiles, keepClear, side, roles[index] as DemoRoomRole),
+  const sideRooms = [
+    ...fixedSides.map((placement) => ({ side: placement.slot as DemoRoomSide, room: placement.room })),
+    ...placedSides,
+  ].map((placed) =>
+    attachRoom(extent, tiles, keepClear, {
+      block: blockForSlot(map, placed.side, placed.room, main),
+      side: placed.side,
+      main: mainBlock,
+      source: placed.room,
+    }),
   );
   // The region everything hangs off comes first, so a cell is asked about the block it is actually in
   // before it is asked about the ones attached to that block.
-  const rooms: readonly DemoRoom[] = [carvedRegion(MAIN_BLOCK), ...sideRooms];
+  const rooms: readonly DemoRoom[] = [roomOn(mainBlock, main), ...sideRooms];
   const byRole = new Map(sideRooms.map((room) => [room.role, room]));
 
   // Hazards belong to the main region. A pool in the hot spring or caltrops around an altar is not a
   // decision, it is noise on top of the one thing that room is for.
-  const scatterable = walkableCells(extent, tiles, MAIN_BLOCK).filter(
+  const scatterable = walkableCells(extent, tiles, mainBlock).filter(
     (cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)),
   );
-  floodPools(extent, tiles, scatterable, MAIN_BLOCK, keepClear);
-  const afterPools = walkableCells(extent, tiles, MAIN_BLOCK).filter(
+  floodPools(extent, tiles, scatterable, mainBlock, keepClear);
+  const afterPools = walkableCells(extent, tiles, mainBlock).filter(
     (cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)),
   );
   scatterBarricades(extent, tiles, afterPools);
-  const afterBarricades = walkableCells(extent, tiles, MAIN_BLOCK).filter(
+  const afterBarricades = walkableCells(extent, tiles, mainBlock).filter(
     (cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)),
   );
   scatterMortars(extent, tiles, afterBarricades);
 
   // Both the arrival and the descent stand in the main region, because descending is the main
   // region's business and a room only ever holds one thing.
-  const open = walkableCells(extent, tiles, MAIN_BLOCK);
-  const entrance = pick(open) ?? blockCenter(MAIN_BLOCK);
+  const open = walkableCells(extent, tiles, mainBlock);
+  const entrance = pick(open) ?? blockCenter(mainBlock);
   clearWalkToRooms(extent, tiles, entrance, rooms);
   const away = open.filter((cell) => cell.x !== entrance.x || cell.y !== entrance.y);
   const exit = pick(away) ?? entrance;
   const altar = byRole.get("cursedAltar")?.center ?? entrance;
   const extraction = byRole.get("extraction")?.center ?? entrance;
+
+  // Asked of the finished floor rather than during assembly. Whether a floor is legal is the map
+  // contract's question, and folding it into the builder would leave nothing able to refuse one.
+  validateDrawnFloor({
+    mapName: map.name,
+    width: extent.width,
+    height: extent.height,
+    tiles: tiles.map((tile) => tile.kind),
+    entrance,
+    exit,
+    drawnRoomIds: drawn.map((room) => room.id),
+  });
+
   return {
     width: extent.width,
     height: extent.height,

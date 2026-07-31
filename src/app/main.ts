@@ -37,13 +37,18 @@ function renderLoadFailure(logLabel: string, message: string, error: unknown): v
  * in flight, and a surface that arrives after that has to be disposed rather than kept.
  */
 function renderOrdinaryPlay(): void {
+  // Which map to play is a query parameter, read here rather than by the route resolver: that
+  // function answers which surface a pathname wants, and a second question in it is a second reason
+  // for it to change.
+  const mapName = new URLSearchParams(window.location.search).get("map") ?? undefined;
+
   void import("@/demo/demo-surface")
     .then(async ({ mountDemo }) => {
       if (moduleDisposed) {
         return;
       }
 
-      const mounted = await mountDemo(appMount);
+      const mounted = await mountDemo(appMount, mapName);
 
       if (moduleDisposed) {
         mounted.dispose();

@@ -30,7 +30,7 @@ import {
   blocksProjectile,
   blocksProjectileAt,
   DEMO_WALL_HEIGHT,
-  generateDemoMaze,
+  buildDemoFloor,
   isBarricadeCell,
   tileAt,
 } from "@/demo/maze";
@@ -901,7 +901,7 @@ export function descend(world: DemoWorld): void {
   world.swing = 0;
   world.swingResolved = true;
   world.swingTarget = undefined;
-  world.maze = generateDemoMaze();
+  world.maze = buildDemoFloor(world.map);
   populateFloor(world);
   announce(world, `Down to floor B${world.depth}`, 3);
 }
