@@ -446,6 +446,18 @@
   pointer-events: auto;
 }
 
+/*
+ * Every built mark, sized by the type around it.
+ *
+ * `em` rather than a length, so the same mark is small in the play-time bar and large on an award
+ * card without `hud-icons.ts` knowing either number.
+ */
+.demo__icon {
+  display: block;
+  width: 1.2em;
+  height: 1.2em;
+}
+
 .demo__blessicon {
   display: grid;
   place-content: center;
@@ -458,12 +470,6 @@
   border-radius: 0.25rem;
   background: color-mix(in srgb, var(--bless, #f4dfc7) 14%, rgb(19 10 25 / 88%));
   cursor: help;
-}
-
-.demo__blessicon[data-owned="false"] {
-  color: #5b4a52;
-  border-color: rgb(255 255 255 / 10%);
-  background: transparent;
 }
 
 /* Health spans the cluster: a bar for how much is left, a numeral for how many hits that is. */
@@ -1039,11 +1045,11 @@
 }
 
 /*
- * Held and not held differ by colour and nothing else.
+ * One row per blessing the run is carrying, and none for the ones it is not.
  *
- * Border, padding and both type sizes are identical in the two states, because the roster's whole
- * claim is that pausing looks the same whatever the run is carrying — a row that changed size as it
- * filled in would teach the player that pausing is unstable.
+ * The list used to hold a dimmed row for every blessing not yet taken, so the panel was one height
+ * for the whole run. It now grows as the run collects, which is the trade taken deliberately: what a
+ * player wants off this screen is what they have, and nine rows to find four of them in is a search.
  */
 .demo__overlay-rosterrow {
   display: grid;
@@ -1054,12 +1060,6 @@
   border: 1px solid color-mix(in srgb, var(--bless, #cb9769) 32%, transparent);
   border-radius: 0.25rem;
   background: color-mix(in srgb, var(--bless, #cb9769) 7%, transparent);
-}
-
-.demo__overlay-rosterrow[data-owned="false"] {
-  --bless: #8f8296;
-
-  background: rgb(255 255 255 / 2.5%);
 }
 
 .demo__overlay-rosterglyph {
@@ -1081,18 +1081,10 @@
   line-height: 1.25;
 }
 
-.demo__overlay-rosterrow[data-owned="false"] .demo__overlay-rostername {
-  color: #b3a3ad;
-}
-
 .demo__overlay-rosterdetail {
   color: #cdb69c;
   font-size: 0.72rem;
   line-height: 1.35;
-}
-
-.demo__overlay-rosterrow[data-owned="false"] .demo__overlay-rosterdetail {
-  color: #8f8296;
 }
 
 /*
@@ -1128,12 +1120,6 @@
   line-height: 1.2;
   text-transform: uppercase;
   white-space: nowrap;
-}
-
-/* Several catalogue glyphs are emoji, which ignore `color` and stay bright in a row that is meant to
- * read as not held. Draining them is the only way the two states look like two states. */
-.demo__overlay-rosterrow[data-owned="false"] .demo__overlay-rosterglyph {
-  filter: grayscale(1) opacity(70%);
 }
 
 /*

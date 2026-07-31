@@ -23,6 +23,7 @@ import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
 import { EXTRACTION_HOLD_SECONDS, extractionShare, runEndOverlay, SEALED_CARD_PREFIX } from "@/demo/extraction";
 import {
   mountDemoHud,
+  type DemoHudBlessIcon,
   type DemoHudCard,
   type DemoHudChannel,
   type DemoHudHeld,
@@ -45,6 +46,7 @@ import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
 import type { DemoPropKind } from "@/demo/throw-weight";
 import {
   announce,
+  awardBless,
   createDemoWorld,
   crowdHere,
   dropProp,
@@ -152,7 +154,7 @@ function cardModel(token: string): DemoHudCard {
     return {
       color: "#e2585f",
       detail: `Threat ${level}. Whatever is down here has been given time, and it has used it.`,
-      glyph: "☠",
+      icon: "threat",
       name: "The depths stir",
     };
   }
@@ -168,7 +170,7 @@ function cardModel(token: string): DemoHudCard {
       detail: cursed
         ? "It opens only if you walk out with it, and a cursed one can roll worse than nothing at all."
         : "It opens only if you walk out with it. Die down here and it is gone unopened.",
-      glyph: "◈",
+      icon: "seal",
       name: cursed ? "Cursed seal taken" : "Clean seal taken",
     };
   }
@@ -179,7 +181,7 @@ function cardModel(token: string): DemoHudCard {
     return {
       color: definition.color,
       detail: definition.detail,
-      glyph: definition.glyph,
+      icon: definition.id,
       name: definition.name,
     };
   }
@@ -187,7 +189,7 @@ function cardModel(token: string): DemoHudCard {
   return {
     color: "#f0f0d0",
     detail: "Every blessing collected — max HP rises instead",
-    glyph: "+",
+    icon: "vitality",
     name: "Vitality",
   };
 }
@@ -404,29 +406,29 @@ const BLESS_AXIS_UNITS: Readonly<Record<ModifierAxis, string>> = {
  * a heading between them would be a row where the eye is expecting a blessing.
  */
 function blessRoster(world: DemoWorld): readonly DemoHudOverlayRosterEntry[] {
-  const distinct = BLESS_CATALOG.map((definition) => ({
+  const distinct = BLESS_CATALOG.filter((definition) => hasBless(world.bless, definition.id)).map((definition) => ({
     color: definition.color,
     detail: definition.detail,
-    glyph: definition.glyph,
+    icon: definition.id,
     name: definition.name,
-    owned: hasBless(world.bless, definition.id),
   }));
-  const stacking = BLESS_STACKING_CATALOG.map((definition) => {
-    const total = blessBonus(world.bless, definition.axis);
-    const count = blessStackCount(world.bless, definition.axis);
-    const precision = findModifier(definition.axis)?.precision ?? 0;
-    return {
-      color: definition.color,
-      detail: definition.detail,
-      glyph: definition.glyph,
-      name: definition.name,
-      // Above zero rather than present in a list: this tier has no membership, and the total is the
-      // only record that an award ever landed on it.
-      owned: total > 0,
-      ...(total > 0 ? { total: `+${total.toFixed(precision)} ${BLESS_AXIS_UNITS[definition.axis]}` } : {}),
-      ...(total > 0 && count > 0 ? { count: count === 1 ? "taken once" : `taken ${count} times` } : {}),
-    };
-  });
+  // Above zero rather than present in a list: this tier has no membership, and the total is the only
+  // record that an award ever landed on it.
+  const stacking = BLESS_STACKING_CATALOG.filter((definition) => blessBonus(world.bless, definition.axis) > 0).map(
+    (definition) => {
+      const total = blessBonus(world.bless, definition.axis);
+      const count = blessStackCount(world.bless, definition.axis);
+      const precision = findModifier(definition.axis)?.precision ?? 0;
+      return {
+        color: definition.color,
+        detail: definition.detail,
+        icon: definition.id,
+        name: definition.name,
+        total: `+${total.toFixed(precision)} ${BLESS_AXIS_UNITS[definition.axis]}`,
+        ...(count > 0 ? { count: count === 1 ? "taken once" : `taken ${count} times` } : {}),
+      };
+    },
+  );
   return [...distinct, ...stacking];
 }
 
@@ -436,16 +438,20 @@ function createHudModel(
   overlay: DemoHudModel["overlay"],
   showObjective: boolean,
 ): DemoHudModel {
-  const blessIcons = BLESS_CATALOG.map((definition) => ({
-    color: definition.color,
-    detail: definition.detail,
-    glyph: definition.glyph,
-    name: definition.name,
-    owned: hasBless(world.bless, definition.id),
-  }));
+  // Only what is held. The unheld ones used to sit here as empty slots; they are now listed in full
+  // on the pause screen, and a row of placeholders in the corner of a fight was saying "there is more"
+  // to somebody who cannot go and get it until the room is clear.
+  const blessIcons: DemoHudBlessIcon[] = BLESS_CATALOG.filter((definition) => hasBless(world.bless, definition.id)).map(
+    (definition) => ({
+      color: definition.color,
+      detail: definition.detail,
+      icon: definition.id,
+      name: definition.name,
+    }),
+  );
 
   if (world.bless.overflowMaxHp > 0) {
-    blessIcons.push({ color: "#f0f0d0", detail: "Extra max HP", glyph: "+", name: "Vitality", owned: true });
+    blessIcons.push({ color: "#f0f0d0", detail: "Extra max HP", icon: "vitality", name: "Vitality" });
   }
 
   // What a side room holds is never on here — not the altars, not the spring, not the way out. Four
@@ -533,6 +539,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     killAll: () => killAll(),
     fillCrowd: () => fillCrowd(),
     dropKit: () => dropKit(),
+    grantBless: () => grantBless(),
   });
   surface.className = "demo";
   canvas.className = "demo__canvas";
@@ -743,6 +750,15 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
 
   const testArena = (): void => flattenFloorForTesting(world);
 
+  /**
+   * One blessing, drawn exactly as an altar draws it.
+   *
+   * Through `awardBless` rather than through the catalogue directly, so the cheat cannot award
+   * something the game cannot: the distinct tier first and never twice, then the stacking tier, with
+   * the health an award owes applied and the card queued the same way.
+   */
+  const grantBless = (): void => awardBless(world);
+
   const tick = (now: number): void => {
     if (disposed) {
       return;
@@ -862,6 +878,14 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     if (key === "b") {
       event.preventDefault();
       dropKit();
+      return;
+    }
+
+    // The blessing screens are unreachable in any interesting state without this: five altars is most
+    // of a run away, and the stacking tier is behind all five.
+    if (key === "l") {
+      event.preventDefault();
+      grantBless();
       return;
     }
 

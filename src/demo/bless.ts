@@ -18,8 +18,6 @@ export type BlessDefinition = Readonly<{
   id: BlessId;
   name: string;
   detail: string;
-  /** Two characters at most; drawn into the bless bar and onto the award card. */
-  glyph: string;
   color: string;
 }>;
 
@@ -28,28 +26,24 @@ export const BLESS_CATALOG: readonly BlessDefinition[] = [
     id: "heavyStrike",
     name: "Heavy Strike",
     detail: "Far more melee reach and damage, and every hit knocks back",
-    glyph: "⚔",
     color: "#e8a24c",
   },
   {
     id: "explosiveBody",
     name: "Explosive Body",
     detail: "A thrown enemy detonates on impact: double damage, wider reach, and knockback",
-    glyph: "☄",
     color: "#e2585f",
   },
   {
     id: "stormStone",
     name: "Storm Stone",
     detail: "A landed rock arcs lightning, which may keep chaining outward",
-    glyph: "⚡",
     color: "#8fd4f0",
   },
   {
     id: "lifesteal",
     name: "Bloodthirst",
     detail: "Every kill heals you",
-    glyph: "✚",
     color: "#7fd8a2",
   },
   {
@@ -57,7 +51,6 @@ export const BLESS_CATALOG: readonly BlessDefinition[] = [
     name: "Hostage Guard",
     detail:
       "While you hold an enemy it takes the damage coming at your front; when it dies you are left holding ammunition",
-    glyph: "✋",
     color: "#c79ae8",
   },
 ] as const;
@@ -77,8 +70,6 @@ export type StackingBlessDefinition = Readonly<{
   axis: StackingBlessAxis;
   name: string;
   detail: string;
-  /** Two characters at most; drawn into the bless bar and onto the award card. */
-  glyph: string;
   color: string;
 }>;
 
@@ -94,7 +85,6 @@ export const BLESS_STACKING_CATALOG: readonly StackingBlessDefinition[] = [
     axis: "maxHp",
     name: "Vigour",
     detail: "More maximum health, and the difference healed on the spot",
-    glyph: "✜",
     color: "#f0e0a0",
   },
   {
@@ -102,7 +92,6 @@ export const BLESS_STACKING_CATALOG: readonly StackingBlessDefinition[] = [
     axis: "meleeDamage",
     name: "Brutality",
     detail: "Every swing lands harder, and so does everything you throw",
-    glyph: "⁂",
     color: "#e8875c",
   },
   {
@@ -110,7 +99,6 @@ export const BLESS_STACKING_CATALOG: readonly StackingBlessDefinition[] = [
     axis: "moveSpeed",
     name: "Swiftness",
     detail: "You cross a floor faster",
-    glyph: "»",
     color: "#9fe0d0",
   },
   {
@@ -118,7 +106,6 @@ export const BLESS_STACKING_CATALOG: readonly StackingBlessDefinition[] = [
     axis: "meleeReach",
     name: "Long Reach",
     detail: "You strike from further out",
-    glyph: "⟶",
     color: "#c0c8e8",
   },
 ] as const;

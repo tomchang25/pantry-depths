@@ -128,7 +128,6 @@ export type CoreDefinition = Readonly<{
   meleeDamage: number;
   /** How far the base swing reaches before any roll. */
   meleeReach: number;
-  glyph: string;
   color: string;
 }>;
 
@@ -139,7 +138,6 @@ export const CORE_CATALOG: readonly CoreDefinition[] = [
     detail: "Even weight and even reach, and nothing to learn",
     meleeDamage: 25,
     meleeReach: 1.45,
-    glyph: "🔪",
     color: "#d8c69a",
   },
   {
@@ -148,7 +146,6 @@ export const CORE_CATALOG: readonly CoreDefinition[] = [
     detail: "Hits far harder and asks you to be closer",
     meleeDamage: 40,
     meleeReach: 1.15,
-    glyph: "⬛",
     color: "#c08a52",
   },
   {
@@ -157,7 +154,6 @@ export const CORE_CATALOG: readonly CoreDefinition[] = [
     detail: "Reaches across a doorway and barely dents anything",
     meleeDamage: 16,
     meleeReach: 2.2,
-    glyph: "⇡",
     color: "#cfd8e2",
   },
   {
@@ -166,7 +162,6 @@ export const CORE_CATALOG: readonly CoreDefinition[] = [
     detail: "An insult with a handle, and the widest rolls of the four",
     meleeDamage: 12,
     meleeReach: 1.6,
-    glyph: "◠",
     color: "#e8a24c",
   },
 ] as const;

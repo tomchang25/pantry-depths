@@ -13,7 +13,7 @@ import {
 } from "@/content/viewmodel/melee-viewmodel";
 import { MELEE_HALF_ANGLE } from "@/demo/actions";
 import { mountDemoDevOverlay, type DemoDevOverlayModel } from "@/demo/demo-dev-overlay";
-import { mountDemoHud, type DemoHudModel } from "@/demo/demo-hud";
+import { mountDemoHud, type DemoHudModel, type DemoHudOverlayRosterEntry } from "@/demo/demo-hud";
 import { demoMeleeImpactPitch } from "@/demo/demo-scene";
 import { drawDemoViewmodel, type DemoViewmodelModel } from "@/demo/demo-viewmodel";
 import type { CameraPose, RenderBeam, RenderBox, RenderScene, RenderSurface } from "@/presentation/render-scene";
@@ -123,13 +123,12 @@ function defaultHudModel(): DemoHudModel {
 
   return {
     blessIcons: [
-      { color: "#f2c96b", detail: "A sample authored blessing", glyph: "✦", name: "Ember", owned: true },
-      { color: "#83d0a4", detail: "A second icon for contrast", glyph: "♢", name: "Moss", owned: true },
-      { color: "#8fb6f0", detail: "A slot the run has not filled", glyph: "⚡", name: "Squall", owned: false },
-      { color: "#e0857f", detail: "A second empty slot", glyph: "✦", name: "Cinder", owned: false },
+      { color: "#e8a24c", detail: "A sample held blessing", icon: "heavyStrike", name: "Heavy Strike" },
+      { color: "#8fd4f0", detail: "A second mark for contrast", icon: "stormStone", name: "Storm Stone" },
+      { color: "#f0f0d0", detail: "Extra max HP", icon: "vitality", name: "Vitality" },
     ],
     held: { color: "#c9c2b4", count: 3, glyph: "●", name: "Rocks" },
-    card: { color: "#f2c96b", detail: "Live card layout preview", glyph: "✦", name: "Ember" },
+    card: { color: "#e8a24c", detail: "Live card layout preview", icon: "heavyStrike", name: "Heavy Strike" },
     channel: {
       detail: "Stay on the dais 5s · being hit does not break it, stepping off does",
       label: "Claiming a blessing",
@@ -207,52 +206,45 @@ function defaultHudModel(): DemoHudModel {
 }
 
 /**
- * A hand-written stand-in for the run's blessing roster, at the length the real one will be.
+ * A hand-written stand-in for the run's blessing roster, at the length the real one can reach.
  *
  * Hand-written rather than read from the catalogue, like every other field in `defaultHudModel`: this
  * tab exists to judge the picture, and a preview wired to live content changes shape whenever the
- * content does. Nine rows because nine is what the pause screen will carry, and the density of nine
- * is the whole thing being looked at.
+ * content does. Nine rows because nine is what a run holding everything carries, and the density of
+ * nine is the whole thing being looked at.
  */
-const PREVIEW_ROSTER: readonly Readonly<{
-  color: string;
-  count?: string;
-  detail: string;
-  glyph: string;
-  name: string;
-  total?: string;
-}>[] = [
+const PREVIEW_ROSTER: readonly DemoHudOverlayRosterEntry[] = [
   {
     color: "#e8a24c",
     detail: "Far more melee reach and damage, and every hit knocks back",
-    glyph: "⚔",
+    icon: "heavyStrike",
     name: "Heavy Strike",
   },
   {
     color: "#e2585f",
     detail: "A thrown enemy detonates on impact: double damage, wider reach, and knockback",
-    glyph: "☄",
+    icon: "explosiveBody",
     name: "Explosive Body",
   },
   {
     color: "#8fd4f0",
     detail: "A landed rock arcs lightning, which may keep chaining outward",
-    glyph: "⚡",
+    icon: "stormStone",
     name: "Storm Stone",
   },
-  { color: "#7fd8a2", detail: "Every kill heals you", glyph: "✚", name: "Bloodthirst" },
+  { color: "#7fd8a2", detail: "Every kill heals you", icon: "lifesteal", name: "Bloodthirst" },
   {
     color: "#c79ae8",
     detail:
       "While you hold an enemy it takes the damage coming at your front; when it dies you are left holding ammunition",
-    glyph: "✋",
+    icon: "hostageGuard",
     name: "Hostage Guard",
   },
   {
     color: "#f0e0a0",
     count: "taken twice",
     detail: "More maximum health, and the difference healed on the spot",
-    glyph: "✜",
+    icon: "vigour",
     name: "Vigour",
     total: "+50 max HP",
   },
@@ -260,7 +252,7 @@ const PREVIEW_ROSTER: readonly Readonly<{
     color: "#e8875c",
     count: "taken 3 times",
     detail: "Every swing lands harder, and so does everything you throw",
-    glyph: "⁂",
+    icon: "brutality",
     name: "Brutality",
     total: "+18 damage",
   },
@@ -268,7 +260,7 @@ const PREVIEW_ROSTER: readonly Readonly<{
     color: "#9fe0d0",
     count: "taken once",
     detail: "You cross a floor faster",
-    glyph: "»",
+    icon: "swiftness",
     name: "Swiftness",
     total: "+0.30 speed",
   },
@@ -276,7 +268,7 @@ const PREVIEW_ROSTER: readonly Readonly<{
     color: "#c0c8e8",
     count: "taken 4 times",
     detail: "You strike from further out",
-    glyph: "⟶",
+    icon: "longReach",
     name: "Long Reach",
     total: "+0.60 reach",
   },
@@ -285,19 +277,20 @@ const PREVIEW_ROSTER: readonly Readonly<{
 type RosterPreview = "off" | "empty" | "partial" | "full";
 
 /**
- * Which rows the preview holds in each state.
+ * Which rows a run in each state is carrying.
  *
- * The partial state deliberately spans both tiers and skips rows in the middle of each: a run in
- * progress is never the first N of a list, and the screen has to look right with gaps in it.
+ * The screen lists only what is held, so these are the rows that exist rather than the ones that are
+ * lit. The partial state deliberately spans both tiers and skips rows inside each: a run in progress
+ * is never the first few of a catalogue, and the layout has to hold with the order broken up.
  */
-const ROSTER_PREVIEW_OWNED: Readonly<Record<Exclude<RosterPreview, "off">, readonly number[]>> = {
+const ROSTER_PREVIEW_HELD: Readonly<Record<Exclude<RosterPreview, "off">, readonly number[]>> = {
   empty: [],
   partial: [0, 2, 3, 6],
   full: PREVIEW_ROSTER.map((_entry, index) => index),
 };
 
 function previewPauseOverlay(state: Exclude<RosterPreview, "off">): NonNullable<DemoHudModel["overlay"]> {
-  const owned = ROSTER_PREVIEW_OWNED[state];
+  const held = ROSTER_PREVIEW_HELD[state];
   return {
     action: "Press Tab to resume",
     controls: [
@@ -305,12 +298,7 @@ function previewPauseOverlay(state: Exclude<RosterPreview, "off">): NonNullable<
       { key: "R", label: "Restart run" },
     ],
     eyebrow: "The depths are waiting",
-    // A number belongs to a row only while the run holds it, exactly as the game builds it: an
-    // unowned stacking row reads as not taken rather than as a total of zero.
-    roster: PREVIEW_ROSTER.map((entry, index) => {
-      const { count: _count, total: _total, ...base } = entry;
-      return owned.includes(index) ? { ...entry, owned: true } : { ...base, owned: false };
-    }),
+    roster: PREVIEW_ROSTER.filter((_entry, index) => held.includes(index)),
     rosterTitle: "Blessings",
     title: "Paused",
   };
@@ -422,6 +410,7 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
     killAll: noop,
     fillCrowd: noop,
     dropKit: noop,
+    grantBless: noop,
   });
   const refreshHud = (): void => hud.update(hudModel);
   /**

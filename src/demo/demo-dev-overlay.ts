@@ -34,6 +34,7 @@ export type DemoDevOverlayActions = Readonly<{
   killAll(): void;
   fillCrowd(): void;
   dropKit(): void;
+  grantBless(): void;
 }>;
 
 export type MountedDemoDevOverlay = Readonly<{
@@ -96,6 +97,10 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
     command("Kill all · K", actions.killAll),
     command("Fill crowd · N", actions.fillCrowd),
     command("Drop kit · B", actions.dropKit),
+    // The same draw an altar makes, on demand. A blessing is the one thing a run cannot be put into a
+    // state of by moving the floor around: reaching the second tier means taking five of them first,
+    // which is minutes of play before the screen that shows them can be looked at holding anything.
+    command("Bless · L", actions.grantBless),
   );
 
   const update = (model: DemoDevOverlayModel): void => {

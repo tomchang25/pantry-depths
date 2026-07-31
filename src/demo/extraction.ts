@@ -97,7 +97,7 @@ function rewardRow(reward: ResolvedReward): DemoHudOverlayReward {
       .join(" · ");
     return {
       color: reward.core.color,
-      glyph: reward.core.glyph,
+      icon: reward.core.id,
       name: `${cursed ? "Cursed" : "Clean"} ${reward.core.name} core`,
       detail: rolls,
     };
@@ -106,7 +106,7 @@ function rewardRow(reward: ResolvedReward): DemoHudOverlayReward {
   const effects = reward.effects.map((id) => findBless(id)?.name ?? id);
   return {
     color: cursed ? "#e2585f" : "#9fe0d0",
-    glyph: "◈",
+    icon: "seal",
     name: `${cursed ? "Cursed" : "Clean"} fragment`,
     detail: effects.join(" · "),
   };

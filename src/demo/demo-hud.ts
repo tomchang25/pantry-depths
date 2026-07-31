@@ -1,18 +1,19 @@
+import { createHudIcon, type HudIconId } from "@/demo/hud-icons";
+
 import "@/demo/demo.css";
 
+/**
+ * One mark in the play-time bar: only what the run is actually carrying.
+ *
+ * The bar used to be sent the whole catalogue and draw the unheld ones as empty slots. Two screens
+ * now say what is missing — the pause roster in full sentences — and a strip of grey placeholders
+ * mid-fight was answering a question nobody asks while something is swinging at them.
+ */
 export type DemoHudBlessIcon = Readonly<{
   color: string;
   detail: string;
-  glyph: string;
+  icon: HudIconId;
   name: string;
-  /**
-   * Whether the run has this one yet.
-   *
-   * The whole roster is sent, not only what is owned. A blessing you do not have is worth a slot: the
-   * empty ones are what tell you there is something left to go and get, and the row keeps its shape
-   * as they fill in rather than growing a chip at a time.
-   */
-  owned: boolean;
 }>;
 
 /**
@@ -32,7 +33,7 @@ export type DemoHudHeld = Readonly<{
 export type DemoHudCard = Readonly<{
   color: string;
   detail: string;
-  glyph: string;
+  icon: HudIconId;
   name: string;
 }>;
 
@@ -107,14 +108,14 @@ export type DemoHudChannel = Readonly<{
 export type DemoHudOverlayReward = Readonly<{
   color: string;
   detail: string;
-  glyph: string;
+  icon: HudIconId;
   name: string;
 }>;
 
 /**
- * One line of the pause screen's roster: what a blessing is, and whether the run has it.
+ * One line of the pause screen's roster: a blessing the run is carrying, and what it does.
  *
- * Its own type rather than the bless bar's `DemoHudBlessIcon`, which is a glyph in a strip and carries
+ * Its own type rather than the bless bar's `DemoHudBlessIcon`, which is a mark in a strip and carries
  * its description only as a hover title — a thing the run's locked pointer means nobody has ever read.
  * Sharing one row between the two would make the bar carry fields it has no room to draw.
  */
@@ -123,9 +124,8 @@ export type DemoHudOverlayRosterEntry = Readonly<{
   /** How many awards the total above is, for a tier that repeats. Omitted by one that does not. */
   count?: string;
   detail: string;
-  glyph: string;
+  icon: HudIconId;
   name: string;
-  owned: boolean;
   /**
    * What this one has actually added, in its own unit, already formatted.
    *
@@ -446,11 +446,11 @@ export function mountDemoHud(): MountedDemoHud {
     blessBar.replaceChildren();
 
     for (const icon of model.blessIcons) {
-      const item = element("span", "demo__blessicon", icon.glyph);
+      const item = element("span", "demo__blessicon");
       item.style.setProperty("--bless", icon.color);
-      item.dataset.owned = String(icon.owned);
       item.title = `${icon.name} — ${icon.detail}`;
-      item.setAttribute("aria-label", `${icon.name}: ${icon.detail}${icon.owned ? "" : " (not taken)"}`);
+      item.setAttribute("aria-label", `${icon.name}: ${icon.detail}`);
+      item.append(createHudIcon(icon.icon));
       blessBar.append(item);
     }
 
@@ -492,10 +492,11 @@ export function mountDemoHud(): MountedDemoHud {
     card.classList.toggle("demo__card--visible", Boolean(model.card));
 
     if (model.card) {
-      const glyph = element("span", "demo__cardglyph", model.card.glyph);
+      const glyph = element("span", "demo__cardglyph");
       const title = document.createElement("strong");
       const detail = document.createElement("span");
       glyph.style.setProperty("--bless", model.card.color);
+      glyph.append(createHudIcon(model.card.icon));
       title.textContent = model.card.name;
       detail.textContent = model.card.detail;
       card.append(glyph, title, detail);
@@ -519,15 +520,9 @@ export function mountDemoHud(): MountedDemoHud {
       overlayRoster.replaceChildren(
         ...(overlay.roster ?? []).map((entry) => {
           const row = element("span", "demo__overlay-rosterrow");
-          const glyph = element("span", "demo__overlay-rosterglyph", entry.glyph);
-          row.dataset.owned = String(entry.owned);
-
-          // Only a held row is given its colour. An inline custom property beats every stylesheet
-          // rule on the same element, so setting it on both states would leave the unowned rule with
-          // nothing to override and every row would read as held.
-          if (entry.owned) {
-            row.style.setProperty("--bless", entry.color);
-          }
+          const glyph = element("span", "demo__overlay-rosterglyph");
+          glyph.append(createHudIcon(entry.icon));
+          row.style.setProperty("--bless", entry.color);
 
           const amount = element("span", "demo__overlay-rosteramount");
           amount.append(
@@ -567,8 +562,9 @@ export function mountDemoHud(): MountedDemoHud {
       overlayRewards.replaceChildren(
         ...(overlay.rewards ?? []).map((reward) => {
           const row = element("span", "demo__overlay-reward");
-          const glyph = element("span", "demo__overlay-rewardglyph", reward.glyph);
+          const glyph = element("span", "demo__overlay-rewardglyph");
           glyph.style.setProperty("--bless", reward.color);
+          glyph.append(createHudIcon(reward.icon));
           row.append(glyph, element("strong", "", reward.name), element("small", "", reward.detail));
           return row;
         }),
