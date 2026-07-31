@@ -12,9 +12,10 @@ This tracker is the forward-work authority.
 
 ## Active
 
-[editor] `dev/docs/plans/pantry_demo_workbench.plan.md`
-[sword_guards] `dev/docs/plans/sword_guard_poses.plan.md`
-[three_block] `dev/docs/plans/three_block_experiment.plan.md`
+[map_contract] `dev/docs/plans/map_contract_foundation.plan.md` — goal-executable
+[editor] `dev/docs/plans/pantry_demo_workbench.plan.md` — blocked on `[map_contract]`
+[floor_surfaces] `dev/docs/plans/floor_surface_channels.plan.md` — goal-executable
+[pause_screen] `dev/docs/plans/pause_screen_blessings.plan.md` — goal-executable
 
 ---
 
@@ -22,7 +23,10 @@ This tracker is the forward-work authority.
 
 Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line becomes actionable through `/implement`, which rewrites the sketch into a standalone implementation spec; the line stays here until the work ships. If a plan later adopts the work, the sketch moves into that plan as a child and this line is removed in the same change.
 
-> Nothing currently planned. The sketches this tier used to carry were deleted with the old direction.
+A brief lives here too and is the one kind of line `/implement` cannot take: it is format-free material handed to a later session, it authorizes nothing, and it is spent once it has seeded a real artifact. `dev/standards/work_lifecycle.addendum.md` owns its rules.
+
+- `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
+- `dev/docs/briefs/synthesised_sfx.brief.md` — the project has no audio at all; this reads a sibling project's engine and says what to keep.
 
 ---
 
@@ -45,6 +49,16 @@ One line, no rationale, no backing document.
 ## Draft
 
 Not scheduled. Do not start without a decision.
+
+### Three.js, With The Block Skeleton As The Prototype
+
+The direction is chosen: the game moves to a Three.js runtime, and the blocky skeleton is the prototype everything else is built from. That closes the question the block experiment deliberately left open — it kept both the sprite bake and a runtime consumer possible on purpose, and the runtime wins.
+
+What this displaces is most of what draws the game today. The Canvas 2D renderer marches rays for walls, sorts billboards against a depth buffer, paints ground marks at sub-cell resolution, and carries the fog, the torch light, and the viewmodel; a Three.js runtime does each of those differently or not at all. The sprite bake stops being the path an enemy arrives by, and the eight-heading strip stops being the thing that judges one.
+
+What survives is the larger half. The blocky body, its six-bone armature, and its table-driven clips are already a glTF file the browser loads and plays, so the authoring loop needs no port. The simulation, the floor generation, the enemy behaviour, the tasks, and the HUD do not know what draws them and do not change.
+
+Nothing is scheduled. Two things decide the shape before this can become a plan: whether the runtime replaces the whole view or only the bodies standing in it, and whether it lands before or after the demo is ported into the permanent architecture — both touch the same files, and doing them in the wrong order means doing one of them twice.
 
 ### The Difficulty Level Nothing Reads
 
