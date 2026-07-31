@@ -41,16 +41,37 @@ from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "blender-kit"))
 
-from primitives import (  # noqa: E402  (the path has to be set before this import can resolve)
-    box,
-    clear_scene,
-    cylinder_between,
-    ellipsoid,
-    material,
-    torus,
+from anatomy import (  # noqa: E402  (the path has to be set before this import can resolve)
+    pauldron,
+    detailed_sword,
+    gripping_hand,
+    long_bone,
+    pelvis,
+    rib_cage,
+    shaped_box,
+    shoulder_girdle,
+    skull,
+    spine_column,
 )
+from primitives import clear_scene, material  # noqa: E402
 
 Point = tuple[float, float, float]
+
+# Proportions, in one place, because they are the thing that gets argued about.
+#
+# A body is read against its own head: the same arm looks short next to a large skull and correct
+# next to a smaller one. The proof body measures six heads tall with an arm two heads long, against
+# a human's roughly seven and a half and two and three-quarters — so it read as big-headed and
+# short-armed, and both complaints were the one number. These are reported back on every build in
+# heads rather than in metres, since metres are what hid the problem.
+# Tuned against the report below rather than reasoned about, because the kit scales a sphere by its
+# radius and a box by its full width, so a skull written in one set of fractions is twice the size
+# it reads as on paper. The number that matters is the heads-tall the report prints.
+HEAD_UNIT = 0.295
+UPPER_ARM = 0.382
+FOREARM = 0.367
+THIGH = 0.431
+SHIN = 0.421
 
 # The body faces +Y and stands up +Z, so its own right is +X. Every coordinate below is world space
 # at rest, which is the same convention `build.py` uses — the two bodies must measure alike or the
@@ -143,7 +164,7 @@ def build_skeleton_table() -> dict[str, tuple[Point, Point]]:
         # Elbows fold down, back and away from the ribs — the direction an elbow goes when both hands
         # come together in front of the chest.
         pole = shoulder + Vector((0.45 * sign, -0.5, -0.55))
-        elbow = solve_middle_joint(shoulder, wrist, pole, 0.354, 0.34)
+        elbow = solve_middle_joint(shoulder, wrist, pole, UPPER_ARM, FOREARM)
 
         add(f"upper_arm.{side}", shoulder, elbow)
         add(f"forearm.{side}", elbow, wrist)
@@ -152,7 +173,7 @@ def build_skeleton_table() -> dict[str, tuple[Point, Point]]:
 
         hip = Vector((0.13 * sign, 0, 0.98)) + drop
         ankle = Vector((0.16 * sign, 0.05, 0.13))
-        knee = solve_middle_joint(hip, ankle, hip + Vector((0, 0.6, -0.3)), 0.431, 0.421)
+        knee = solve_middle_joint(hip, ankle, hip + Vector((0, 0.6, -0.3)), THIGH, SHIN)
 
         add(f"thigh.{side}", hip, knee)
         add(f"shin.{side}", knee, ankle)
@@ -234,108 +255,109 @@ def create_rig(table: dict[str, tuple[Point, Point]]) -> bpy.types.Object:
 
 
 def create_body(rig: bpy.types.Object, table: dict[str, tuple[Point, Point]], assigned) -> list[bpy.types.Object]:
-    """The same body the bake rig wears, rebuilt at this rig's own rest pose.
+    """The skeleton, built off the solved bone table rather than off typed coordinates.
 
-    Only the hands differ in shape. Everything else is placed off the solved bone table rather than
-    off typed coordinates, so the mesh cannot drift away from the skeleton underneath it.
+    Nothing here carries a literal world position: every shape is placed relative to a joint the
+    table already solved, so moving a bone moves the body on it. The proof body wrote its mesh
+    coordinates out beside its bone coordinates, which is two copies of one skeleton kept in
+    agreement by hand — and this rig changes its proportions, so the two would have parted on the
+    first change.
     """
     built: list[bpy.types.Object] = []
     hips = Vector(table["root"][0])
     chest = Vector(table["spine"][1])
+    neck = Vector(table["head"][0])
 
-    def add(obj: bpy.types.Object) -> None:
-        built.append(obj)
+    built.extend(spine_column(hips + Vector((0, -0.012, 0.08)), chest, 11, assigned["bone"], rig, "spine"))
+    built.extend(rib_cage(chest, assigned["bone"], rig, "spine"))
+    built.extend(shoulder_girdle(chest, assigned["bone"], rig, "spine"))
+    built.extend(pelvis(hips, assigned["bone"], rig, "root"))
+    built.extend(skull(neck, HEAD_UNIT, assigned["bone"], assigned["socket"], rig, "head"))
 
-    add(ellipsoid("Pelvis.L", tuple(hips + Vector((-0.11, 0, 0.06))), (0.16, 0.12, 0.16), assigned["bone"], rig, "root", "pelvis"))
-    add(ellipsoid("Pelvis.R", tuple(hips + Vector((0.11, 0, 0.06))), (0.16, 0.12, 0.16), assigned["bone"], rig, "root", "pelvis"))
-    add(cylinder_between("Spine", tuple(hips + Vector((0, 0, 0.1))), tuple(chest), 0.045, assigned["bone"], rig, "spine", "torso"))
-    add(box("Sternum", tuple(chest + Vector((0, 0.18, -0.22))), (0.055, 0.035, 0.25), assigned["bone"], rig, "spine", "torso"))
-
-    for index, offset in enumerate((-0.44, -0.32, -0.2, -0.08)):
-        add(
-            torus(
-                f"Rib.{index}",
-                tuple(chest + Vector((0, 0, offset))),
-                (1.22 - index * 0.08, 0.68, 1),
-                assigned["bone"],
-                rig,
-                "spine",
-                "torso",
-            )
-        )
-
-    add(
-        cylinder_between(
-            "Clavicle",
-            tuple(chest + Vector((-0.27, 0, -0.04))),
-            tuple(chest + Vector((0.27, 0, -0.04))),
-            0.035,
-            assigned["bone"],
+    built.append(
+        shaped_box(
+            "HelmetBand",
+            tuple(neck + Vector((0, -0.01 * HEAD_UNIT, 0.72 * HEAD_UNIT))),
+            (0.335 * HEAD_UNIT, 0.36 * HEAD_UNIT, 0.075 * HEAD_UNIT),
+            (0, 0, 0),
+            assigned["iron"],
             rig,
-            "spine",
-            "torso",
+            "head",
+            "head",
         )
     )
 
-    skull = Vector(table["head"][0])
-    add(ellipsoid("Cranium", tuple(skull + Vector((0, 0, 0.23))), (0.19, 0.16, 0.22), assigned["bone"], rig, "head", "head"))
-    add(box("Jaw", tuple(skull + Vector((0, 0.08, 0.04))), (0.135, 0.1, 0.075), assigned["bone"], rig, "head", "head"))
-    add(ellipsoid("EyeSocket.L", tuple(skull + Vector((-0.072, 0.145, 0.26))), (0.052, 0.025, 0.06), assigned["socket"], rig, "head", "head"))
-    add(ellipsoid("EyeSocket.R", tuple(skull + Vector((0.072, 0.145, 0.26))), (0.052, 0.025, 0.06), assigned["socket"], rig, "head", "head"))
-    add(ellipsoid("NoseSocket", tuple(skull + Vector((0, 0.158, 0.18))), (0.035, 0.02, 0.045), assigned["socket"], rig, "head", "head"))
-    add(box("HelmetBand", tuple(skull + Vector((0, -0.005, 0.355))), (0.215, 0.175, 0.045), assigned["iron"], rig, "head", "head"))
-
     limbs = (
-        ("upper_arm.L", 0.052, "arm.L"),
-        ("forearm.L", 0.046, "arm.L"),
-        ("upper_arm.R", 0.052, "arm.R"),
-        ("forearm.R", 0.046, "arm.R"),
-        ("thigh.L", 0.065, "leg.L"),
-        ("shin.L", 0.055, "leg.L"),
-        ("foot.L", 0.065, "foot.L"),
-        ("thigh.R", 0.065, "leg.R"),
-        ("shin.R", 0.055, "leg.R"),
-        ("foot.R", 0.065, "foot.R"),
+        ("upper_arm.L", 0.030, "arm.L"),
+        ("forearm.L", 0.025, "arm.L"),
+        ("upper_arm.R", 0.030, "arm.R"),
+        ("forearm.R", 0.025, "arm.R"),
+        ("thigh.L", 0.040, "leg.L"),
+        ("shin.L", 0.032, "leg.L"),
+        ("thigh.R", 0.040, "leg.R"),
+        ("shin.R", 0.032, "leg.R"),
     )
 
     for bone_name, radius, part in limbs:
         head, tail = table[bone_name]
-        add(cylinder_between(bone_name, head, tail, radius, assigned["bone"], rig, bone_name, part))
-        add(ellipsoid(f"{bone_name}.joint", tail, (radius * 1.25,) * 3, assigned["bone"], rig, bone_name, part))
+        built.extend(long_bone(bone_name, head, tail, radius, assigned["bone"], rig, bone_name, part))
 
-    # The hand, which is the one part of this body that is not the bake rig's.
-    #
-    # A palm and a knuckle line rather than a cylinder with a joint ball on the end. The old shape
-    # was the arm segment's shape, and a third segment on the end of a two-segment arm is exactly
-    # what it looked like: every wrist rotation read as an extra elbow.
     for side in ("L", "R"):
-        wrist, palm = (Vector(point) for point in table[f"hand.{side}"])
-        centre = (wrist + palm) / 2
-        add(box(f"Palm.{side}", tuple(centre), (0.085, 0.075, PALM_LENGTH * 0.86), assigned["bone"], rig, f"hand.{side}", f"hand.{side}"))
-        add(ellipsoid(f"Knuckles.{side}", tuple(palm), (0.08, 0.07, 0.035), assigned["bone"], rig, f"hand.{side}", f"hand.{side}"))
+        ankle, toe = (Vector(point) for point in table[f"foot.{side}"])
+        built.append(
+            shaped_box(
+                f"Foot.{side}",
+                tuple(ankle.lerp(toe, 0.55) + Vector((0, 0, -0.026))),
+                (0.088, 0.235, 0.055),
+                (math.radians(-6), 0, 0),
+                assigned["bone"],
+                rig,
+                f"foot.{side}",
+                f"foot.{side}",
+            )
+        )
+        built.append(
+            shaped_box(
+                f"Heel.{side}",
+                tuple(ankle + Vector((0, -0.028, -0.03))),
+                (0.076, 0.07, 0.06),
+                (0, 0, 0),
+                assigned["bone"],
+                rig,
+                f"foot.{side}",
+                f"foot.{side}",
+            )
+        )
 
-    add(box("ShoulderGuard.L", tuple(chest + Vector((-0.25, -0.01, -0.04))), (0.16, 0.13, 0.07), assigned["iron"], rig, "upper_arm.L", "armour"))
-    add(box("ShoulderGuard.R", tuple(chest + Vector((0.25, -0.01, -0.04))), (0.16, 0.13, 0.07), assigned["iron"], rig, "upper_arm.R", "armour"))
-    add(box("WaistCloth", tuple(hips + Vector((0, -0.02, -0.02))), (0.23, 0.11, 0.18), assigned["cloth"], rig, "root", "armour"))
+        wrist, palm = (Vector(point) for point in table[f"hand.{side}"])
+        built.extend(gripping_hand(wrist, palm, side == "R", assigned["bone"], rig, f"hand.{side}", f"hand.{side}"))
+
+        shoulder = Vector(table[f"upper_arm.{side}"][0])
+        built.extend(pauldron(shoulder, side == "R", assigned["iron"], rig, f"upper_arm.{side}"))
+
+    built.append(
+        shaped_box(
+            "WaistCloth",
+            tuple(hips + Vector((0, -0.012, -0.075))),
+            (0.155, 0.115, 0.115),
+            (0, 0, 0),
+            assigned["cloth"],
+            rig,
+            "root",
+            "armour",
+        )
+    )
     return built
 
 
 def create_sword_on_bone(rig: bpy.types.Object, assigned) -> list[bpy.types.Object]:
     """The sword, bound to its own bone instead of to a hand.
 
-    Same five shapes and same dimensions as the bake rig's sword — this is the same weapon, and a
-    second set of numbers for it would be two swords that drift apart. What changes is only what it
-    hangs from.
+    The handle keeps the bake sword's measurements exactly — guard at the origin, leather from five
+    to twenty-eight centimetres below it — because those are what the grips and therefore both arms
+    are placed against. Everything above the guard is shaped rather than slabbed.
     """
-    x, y, z = SWORD_AT
-    part = "sword"
-    return [
-        box("SwordBlade", (x, y, z + 0.48), (0.07, 0.036, 0.92), assigned["steel"], rig, "sword", part),
-        ellipsoid("SwordTip", (x, y, z + 0.98), (0.04, 0.025, 0.09), assigned["steel"], rig, "sword", part),
-        box("SwordGuard", (x, y, z), (0.36, 0.07, 0.07), assigned["brass"], rig, "sword", part),
-        cylinder_between("SwordGrip", (x, y, z - 0.05), (x, y, z - 0.28), 0.042, assigned["leather"], rig, "sword", part),
-        ellipsoid("SwordPommel", (x, y, z - 0.31), (0.065, 0.05, 0.065), assigned["brass"], rig, "sword", part),
-    ]
+    return detailed_sword(Vector(SWORD_AT), assigned, rig, "sword")
 
 
 def create_widgets() -> dict[str, bpy.types.Object]:
@@ -532,7 +554,37 @@ def report(rig: bpy.types.Object, table: dict[str, tuple[Point, Point]]) -> None
         guard_z = SWORD_AT[2]
         print(f"  palm.{side} sits {(guard_z - palm.z) * 100:.1f}cm below the crossguard (handle spans 5-28cm)")
 
-    print(f"  hand length {HAND_LENGTH:.3f} against forearm 0.340 (bake rig: 0.184)")
+    print(f"  hand length {HAND_LENGTH:.3f} against forearm {FOREARM:.3f} (bake rig: 0.184 against 0.340)")
+
+    # Proportions in heads, which is the unit the defect was invisible in.
+    #
+    # Measured off the built mesh rather than off the constants that were meant to produce it, so a
+    # head that came out a different size than intended is reported rather than assumed.
+    spans: dict[str, list[float]] = {}
+
+    for obj in bpy.data.objects:
+        part = obj.get("skeleton_part")
+
+        # The weapon is not part of the body. Leaving it in measured a figure two and a half units
+        # tall, because the blade reaches higher than the skull does.
+        if part is None or part == "sword":
+            continue
+
+        heights = [(obj.matrix_world @ Vector(corner)).z for corner in obj.bound_box]
+        spans.setdefault("all", []).extend(heights)
+
+        if part == "head":
+            spans.setdefault("head", []).extend(heights)
+
+    if "all" in spans and "head" in spans:
+        total = max(spans["all"]) - min(spans["all"])
+        head = max(spans["head"]) - min(spans["head"])
+        arm = UPPER_ARM + FOREARM
+        print(
+            f"  proportions: {total:.3f} tall, head {head:.3f} -> {total / head:.2f} heads"
+            f"   (human ~7.5, proof body 5.96)"
+        )
+        print(f"               arm {arm:.3f} -> {arm / head:.2f} heads   (human ~2.7, proof body 2.06)")
 
     # How big each controller actually draws. The first build shipped a solid cube 82cm across the
     # ribs because Blender multiplies a custom shape by its bone's length, and nothing in the build
