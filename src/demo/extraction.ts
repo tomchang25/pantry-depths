@@ -135,6 +135,7 @@ export function runEndOverlay(world: DemoWorld): DemoHudOverlay {
 
   if (world.status === "extracted") {
     return {
+      kind: "ended",
       title: "Out",
       tone: "out",
       stats,
@@ -146,6 +147,7 @@ export function runEndOverlay(world: DemoWorld): DemoHudOverlay {
 
   const lost = world.carried.length;
   return {
+    kind: "ended",
     title: "Eaten",
     tone: "lost",
     stats,

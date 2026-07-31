@@ -425,7 +425,7 @@ function blessRoster(world: DemoWorld): readonly DemoHudOverlayRosterEntry[] {
         icon: definition.id,
         name: definition.name,
         total: `+${total.toFixed(precision)} ${BLESS_AXIS_UNITS[definition.axis]}`,
-        ...(count > 0 ? { count: count === 1 ? "taken once" : `taken ${count} times` } : {}),
+        ...(count > 0 ? { count: `×${count}` } : {}),
       };
     },
   );
@@ -627,6 +627,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
           { key: "TAB", label: "Pause" },
         ],
         eyebrow: "Descend · Claim · Escape",
+        kind: "title",
         objective:
           "Complete the main floor objective to open the stairs. Explore the four side rooms for healing, blessings, and a way out with your sealed haul.",
         title: "Pantry Depths",
@@ -641,8 +642,8 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
           { key: "R", label: "Restart run" },
         ],
         eyebrow: "The depths are waiting",
+        kind: "paused",
         roster: blessRoster(world),
-        rosterTitle: "Blessings",
         title: "Paused",
       };
     }

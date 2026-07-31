@@ -939,6 +939,39 @@
 }
 
 /*
+ * While a full-surface screen is up, the four corners get out of its way.
+ *
+ * They were only ever dimmed by the wash over them, which is enough to make them unreadable and not
+ * enough to make them stop competing — so the roster panel landed on top of a floor contract you
+ * could still half-see, and read as two panels colliding rather than as one screen. Nothing is
+ * removed and nothing moves; the corners are still there behind, at the weight of a background.
+ */
+.demo-hud:has(.demo__overlay:not([hidden])) > *:not(.demo__overlay) {
+  opacity: 0.14;
+}
+
+/*
+ * A pause is a small fixed card, whatever the run is carrying.
+ *
+ * The title screen and the two endings are sheets: a paragraph of controls, or four numbers and a row
+ * per opened seal. A pause is four things — where you are, two keys, and the way back in — and at a
+ * sheet's width it was mostly empty. Holding it small is also what lets the roster sit beside it
+ * rather than inside it, and the width below is the number the roster's own rule is measured from.
+ */
+.demo__overlay[data-kind="paused"] {
+  --pause-card: 22rem;
+}
+
+.demo__overlay[data-kind="paused"] .demo__overlay-panel {
+  /* Definite, not `min(…, 100%)`. A percentage against a centred grid column resolves to the
+   * content's own width, which would make the card as wide as its longest line — and the roster is
+   * placed off `--pause-card`, so the card's width has to be the number rather than a cap on it. */
+  width: var(--pause-card);
+  max-width: 100%;
+  padding: 1.4rem 1.5rem 1.2rem;
+}
+
+/*
  * A run ends as a result, so the screen it ends on is a sheet rather than a paragraph.
  *
  * Both endings were one line of prose with the rewards joined by middots, which is the only place in
@@ -949,9 +982,7 @@
 .demo__overlay-panel {
   display: grid;
   gap: 0.9rem;
-  /* Wide enough for a nine-row roster to keep its descriptions on one or two lines, and narrow
-   * enough to clear the development overlay pinned in the bottom-right corner. */
-  width: min(42rem, 100%);
+  width: min(38rem, 100%);
   padding: 1.6rem 1.8rem 1.4rem;
   border: 1px solid color-mix(in srgb, var(--tone, #cb9769) 55%, transparent);
   border-radius: 0.4rem;
@@ -1013,51 +1044,66 @@
 }
 
 /*
- * The blessing roster, and the one screen it can be read on.
+ * The blessing roster: its own panel, hung off the left of the pause card.
  *
  * Every description in the catalogue was already written and already computed, and until this list
- * existed the only way to reach one was to hover a glyph in the play-time bar — with the pointer
- * locked for the whole of a run, which means never. The rows are quiet on purpose: the name carries
- * the weight, the sentence sits under it at lower contrast, and whether the run holds it is a property
- * of the row rather than another column of words.
+ * existed the only way to reach one was to hover a mark in the play-time bar — with the pointer
+ * locked for the whole of a run, which means never.
+ *
+ * It is a panel rather than a section of the card because it is the only part of a pause whose size
+ * depends on the run. Inside the card, a run holding nothing and a run holding nine produced two
+ * screens that shared no dimension; beside it, the card is the same object either way and the list
+ * grows into space nothing else is using. It borrows the floor contract's frame on purpose: it is a
+ * third readout of the run, and it should read as one.
  */
-.demo__overlay-rostertitle {
-  color: #c79e73;
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  font-size: 0.6rem;
-  letter-spacing: 0.2em;
+.demo__overlay-rosterpanel {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: calc(50% + var(--pause-card, 22rem) / 2 + 1.1rem);
+  display: grid;
+  gap: 0.5rem;
+  width: 25rem;
+  padding: 0.75rem 0.85rem 0.85rem;
   text-align: left;
-  text-transform: uppercase;
+  border: 1px solid rgb(203 151 105 / 42%);
+  border-radius: 0.25rem;
+  background: linear-gradient(135deg, rgb(203 151 105 / 8%), transparent 36%), rgb(12 7 18 / 92%);
+  box-shadow: 0 0.9rem 2.6rem rgb(0 0 0 / 45%);
+  transform: translateY(-50%);
 }
 
-.demo__overlay-rostertitle[hidden] {
+.demo__overlay-rosterpanel[hidden] {
   display: none;
+}
+
+.demo__overlay-rostertitle {
+  padding-bottom: 0.45rem;
+  color: #bda5b0;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgb(203 151 105 / 22%);
 }
 
 .demo__overlay-roster {
   display: grid;
-  gap: 0.28rem;
-  text-align: left;
-}
-
-.demo__overlay-roster[hidden] {
-  display: none;
+  gap: 0.3rem;
 }
 
 /*
- * One row per blessing the run is carrying, and none for the ones it is not.
+ * Name and total on the top line, the sentence across the full width underneath.
  *
- * The list used to hold a dimmed row for every blessing not yet taken, so the panel was one height
- * for the whole run. It now grows as the run collects, which is the trade taken deliberately: what a
- * player wants off this screen is what they have, and nine rows to find four of them in is a search.
+ * A third column for the number would leave the description about four words wide in a panel this
+ * narrow, and the description is the whole reason the screen was built.
  */
 .demo__overlay-rosterrow {
   display: grid;
-  grid-template-columns: 1.9rem minmax(0, 1fr) 6.6rem;
-  gap: 0.05rem 0.6rem;
+  grid-template-columns: 1.9rem minmax(0, 1fr) auto;
+  gap: 0.06rem 0.6rem;
   align-items: center;
-  padding: 0.28rem 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--bless, #cb9769) 32%, transparent);
+  padding: 0.36rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--bless, #cb9769) 30%, transparent);
   border-radius: 0.25rem;
   background: color-mix(in srgb, var(--bless, #cb9769) 7%, transparent);
 }
@@ -1075,61 +1121,45 @@
 }
 
 .demo__overlay-rostername {
+  grid-column: 2;
   color: #f4dfc7;
-  font-size: 0.84rem;
+  font-size: 0.85rem;
   letter-spacing: 0.01em;
   line-height: 1.25;
 }
 
-.demo__overlay-rosterdetail {
-  color: #cdb69c;
-  font-size: 0.72rem;
-  line-height: 1.35;
+/* What a repeating blessing has actually given, on the line its name is on. */
+.demo__overlay-rosteramount {
+  grid-column: 3;
+  display: flex;
+  gap: 0.35rem;
+  align-items: baseline;
+  white-space: nowrap;
 }
 
-/*
- * What a stacking blessing has actually given, in the column where a number is read.
- *
- * A fixed width, not `auto`. Five of the nine rows never carry a number, and an `auto` column would
- * collapse on them, widen the sentence beside it, rewrap that sentence and change the row's height —
- * which is the reflow the whole screen is built to avoid.
- */
-.demo__overlay-rosteramount {
-  grid-row: 1 / span 2;
-  grid-column: 3;
-  display: grid;
-  gap: 0.05rem;
-  align-content: center;
-  text-align: right;
+.demo__overlay-rosteramount[hidden] {
+  display: none;
 }
 
 .demo__overlay-rostertotal {
   color: var(--bless, #f4dfc7);
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-  white-space: nowrap;
 }
 
 .demo__overlay-rostercount {
   color: #9d8794;
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  font-size: 0.6rem;
-  letter-spacing: 0.04em;
-  line-height: 1.2;
-  text-transform: uppercase;
-  white-space: nowrap;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
 }
 
-/*
- * A screen carrying the roster gives it the room, and takes it from the title.
- *
- * The ending sheets keep the full title: they are a result, and the word is the result. A pause is a
- * list, so the list is what the height is spent on.
- */
-.demo__overlay-panel:has(.demo__overlay-roster:not([hidden])) .demo__overlay-title {
-  font-size: clamp(1.7rem, 3.4vw, 2.4rem);
+.demo__overlay-rosterdetail {
+  grid-column: 2 / -1;
+  color: #cdb69c;
+  font-size: 0.71rem;
+  line-height: 1.35;
 }
 
 /*
@@ -1314,13 +1344,30 @@
 }
 
 /*
- * Nine rows is the tallest thing the overlay ever holds, and the window is not always 800 pixels.
+ * Too narrow to hang the roster beside the card, so it goes under it.
  *
- * Its own breakpoint rather than the HUD-wide one below: at this height the four corners are still
- * fine and only the roster is running out of room, so compacting the whole interface would be paying
- * for the fix somewhere it was not needed.
+ * The card keeps its size and the pair centres as a column. What is given up is the card holding
+ * still as the list grows — there is no arrangement at this width where both are true, and a screen
+ * that runs off the left edge is worse than one that moves.
  */
-@media (max-height: 820px) {
+@media (max-width: 1150px) {
+  .demo__overlay {
+    gap: 0.9rem;
+  }
+
+  /* Stacked, so the two share an edge. Two centred panels of different widths read as a mistake. */
+  .demo__overlay[data-kind="paused"] .demo__overlay-panel {
+    width: min(25rem, 100%);
+  }
+
+  .demo__overlay-rosterpanel {
+    position: static;
+    width: min(25rem, 100%);
+    transform: none;
+  }
+}
+
+@media (max-height: 720px) {
   .demo__overlay {
     padding: 1.4rem;
   }
@@ -1334,7 +1381,7 @@
   }
 
   .demo__overlay-rosterrow {
-    padding: 0.22rem 0.5rem;
+    padding: 0.26rem 0.5rem;
   }
 
   .demo__overlay-rosterdetail {
@@ -1405,7 +1452,7 @@
   }
 
   .demo__overlay-rosterrow {
-    grid-template-columns: 1.55rem minmax(0, 1fr) 6rem;
+    grid-template-columns: 1.55rem minmax(0, 1fr) auto;
     padding: 0.2rem 0.4rem;
   }
 

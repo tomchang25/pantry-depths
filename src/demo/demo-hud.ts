@@ -144,6 +144,14 @@ export type DemoHudOverlayRosterEntry = Readonly<{
  */
 export type DemoHudOverlay = Readonly<{
   action?: string;
+  /**
+   * Which of the three screens this is.
+   *
+   * They want different widths — an ending is a sheet of numbers, a pause is a small fixed card with
+   * the roster hung beside it — and the alternative is styling off whichever field happens to be
+   * absent, which breaks the moment a screen gains a part it did not have.
+   */
+  kind: "ended" | "paused" | "title";
   body?: string;
   controls?: readonly Readonly<{ key: string; label: string }>[];
   eyebrow?: string;
@@ -152,7 +160,6 @@ export type DemoHudOverlay = Readonly<{
   rewards?: readonly DemoHudOverlayReward[];
   rewardsTitle?: string;
   roster?: readonly DemoHudOverlayRosterEntry[];
-  rosterTitle?: string;
   stats?: readonly Readonly<{ label: string; value: string }>[];
   title: string;
   tone?: "lost" | "out";
@@ -336,14 +343,18 @@ export function mountDemoHud(): MountedDemoHud {
   const overlayTitle = element("span", "demo__overlay-title");
   const overlayBody = element("span", "demo__overlay-body");
   const overlayObjective = element("span", "demo__overlay-objective");
-  const overlayRosterTitle = element("span", "demo__overlay-rostertitle");
-  const overlayRoster = element("span", "demo__overlay-roster");
   const overlayControls = element("span", "demo__overlay-controls");
   const overlayStats = element("span", "demo__overlay-stats");
   const overlayRewardsTitle = element("span", "demo__overlay-rewardstitle");
   const overlayRewards = element("span", "demo__overlay-rewards");
   const overlayFooter = element("span", "demo__overlay-footer");
   const overlayAction = element("span", "demo__overlay-action");
+  // Beside the card rather than inside it. What the run is carrying is a readout of its own, like the
+  // floor contract and the map are, and folding it into the card made the card a different size and
+  // shape for every run — so the one thing a pause should be, a fixed place to stop, it was not.
+  const overlayRosterPanel = element("span", "demo__overlay-rosterpanel");
+  const overlayRosterTitle = element("span", "demo__overlay-rostertitle", "Blessings");
+  const overlayRoster = element("span", "demo__overlay-roster");
   const minimapContext = minimap.getContext("2d");
 
   if (!minimapContext) {
@@ -372,8 +383,6 @@ export function mountDemoHud(): MountedDemoHud {
     overlayTitle,
     overlayBody,
     overlayObjective,
-    overlayRosterTitle,
-    overlayRoster,
     overlayControls,
     overlayStats,
     overlayRewardsTitle,
@@ -381,7 +390,8 @@ export function mountDemoHud(): MountedDemoHud {
     overlayFooter,
     overlayAction,
   );
-  overlayButton.append(overlayPanel);
+  overlayRosterPanel.append(overlayRosterTitle, overlayRoster);
+  overlayButton.append(overlayPanel, overlayRosterPanel);
   health.append(healthFill);
   runHeading.append(runTitle, runDepth);
   runMeta.append(runLevel, runClock);
@@ -506,6 +516,7 @@ export function mountDemoHud(): MountedDemoHud {
 
     if (model.overlay) {
       const overlay = model.overlay;
+      overlayButton.dataset.kind = overlay.kind;
       overlayButton.dataset.tone = overlay.tone ?? "none";
       overlayButton.setAttribute("aria-label", `${overlay.title}. ${overlay.action ?? "Continue"}`);
       overlayEyebrow.textContent = overlay.eyebrow ?? "";
@@ -515,32 +526,36 @@ export function mountDemoHud(): MountedDemoHud {
       overlayBody.hidden = overlay.body === undefined;
       overlayObjective.textContent = overlay.objective ?? "";
       overlayObjective.hidden = overlay.objective === undefined;
-      // Every row is drawn, held or not. A list that grows a row at a time cannot be read at a
-      // glance, and the gaps are what say there is still something to go and get.
+      // The name and what it has given share the top line; the sentence gets the panel's full width
+      // underneath. In a column this narrow a third column of text would leave the descriptions four
+      // words wide, and the description is what the screen exists to show.
       overlayRoster.replaceChildren(
         ...(overlay.roster ?? []).map((entry) => {
           const row = element("span", "demo__overlay-rosterrow");
           const glyph = element("span", "demo__overlay-rosterglyph");
+          const amount = element("span", "demo__overlay-rosteramount");
           glyph.append(createHudIcon(entry.icon));
           row.style.setProperty("--bless", entry.color);
+          amount.hidden = entry.total === undefined;
 
-          const amount = element("span", "demo__overlay-rosteramount");
-          amount.append(
-            element("strong", "demo__overlay-rostertotal", entry.total ?? ""),
-            element("small", "demo__overlay-rostercount", entry.count ?? ""),
-          );
+          if (entry.total !== undefined) {
+            amount.append(element("strong", "demo__overlay-rostertotal", entry.total));
+
+            if (entry.count !== undefined) {
+              amount.append(element("small", "demo__overlay-rostercount", entry.count));
+            }
+          }
+
           row.append(
             glyph,
             element("strong", "demo__overlay-rostername", entry.name),
-            element("small", "demo__overlay-rosterdetail", entry.detail),
             amount,
+            element("small", "demo__overlay-rosterdetail", entry.detail),
           );
           return row;
         }),
       );
-      overlayRoster.hidden = (overlay.roster ?? []).length === 0;
-      overlayRosterTitle.textContent = overlay.rosterTitle ?? "";
-      overlayRosterTitle.hidden = overlay.rosterTitle === undefined || overlayRoster.hidden;
+      overlayRosterPanel.hidden = (overlay.roster ?? []).length === 0;
       overlayControls.replaceChildren(
         ...(overlay.controls ?? []).map((control) => {
           const item = element("span", "demo__overlay-control");

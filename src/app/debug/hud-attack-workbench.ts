@@ -242,7 +242,7 @@ const PREVIEW_ROSTER: readonly DemoHudOverlayRosterEntry[] = [
   },
   {
     color: "#f0e0a0",
-    count: "taken twice",
+    count: "×2",
     detail: "More maximum health, and the difference healed on the spot",
     icon: "vigour",
     name: "Vigour",
@@ -250,7 +250,7 @@ const PREVIEW_ROSTER: readonly DemoHudOverlayRosterEntry[] = [
   },
   {
     color: "#e8875c",
-    count: "taken 3 times",
+    count: "×3",
     detail: "Every swing lands harder, and so does everything you throw",
     icon: "brutality",
     name: "Brutality",
@@ -258,7 +258,7 @@ const PREVIEW_ROSTER: readonly DemoHudOverlayRosterEntry[] = [
   },
   {
     color: "#9fe0d0",
-    count: "taken once",
+    count: "×1",
     detail: "You cross a floor faster",
     icon: "swiftness",
     name: "Swiftness",
@@ -266,7 +266,7 @@ const PREVIEW_ROSTER: readonly DemoHudOverlayRosterEntry[] = [
   },
   {
     color: "#c0c8e8",
-    count: "taken 4 times",
+    count: "×4",
     detail: "You strike from further out",
     icon: "longReach",
     name: "Long Reach",
@@ -298,8 +298,8 @@ function previewPauseOverlay(state: Exclude<RosterPreview, "off">): NonNullable<
       { key: "R", label: "Restart run" },
     ],
     eyebrow: "The depths are waiting",
+    kind: "paused",
     roster: PREVIEW_ROSTER.filter((_entry, index) => held.includes(index)),
-    rosterTitle: "Blessings",
     title: "Paused",
   };
 }
