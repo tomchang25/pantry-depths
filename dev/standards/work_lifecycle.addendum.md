@@ -44,11 +44,43 @@ Three rules keep the second half from rotting into a lie:
 
 This relaxation is general and has no expiry. It does not extend to sketches, implementation specs, reviews, or closeouts, each of which keeps its own standard as written.
 
+## A Plan May Declare Itself Goal-Executable
+
+A plan whose children are meant to be worked through continuously — one approval, then every child in landing order with no further stop — says so in one line directly under its title: `Goal-Executable: yes`.
+
+The line is a claim about the document, not an authorization. It says the plan is shaped so that running it end to end cannot silently swallow a decision. The authorization is still a sentence from the user, granted under `dev/agent_rules/implement_operations.md`; a plan that declares itself goal-executable and is never authorized is executed one stop at a time like any other.
+
+A plan may make the claim only when all three of these hold, and whoever writes the declaration checks all three first:
+
+1. **Every child has an `Execution` subsection.** A child whose shape is genuinely open needs a sketch, and a sketch is a stop. A plan carrying such a child is not goal-executable until that child is resolved or cut.
+2. **The document contains no unanswered question** — not in the Requirements, not in the Design, and not parked in an open-questions section, of which a goal-executable plan has none. An unanswered question is a stop that was written down instead of taken.
+3. **Every acceptance criterion can be judged in one sitting**: by the project's verification gate, by opening the thing and looking, or by playing it. A criterion needing a measurement nobody has taken is condition 2 in disguise.
+
+**Why the claim lives in the document rather than only in the conversation:** those three conditions are properties of the plan, and they are the whole of what makes continuous execution safe. Written down, they give the reviewer one thing to check before saying go, and give the executor one thing to re-check when a child turns out harder than the plan thought. If any condition stops holding mid-flight, the declaration is void for the rest of that plan and the ordinary stops return — the guards on the second-confirmation bypass already say this, and the declaration does not weaken any of them.
+
+Nothing else about the plan changes. Both halves keep their contracts, the child overview table is unchanged, and the `Execution` half stays perishable, forward-only, and subordinate to the conceptual half.
+
+## The Brief
+
+A brief is a format-free document whose only job is to start a conversation somewhere else. It is not a lifecycle artifact: it authorizes nothing, it is never cited as a reason, and it is spent the moment the plan, sketch, or spec it seeded exists.
+
+It fills a real gap. The probe is narrowed above to genuinely undirected observation, so it is the wrong home for material that already knows roughly where it is going. A sketch and a plan both assume the direction is chosen and are written to be reviewed. And the tracker's `Draft` tier forbids structure, so it cannot hold a mechanic broken into parts, a table of everything a system would have to cover, or a reading of how another repository solved the same problem. A brief holds exactly that and hands it to whoever picks the subject up next.
+
+- **No format.** Any structure, any length, code, quoted files, external repository paths, images. This is the one document class the English rule does not reach, because its readers are the author and the next agent, and neither reads it to review a decision.
+- **It says what it is, at the top:** that it is a brief, that it authorizes no implementation, and which conversation it exists to seed.
+- **It lives in `dev/docs/briefs/`**, named `<slug>.brief.md`.
+- **It gets one `TODO.md` pointer under `## Plan`**, beside the sketches, naming itself as a brief. It is not actionable the way a sketch is — `/implement` cannot eat one, because a brief is what the conversation that produces a sketch starts from. It sits in that tier anyway because that is where a reader looks for work nothing owns yet, and a brief buried under `Draft` is a brief nobody opens.
+- **It is spent when it germinates.** When the artifact it seeded exists, the brief is deleted — or archived, when what it recorded is worth keeping — in the same change. A brief left beside the plan it produced is a second requirement owner, which is the failure most of this lifecycle exists to prevent.
+- **It is never an authority.** Nothing cites a brief to justify a decision. Anything in one that turns out to be load-bearing moves into the artifact that owns it.
+
+**Why this is not just a longer tracker draft entry:** the `Draft` tier is deliberately hostile to structure so the tracker stays scannable, which is right for the tracker and wrong for the material. A brief that has to be flattened into prose to be recorded gets written somewhere else instead — which is what already happened here, so this section names the shape that document had rather than inventing one.
+
 ## Practical Routing
 
 | Situation                                                                                | Artifact                              |
 | ---------------------------------------------------------------------------------------- | ------------------------------------- |
 | A problem or tension is worth recording, but no direction is chosen                      | Probe                                 |
+| The material is ready to be worked on, but the working belongs in its own session        | Brief                                 |
 | The slice belongs to an existing plan whose `Execution` half already answers its shape   | Implementation spec, via `/implement` |
 | The direction is chosen and the slice belongs to an existing plan, shape still open      | Sketch as that plan's child           |
 | The direction is chosen and no plan owns the area yet                                    | Standalone sketch                     |

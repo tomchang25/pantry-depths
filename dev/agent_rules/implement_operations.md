@@ -57,3 +57,32 @@ This rule supersedes only the two statements above that Phase 1 target confirmat
 Every guard on the bypass above continues to apply unchanged, and clause 5 there is what keeps this honest: stop and ask when modeling exposes an unresolved user-authority decision, contradicts locked behavior, expands the approved scope, or requires a destructive action, an external authorization, or a human asset approval. **An authorization to work through a plan is never an authorization to decide something the plan left open.**
 
 **Why:** the per-target rule was written for `/implement` invoked conversationally against one slice, where the only record of the target is the conversation that produced it — and there, re-confirming is the only way to know the target survived. A plan with an execution half is the opposite case: the target is a reviewed document, so the confirmation buys a second reading of something already read, and the cost is paid once per child.
+
+## Executing A Goal-Executable Plan End To End
+
+`/goal` is the project-local loop over the standing authorization above. It relaxes nothing. It names an owner for the one thing that authorization left unowned: carrying execution from one child to the next. The authorization removes both stops, but `/implement` still ends when its child ends, so a plan of four children took four invocations and put the user back in the loop three times without asking them anything.
+
+Check all three preconditions before the first child, and report which one failed rather than proceeding on two of three:
+
+1. The plan declares `Goal-Executable: yes` and satisfies the three conditions in `dev/standards/work_lifecycle.addendum.md`.
+2. The user has authorized continuous execution of that plan's children, in as many words, per the standing authorization above.
+3. The verification gate passes before the first child, so any failure during the run is attributable to the run.
+
+Then, for each unshipped child in the plan's landing order:
+
+1. Run the complete `/implement` Phase 2 for that child — implementation modeling, the spec, lifecycle tracking, the documentation checks. Both stops are skipped.
+2. Implement it, then run the verification its spec names. The gate runs at least once per child and never only once for the whole plan; a plan verified only at the end cannot say which child broke it.
+3. Close the child out: record the outcome, cut its overview row and its `Execution` subsection, archive its spec.
+4. Report the child in one short paragraph and continue to the next without waiting for a reply.
+
+The loop stops — genuinely stops, and asks — on any of the following. These are the guards on the bypass above, restated as loop conditions:
+
+- A user-authority decision the plan did not make.
+- A conflict between a child's `Execution` subsection and the live codebase that changes what the child does rather than only where it does it.
+- Scope growing past what the plan's Requirements ask for.
+- A verification failure not attributable to the loop's own edit, or two consecutive failed fix attempts on one check.
+- Anything requiring a destructive action, an external authorization, or a human judgement on an asset — including every judgement the demo half reserves for a person playing it.
+
+A stop ends the loop rather than pausing it. The remaining children go back to needing their own authorization, because whatever fired the guard is evidence the plan was less decided than it claimed.
+
+**Why the loop reports per child instead of once at the end:** while it is running, a four-child run that reports only at the end is indistinguishable from a four-child run that went wrong on the first one. The per-child paragraph is a progress report, not a stop, and waits for nothing.

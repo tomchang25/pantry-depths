@@ -34,6 +34,20 @@ CONTRACTS: dict[str, list[str]] = {
         "commands/implement.md",
         "Explicit Second-Confirmation Bypass",
         "Phase 1 target confirmation remains mandatory",
+        "Executing A Goal-Executable Plan End To End",
+    ],
+    # The two artifact rules the /goal command and every brief route to. Both are pointed at from
+    # outside dev/standards — the command file and the tracker — so a renamed heading breaks
+    # discovery with nothing else failing.
+    "dev/standards/work_lifecycle.addendum.md": [
+        "Goal-Executable: yes",
+        "## The Brief",
+        "dev/docs/briefs/",
+    ],
+    "dev/docs/README.md": ["briefs/"],
+    ".claude/commands/goal.md": [
+        "dev/agent_rules/implement_operations.md",
+        "dev/standards/work_lifecycle.addendum.md",
     ],
     "dev/agent_rules/git_operations.md": ["dev/foundation/core/agent_rules/git_operations.md"],
     "dev/agent_rules/test_operations.md": ["# Test Operations"],
