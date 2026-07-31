@@ -68,11 +68,10 @@ Naming a map in the address costs one parameter and one branch, and it has no se
 
 ### Children
 
-| Child | Focus                                                            | Form             |
-| ----- | ---------------------------------------------------------------- | ---------------- |
-| 02    | The main region becomes a room; caps and respawn move onto rooms | Spec via `/goal` |
-| 03    | A map and its rooms become a file, refused at both ends          | Spec via `/goal` |
-| 04    | The game plays a named map, and today's floor ships as one       | Spec via `/goal` |
+| Child | Focus                                                      | Form             |
+| ----- | ---------------------------------------------------------- | ---------------- |
+| 03    | A map and its rooms become a file, refused at both ends    | Spec via `/goal` |
+| 04    | The game plays a named map, and today's floor ships as one | Spec via `/goal` |
 
 Landing order is 01 → 02 → 03 → 04, and it is not negotiable: each is a refactor whose correctness is judged by the run being unchanged, and two of them landing together would make an unchanged run impossible to attribute.
 
@@ -104,14 +103,6 @@ Perishable: this records the codebase on 2026-07-31. Re-check every coordinate a
 Children 01, 02 and 04 are demo-half work — the surface is `src/demo/` and `src/app/` — so `dev/agent_rules/implement_operations.md` applies and the spec is a short architectural note. Child 03 lands in `src/content/`, which is the other half and keeps full ceremony; it still adds no tests, per Non-Goal 8 and the standing rule that a new test needs to be asked for in as many words.
 
 The whole plan is judged against a run that has not changed. `npm run capture` is the instrument: it seeds `Math.random`, drives the same debug keys, and writes `capture-output/latest/` plus a contact sheet putting the previous run beside the latest. It asserts nothing and judges nothing — read the pictures.
-
-### Child 02 — The main region becomes a room
-
-- `src/demo/maze.ts` — `DemoRoomSide` (line 40), `DemoRoomRole` (line 49), `DemoRoom` (line 51) and the assembled map type (line 140). `roomAt()` at 648 currently returns nothing for most of the grid, and `padRoomAt()` at 665 with `ROOM_PAD_HALF` at 663 exist because the side rooms need a margin the main region does not have; both need re-reading once the centre is a room like the others.
-- `src/demo/world.ts` — the crowd numbers to move onto rooms are at 519 to 522: `BASE_ENEMY_COUNT = 14`, `SPAWN_INTERVAL_SECONDS = 5`, `MAX_ENEMIES = 20`. `SPAWN_CLEARANCE = 7` at 524 stays a rule rather than becoming content: it is about the player, not about the room. Consumers are at 702, 784 and 844, and `simulation.ts` at 979.
-- `src/demo/rooms.ts` — `stepRooms()` at 108 drives what each side room's business does per frame; it iterates rooms by role and must not start driving the main region's.
-- `src/demo/demo-scene.ts` — `boxes()` at about 2045 iterates rooms and branches on role to stand each fixture up. A main region with no role must fall through it cleanly.
-- The behavioural target is exact: the cap and interval a body meets today are the ones it meets afterwards. Moving a number onto a room and changing it in the same child is what makes an unchanged run impossible to prove.
 
 ### Child 03 — A map and its rooms become a file
 

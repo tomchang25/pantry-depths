@@ -49,10 +49,10 @@ import {
 import {
   announce,
   bodyFootprint,
+  crowdHere,
   damageEnemy,
   dropProp,
   killEnemy,
-  MAX_ENEMIES,
   MORTAR_DEAD_ZONE,
   MORTAR_IDLE_SECONDS,
   MORTAR_LOCK_SECONDS,
@@ -63,7 +63,6 @@ import {
   projectileHeight,
   SHELL_BLAST_RADIUS,
   SHELL_DAMAGE,
-  SPAWN_INTERVAL_SECONDS,
   spawnReinforcement,
   stainFloor,
   type DemoCellLike,
@@ -976,10 +975,11 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
     world.spawnSeconds -= step;
 
     if (world.spawnSeconds <= 0) {
-      world.spawnSeconds += SPAWN_INTERVAL_SECONDS;
+      const crowd = crowdHere(world);
+      world.spawnSeconds += crowd.respawnSeconds;
 
       if (spawnReinforcement(world)) {
-        announce(world, `Another one crawls out (${world.enemies.length}/${MAX_ENEMIES})`, 1.4);
+        announce(world, `Another one crawls out (${world.enemies.length}/${crowd.cap})`, 1.4);
       }
     }
   }

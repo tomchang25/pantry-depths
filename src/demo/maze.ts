@@ -61,9 +61,36 @@ export type DemoRoomSide = "north" | "south" | "west" | "east";
  */
 export type DemoRoomRole = "cursedAltar" | "blessingAltar" | "hotSpring" | "extraction";
 
+/**
+ * How many bodies a room holds, and how fast it puts them back.
+ *
+ * Owned by the room rather than by the floor because a body walks between rooms freely: a floor-wide
+ * cap can state a total and can never say what any part of it holds, and that difference is exactly
+ * what a boss room or an empty corridor needs to say. Every room a generated floor builds declares
+ * the same three numbers, so the crowd is still the floor's until something authored says otherwise.
+ */
+export type DemoCrowd = Readonly<{
+  /** The most bodies walking at once. */
+  cap: number;
+  /** How many are already standing there when the floor is built, before depth adds to it. */
+  starting: number;
+  /** Seconds between reinforcements. */
+  respawnSeconds: number;
+}>;
+
+/**
+ * A block of a floor, large or small.
+ *
+ * The middle of the floor is one of these and so is each room hanging off it. They differ by what
+ * they hold and how they are built — a side room hangs off a side, holds one piece of business, and
+ * is reached through one doorway; the region everything else hangs off does none of the three — and
+ * never by kind, which is what gives anything that varies per region somewhere honest to live.
+ */
 export type DemoRoom = Readonly<{
-  role: DemoRoomRole;
-  side: DemoRoomSide;
+  /** What business this room holds, when it holds any. */
+  role?: DemoRoomRole;
+  /** Which side of the main region it hangs off. The main region hangs off nothing. */
+  side?: DemoRoomSide;
   /** Inclusive bounds of the open interior, wall ring excluded. */
   minX: number;
   minY: number;
@@ -72,7 +99,8 @@ export type DemoRoom = Readonly<{
   /** Middle of the interior, which is where the room's business stands. */
   center: DemoCell;
   /** The interior cell the doorway opens through, on the side facing the main region. */
-  doorway: DemoCell;
+  doorway?: DemoCell;
+  crowd: DemoCrowd;
 }>;
 
 /**
@@ -240,6 +268,15 @@ const ROOM_SIDES: Readonly<Record<DemoRoomSide, Readonly<{ block: DemoBlock; inw
 
 const ROOM_SIDE_ORDER: readonly DemoRoomSide[] = ["north", "south", "west", "east"];
 const ROOM_ROLES: readonly DemoRoomRole[] = ["cursedAltar", "blessingAltar", "hotSpring", "extraction"];
+
+/**
+ * What a generated floor holds, declared once and given to every room on it.
+ *
+ * One set of numbers for all five rooms, deliberately: these were floor-wide constants until the
+ * middle became a room, and a floor that started holding a different crowd in the same change would
+ * make the change impossible to judge by playing it.
+ */
+const GENERATED_CROWD: DemoCrowd = { cap: 20, starting: 14, respawnSeconds: 5 };
 
 function blockCenter(block: DemoBlock): DemoCell {
   const half = (block.size - 1) / 2;
@@ -548,6 +585,19 @@ function attachRoom(
     maxY: block.y + block.size - 2,
     center,
     doorway,
+    crowd: GENERATED_CROWD,
+  };
+}
+
+/** The region the side rooms hang off: no side, no doorway, and no business of its own. */
+function carvedRegion(block: DemoBlock): DemoRoom {
+  return {
+    minX: block.x + 1,
+    minY: block.y + 1,
+    maxX: block.x + block.size - 2,
+    maxY: block.y + block.size - 2,
+    center: blockCenter(block),
+    crowd: GENERATED_CROWD,
   };
 }
 
@@ -605,6 +655,10 @@ function clearWalkToRooms(extent: DemoGridExtent, tiles: DemoTile[], from: DemoC
   }
 
   for (const room of rooms) {
+    if (!room.doorway) {
+      continue;
+    }
+
     let cursor = tileIndex(extent, room.doorway.x, room.doorway.y);
 
     while (cursor !== tileIndex(extent, from.x, from.y)) {
@@ -653,10 +707,13 @@ export function generateDemoMaze(): DemoMaze {
   const tiles = assembleTiles(extent, solid, [MAIN_BLOCK, ...roomBlocks]);
   const keepClear = new Set<number>();
   const roles = shuffled(ROOM_ROLES);
-  const rooms = ROOM_SIDE_ORDER.map((side, index) =>
+  const sideRooms = ROOM_SIDE_ORDER.map((side, index) =>
     attachRoom(extent, tiles, keepClear, side, roles[index] as DemoRoomRole),
   );
-  const byRole = new Map(rooms.map((room) => [room.role, room]));
+  // The region everything hangs off comes first, so a cell is asked about the block it is actually in
+  // before it is asked about the ones attached to that block.
+  const rooms: readonly DemoRoom[] = [carvedRegion(MAIN_BLOCK), ...sideRooms];
+  const byRole = new Map(sideRooms.map((room) => [room.role, room]));
 
   // Hazards belong to the main region. A pool in the hot spring or caltrops around an altar is not a
   // decision, it is noise on top of the one thing that room is for.
@@ -695,9 +752,25 @@ export function generateDemoMaze(): DemoMaze {
   };
 }
 
-/** Which room a cell stands in, or nothing when it stands in the main region. */
+/** Which room's interior a cell stands in, or nothing when it stands in a wall or a doorway. */
 export function roomAt(maze: DemoMaze, x: number, y: number): DemoRoom | undefined {
   return maze.rooms.find((room) => x >= room.minX && y >= room.minY && x <= room.maxX && y <= room.maxY);
+}
+
+/** The region a floor's rooms hang off. Every floor has exactly one, and it hangs off nothing. */
+export function mainRoom(maze: DemoMaze): DemoRoom {
+  return (maze.rooms.find((room) => room.side === undefined) ?? maze.rooms[0]) as DemoRoom;
+}
+
+/**
+ * The room a body standing here answers to, which is never nothing.
+ *
+ * A doorway punches through two wall rings that belong to neither interior, and a body crosses them
+ * every time it enters a room. The region everything hangs off owns whatever is between rooms, which
+ * is the whole reason it had to become a room before anything could be asked of it.
+ */
+export function standingRoom(maze: DemoMaze, x: number, y: number): DemoRoom {
+  return roomAt(maze, x, y) ?? mainRoom(maze);
 }
 
 /**
@@ -715,7 +788,12 @@ export const ROOM_PAD_HALF = 1;
 
 export function padRoomAt(maze: DemoMaze, x: number, y: number): DemoRoom | undefined {
   return maze.rooms.find(
-    (room) => Math.abs(x - room.center.x) <= ROOM_PAD_HALF && Math.abs(y - room.center.y) <= ROOM_PAD_HALF,
+    (room) =>
+      // A pad is where a room's business stands, so a room holding no business has none. Without this
+      // the main region would report one at its centre that nothing on the floor could ever use.
+      room.role !== undefined &&
+      Math.abs(x - room.center.x) <= ROOM_PAD_HALF &&
+      Math.abs(y - room.center.y) <= ROOM_PAD_HALF,
   );
 }
 

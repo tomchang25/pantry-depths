@@ -28,8 +28,10 @@ import {
   isInsideGrid,
   isWaterCell,
   sinkBody,
+  standingRoom,
   tileIndex,
   type DemoCell,
+  type DemoCrowd,
   type DemoMaze,
 } from "@/demo/maze";
 import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/demo/particles";
@@ -517,12 +519,19 @@ export const ALTAR_HITS = 3;
 /** What a run starts with before any core it carried out of an earlier one. */
 export const PLAYER_BASE_MAX_HP = 150;
 
-const BASE_ENEMY_COUNT = 14;
-/** The dungeon keeps producing: one every five seconds until twenty are walking around. */
-export const SPAWN_INTERVAL_SECONDS = 5;
-export const MAX_ENEMIES = 20;
 /** How far from the player a reinforcement must appear, so nothing pops into an occupied corridor. */
 const SPAWN_CLEARANCE = 7;
+
+/**
+ * The crowd numbers in force where the player is standing.
+ *
+ * How many walk at once and how fast they come back are the room's, not the floor's: a body walks
+ * between rooms freely, so the only honest answer to "how many" is the one belonging to where the
+ * question is being asked from.
+ */
+export function crowdHere(world: DemoWorld): DemoCrowd {
+  return standingRoom(world.maze, Math.floor(world.player.x), Math.floor(world.player.y)).crowd;
+}
 
 const LOOSE_PROPS: readonly Readonly<{ kind: DemoPropKind; scatter: number }>[] = [
   { kind: "stick", scatter: 4 },
@@ -700,16 +709,20 @@ export function populateFloor(world: DemoWorld): void {
   world.deaths = [];
   world.terrainVersion += 1;
   world.altar = { hp: ALTAR_HITS, maxHp: ALTAR_HITS, x: maze.altar.x + 0.5, y: maze.altar.y + 0.5 };
-  world.spawnSeconds = SPAWN_INTERVAL_SECONDS;
   world.player.x = maze.entrance.x + 0.5;
   world.player.y = maze.entrance.y + 0.5;
   world.player.pitch = 0;
+
+  // Read after the player has been put on the entrance, because the room the numbers come from is the
+  // one they are standing in.
+  const crowd = crowdHere(world);
+  world.spawnSeconds = crowd.respawnSeconds;
 
   // Far enough that the first thing a floor does is look around rather than swing.
   const spawnPool = walkableCells(maze).filter(
     (cell) => Math.hypot(cell.x + 0.5 - world.player.x, cell.y + 0.5 - world.player.y) > 6.5,
   );
-  const count = Math.min(MAX_ENEMIES, BASE_ENEMY_COUNT + world.depth - 1);
+  const count = Math.min(crowd.cap, crowd.starting + world.depth - 1);
 
   for (let index = 0; index < count; index += 1) {
     const cell = takeRandom(spawnPool);
@@ -782,7 +795,8 @@ export function createDemoWorld(): DemoWorld {
     swingTarget: undefined,
     impact: 0,
     shake: 0,
-    spawnSeconds: SPAWN_INTERVAL_SECONDS,
+    // Overwritten by `populateFloor` below, which reads it from the room the player lands in.
+    spawnSeconds: 0,
     hitFlash: 0,
     damageMarks: [],
     walkBob: 0,
@@ -823,7 +837,7 @@ export function flattenFloorForTesting(world: DemoWorld): void {
 
   world.terrainVersion += 1;
 
-  while (world.enemies.length < MAX_ENEMIES) {
+  while (world.enemies.length < crowdHere(world).cap) {
     if (!spawnReinforcement(world)) {
       break;
     }
@@ -837,7 +851,7 @@ export function flattenFloorForTesting(world: DemoWorld): void {
  * already full. Returns whether one arrived, so the caller can say so.
  */
 export function spawnReinforcement(world: DemoWorld): boolean {
-  if (world.enemies.length >= MAX_ENEMIES) {
+  if (world.enemies.length >= crowdHere(world).cap) {
     return false;
   }
 

@@ -53,10 +53,12 @@ function currentDone(world: DemoWorld, progress: DemoFloorProgress, kind: DemoTa
   return kind satisfies never;
 }
 
+// Side rooms only. The main region is a room like the others now, and it is the one the player starts
+// standing in — counting it would hand over a quarter of this task before the floor had been walked.
 function noteRoom(world: DemoWorld): void {
   const room = roomAt(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
 
-  if (room && !world.maze.progress.roomsVisited.includes(room.side)) {
+  if (room?.side && !world.maze.progress.roomsVisited.includes(room.side)) {
     world.maze.progress.roomsVisited.push(room.side);
   }
 }

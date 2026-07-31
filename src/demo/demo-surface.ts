@@ -35,10 +35,10 @@ import type { DemoPropKind } from "@/demo/throw-weight";
 import {
   announce,
   createDemoWorld,
+  crowdHere,
   dropProp,
   flattenFloorForTesting,
   killEnemy,
-  MAX_ENEMIES,
   runClockSeconds,
   spawnReinforcement,
   type DemoWorld,
@@ -637,13 +637,13 @@ export async function mountDemo(mount: HTMLElement): Promise<MountedDemo> {
 
   /** Refills the floor to the cap it fills itself to, without waiting out the reinforcement timer. */
   const fillCrowd = (): void => {
-    while (world.enemies.length < MAX_ENEMIES) {
+    while (world.enemies.length < crowdHere(world).cap) {
       if (!spawnReinforcement(world)) {
         break;
       }
     }
 
-    announce(world, `Crowd topped up (${world.enemies.length}/${MAX_ENEMIES})`, 2.5);
+    announce(world, `Crowd topped up (${world.enemies.length}/${crowdHere(world).cap})`, 2.5);
   };
 
   /**
