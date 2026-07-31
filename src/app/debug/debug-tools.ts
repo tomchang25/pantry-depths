@@ -13,6 +13,17 @@ export type DebugTool = {
 /** The single registry for future development tools. */
 export const DEBUG_TOOLS: readonly DebugTool[] = [
   {
+    id: "three-preview",
+    path: "/debug/three-preview",
+    title: "Three.js Preview",
+    description:
+      "Preview skeletal posing, destructive animation, procedural models, and ballistic effects in isolation.",
+    load: () =>
+      import("@/app/debug/three-preview/three-preview").then(({ renderThreePreview }) => ({
+        render: renderThreePreview,
+      })),
+  },
+  {
     id: "entity-workbench",
     path: "/debug/entity-workbench",
     title: "Entity Workbench",

@@ -25,6 +25,7 @@
   "devDependencies": {
     "@playwright/test": "1.61.1",
     "@types/node": "^24.0.15",
+    "@types/three": "^0.185.1",
     "dependency-cruiser": "^18.1.0",
     "oxlint": "1.74.0",
     "prettier": "3.9.5",
@@ -35,5 +36,8 @@
   },
   "engines": {
     "node": ">=22.12"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
   }
 }
