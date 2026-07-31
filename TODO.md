@@ -14,6 +14,7 @@ This tracker is the forward-work authority.
 
 [editor] `dev/docs/plans/pantry_demo_workbench.plan.md`
 [sword_guards] `dev/docs/plans/sword_guard_poses.plan.md`
+[three_block] `dev/docs/plans/three_block_experiment.plan.md`
 
 ---
 
