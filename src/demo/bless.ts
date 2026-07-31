@@ -162,6 +162,18 @@ export function blessBonus(state: BlessState, axis: ModifierAxis): number {
 }
 
 /**
+ * How many awards a running total represents.
+ *
+ * Derived rather than stored: the tier pays the same amount under the same name every time, so the
+ * total already answers this exactly. Keeping a tally beside it would put a second owner on a number
+ * that has one, and the two would disagree the first time either was written without the other.
+ */
+export function blessStackCount(state: BlessState, axis: ModifierAxis): number {
+  const step = blessingStep(axis);
+  return step > 0 ? Math.round(state.stacking[axis] / step) : 0;
+}
+
+/**
  * Maximum health the caller still owes the player for an award.
  *
  * Health is stored on the player rather than derived, so this axis is the one the award site has to

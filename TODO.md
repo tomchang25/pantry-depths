@@ -14,7 +14,6 @@ This tracker is the forward-work authority.
 
 [editor] `dev/docs/plans/pantry_demo_workbench.plan.md` — the map contract it was blocked on has shipped
 [floor_surfaces] `dev/docs/plans/floor_surface_channels.plan.md` — goal-executable
-[pause_screen] `dev/docs/plans/pause_screen_blessings.plan.md` — goal-executable
 
 ---
 

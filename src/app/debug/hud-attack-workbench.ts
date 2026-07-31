@@ -214,7 +214,14 @@ function defaultHudModel(): DemoHudModel {
  * content does. Nine rows because nine is what the pause screen will carry, and the density of nine
  * is the whole thing being looked at.
  */
-const PREVIEW_ROSTER: readonly Readonly<{ color: string; detail: string; glyph: string; name: string }>[] = [
+const PREVIEW_ROSTER: readonly Readonly<{
+  color: string;
+  count?: string;
+  detail: string;
+  glyph: string;
+  name: string;
+  total?: string;
+}>[] = [
   {
     color: "#e8a24c",
     detail: "Far more melee reach and damage, and every hit knocks back",
@@ -243,27 +250,50 @@ const PREVIEW_ROSTER: readonly Readonly<{ color: string; detail: string; glyph: 
   },
   {
     color: "#f0e0a0",
+    count: "taken twice",
     detail: "More maximum health, and the difference healed on the spot",
     glyph: "✜",
     name: "Vigour",
+    total: "+50 max HP",
   },
   {
     color: "#e8875c",
+    count: "taken 3 times",
     detail: "Every swing lands harder, and so does everything you throw",
     glyph: "⁂",
     name: "Brutality",
+    total: "+18 damage",
   },
-  { color: "#9fe0d0", detail: "You cross a floor faster", glyph: "»", name: "Swiftness" },
-  { color: "#c0c8e8", detail: "You strike from further out", glyph: "⟶", name: "Long Reach" },
+  {
+    color: "#9fe0d0",
+    count: "taken once",
+    detail: "You cross a floor faster",
+    glyph: "»",
+    name: "Swiftness",
+    total: "+0.30 speed",
+  },
+  {
+    color: "#c0c8e8",
+    count: "taken 4 times",
+    detail: "You strike from further out",
+    glyph: "⟶",
+    name: "Long Reach",
+    total: "+0.60 reach",
+  },
 ] as const;
 
 type RosterPreview = "off" | "empty" | "partial" | "full";
 
-/** How many of the nine the preview holds. Four is the state the screen is hardest to lay out in. */
-const ROSTER_PREVIEW_OWNED: Readonly<Record<Exclude<RosterPreview, "off">, number>> = {
-  empty: 0,
-  partial: 4,
-  full: PREVIEW_ROSTER.length,
+/**
+ * Which rows the preview holds in each state.
+ *
+ * The partial state deliberately spans both tiers and skips rows in the middle of each: a run in
+ * progress is never the first N of a list, and the screen has to look right with gaps in it.
+ */
+const ROSTER_PREVIEW_OWNED: Readonly<Record<Exclude<RosterPreview, "off">, readonly number[]>> = {
+  empty: [],
+  partial: [0, 2, 3, 6],
+  full: PREVIEW_ROSTER.map((_entry, index) => index),
 };
 
 function previewPauseOverlay(state: Exclude<RosterPreview, "off">): NonNullable<DemoHudModel["overlay"]> {
@@ -275,7 +305,12 @@ function previewPauseOverlay(state: Exclude<RosterPreview, "off">): NonNullable<
       { key: "R", label: "Restart run" },
     ],
     eyebrow: "The depths are waiting",
-    roster: PREVIEW_ROSTER.map((entry, index) => ({ ...entry, owned: index < owned })),
+    // A number belongs to a row only while the run holds it, exactly as the game builds it: an
+    // unowned stacking row reads as not taken rather than as a total of zero.
+    roster: PREVIEW_ROSTER.map((entry, index) => {
+      const { count: _count, total: _total, ...base } = entry;
+      return owned.includes(index) ? { ...entry, owned: true } : { ...base, owned: false };
+    }),
     rosterTitle: "Blessings",
     title: "Paused",
   };

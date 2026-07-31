@@ -10,7 +10,15 @@ import "@/demo/demo-surface.css";
 
 import { PROP_KINDS } from "@/content/presentation/prop-display-schema";
 import { grabAction, primaryAction, PROP_LABELS } from "@/demo/actions";
-import { BLESS_CATALOG, hasBless, findBless, type BlessDefinition } from "@/demo/bless";
+import {
+  BLESS_CATALOG,
+  BLESS_STACKING_CATALOG,
+  blessBonus,
+  blessStackCount,
+  hasBless,
+  findBless,
+  type BlessDefinition,
+} from "@/demo/bless";
 import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
 import { EXTRACTION_HOLD_SECONDS, extractionShare, runEndOverlay, SEALED_CARD_PREFIX } from "@/demo/extraction";
 import {
@@ -28,6 +36,7 @@ import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { mapNamed } from "@/demo/maps";
+import { findModifier, type ModifierAxis } from "@/demo/modifiers";
 import { POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/demo/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/demo/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
@@ -370,21 +379,55 @@ function channelModel(world: DemoWorld): DemoHudChannel | undefined {
 }
 
 /**
+ * The word an axis's number is read in.
+ *
+ * Display-side and deliberately shorter than the modifier catalogue's own names, which are written to
+ * head a column rather than to sit beside a number in a row. The catalogue keeps owning the
+ * magnitudes and the decimal places; this owns nothing but how a total is said out loud.
+ */
+const BLESS_AXIS_UNITS: Readonly<Record<ModifierAxis, string>> = {
+  maxHp: "max HP",
+  meleeDamage: "damage",
+  moveSpeed: "speed",
+  meleeReach: "reach",
+};
+
+/**
  * The whole blessing roster, as the pause screen reads it.
  *
  * Built beside the play-time bar's icons rather than from them: the bar shows only the tier that
  * never repeats plus a synthetic entry for surplus health, and it is a different readout with a
  * different job. Unowned rows are listed rather than filtered, because the gaps are the half of the
  * list that says there is something left to go and get.
+ *
+ * The order is the two catalogues back to back, which is the only thing telling the two tiers apart:
+ * a heading between them would be a row where the eye is expecting a blessing.
  */
 function blessRoster(world: DemoWorld): readonly DemoHudOverlayRosterEntry[] {
-  return BLESS_CATALOG.map((definition) => ({
+  const distinct = BLESS_CATALOG.map((definition) => ({
     color: definition.color,
     detail: definition.detail,
     glyph: definition.glyph,
     name: definition.name,
     owned: hasBless(world.bless, definition.id),
   }));
+  const stacking = BLESS_STACKING_CATALOG.map((definition) => {
+    const total = blessBonus(world.bless, definition.axis);
+    const count = blessStackCount(world.bless, definition.axis);
+    const precision = findModifier(definition.axis)?.precision ?? 0;
+    return {
+      color: definition.color,
+      detail: definition.detail,
+      glyph: definition.glyph,
+      name: definition.name,
+      // Above zero rather than present in a list: this tier has no membership, and the total is the
+      // only record that an award ever landed on it.
+      owned: total > 0,
+      ...(total > 0 ? { total: `+${total.toFixed(precision)} ${BLESS_AXIS_UNITS[definition.axis]}` } : {}),
+      ...(total > 0 && count > 0 ? { count: count === 1 ? "taken once" : `taken ${count} times` } : {}),
+    };
+  });
+  return [...distinct, ...stacking];
 }
 
 function createHudModel(

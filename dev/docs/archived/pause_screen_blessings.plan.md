@@ -48,11 +48,7 @@ A pause screen is a good place to put everything, and this one deliberately hold
 
 ### Children
 
-| Child | Focus                                                | Form             |
-| ----- | ---------------------------------------------------- | ---------------- |
-| 02    | Both blessing tiers rendered, with totals and counts | Spec via `/goal` |
-
-Child 01 has shipped: the overlay carries a roster, and pausing lists the tier that never repeats with every description readable without a pointer. What remains is filling it with the tier that stacks.
+Both children have shipped. The overlay carries a roster, pausing lists both blessing tiers with what each does, and a stacking one reads as the total it has added and how many times it was taken.
 
 ## Non-Goals
 
@@ -75,14 +71,4 @@ Child 01 has shipped: the overlay carries a roster, and pausing lists the tier t
 
 ## Execution
 
-Perishable: this records the codebase on 2026-07-31. Re-check every coordinate against live code before acting on it.
-
-Both children are demo-half work — the surface is `src/demo/` — so `dev/agent_rules/implement_operations.md` applies: the spec is a short architectural note, and verification is `npm run verify` plus playing it.
-
-### Child 02 — Both tiers, with totals and counts
-
-- `src/demo/bless.ts` — `BLESS_CATALOG` at about line 26 is the five that never repeat; `BLESS_STACKING_CATALOG` at about line 91 is the four that stack, each already carrying `name`, `detail`, `glyph`, `colour`, and the axis it moves. `BlessState.stacking` at about line 132 is a running total per axis, and its comment says why it is a total rather than a count. `hasBless()` at about line 148 answers for the distinct tier only, and its comment says so.
-- `src/demo/modifiers.ts` — `blessingStep(axis)` at about line 76 is what one stacking award is worth, and it is the only source for it. The count is `total / step`; guard the zero step rather than dividing blind.
-- `src/demo/demo-surface.ts` — `createHudModel()` at about line 370 builds `blessIcons` from `BLESS_CATALOG` alone and pushes a synthetic Vitality entry at about line 385 when `overflowMaxHp` is positive. That construction stays exactly as it is per Non-Goal 1; the roster is built beside it, from both catalogues.
-- `src/demo/demo-hud.ts` — `DemoHudBlessIcon` at line 3 is the play-time bar's row, and its comment explains why the whole roster is sent rather than only what is owned. The pause roster needs more per row than that type carries, so it gets its own type rather than growing this one, which the bar would then have to ignore.
-- The tooltip and label at about lines 421 and 422 of the same file are where the description is currently stranded. Leave them; they are harmless, and removing them is a change to the bar.
+Both children have landed and their coordinates are spent. The specs are archived beside this plan.

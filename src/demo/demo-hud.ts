@@ -120,10 +120,19 @@ export type DemoHudOverlayReward = Readonly<{
  */
 export type DemoHudOverlayRosterEntry = Readonly<{
   color: string;
+  /** How many awards the total above is, for a tier that repeats. Omitted by one that does not. */
+  count?: string;
   detail: string;
   glyph: string;
   name: string;
   owned: boolean;
+  /**
+   * What this one has actually added, in its own unit, already formatted.
+   *
+   * A string rather than a number and a unit: what an axis is measured in belongs to the catalogue
+   * that owns the axis, and the HUD is a renderer of display data that does no arithmetic.
+   */
+  total?: string;
 }>;
 
 /**
@@ -520,10 +529,16 @@ export function mountDemoHud(): MountedDemoHud {
             row.style.setProperty("--bless", entry.color);
           }
 
+          const amount = element("span", "demo__overlay-rosteramount");
+          amount.append(
+            element("strong", "demo__overlay-rostertotal", entry.total ?? ""),
+            element("small", "demo__overlay-rostercount", entry.count ?? ""),
+          );
           row.append(
             glyph,
             element("strong", "demo__overlay-rostername", entry.name),
             element("small", "demo__overlay-rosterdetail", entry.detail),
+            amount,
           );
           return row;
         }),
