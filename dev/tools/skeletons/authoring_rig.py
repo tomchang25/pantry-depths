@@ -68,8 +68,8 @@ Point = tuple[float, float, float]
 # radius and a box by its full width, so a skull written in one set of fractions is twice the size
 # it reads as on paper. The number that matters is the heads-tall the report prints.
 HEAD_UNIT = 0.455
-UPPER_ARM = 0.382
-FOREARM = 0.335
+UPPER_ARM = 0.408
+FOREARM = 0.312
 THIGH = 0.431
 SHIN = 0.421
 
@@ -242,8 +242,11 @@ def create_rig(table: dict[str, tuple[Point, Point]]) -> bpy.types.Object:
     armature.edit_bones["root"].parent = armature.edit_bones["ctrl_master"]
 
     for side, sign in (("L", -1), ("R", 1)):
-        ankle = Vector(table[f"shin.{side}"][1])
-        control(f"ctrl_foot.{side}", ankle, ankle + Vector((0, 0.23, 0)), "ctrl_master")
+        # The foot controller lies along the foot, not along the floor. Pointed level while the foot
+        # bone slopes fourteen degrees down to the toe, the Copy Rotation that ties them together
+        # swung the sole up by exactly that much and stood the skeleton on its heels.
+        ankle, toe = (Vector(point) for point in table[f"foot.{side}"])
+        control(f"ctrl_foot.{side}", ankle, toe, "ctrl_master")
 
         knee = Vector(table[f"thigh.{side}"][1])
         control(f"pole_knee.{side}", knee + Vector((0, 0.55, 0)), knee + Vector((0, 0.55, 0.12)), "ctrl_master")
@@ -286,18 +289,19 @@ def create_body(rig: bpy.types.Object, table: dict[str, tuple[Point, Point]], as
     built.extend(rib_cage(chest, assigned["bone"], rig, "spine"))
     built.extend(shoulder_girdle(chest, assigned["bone"], rig, "spine"))
     built.extend(pelvis(hips, assigned["bone"], rig, "root"))
-    built.extend(skull(neck, HEAD_UNIT, assigned["bone"], assigned["socket"], rig, "head"))
+    built.extend(skull(neck - Vector((0, 0, 0.028)), HEAD_UNIT, assigned["bone"], assigned["socket"], rig, "head"))
 
-    # Cervical vertebrae. Without them the skull floats a hand's width clear of the ribs: the spine
-    # column stops at the chest and the jaw starts above it, and nothing was ever built across the
-    # gap — visible the moment anything was rendered close enough to see a face.
-    for index in range(3):
-        fraction = (index + 0.5) / 3
+    # Cervical vertebrae. Without them the skull floats clear of the ribs: the spine column stops at
+    # the chest and the jaw starts above it, and nothing was ever built across the gap. Five thick
+    # ones rather than three thin, because the gap is bridged in measurement long before it is
+    # bridged to the eye — a neck narrower than the jaw above it still reads as a floating head.
+    for index in range(5):
+        fraction = index / 4
         built.append(
             shaped_box(
                 f"Cervical.{index}",
-                tuple(neck + Vector((0, -0.004, 0.10 * HEAD_UNIT * fraction * 2.1))),
-                (0.052, 0.05, 0.028),
+                tuple(neck + Vector((0, -0.012, 0.004 + 0.021 * index))),
+                (0.066 - 0.006 * fraction, 0.062, 0.026),
                 (0, 0, 0),
                 assigned["bone"],
                 rig,
@@ -357,18 +361,9 @@ def create_body(rig: bpy.types.Object, table: dict[str, tuple[Point, Point]], as
         shoulder = Vector(table[f"upper_arm.{side}"][0])
         built.extend(pauldron(shoulder, side == "R", assigned["iron"], rig, f"upper_arm.{side}"))
 
-    built.append(
-        shaped_box(
-            "WaistCloth",
-            tuple(hips + Vector((0, -0.012, -0.075))),
-            (0.155, 0.115, 0.115),
-            (0, 0, 0),
-            assigned["cloth"],
-            rig,
-            "root",
-            "armour",
-        )
-    )
+    # No loincloth. The proof body's burial cloth was a dark block between the hip bones, and at this
+    # size it read as a red cube stuck to the tailbone rather than as cloth. A bare pelvis is both
+    # cleaner and honest about what this body is.
     return built
 
 
