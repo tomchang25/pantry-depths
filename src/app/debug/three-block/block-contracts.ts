@@ -41,6 +41,22 @@ export const HOLDING_CLIPS: ReadonlySet<BlockClip> = new Set<BlockClip>([
 export const ARC_CLIP: BlockClip = "strike";
 
 /**
+ * Weapons that leave the hand when they are used.
+ *
+ * A javelin's strike is a throw, so the sprite has to stop holding it — what flies is the
+ * simulation's projectile, not something the animation carries. Hiding it is the presentation's job
+ * for the same reason the swing arc is: the clip describes a body, and one shared melee clip serves
+ * all three melee weapons precisely because it does not know which one is in the hand.
+ */
+export const THROWN_WEAPONS: ReadonlySet<BlockWeapon> = new Set<BlockWeapon>(["javelin"]);
+
+/** How far into the strike the throw releases — roughly where the arm passes vertical. */
+export const THROW_RELEASE = 0.45;
+
+/** Clips during which a thrown weapon is already gone. */
+export const AFTER_THROW_CLIPS: ReadonlySet<BlockClip> = new Set<BlockClip>(["recovery"]);
+
+/**
  * Bone names as three.js reports them after loading.
  *
  * Underscores, not Blender's `.L`/`.R`, because three.js strips dots out of node names on import:

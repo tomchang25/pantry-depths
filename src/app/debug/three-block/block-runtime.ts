@@ -4,6 +4,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 import blockUrl from "./assets/skeleton-blocky.glb?url";
 import {
+  AFTER_THROW_CLIPS,
   ARC_CLIP,
   BAKE_CAMERA,
   BAKE_LIGHTS,
@@ -13,6 +14,8 @@ import {
   type BlockWeapon,
   HOLDING_CLIPS,
   HAND_BONE,
+  THROW_RELEASE,
+  THROWN_WEAPONS,
   WEAPON_BONE,
   WEAPON_CLIPS,
 } from "./block-contracts";
@@ -216,12 +219,7 @@ export class BlockRuntime {
 
   setWeapon(weapon: BlockWeapon): void {
     this.weapon = weapon;
-
-    for (const [name, parts] of this.weaponParts) {
-      for (const part of parts) {
-        part.visible = name === weapon;
-      }
-    }
+    this.updateWeaponVisibility();
 
     if (!WEAPON_CLIPS[weapon].includes(this.clip)) {
       this.clip = WEAPON_CLIPS[weapon][0]!;
@@ -323,6 +321,7 @@ export class BlockRuntime {
       this.sync();
     }
 
+    this.updateWeaponVisibility();
     this.updateArc();
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
@@ -348,6 +347,30 @@ export class BlockRuntime {
 
     this.animationFrame = requestAnimationFrame(this.frame);
   };
+
+  /**
+   * Which weapon is in the hand this frame, and whether it is still there.
+   *
+   * A javelin leaves at the throw, so it is hidden from the release point of the strike onward
+   * rather than for the whole clip: the wind-up and the first half of the throw are the frames that
+   * say what the enemy is about to do, and a javelin that vanishes before it is thrown says
+   * nothing.
+   */
+  private updateWeaponVisibility(): void {
+    const duration = this.current?.getClip().duration ?? 0;
+    const progress = duration > 0 ? this.elapsed / duration : 0;
+    const thrown =
+      THROWN_WEAPONS.has(this.weapon) &&
+      ((this.clip === ARC_CLIP && progress >= THROW_RELEASE) || AFTER_THROW_CLIPS.has(this.clip));
+
+    for (const [name, parts] of this.weaponParts) {
+      const visible = name === this.weapon && !thrown;
+
+      for (const part of parts) {
+        part.visible = visible;
+      }
+    }
+  }
 
   private updateArc(): void {
     if (!this.arcEnabled || !this.weaponTip || !this.handBone) {

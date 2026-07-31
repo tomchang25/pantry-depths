@@ -146,10 +146,14 @@ def build_weapons(rig: bpy.types.Object, palette: dict[str, bpy.types.Material])
         obj = box(f"Weapon_{weapon}_{name}", (x, 0, hand - offset), size, palette[colour], rig, "weapon", "weapon")
         obj["weapon"] = weapon
 
+    # Turned a quarter about its own long axis against the first version, which stood the blade with
+    # its flat facing forward — a sword that swings edge-last, like a paddle. The chop travels in the
+    # forward plane, so the blade's width has to lie in that plane and its thickness across it. The
+    # crossguard turns with it, staying in the blade's plane as a crossguard does.
     part("sword", "Grip", -0.02, (0.07, 0.07, 0.20), "grip")
-    part("sword", "Guard", 0.14, (0.28, 0.09, 0.07), "brass")
-    part("sword", "Blade", 0.44, (0.11, 0.045, 0.52), "steel")
-    part("sword", "Tip", 0.74, (0.06, 0.035, 0.10), "steel")
+    part("sword", "Guard", 0.14, (0.09, 0.28, 0.07), "brass")
+    part("sword", "Blade", 0.44, (0.045, 0.11, 0.52), "steel")
+    part("sword", "Tip", 0.74, (0.035, 0.06, 0.10), "steel")
 
     part("hammer", "Haft", 0.22, (0.07, 0.07, 0.52), "grip")
     part("hammer", "Head", 0.60, (0.22, 0.19, 0.24), "steel")
