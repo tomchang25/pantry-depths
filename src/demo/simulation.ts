@@ -26,7 +26,14 @@ import {
   shellImpact,
   stepDrowning,
 } from "@/demo/impacts";
-import { blocksProjectile, blocksProjectileAt, generateDemoMaze, isBarricadeCell, tileAt } from "@/demo/maze";
+import {
+  blocksProjectile,
+  blocksProjectileAt,
+  DEMO_WALL_HEIGHT,
+  generateDemoMaze,
+  isBarricadeCell,
+  tileAt,
+} from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
 import { stepRooms } from "@/demo/rooms";
@@ -698,9 +705,51 @@ function stepVfx(world: DemoWorld, deltaSeconds: number): void {
   }
 }
 
-/** How high a shell rises, per cell of range, and how fast it travels. */
-const SHELL_ARC_PER_CELL = 0.34;
-const SHELL_SPEED = 6;
+/**
+ * How high a shell rises — stated as the height it actually reaches, not as a launch slope.
+ *
+ * The slope this replaces read as a lob and was not one. `flightHeight`'s launch term is not the peak:
+ * a shot across six cells topped out at 0.91 of a cell, which is *under* `DEMO_WALL_HEIGHT`, so every
+ * shell in the demo crossed the room through the masonry it was supposed to be sailing over rather
+ * than above it. The renderer was never the problem — it already shows the part of a sprite that
+ * clears a wall top — the trajectory simply never got there.
+ *
+ * So the peak is the number that is written down, and the launch term is solved for it below. The
+ * floor is what makes clearance a guarantee at every range the thing fires at, including the shortest.
+ * The per-cell rise and the ceiling are both held down by the frame rather than by taste: the camera
+ * sees up to `0.49 * depth + eye` cells at a given distance, and a shell at the top of its curve is
+ * about half its range away from whoever is watching it, so anything much steeper than this arrives by
+ * leaving the top of the screen and coming back down out of nowhere.
+ */
+const SHELL_PEAK_PER_CELL = 0.24;
+const SHELL_MIN_PEAK = DEMO_WALL_HEIGHT * 1.9;
+const SHELL_MAX_PEAK = DEMO_WALL_HEIGHT * 3.4;
+
+/**
+ * How long a shell hangs in the air, per cell of range, and the bounds that hold on short and long
+ * shots.
+ *
+ * A high lob that arrives as fast as a bolt reads as a bolt. The hang is what sells the arc and it is
+ * also what the mark on the floor is for: there has to be time to see the thing go up, look down, and
+ * walk out of the circle. The floor matters most at close range, where a proportional flight would be
+ * over in a third of a second.
+ */
+const SHELL_SECONDS_PER_CELL = 0.31;
+const SHELL_MIN_FLIGHT_SECONDS = 1.6;
+const SHELL_MAX_FLIGHT_SECONDS = 3.2;
+
+/**
+ * The launch term that puts the shared flight curve's peak at exactly this height.
+ *
+ * The curve is `0.5 + arc * s - (arc + 0.5) * s²`, whose maximum works out at `0.5 + arc² / (2 * (2 *
+ * arc + 1))`. Setting that equal to the wanted peak and solving for `arc` is the quadratic below.
+ * Inverting it here rather than eyeballing a slope is what turns wall clearance into something the
+ * numbers promise instead of something that happened to hold at one range.
+ */
+function shellArc(peak: number): number {
+  const rise = Math.max(0.0001, peak - 0.5);
+  return 2 * rise + Math.sqrt(4 * rise * rise + 2 * rise);
+}
 
 /**
  * Picks what an emplacement shells next, from everything on the floor that is far enough away.
@@ -732,7 +781,12 @@ function fireShell(world: DemoWorld, mortar: DemoMortar, centreX: number, centre
   const dx = mortar.aimX - centreX;
   const dy = mortar.aimY - centreY;
   const range = Math.max(0.0001, Math.hypot(dx, dy));
-  const arc = SHELL_ARC_PER_CELL * range;
+  const peak = Math.min(SHELL_MAX_PEAK, Math.max(SHELL_MIN_PEAK, SHELL_PEAK_PER_CELL * range));
+  const arc = shellArc(peak);
+  const seconds = Math.min(
+    SHELL_MAX_FLIGHT_SECONDS,
+    Math.max(SHELL_MIN_FLIGHT_SECONDS, SHELL_SECONDS_PER_CELL * range),
+  );
   world.hazards.push({
     id: nextId(world, "shell"),
     kind: "shell",
@@ -740,7 +794,9 @@ function fireShell(world: DemoWorld, mortar: DemoMortar, centreX: number, centre
     y: centreY,
     directionX: dx / range,
     directionY: dy / range,
-    speed: SHELL_SPEED,
+    // Ground speed, derived from the hang rather than fixed: the shell covers its range in the time
+    // the lob is meant to take, so a short shot is a slow high one instead of a quick flat one.
+    speed: range / seconds,
     travelled: 0,
     range,
     damage: SHELL_DAMAGE,

@@ -2595,6 +2595,8 @@ const LANE_DIM: readonly [number, number, number] = [128, 30, 34];
 const LANE_HOT: readonly [number, number, number] = [255, 118, 84];
 const CIRCLE_EDGE: readonly [number, number, number] = [255, 74, 58];
 const CIRCLE_FILL: readonly [number, number, number] = [220, 96, 62];
+/** Hotter than the aim fill, so a committed shell is told apart from a lock in peripheral vision. */
+const SHELL_INCOMING: readonly [number, number, number] = [255, 146, 78];
 const CUT_DIM: readonly [number, number, number] = [136, 36, 40];
 const CUT_HOT: readonly [number, number, number] = [255, 128, 96];
 const EXTRACT_DIM: readonly [number, number, number] = [46, 108, 40];
@@ -2733,7 +2735,7 @@ function floorDecals(world: DemoWorld): RenderFloorDecal[] {
       continue;
     }
 
-    pushLandingCircle(built, mortar.aimX, mortar.aimY, SHELL_BLAST_RADIUS, 1 - mortar.seconds / MORTAR_LOCK_SECONDS);
+    pushAimCircle(built, mortar.aimX, mortar.aimY, SHELL_BLAST_RADIUS, 1 - mortar.seconds / MORTAR_LOCK_SECONDS);
   }
 
   for (const room of world.maze.rooms) {
@@ -2760,16 +2762,19 @@ function floorDecals(world: DemoWorld): RenderFloorDecal[] {
       continue;
     }
 
-    // Once the shell is in the air the circle stays where it was marked and the fill keeps closing on
-    // it, so the mark runs unbroken from the lock through to the landing rather than blinking out at
-    // launch.
+    // Once the shell is in the air the mark stays exactly where it was painted, at exactly the width
+    // it was painted at, so it runs unbroken from the lock through to the landing rather than blinking
+    // out at launch. What changes at launch is only how it is drawn: the shot has left the emplacement
+    // and can no longer be called off by smashing it, and that is a different fact about the floor
+    // than an emplacement taking aim.
     const left = hazard.range - hazard.travelled;
-    pushLandingCircle(
+    pushIncomingCircle(
       built,
       hazard.x + hazard.directionX * left,
       hazard.y + hazard.directionY * left,
       hazard.blastRadius,
       Math.min(1, hazard.travelled / Math.max(0.0001, hazard.range)),
+      hazard.range / Math.max(0.0001, hazard.speed),
     );
   }
 
@@ -2801,8 +2806,15 @@ function pushPadSquare(
   });
 }
 
-/** A landing mark: a fixed rim at the blast's true edge, and a disc closing on it as the shell falls. */
-function pushLandingCircle(built: RenderFloorDecal[], x: number, y: number, radius: number, closing: number): void {
+/**
+ * An emplacement's aim: a fixed rim at the blast's true edge, and a disc closing on it as the lock
+ * runs down.
+ *
+ * The closing disc is a countdown with an out at the end of it — walking over and smashing the
+ * emplacement inside the five seconds cancels the shot entirely. That is what separates this from the
+ * mark below, which is the same ground with no out left.
+ */
+function pushAimCircle(built: RenderFloorDecal[], x: number, y: number, radius: number, closing: number): void {
   built.push({
     x,
     y,
@@ -2810,6 +2822,80 @@ function pushLandingCircle(built: RenderFloorDecal[], x: number, y: number, radi
     color: CIRCLE_FILL,
     strength: 0.5,
   });
+  pushBlastRim(built, x, y, radius);
+}
+
+/**
+ * How the mark blinks once the shell is committed: flashes a second at launch, at landing, and the
+ * closing share of the flight it stops blinking and holds.
+ */
+const INCOMING_FLASH_START = 3;
+const INCOMING_FLASH_END = 9;
+const INCOMING_SOLID_SHARE = 0.15;
+const INCOMING_DIM = 0.32;
+const INCOMING_HOT = 0.95;
+
+/**
+ * The mark under a shell already in the air, which is a different fact from an emplacement taking aim.
+ *
+ * The lock could be cancelled by crossing the floor and smashing the thing holding it. This cannot:
+ * the shell lands here whatever happens to whatever fired it. So the fill stops counting down and
+ * starts insisting — it sits at the blast's full width rather than closing on it, because closing is
+ * the aim phase's word and reusing it here said the two situations were the same situation.
+ *
+ * The flash carries what the closing disc used to: a fixed blink says "danger", an accelerating one
+ * says how much longer. Its phase is taken from the shell's own flight rather than from the world
+ * clock, so several shells in the air blink on their own beats instead of pulsing the whole floor in
+ * unison — which would look deliberate and tell the player nothing about which one is about to land.
+ *
+ * It never goes dark. A mark that blinks to nothing is missing for exactly the frames somebody is
+ * sprinting out of it. And the last share of the flight holds solid: the blinking *stopping* is the
+ * final thing this says, and a mark still flickering at the moment of impact has no way to say it.
+ */
+function pushIncomingCircle(
+  built: RenderFloorDecal[],
+  x: number,
+  y: number,
+  radius: number,
+  flown: number,
+  seconds: number,
+): void {
+  built.push({
+    x,
+    y,
+    shape: { kind: "disc", radius },
+    color: SHELL_INCOMING,
+    strength: incomingFlash(flown, seconds),
+  });
+  pushBlastRim(built, x, y, radius);
+}
+
+/**
+ * The blink, as a decal strength.
+ *
+ * Flashes are counted rather than a rate sampled. The phase is the integral of a rate rising linearly
+ * across the flight, which is what lets the blink speed up and stay smooth doing it; multiplying the
+ * current rate by the elapsed time instead would drag the phase backwards every frame and read as a
+ * stutter rather than as acceleration.
+ */
+function incomingFlash(flown: number, seconds: number): number {
+  if (flown >= 1 - INCOMING_SOLID_SHARE) {
+    return INCOMING_HOT;
+  }
+
+  const averageRate = INCOMING_FLASH_START + ((INCOMING_FLASH_END - INCOMING_FLASH_START) * flown) / 2;
+  const wave = (Math.sin(seconds * flown * averageRate * Math.PI * 2) + 1) / 2;
+  return INCOMING_DIM + (INCOMING_HOT - INCOMING_DIM) * wave;
+}
+
+/**
+ * The blast's true edge, at its true width, drawn identically for both phases.
+ *
+ * The one thing on this floor a player reads to decide where to stand, so it is the one thing neither
+ * phase is allowed to move, shrink, or blink out. Shared rather than written twice for exactly that
+ * reason: a rim that drifted between the two would be a lie told at the worst possible moment.
+ */
+function pushBlastRim(built: RenderFloorDecal[], x: number, y: number, radius: number): void {
   built.push({
     x,
     y,
