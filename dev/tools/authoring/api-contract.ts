@@ -5,6 +5,7 @@ export const CANONICAL_AUTHORING_PATHS = {
   decor: "src/content/presentation/decor-presets.json",
   entityDisplay: "src/content/enemies/entity-display.json",
   floorSet: "src/content/floors/provisional-floor-set.json",
+  map: "src/content/maps/pantry-depths.map.json",
   meleeAttacks: "src/content/viewmodel/melee-attacks.json",
   propDisplay: "src/content/presentation/prop-display.json",
 } as const;

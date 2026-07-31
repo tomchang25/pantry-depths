@@ -70,7 +70,6 @@ Naming a map in the address costs one parameter and one branch, and it has no se
 
 | Child | Focus                                                      | Form             |
 | ----- | ---------------------------------------------------------- | ---------------- |
-| 03    | A map and its rooms become a file, refused at both ends    | Spec via `/goal` |
 | 04    | The game plays a named map, and today's floor ships as one | Spec via `/goal` |
 
 Landing order is 01 → 02 → 03 → 04, and it is not negotiable: each is a refactor whose correctness is judged by the run being unchanged, and two of them landing together would make an unchanged run impossible to attribute.
@@ -103,15 +102,6 @@ Perishable: this records the codebase on 2026-07-31. Re-check every coordinate a
 Children 01, 02 and 04 are demo-half work — the surface is `src/demo/` and `src/app/` — so `dev/agent_rules/implement_operations.md` applies and the spec is a short architectural note. Child 03 lands in `src/content/`, which is the other half and keeps full ceremony; it still adds no tests, per Non-Goal 8 and the standing rule that a new test needs to be asked for in as many words.
 
 The whole plan is judged against a run that has not changed. `npm run capture` is the instrument: it seeds `Math.random`, drives the same debug keys, and writes `capture-output/latest/` plus a contact sheet putting the previous run beside the latest. It asserts nothing and judges nothing — read the pictures.
-
-### Child 03 — A map and its rooms become a file
-
-- New content module under `src/content/`, beside the existing authored tables. `src/content/enemies/entity-display-schema.ts` and `src/content/presentation/prop-display-schema.ts` are the shape to copy: a schema module, a JSON file, and validation on load.
-- The anti-pattern is `src/content/floor/floor-validation.ts` at 862 lines, almost all of it topological search over key order, door order and exit reachability. Do not port it. What survives is two guarantees: water cannot enclose a region, and a drawn floor has a route to the way out, which may be a route that has to be broken through.
-- `dev/tools/authoring/authoring-api.ts` is already multi-target; a `map` target with its own validator joins the whitelist there rather than growing a second endpoint. `dev/tools/run-authoring-request.ts` is the endpoint.
-- The tile vocabulary is `DemoTileKind` at `src/demo/maze.ts` line 23 — eight kinds today, including `mortar`. The schema names those and nothing else.
-- Save-time and load-time validation are two functions with two jobs, not one function called twice. The save-time one sees declarations; the load-time one sees a draw.
-- The maximum area, measured in child 01 rather than guessed: one full terrain rebuild over today's 1225 cells has a median cost of 0.20 ms and a worst sample of 0.87 ms, over 200 rebuilds under Node. That is 0.16 ms per thousand cells, so a linear 8 ms budget would allow roughly 49,000 cells. **Enforce 4096 (a 64-square map), not that number.** The measurement omits the browser's own per-frame area-proportional work — the minimap copies every tile kind each frame — and a limit an author can hit without noticing is worth less than an order of magnitude of headroom.
 
 ### Child 04 — The game plays a named map
 

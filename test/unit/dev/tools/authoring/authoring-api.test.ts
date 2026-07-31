@@ -2,6 +2,7 @@ import { AUTHORING_API_ROOT, type AuthoringTargetId } from "../../../../../dev/t
 import { handleAuthoringRequest, type AuthoringDependencies } from "../../../../../dev/tools/authoring/authoring-api";
 import { generateFloorSet } from "../../../../../dev/tools/floor-set/generator";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
+import mapJson from "@/content/maps/pantry-depths.map.json";
 import decorPresetsJson from "@/content/presentation/decor-presets.json";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { MELEE_ATTACKS } from "@/content/viewmodel/melee-viewmodel";
@@ -12,6 +13,7 @@ function createDependencies(): AuthoringDependencies & Readonly<{ writeCanonical
     decor: decorPresetsJson,
     entityDisplay: entityDisplayJson,
     floorSet: generateFloorSet({ seed: 1, floorCount: 1 }),
+    map: mapJson,
     meleeAttacks: MELEE_ATTACKS,
     propDisplay: propDisplayJson,
   };

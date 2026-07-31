@@ -6,6 +6,7 @@ import { generateFloorSet } from "../floor-set/generator";
 import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet } from "@/content/floor/floor-validation";
 import { parseEntityDisplays } from "@/content/enemies/entity-display-schema";
+import { parseMapSource } from "@/content/maps/map-schema";
 import { parseDecorPresets } from "@/content/presentation/decor-preset-schema";
 import { parsePropDisplays } from "@/content/presentation/prop-display-schema";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
@@ -135,6 +136,15 @@ function validateSource(target: AuthoringTargetId, source: unknown): unknown {
     }
 
     return parseFloorSet(source);
+  }
+
+  if (target === "map") {
+    try {
+      return parseMapSource(source);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Map validation failed.";
+      throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
+    }
   }
 
   if (target === "meleeAttacks") {
