@@ -13,6 +13,17 @@ export type DebugTool = {
 /** The single registry for future development tools. */
 export const DEBUG_TOOLS: readonly DebugTool[] = [
   {
+    id: "three-block",
+    path: "/debug/three-block",
+    title: "Block Skeleton",
+    description:
+      "Judge a blocky enemy at sprite size: eight headings, the bake's own camera, and clips driven by numeric tables.",
+    load: () =>
+      import("@/app/debug/three-block/three-block").then(({ renderThreeBlock }) => ({
+        render: renderThreeBlock,
+      })),
+  },
+  {
     id: "three-preview",
     path: "/debug/three-preview",
     title: "Three.js Preview",

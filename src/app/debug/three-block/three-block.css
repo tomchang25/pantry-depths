@@ -1,0 +1,189 @@
+.three-block__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: 1.1rem;
+  align-items: start;
+}
+
+.three-block__stage {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.three-block__viewport {
+  position: relative;
+  min-height: 30rem;
+  border: 1px solid #372f42;
+  border-radius: 0.75rem;
+  background: #121017;
+  overflow: hidden;
+}
+
+.three-block__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/**
+ * The judgment surface. It sits under the big view rather than beside it because it is meant to be
+ * looked at last and longest — the eight cells at the size the game draws them are what the whole
+ * experiment asks a person to rule on.
+ */
+.three-block__strip-panel {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid #372f42;
+  border-radius: 0.75rem;
+  background: #171320;
+}
+
+.three-block__strip-panel h2 {
+  margin: 0;
+  color: #ece3ef;
+  font-size: 0.9rem;
+}
+
+.three-block__strip-note {
+  margin: 0;
+  color: #a99fae;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.three-block__strip {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.4rem;
+  background: repeating-conic-gradient(#221c29 0% 25%, #1a1520 0% 50%) 50% / 16px 16px;
+}
+
+.three-block__headings {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  color: #8d8395;
+  font-size: 0.62rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.three-block__sidebar {
+  display: grid;
+  gap: 0.9rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.three-block__panel {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid #372f42;
+  border-radius: 0.75rem;
+  background: #171320;
+}
+
+.three-block__panel h2 {
+  margin: 0 0 0.15rem;
+  color: #ece3ef;
+  font-size: 0.9rem;
+}
+
+.three-block__field {
+  display: grid;
+  gap: 0.25rem;
+  color: #b0a6b7;
+  font-size: 0.74rem;
+}
+
+.three-block__field select,
+.three-block__field input[type="range"] {
+  width: 100%;
+}
+
+.three-block__field select {
+  padding: 0.3rem 0.4rem;
+  border: 1px solid #3f3549;
+  border-radius: 0.35rem;
+  background: #221c2b;
+  color: #ece3ef;
+  font: inherit;
+}
+
+.three-block__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #b0a6b7;
+  font-size: 0.74rem;
+}
+
+.three-block__transport {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.three-block__transport button {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #4a3d56;
+  border-radius: 0.4rem;
+  background: #2b2136;
+  color: #f0e7f4;
+  font: inherit;
+  cursor: pointer;
+}
+
+.three-block__transport button:hover {
+  background: #372a45;
+}
+
+.three-block__metrics {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.3rem 0.8rem;
+  margin: 0;
+  color: #bdb2c2;
+  font-size: 0.74rem;
+}
+
+.three-block__metrics dt,
+.three-block__metrics dd {
+  margin: 0;
+}
+
+.three-block__metrics dd {
+  color: #ece3ef;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.three-block__fallback {
+  position: absolute;
+  inset: 1rem;
+  display: grid;
+  place-content: center;
+  padding: 2rem;
+  color: #e9dfe9;
+  text-align: center;
+}
+
+@media (max-width: 60rem) {
+  .three-block__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .three-block__sidebar {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 38rem) {
+  .three-block__sidebar {
+    grid-template-columns: 1fr;
+  }
+}
