@@ -59,6 +59,15 @@ export type DemoEnemy = {
   pushY: number;
   repathSeconds: number;
   waypoint: DemoCell | undefined;
+  /**
+   * Where a body that has lost interest in the player is walking, or nothing when it is chasing.
+   *
+   * Both halves of one state: holding a cell is what makes a wander a walk to somewhere rather than
+   * a heading re-rolled every frame, and holding it *at all* is the flag that says this body is
+   * currently wandering — which is what the re-acquire distance is measured against. Two fields
+   * saying that would be two fields that can disagree.
+   */
+  wanderCell: DemoCell | undefined;
   /** Counts down through the telegraph; while above zero the enemy is committed and visibly winding up. */
   windupSeconds: number;
   windupTotal: number;
@@ -621,6 +630,7 @@ export function createEnemy(world: DemoWorld, x: number, y: number, archetype = 
     pushY: 0,
     repathSeconds: 0,
     waypoint: undefined,
+    wanderCell: undefined,
     windupSeconds: 0,
     windupTotal: 0,
     intent: "none",

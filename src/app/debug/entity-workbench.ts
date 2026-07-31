@@ -301,6 +301,7 @@ function createEnemy(archetypeId: DemoArchetypeId, id = "workbench-enemy"): Demo
     pushY: 0,
     repathSeconds: 0,
     waypoint: undefined,
+    wanderCell: undefined,
     windupSeconds: 0,
     windupTotal: Math.max(0.001, attackWindup(archetype)),
     intent: "none",

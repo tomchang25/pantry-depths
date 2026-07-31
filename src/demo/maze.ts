@@ -834,6 +834,63 @@ export function isBarricadeCell(maze: DemoMaze, x: number, y: number): boolean {
   return tileAt(maze, x, y)?.kind === "barricade";
 }
 
+/**
+ * Somewhere to go, drawn at random from every cell a body could walk to from where it stands.
+ *
+ * The flood is the whole floor, which is what makes a wander a wander: a body that picks from its
+ * immediate surroundings paces, and one that picks from the room it can reach crosses it. Cost is a
+ * sweep of the open area, paid once when a target is chosen rather than per frame — a wanderer only
+ * asks again when it has arrived.
+ *
+ * The start cell is never a candidate for itself, and it is not required to be walkable: a body flung
+ * onto a barricade still gets asked where it is going, and the answer is somewhere off it.
+ */
+export function randomReachableCell(maze: DemoMaze, from: DemoCell): DemoCell | undefined {
+  const queue: number[] = [tileIndex(from.x, from.y)];
+  const reachable: number[] = [];
+  const seen = new Set<number>(queue);
+  let head = 0;
+
+  while (head < queue.length) {
+    const current = queue[head] as number;
+    head += 1;
+    const currentX = current % DEMO_GRID_SIZE;
+    const currentY = Math.floor(current / DEMO_GRID_SIZE);
+
+    for (const step of [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+    ]) {
+      const nextX = currentX + step.x;
+      const nextY = currentY + step.y;
+
+      if (!isInsideGrid(nextX, nextY) || blocksWalk(maze, nextX, nextY)) {
+        continue;
+      }
+
+      const next = tileIndex(nextX, nextY);
+
+      if (seen.has(next)) {
+        continue;
+      }
+
+      seen.add(next);
+      queue.push(next);
+      reachable.push(next);
+    }
+  }
+
+  const chosen = pick(reachable);
+
+  if (chosen === undefined) {
+    return undefined;
+  }
+
+  return { x: chosen % DEMO_GRID_SIZE, y: Math.floor(chosen / DEMO_GRID_SIZE) };
+}
+
 /** Open cells reachable from a start cell, ignoring destructibility. Used only by enemy pathing. */
 export function breadthFirstStep(maze: DemoMaze, from: DemoCell, to: DemoCell): DemoCell | undefined {
   if (from.x === to.x && from.y === to.y) {

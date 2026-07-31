@@ -106,8 +106,13 @@ const SHAKE_DECAY = 5;
  *
  * Well above a standstill on purpose. A body in the way is meant to cost time, never control: a
  * player who decides to walk through five slimes gets to, and pays for it.
+ *
+ * Below the hardest single body rather than at it. A red slime is authored to leave a third of pace,
+ * and a floor of `0.35` would have quietly clipped that to its own value — so the number the
+ * archetype states would have been a number the player never actually felt, and every future body
+ * authored past it would have been the same slime wearing a different colour.
  */
-const MIN_CROWD_PACE = 0.35;
+const MIN_CROWD_PACE = 0.25;
 
 /**
  * What wading through bodies costs the player, as a fraction of their pace.

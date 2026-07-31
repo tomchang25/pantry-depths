@@ -1,8 +1,12 @@
 /**
  * The seven things on a floor, and how each one announces itself.
  *
- * Three of them are slimes and have no attack at all: what they cost the player is position, and
- * they never stop advancing. The other four are skeletons, and every attack they have is telegraphed
+ * Three of them are slimes and have no attack at all: what they cost the player is position, and none
+ * of them is fast enough to take it from someone walking away. Its interest reaches ten cells and no
+ * further, so a slime you have not gone near is a body wandering the floor on its own errand, and the
+ * three colours are three answers to how much it costs to go through one rather than round it.
+ *
+ * The other four are skeletons, and they follow from anywhere; every attack they have is telegraphed
  * before it lands, because every attack is avoidable if you read it — a shooter can be broken
  * line-of-sight on, and a charge commits to a straight lane you can step out of, then beats itself
  * against the wall. The wind-up numbers are the whole difficulty knob; the damage barely matters
@@ -127,6 +131,10 @@ export type DemoEnemyArchetype = Readonly<{
    * How much this body slows the player who is pushing through it, at full overlap. Omitted means it
    * costs nothing to walk past, which is true of everything that is not a slime.
    *
+   * The fraction subtracted, so what a player wading a single body keeps is `1 - drag`: the three
+   * slimes are authored as three quarters, a half, and a third of pace, which is the scale they are
+   * meant to be read on and the reason those are the numbers below rather than round ones.
+   *
    * The slime's whole job, and a speed penalty rather than a shove. Shoving the player produced a
    * force pulling against their own input every frame, which read as a body twitching in place
    * rather than as a crowd being in the way. Slowing them fights nothing: the player still goes
@@ -136,6 +144,17 @@ export type DemoEnemyArchetype = Readonly<{
    * short of that on its own — so standing near a crowd is free and pushing into one is not.
    */
   drag?: number;
+  /**
+   * How far from the player this body stays interested, in cells. Omitted means it never loses
+   * interest and walks the whole floor to reach them, which is what every skeleton does.
+   *
+   * Set it and the body stops being a homing missile: past this distance it goes about its own
+   * business — see the wander in the behaviour module — and takes the player up again only when they
+   * come back inside. That is what a slime is now, and the difference it makes is that a room is
+   * somewhere with bodies moving around in it rather than a room with a line of bodies pointed at
+   * you: what you run into, you ran into.
+   */
+  leash?: number;
 }>;
 
 /**
@@ -159,6 +178,16 @@ const SWORDSMAN_REACH = 0.95;
  * everything that was wrong about the contact followed from that.
  */
 const SLIME_BAND = { near: 0, far: 0.8 } as const;
+
+/**
+ * How far a slime will follow, in cells.
+ *
+ * Ten is most of a room away: far enough that a slime which has seen you is a commitment you have to
+ * answer rather than something you stroll out of, short enough that the far half of a floor is still
+ * going about its own business. What it buys is that the slimes on a floor are not all facing you —
+ * the ones that come are the ones you got near, and there is somewhere on the floor that is not that.
+ */
+const SLIME_LEASH = 10;
 
 /** The small one: it goes further out of the hand and lands lighter than the other two. */
 const LIGHT_BODY_WEIGHT: DemoThrowWeight = {
@@ -191,9 +220,13 @@ const HEAVY_BODY_WEIGHT: DemoThrowWeight = {
  * The three slimes: one behaviour, three sets of numbers, and nothing else between them.
  *
  * Not one entity with three appearances. A colour is something to tune rather than a tier to derive,
- * so health, drawn size, footprint, and shove are authored per row and are monotonic on purpose —
+ * so health, drawn size, footprint, pace, and drag are authored per row and are monotonic on purpose —
  * the set they replace was not, and a floor where the tallest body is the second-weakest teaches the
  * player nothing about what they are looking at.
+ *
+ * The axis runs one way for all five numbers, and the trade is the point: bigger is tougher, harder
+ * to wade through, and slower to the point that the biggest one barely travels. Colour tells the
+ * player which cost they are being offered before they are close enough to pay it.
  *
  * Every one of them omits the whole attack block. That absence is the entity: a slime costs the
  * player position rather than health, and it can do that forever because it has nothing to stop for.
@@ -204,13 +237,17 @@ const SLIME_GREEN: DemoEnemyArchetype = {
   appearance: "greenSlime",
   health: 40,
   weight: LIGHT_BODY_WEIGHT,
-  speed: 1.9,
-  rushSpeed: 2.6,
+  // Three quarters of what a slime used to move at, and the fastest of the three. Still well under
+  // the player, so outrunning a green one is free and the cost of one is where it stands.
+  speed: 1.425,
+  rushSpeed: 1.95,
   rushDistance: 5,
   body: "soft",
   footprint: 0.22,
   band: SLIME_BAND,
-  drag: 0.18,
+  // Three quarters of pace: the one you barge through, and the reason the other two read as heavy.
+  drag: 0.25,
+  leash: SLIME_LEASH,
 };
 
 const SLIME_BLUE: DemoEnemyArchetype = {
@@ -220,13 +257,17 @@ const SLIME_BLUE: DemoEnemyArchetype = {
   health: 60,
   // The ordinary body, and the one every other weight is read against.
   weight: DEFAULT_BODY_WEIGHT,
-  speed: 1.9,
-  rushSpeed: 2.6,
+  // Half. A blue slime no longer arrives anywhere — it is somewhere, and the question is whether you
+  // are going through it.
+  speed: 0.95,
+  rushSpeed: 1.3,
   rushDistance: 5,
   body: "soft",
   footprint: 0.3,
   band: SLIME_BAND,
-  drag: 0.25,
+  // Half of pace. Crossing one is a decision now rather than a texture.
+  drag: 0.5,
+  leash: SLIME_LEASH,
 };
 
 const SLIME_RED: DemoEnemyArchetype = {
@@ -235,15 +276,21 @@ const SLIME_RED: DemoEnemyArchetype = {
   appearance: "redSlime",
   health: 80,
   weight: HEAVY_BODY_WEIGHT,
-  speed: 1.9,
-  rushSpeed: 2.6,
+  // A quarter, which at an eighth of the player's pace stops being pursuit at all. A red slime is
+  // terrain: it holds the ground it is on, it drags hardest at whoever crosses it, and it will never
+  // reach anybody who does not walk back to it. The leash and the wander are what keep it from being
+  // scenery — it is slowly going somewhere, and where it ends up is not where you left it.
+  speed: 0.475,
+  rushSpeed: 0.65,
   rushDistance: 5,
   body: "soft",
   footprint: 0.38,
   band: SLIME_BAND,
-  // The largest one drags hardest at a player crossing it, and three of them together still cannot
-  // seal a doorway: the slowdown is floored well above a standstill.
-  drag: 0.35,
+  // A third of pace, which is the hardest single body on the floor to get past — and three of them
+  // together still cannot seal a doorway, because the crowd slowdown is floored well above a
+  // standstill. Walking through a red one is meant to be a thing you notice you decided to do.
+  drag: 2 / 3,
+  leash: SLIME_LEASH,
 };
 
 const SWORDSMAN: DemoEnemyArchetype = {

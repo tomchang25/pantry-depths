@@ -1,9 +1,16 @@
 /**
  * Enemy behaviour, as two systems that never run in the same frame.
  *
- * **Pursuit** is what a body does when it is not attacking, and it reads one thing: the distance band
- * its archetype wants to hold. Beyond a few cells it navigates the grid toward the player's cell,
- * inside that it drops the path and runs straight at them, and it stops when it is in the band.
+ * **Pursuit** is what a body does when it is not attacking, and it reads two things: the distance band
+ * its archetype wants to hold, and how far it is willing to care at all. Beyond a few cells it
+ * navigates the grid toward the player's cell, inside that it drops the path and runs straight at
+ * them, and it stops when it is in the band.
+ *
+ * A body that declares a leash has a third state past all of that: **wandering**. Out past the leash
+ * the player is not a destination any more, so it draws a reachable cell of its own and walks the
+ * grid to it, then draws another. That is what stops a floor being a set of arrows all pointing at
+ * the player from wherever they were standing when the floor was built, and it is why running into
+ * a slime is now something you did rather than something that was aimed at you.
  *
  * **Attacking** runs only for a body that has an attack and reads only its own timers. The wind-up
  * and the strike are the committed half: while either is live the body cannot move, cannot turn, and
@@ -34,7 +41,7 @@ import {
 } from "@/demo/enemy-archetypes";
 import { hasBless } from "@/demo/bless";
 import { checkHazards } from "@/demo/impacts";
-import { breadthFirstStep } from "@/demo/maze";
+import { breadthFirstStep, randomReachableCell, type DemoCell } from "@/demo/maze";
 import { burst } from "@/demo/particles";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import {
@@ -52,6 +59,16 @@ import {
 
 const REPATH_SECONDS = 0.4;
 const SEPARATION = 0.62;
+
+/**
+ * How far inside its leash a wandering body has to be caught before it takes an interest again.
+ *
+ * The hysteresis, and the reason there are two distances rather than one: a player standing exactly
+ * on the leash would otherwise flip the body between chasing and wandering every frame, and those two
+ * want opposite directions — so it reads as a body vibrating rather than as one making its mind up.
+ * Giving up happens at the leash and taking up again happens inside it, so neither edge is a coin.
+ */
+const REACQUIRE_SHARE = 0.85;
 
 function decayTimers(enemy: DemoEnemy, deltaSeconds: number): void {
   enemy.stunSeconds = Math.max(0, enemy.stunSeconds - deltaSeconds);
@@ -112,9 +129,21 @@ function separate(world: DemoWorld, enemy: DemoEnemy): Readonly<{ x: number; y: 
   return { x: offsetX, y: offsetY };
 }
 
-function pathHeading(world: DemoWorld, enemy: DemoEnemy): Readonly<{ x: number; y: number }> {
+/**
+ * A step's worth of heading along the grid route to a cell, or nothing when there is no route.
+ *
+ * The two zero answers a caller can get back are deliberately different things. `undefined` means no
+ * way there is known — the search failed, and it will not be retried until the cooldown lapses — and
+ * a wanderer treats that as its destination being gone. A zero *vector* means the route is fine and
+ * this particular waypoint has just been reached, which is a normal frame and not a reason to give up
+ * on anything.
+ */
+function pathHeading(
+  world: DemoWorld,
+  enemy: DemoEnemy,
+  goal: DemoCell,
+): Readonly<{ x: number; y: number }> | undefined {
   const cell = { x: Math.floor(enemy.x), y: Math.floor(enemy.y) };
-  const goal = { x: Math.floor(world.player.x), y: Math.floor(world.player.y) };
 
   // The cooldown alone gates the search. Retrying on an empty waypoint as well meant a player
   // nothing could reach — sealed behind water or barricades — put every enemy into a full-map
@@ -129,7 +158,7 @@ function pathHeading(world: DemoWorld, enemy: DemoEnemy): Readonly<{ x: number; 
   const waypoint = enemy.waypoint;
 
   if (!waypoint) {
-    return { x: 0, y: 0 };
+    return undefined;
   }
 
   const toX = waypoint.x + 0.5 - enemy.x;
@@ -610,8 +639,22 @@ function stepWindup(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
  * This replaces a melee routine and a shooter routine that differed in nothing but which distance
  * they wanted. Sight gates the band rather than the closing, because a body holding a standoff
  * against a wall it cannot see through is holding it against nothing — it should come round.
+ *
+ * The leash is checked before any of it, because a body that has lost interest is not pursuing badly
+ * — it is doing something else entirely, and every number below describes a body that wants to be
+ * near the player.
  */
 function pursue(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean, deltaSeconds: number): void {
+  const leash = enemy.archetype.leash;
+
+  if (leash !== undefined && !holdsInterest(enemy, distance, leash)) {
+    wander(world, enemy, deltaSeconds);
+    return;
+  }
+
+  // Dropped the moment the player is worth chasing, so a wanderer that gets caught up with does not
+  // keep a stale errand to resume the next time they walk away.
+  enemy.wanderCell = undefined;
   const band = enemy.archetype.band;
   const towardX = (world.player.x - enemy.x) / distance;
   const towardY = (world.player.y - enemy.y) / distance;
@@ -641,8 +684,72 @@ function pursue(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: b
     enemy.repathSeconds = 0;
   }
 
-  const heading = close ? { x: towardX, y: towardY } : pathHeading(world, enemy);
+  const goal = { x: Math.floor(world.player.x), y: Math.floor(world.player.y) };
+  // A body with no route to the player still walks: the separation in `walk` is what keeps a stalled
+  // crowd from stacking into one point, and it was the old behaviour of a failed search too.
+  const heading = close ? { x: towardX, y: towardY } : (pathHeading(world, enemy, goal) ?? { x: 0, y: 0 });
   walk(world, enemy, heading.x, heading.y, close ? enemy.archetype.rushSpeed : enemy.archetype.speed, deltaSeconds);
+}
+
+/**
+ * Whether a leashed body still counts the player as its business.
+ *
+ * Holding a wander cell is what "currently wandering" means, so the two distances key off that rather
+ * than off a second flag: a chasing body gives up at the leash, and a wandering one only takes the
+ * player up again once they are well inside it.
+ */
+function holdsInterest(enemy: DemoEnemy, distance: number, leash: number): boolean {
+  return enemy.wanderCell === undefined ? distance <= leash : distance <= leash * REACQUIRE_SHARE;
+}
+
+/**
+ * Walking somewhere of its own choosing, which is what a body out past its leash does instead of
+ * standing still.
+ *
+ * A cell rather than a heading, and drawn from everything it can actually reach rather than from the
+ * eight directions around it. Both halves matter: a re-rolled heading produces a body shivering on
+ * one square, and a heading held for a while produces one walking into a wall until the timer says
+ * otherwise. Committing to a destination and pathing to it along the grid means a wandering slime
+ * crosses rooms, goes through doorways, and ends up somewhere the player did not put it.
+ *
+ * Arrival is the only thing that ends a trip, and it is standing in the cell rather than being some
+ * distance from its middle. A radius would have been a second number disagreeing with the grid the
+ * route was drawn on: too small and a body that has plainly got there keeps shuffling toward a point,
+ * too large and it gives up a cell early. There is no timer either, because the point is that this is
+ * the body's own business rather than a pause in the player's — it goes where it was going.
+ */
+function wander(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+  const cell = { x: Math.floor(enemy.x), y: Math.floor(enemy.y) };
+
+  if (enemy.wanderCell === undefined) {
+    enemy.wanderCell = randomReachableCell(world.maze, cell);
+    // The route to the last destination says nothing about the route to this one.
+    enemy.waypoint = undefined;
+    enemy.repathSeconds = 0;
+  }
+
+  const goal = enemy.wanderCell;
+
+  // Sealed in with nothing walkable next to it. Standing still is the honest answer.
+  if (goal === undefined) {
+    return;
+  }
+
+  if (goal.x === cell.x && goal.y === cell.y) {
+    enemy.wanderCell = undefined;
+    return;
+  }
+
+  const heading = pathHeading(world, enemy, goal);
+
+  // No route left to somewhere that had one when it was drawn: the body has been knocked somewhere
+  // else since. Drawing a fresh destination from where it is now is the whole recovery.
+  if (heading === undefined) {
+    enemy.wanderCell = undefined;
+    return;
+  }
+
+  walk(world, enemy, heading.x, heading.y, enemy.archetype.speed, deltaSeconds);
 }
 
 /** Swings a standing body's facing toward the player, at its own turn rate if it has one. */
