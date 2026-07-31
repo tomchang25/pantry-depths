@@ -35,6 +35,11 @@ def main() -> int:
     implementation = repository_root / "dev" / "tools" / "skeletons" / "authoring_rig.py"
     target = repository_root / "assets" / "enemies" / "skeleton-swordsman" / "skeleton-swordsman-authoring.blend"
 
+    # Removed first so that the check below cannot pass on a leftover file. A Blender script that
+    # crashes on its way to saving still exits zero, so "the file is there" is not evidence the build
+    # produced it — this makes the file's existence mean exactly one run.
+    target.unlink(missing_ok=True)
+
     completed = subprocess.run(
         [
             require_blender(),
@@ -51,6 +56,9 @@ def main() -> int:
 
     if completed.returncode != 0:
         raise RuntimeError(f"blender exited with code {completed.returncode}")
+
+    if not target.is_file():
+        raise RuntimeError(f"blender reported success but wrote nothing to {target}")
 
     print(f"Authoring rig: {target}")
     return 0

@@ -344,6 +344,13 @@ def create_widgets() -> dict[str, bpy.types.Object]:
     A rig whose controllers are drawn as bones gives a person no way to tell a thing they should
     pull from a thing they should leave alone, which on this rig is most of it: nine controllers
     against fifteen bones that follow them.
+
+    Two things here are corrections rather than choices, and both were visible the moment the file
+    was first opened. The shapes are built at the size they are meant to appear and drawn with bone
+    scaling switched off, because Blender otherwise multiplies a custom shape by its bone's length —
+    the sword bone is a blade long, so a shape sized for a handle came out as a metre of solid cube
+    parked over the ribs. And they are drawn as wire, because a controller is something to aim at,
+    and a solid one hides the body you are aiming it by.
     """
     collection = bpy.data.collections.new("Widgets")
     bpy.context.scene.collection.children.link(collection)
@@ -358,11 +365,14 @@ def create_widgets() -> dict[str, bpy.types.Object]:
         obj.name = name
         widgets[name] = obj
 
-    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+    bpy.ops.mesh.primitive_cube_add(size=0.16, location=(0, 0, 0))
     adopt("WGT.cube", bpy.context.object)
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=1, location=(0, 0, 0))
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=0.05, location=(0, 0, 0))
     adopt("WGT.sphere", bpy.context.object)
-    bpy.ops.mesh.primitive_circle_add(vertices=16, radius=1, location=(0, 0, 0), rotation=(math.pi / 2, 0, 0))
+    # No rotation: a custom shape is drawn in bone space, where the bone runs along Y. A circle left
+    # in its own XY plane therefore comes out as a ring around the bone — a collar on the sword's
+    # handle, and a disc on the floor under the hips.
+    bpy.ops.mesh.primitive_circle_add(vertices=20, radius=0.1, location=(0, 0, 0))
     adopt("WGT.circle", bpy.context.object)
     return widgets
 
@@ -464,27 +474,26 @@ def add_constraints(rig: bpy.types.Object, table: dict[str, tuple[Point, Point]]
         copy.target_space = "WORLD"
         copy.owner_space = "WORLD"
 
+    # Sizes are in metres of the finished shape, because bone-length scaling is switched off below.
     shapes = {
-        "sword": ("WGT.cube", (0.4, 0.4, 0.4)),
-        "ctrl_foot.L": ("WGT.cube", (0.9, 1.1, 0.5)),
-        "ctrl_foot.R": ("WGT.cube", (0.9, 1.1, 0.5)),
-        "pole_knee.L": ("WGT.sphere", (0.5, 0.5, 0.5)),
-        "pole_knee.R": ("WGT.sphere", (0.5, 0.5, 0.5)),
-        "pole_elbow.L": ("WGT.sphere", (0.5, 0.5, 0.5)),
-        "pole_elbow.R": ("WGT.sphere", (0.5, 0.5, 0.5)),
-        "grip.L": ("WGT.circle", (1.4, 1.4, 1.4)),
-        "grip.R": ("WGT.circle", (1.4, 1.4, 1.4)),
-        "root": ("WGT.circle", (3.2, 3.2, 3.2)),
+        "sword": ("WGT.cube", (1.5, 1.5, 1.5)),
+        "ctrl_foot.L": ("WGT.cube", (1.5, 1.8, 0.4)),
+        "ctrl_foot.R": ("WGT.cube", (1.5, 1.8, 0.4)),
+        "pole_knee.L": ("WGT.sphere", (1, 1, 1)),
+        "pole_knee.R": ("WGT.sphere", (1, 1, 1)),
+        "pole_elbow.L": ("WGT.sphere", (1, 1, 1)),
+        "pole_elbow.R": ("WGT.sphere", (1, 1, 1)),
+        "grip.L": ("WGT.circle", (0.85, 0.85, 0.85)),
+        "grip.R": ("WGT.circle", (0.85, 0.85, 0.85)),
+        "root": ("WGT.circle", (2.6, 2.6, 2.6)),
     }
 
     for bone_name, (widget, scale) in shapes.items():
         pose_bone = rig.pose.bones[bone_name]
         pose_bone.custom_shape = widgets[widget]
-
-        if hasattr(pose_bone, "custom_shape_scale_xyz"):
-            pose_bone.custom_shape_scale_xyz = scale
-        else:  # Blender 2.8x kept a single scalar here.
-            pose_bone.custom_shape_scale = scale[0]
+        pose_bone.custom_shape_scale_xyz = scale
+        pose_bone.use_custom_shape_bone_size = False
+        pose_bone.bone.show_wire = True
 
     groups = {
         "Sword": ("THEME09", ("sword", "grip.L", "grip.R")),
@@ -525,6 +534,24 @@ def report(rig: bpy.types.Object, table: dict[str, tuple[Point, Point]]) -> None
 
     print(f"  hand length {HAND_LENGTH:.3f} against forearm 0.340 (bake rig: 0.184)")
 
+    # How big each controller actually draws. The first build shipped a solid cube 82cm across the
+    # ribs because Blender multiplies a custom shape by its bone's length, and nothing in the build
+    # said so — a controller wider than the body it steers is a defect this line makes visible.
+    print("  controller sizes, largest dimension:")
+
+    for bone_name in ("sword", "ctrl_foot.L", "pole_elbow.L", "grip.R", "root"):
+        pose_bone = rig.pose.bones[bone_name]
+        shape = pose_bone.custom_shape
+
+        if not shape:
+            continue
+
+        bone_factor = pose_bone.bone.length if pose_bone.use_custom_shape_bone_size else 1.0
+        largest = max(size * axis for size, axis in zip(shape.dimensions, pose_bone.custom_shape_scale_xyz))
+        largest *= bone_factor
+        wire = "wire" if pose_bone.bone.show_wire else "SOLID"
+        print(f"    {bone_name:<14} {largest * 100:5.1f}cm  {wire}")
+
 
 def parse_arguments() -> argparse.Namespace:
     arguments = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
@@ -563,4 +590,13 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Blender prints a traceback for an unhandled exception in a `--python` script and then exits
+    # zero anyway, so a build that crashed before saving reports success and leaves the previous
+    # file in place. This turns a crash back into a failing exit code.
+    try:
+        main()
+    except Exception:  # noqa: BLE001  (re-raised as a process failure after the traceback is shown)
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
