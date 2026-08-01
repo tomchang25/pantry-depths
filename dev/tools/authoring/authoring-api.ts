@@ -1,12 +1,18 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { AUTHORING_API_ROOT, CANONICAL_AUTHORING_PATHS, type AuthoringTargetId } from "./api-contract";
+import {
+  AUTHORING_API_ROOT,
+  CANONICAL_AUTHORING_PATHS,
+  type AuthoringFile,
+  type AuthoringTargetId,
+} from "./api-contract";
 import { generateFloorSet } from "../floor-set/generator";
 import { parseFloorSet } from "@/content/floor/floor-schema";
 import { validateFloorSet } from "@/content/floor/floor-validation";
 import { parseEntityDisplays } from "@/content/enemies/entity-display-schema";
-import { parseMapSource } from "@/content/maps/map-schema";
+import { MAP_NAME_PATTERN, parseMapSource } from "@/content/maps/map-schema";
+import { ROOM_ID_PATTERN, parseRoomSource } from "@/content/maps/room-schema";
 import { parseDecorPresets } from "@/content/presentation/decor-preset-schema";
 import { parsePropDisplays } from "@/content/presentation/prop-display-schema";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
@@ -23,8 +29,8 @@ export type AuthoringResponse = Readonly<{
 }>;
 
 export type AuthoringDependencies = Readonly<{
-  readCanonical(target: AuthoringTargetId): Promise<string>;
-  writeCanonical(target: AuthoringTargetId, content: string): Promise<void>;
+  readCanonical(file: AuthoringFile): Promise<string>;
+  writeCanonical(file: AuthoringFile, content: string): Promise<void>;
 }>;
 
 class AuthoringRequestError extends Error {}
@@ -76,19 +82,60 @@ function targetId(value: string): AuthoringTargetId | undefined {
   return Object.hasOwn(CANONICAL_AUTHORING_PATHS, value) ? (value as AuthoringTargetId) : undefined;
 }
 
-function parsePath(pathname: string): Readonly<{ operation: string; target: AuthoringTargetId }> | undefined {
+/**
+ * What a name in a directory target may look like.
+ *
+ * The content layer's own patterns rather than a third one written here. A name the library would
+ * refuse to load is a name the endpoint has no business writing, and the two rules drifting apart is
+ * how a file gets saved that nothing can open afterwards.
+ */
+const NAME_PATTERNS: Readonly<Record<string, RegExp>> = { map: MAP_NAME_PATTERN, room: ROOM_ID_PATTERN };
+
+/**
+ * Refuses a name that is not a plain slug.
+ *
+ * This is the whole of what keeps a directory target inside its directory. A slug has no separator, no
+ * dot and no drive letter, so nothing that passes here can climb out of the directory it is joined to —
+ * and this is a development-only endpoint writing straight into the working tree, so the check is
+ * made twice: once where a request is read, and again where a path is built.
+ */
+function checkedName(target: AuthoringTargetId, name: string): string {
+  const pattern = NAME_PATTERNS[target];
+
+  if (!pattern || !pattern.test(name)) {
+    throw new AuthoringRequestError(`"${name}" is not a plain lowercase slug, so it cannot name a ${target}.`);
+  }
+
+  return name;
+}
+
+function parsePath(pathname: string): (AuthoringFile & Readonly<{ operation: string }>) | undefined {
   if (!pathname.startsWith(`${AUTHORING_API_ROOT}/`)) {
     return undefined;
   }
 
-  const [targetValue, operation, extra] = pathname.slice(AUTHORING_API_ROOT.length + 1).split("/");
+  const [targetValue, operation, name, extra] = pathname.slice(AUTHORING_API_ROOT.length + 1).split("/");
   const target = targetValue ? targetId(targetValue) : undefined;
 
   if (!target || !operation || extra !== undefined) {
     throw new AuthoringRequestError("Authoring path must name one whitelisted target and one operation.");
   }
 
-  return { target, operation };
+  const entry = CANONICAL_AUTHORING_PATHS[target];
+
+  if (!("directory" in entry)) {
+    if (name !== undefined) {
+      throw new AuthoringRequestError(`The ${target} target is one file, so it takes no name.`);
+    }
+
+    return { target, operation };
+  }
+
+  if (name === undefined) {
+    throw new AuthoringRequestError(`The ${target} target is a directory, so a request must say which one.`);
+  }
+
+  return { target, operation, name: checkedName(target, name) };
 }
 
 /**
@@ -98,8 +145,44 @@ function parsePath(pathname: string): Readonly<{ operation: string; target: Auth
  * verbatim, so a parser that helpfully reshapes its input — an array into a lookup, say — writes a file
  * its own next load will reject, and the failure lands on whoever opens the tool afterwards rather than
  * on whoever saved. Reshape at the point of use, never here.
+ *
+ * A directory target checks one thing more: that the identity inside the file is the name the request
+ * addressed. A map's file is named after the map and a room's after the room, so a mismatch writes a
+ * file the library refuses — and it refuses the whole library, not just that file.
  */
-function validateSource(target: AuthoringTargetId, source: unknown): unknown {
+function validateSource(file: AuthoringFile, source: unknown): unknown {
+  const { target } = file;
+
+  if (target === "map") {
+    try {
+      const map = parseMapSource(source);
+
+      if (map.name !== file.name) {
+        throw new TypeError(`This map declares the name "${map.name}", and it was saved as "${file.name ?? ""}".`);
+      }
+
+      return map;
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Map validation failed.";
+      throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
+    }
+  }
+
+  if (target === "room") {
+    try {
+      const room = parseRoomSource(source);
+
+      if (room.id !== file.name) {
+        throw new TypeError(`This room declares the id "${room.id}", and it was saved as "${file.name ?? ""}".`);
+      }
+
+      return room;
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Room validation failed.";
+      throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
+    }
+  }
+
   if (target === "decor") {
     try {
       return parseDecorPresets(source);
@@ -136,15 +219,6 @@ function validateSource(target: AuthoringTargetId, source: unknown): unknown {
     }
 
     return parseFloorSet(source);
-  }
-
-  if (target === "map") {
-    try {
-      return parseMapSource(source);
-    } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "Map validation failed.";
-      throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
-    }
   }
 
   if (target === "meleeAttacks") {
@@ -206,8 +280,12 @@ export async function handleAuthoringRequest(
       return undefined;
     }
 
+    const file: AuthoringFile =
+      route.name === undefined ? { target: route.target } : { target: route.target, name: route.name };
+    const named = route.name === undefined ? `${route.target} content` : `${route.target} "${route.name}"`;
+
     if (request.method === "GET" && route.operation === "canonical") {
-      const source = JSON.parse(await dependencies.readCanonical(route.target)) as unknown;
+      const source = JSON.parse(await dependencies.readCanonical(file)) as unknown;
       return { status: 200, body: { source } };
     }
 
@@ -217,11 +295,11 @@ export async function handleAuthoringRequest(
 
     if (request.method === "POST" && route.operation === "save") {
       const body = asRecord(request.body, "save request");
-      const source = validateSource(route.target, body.source);
-      await dependencies.writeCanonical(route.target, `${JSON.stringify(source, null, 2)}\n`);
+      const source = validateSource(file, body.source);
+      await dependencies.writeCanonical(file, `${JSON.stringify(source, null, 2)}\n`);
       return {
         status: 200,
-        body: { message: `Canonical ${route.target} content saved.`, source },
+        body: { message: `Canonical ${named} saved.`, source },
       };
     }
 
@@ -243,14 +321,32 @@ export async function handleAuthoringRequest(
   }
 }
 
+/**
+ * Turns one whitelisted target into one absolute path.
+ *
+ * A directory target is the only place a request gets to contribute to a path, so the name is checked
+ * against its content layer's own pattern again here rather than trusted from the request that carried
+ * it. A slug cannot hold a separator, a dot, or a drive letter, so the join below cannot leave the
+ * directory the whitelist named.
+ */
+function canonicalPath(projectRoot: string, file: AuthoringFile): string {
+  const entry = CANONICAL_AUTHORING_PATHS[file.target];
+
+  if (!("directory" in entry)) {
+    return resolve(projectRoot, entry.file);
+  }
+
+  if (file.name === undefined) {
+    throw new AuthoringRequestError(`The ${file.target} target is a directory, so a request must say which one.`);
+  }
+
+  return resolve(projectRoot, entry.directory, `${checkedName(file.target, file.name)}${entry.suffix}`);
+}
+
 /** Creates filesystem dependencies whose paths can only come from the checked-in target whitelist. */
 export function createAuthoringDependencies(projectRoot: string): AuthoringDependencies {
-  const canonicalPaths = Object.fromEntries(
-    Object.entries(CANONICAL_AUTHORING_PATHS).map(([target, path]) => [target, resolve(projectRoot, path)]),
-  ) as Readonly<Record<AuthoringTargetId, string>>;
-
   return {
-    readCanonical: (target) => readFile(canonicalPaths[target], "utf8"),
-    writeCanonical: (target, content) => writeFile(canonicalPaths[target], content, "utf8"),
+    readCanonical: (file) => readFile(canonicalPath(projectRoot, file), "utf8"),
+    writeCanonical: (file, content) => writeFile(canonicalPath(projectRoot, file), content, "utf8"),
   };
 }

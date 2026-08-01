@@ -1,24 +1,28 @@
-import { AUTHORING_API_ROOT, type AuthoringTargetId } from "../../../../../dev/tools/authoring/api-contract";
+import { AUTHORING_API_ROOT, type AuthoringFile } from "../../../../../dev/tools/authoring/api-contract";
 import { handleAuthoringRequest, type AuthoringDependencies } from "../../../../../dev/tools/authoring/authoring-api";
 import { generateFloorSet } from "../../../../../dev/tools/floor-set/generator";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
 import mapJson from "@/content/maps/pantry-depths.map.json";
 import decorPresetsJson from "@/content/presentation/decor-presets.json";
 import propDisplayJson from "@/content/presentation/prop-display.json";
+import mainRegionRoomJson from "@/content/rooms/main-region.room.json";
 import { MELEE_ATTACKS } from "@/content/viewmodel/melee-viewmodel";
+
 import { describe, expect, it, vi } from "vitest";
 
 function createDependencies(): AuthoringDependencies & Readonly<{ writeCanonical: ReturnType<typeof vi.fn> }> {
-  const sources: Readonly<Record<AuthoringTargetId, unknown>> = {
+  const sources: Readonly<Record<string, unknown>> = {
     decor: decorPresetsJson,
     entityDisplay: entityDisplayJson,
     floorSet: generateFloorSet({ seed: 1, floorCount: 1 }),
-    map: mapJson,
+    "map/pantry-depths": mapJson,
     meleeAttacks: MELEE_ATTACKS,
     propDisplay: propDisplayJson,
+    "room/main-region": mainRegionRoomJson,
   };
+  const key = (file: AuthoringFile): string => (file.name === undefined ? file.target : `${file.target}/${file.name}`);
   return {
-    readCanonical: async (target) => JSON.stringify(sources[target]),
+    readCanonical: async (file) => JSON.stringify(sources[key(file)]),
     writeCanonical: vi.fn(async () => undefined),
   };
 }
@@ -114,7 +118,7 @@ describe("handleAuthoringRequest", () => {
     expect(saved).toMatchObject({ status: 200 });
     expect(dependencies.writeCanonical).toHaveBeenCalledOnce();
     expect(dependencies.writeCanonical).toHaveBeenCalledWith(
-      "meleeAttacks",
+      { target: "meleeAttacks" },
       `${JSON.stringify(MELEE_ATTACKS, null, 2)}\n`,
     );
   });
@@ -131,6 +135,9 @@ describe("handleAuthoringRequest", () => {
     );
 
     expect(saved).toMatchObject({ status: 200 });
-    expect(dependencies.writeCanonical).toHaveBeenCalledWith("decor", `${JSON.stringify(decorPresetsJson, null, 2)}\n`);
+    expect(dependencies.writeCanonical).toHaveBeenCalledWith(
+      { target: "decor" },
+      `${JSON.stringify(decorPresetsJson, null, 2)}\n`,
+    );
   });
 });

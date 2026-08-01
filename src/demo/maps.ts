@@ -1,36 +1,32 @@
 /**
- * Which maps the game can be pointed at, and the rooms they are built from.
+ * Which of the discovered maps a run is pointed at.
  *
- * One map today, and the list rather than a single import because the address bar names a map and a
- * name has to resolve to something. Read and resolved at module load, in that order: a map file that
- * contradicts itself, or that names a room nothing answers, should fail where somebody is looking
- * rather than on the frame it is needed.
+ * Finding the maps and resolving their rooms belongs to the content layer; what is left here is the
+ * only question the address bar asks — which name plays, and what happens to a name nobody recognises.
  */
 
-import { resolveMap, type MapRoomLibrary, type ResolvedMap } from "@/content/maps/map-resolver";
-import { parseMapSource } from "@/content/maps/map-schema";
-import { parseRoomSource } from "@/content/maps/room-schema";
-import pantryDepthsMap from "@/content/maps/pantry-depths.map.json";
-import blessingAltarRoom from "@/content/rooms/blessing-altar.room.json";
-import cursedAltarRoom from "@/content/rooms/cursed-altar.room.json";
-import extractionRoom from "@/content/rooms/extraction.room.json";
-import hotSpringRoom from "@/content/rooms/hot-spring.room.json";
-import mainRegionRoom from "@/content/rooms/main-region.room.json";
+import { MAPS } from "@/content/maps/map-library";
+import type { ResolvedMap } from "@/content/maps/map-resolver";
 
-const ROOM_FILES: readonly unknown[] = [
-  mainRegionRoom,
-  cursedAltarRoom,
-  blessingAltarRoom,
-  hotSpringRoom,
-  extractionRoom,
-];
+/**
+ * What a run plays when the address names nothing.
+ *
+ * Named rather than taken as the first map found, because the directory's order is alphabetical and a
+ * map added later would otherwise silently become the one the game opens on.
+ */
+const DEFAULT_MAP_NAME = "pantry-depths";
 
-const ROOMS: MapRoomLibrary = new Map(ROOM_FILES.map((file) => parseRoomSource(file)).map((room) => [room.id, room]));
+function defaultMap(): ResolvedMap {
+  const found = MAPS.find((map) => map.name === DEFAULT_MAP_NAME);
 
-const MAPS: readonly ResolvedMap[] = [resolveMap(parseMapSource(pantryDepthsMap), ROOMS)];
+  if (!found) {
+    throw new TypeError(`No map named "${DEFAULT_MAP_NAME}", which is the one a run plays when nothing else is named.`);
+  }
 
-/** What a run plays when the address names nothing. */
-export const DEFAULT_MAP: ResolvedMap = MAPS[0] as ResolvedMap;
+  return found;
+}
+
+export const DEFAULT_MAP: ResolvedMap = defaultMap();
 
 /**
  * The map that name refers to, or the default.

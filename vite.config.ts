@@ -25,11 +25,16 @@ type AuthoringResponse = Readonly<{ status: number; body: unknown }>;
  * new values on screen. Reading the file back is a button in each workbench rather than something the
  * watcher does behind everyone's back.
  *
- * Derived from the whitelist so a target added later is covered without anybody remembering to.
+ * Derived from the whitelist so a target added later is covered without anybody remembering to. A
+ * directory target becomes a glob over the directory, because the files in one are not known in
+ * advance — being able to add one without restarting anything is the point of a library.
  */
-const UNWATCHED_AUTHORED_FILES = Object.values(CANONICAL_AUTHORING_PATHS).map((path) =>
-  fileURLToPath(new URL(path, import.meta.url)),
-);
+const UNWATCHED_AUTHORED_FILES = Object.values(CANONICAL_AUTHORING_PATHS).map((entry) => {
+  const file = "file" in entry ? entry.file : `${entry.directory}/`;
+  // The watcher matches with picomatch, which only speaks posix, so a Windows path is spelled forwards.
+  const absolute = fileURLToPath(new URL(file, import.meta.url)).replaceAll("\\", "/");
+  return "file" in entry ? absolute : `${absolute}**`;
+});
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];

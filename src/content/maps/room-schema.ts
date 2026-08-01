@@ -28,7 +28,7 @@ export type MapRoomRole = (typeof MAP_ROOM_ROLES)[number];
 const MIN_ROOM_EXTENT = 3;
 
 /** What a room's identity may look like. The same shape a map name takes, and for the same reason. */
-const ROOM_ID_PATTERN = /^[a-z][\da-z-]*$/;
+export const ROOM_ID_PATTERN = /^[a-z][\da-z-]*$/;
 
 export type MapCrowd = Readonly<{
   /** The most bodies walking in this room at once. */

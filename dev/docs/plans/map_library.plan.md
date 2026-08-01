@@ -53,12 +53,11 @@ It is also the proof this plan works, because it is a map the runtime discovers 
 
 ### Children
 
-| Child | Focus                                                             | Form             |
-| ----- | ----------------------------------------------------------------- | ---------------- |
-| 02    | Maps and rooms are discovered, and the endpoint addresses by name | Spec via `/goal` |
-| 03    | The sandbox map ships and plays                                   | Spec via `/goal` |
+| Child | Focus                           | Form             |
+| ----- | ------------------------------- | ---------------- |
+| 03    | The sandbox map ships and plays | Spec via `/goal` |
 
-Landing order is 01 → 02 → 03. The first is a contract change proved by the existing run being unchanged; the second replaces how the contract's files are found; the third is the first thing that could not have existed before either. Child 01 has shipped; its spec is archived at `dev/docs/archived/map_library_01_rooms_are_files.implementation_spec.md`.
+Landing order is 01 → 02 → 03. The first is a contract change proved by the existing run being unchanged; the second replaces how the contract's files are found; the third is the first thing that could not have existed before either. Children 01 and 02 have shipped; their specs are archived as `map_library_01_rooms_are_files.implementation_spec.md` and `map_library_02_discovery_and_naming.implementation_spec.md`.
 
 ## Non-Goals
 
@@ -87,14 +86,6 @@ Landing order is 01 → 02 → 03. The first is a contract change proved by the 
 Perishable: this records the codebase on 2026-08-01. Re-check every coordinate against live code before acting on it.
 
 Child 01 and 02 land mostly in `src/content/` and `dev/tools/`, which keep full ceremony; child 03 is a content file plus a look. No child adds a test. `test/unit/dev/tools/authoring/authoring-api.test.ts` asserts the target whitelist and will break when the targets change — updating it is not adding a test and needs no permission, per `dev/agent_rules/test_operations.md`.
-
-### Child 02 — Discovery and naming
-
-- `dev/tools/authoring/api-contract.ts` holds `CANONICAL_AUTHORING_PATHS`, a flat map of target to one path. `map` points at one file. The whitelist becomes directory-shaped for maps and rooms while every other target keeps its single path — do not convert the targets that do not need it.
-- `dev/tools/authoring/authoring-api.ts` `parsePath` (about line 79) splits a pathname into a target and an operation and refuses anything with a third segment. A name is that third segment for the two directory targets. `createFilesystemDependencies` (about line 246) resolves paths from the whitelist; a name must be checked against a slug pattern before it reaches a path join, and the map name pattern already in the schema (`/^[a-z][\da-z-]*$/`, about line 349) is the one to reuse.
-- `src/app/debug/authoring-client.ts` `loadCanonical` and `saveCanonical` take a target; they gain an optional name.
-- `src/demo/maps.ts` currently holds `MAPS` as a one-element array built from a static import. Discovery replaces it. `import.meta.glob` with eager JSON import is the Vite-native way and is not used anywhere in this repository yet, so it is a new pattern: check that `vite-node` resolves it for `dev/tools/`, and expect the dependency cruiser to report the discovered JSON as orphan modules, which is a warning rather than an error and is worth one sentence in the report.
-- The room library needs a home. `src/content/` may import only content and core, so both the library and the resolver belong beside the schema in `src/content/maps/`; `src/demo/maps.ts` keeps only the question of which name the address bar may use.
 
 ### Child 03 — The sandbox
 

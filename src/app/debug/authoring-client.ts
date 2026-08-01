@@ -20,14 +20,24 @@ function messageOf(body: unknown, fallback: string): string {
 }
 
 /**
+ * Where one canonical file lives, in the terms the endpoint takes.
+ *
+ * Most targets are one file and the name is left off. Maps and rooms are directories of them, so a
+ * request has to say which — that is the whole of what the name is for.
+ */
+function addressOf(target: string, operation: string, name: string | undefined): string {
+  return `${AUTHORING_API_ROOT}/${target}/${operation}${name === undefined ? "" : `/${name}`}`;
+}
+
+/**
  * Reads one target's canonical file as it is on disk right now.
  *
  * The manual half of what the file watcher used to do by force. A workbench calls this when the person
  * using it asks to see what is saved — after editing the file by hand, or to throw away changes that
  * were slid but never saved — and it touches nothing the caller has not asked it to.
  */
-export async function loadCanonical(target: string): Promise<unknown> {
-  const response = await fetch(`${AUTHORING_API_ROOT}/${target}/canonical`);
+export async function loadCanonical(target: string, name?: string): Promise<unknown> {
+  const response = await fetch(addressOf(target, "canonical", name));
   const body = (await response.json()) as { source?: unknown };
 
   if (!response.ok) {
@@ -38,8 +48,8 @@ export async function loadCanonical(target: string): Promise<unknown> {
 }
 
 /** Writes one target's canonical file, and answers what the endpoint said about it. */
-export async function saveCanonical(target: string, source: unknown): Promise<string> {
-  const response = await fetch(`${AUTHORING_API_ROOT}/${target}/save`, {
+export async function saveCanonical(target: string, source: unknown, name?: string): Promise<string> {
+  const response = await fetch(addressOf(target, "save", name), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ source }),
