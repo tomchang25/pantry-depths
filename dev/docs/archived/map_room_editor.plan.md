@@ -72,15 +72,7 @@ It is not deleted first: the new tool is written beside it and the old one goes 
 
 ### Children
 
-| Child | Focus                              | Form                                                                  |
-| ----- | ---------------------------------- | --------------------------------------------------------------------- |
-| 04    | The deletion of what this replaces | `map_room_editor_04_deleting_what_it_replaces.implementation_spec.md` |
-
-Every surface has shipped. Deletion is what remains.
-
-**Child 05 exists because the first two children were closed against criteria they had not met.** Acceptance criteria 1 and 2 ask that a map be built from an empty state and that a room be created; what shipped can only open a file that already exists and rename it, which writes a new file as a side effect of editing an old one. That is not the same act, it is not discoverable, and it silently destroys whatever already answered to the name typed. So the two criteria stand as written, this child is what actually meets them, and copying a map or a room — which the plan never asked for — lands with them because it is the same mechanism seen from the other side.
-
-**Child 04 takes its own authorization** and is not covered by an authorization to run this plan continuously. It is destructive, and a loop carrying the first three children stops on exactly that.
+All four children have shipped and this plan is complete. The child overview and execution notes were cut as each landed, per the forward-only rule.
 
 ## Non-Goals
 
@@ -131,18 +123,3 @@ What this plan was waiting for has landed — a room is its own file, both libra
 - **`MAP_TILE_KINDS` has nine entries, not eight**: `open`, `border`, `stone`, `wood`, `water`, `barricade`, `filled`, `mortar`, `trench`. The trench arrived with `room_contents.plan.md`'s fifth child.
 - The first refusal is `parseMapSource` and `parseRoomSource` in `src/content/maps/map-schema.ts` and `room-schema.ts`, plus `checkSideFit` inside `resolveMap` in `map-resolver.ts` — the last of which is the only one that can see an extent.
 - The draft path to a preview needs no new content-layer API: `parseMapSource(draft)` → `resolveMap(source, new Map([...ROOM_LIBRARY, [draftRoom.id, draftRoom]]))` → `createDemoWorld(resolved)`. Both refusals then run inside that chain, which is how requirement 4 is met without either being called explicitly.
-
-### Child 04 — Deleting what it replaces
-
-**Takes its own authorization.** Not covered by an authorization to run children 01 to 03.
-
-Delete: `src/app/debug/floor-map.ts` (1154 lines), `src/content/floor/floor-validation.ts` (862), `src/app/debug/floor-authoring.ts` (843), `src/core/run-state.ts` (617), `src/app/debug/floor-workbench.ts` (575), `src/content/floors/provisional-floor-set.json` (481), `src/content/floor/floor-schema.ts` (354), `src/app/debug/floor-viewer.ts` (228), `src/content/floor/floor-catalog.ts` (200). With them: `test/unit/content/floor/`, `test/unit/core/run-state.test.ts`, `test/unit/app/debug/floor-map.test.ts`, `test/unit/app/debug/floor-authoring.test.ts`, and `test/fixtures/scene-floor-set.ts`.
-
-Four things the original count missed:
-
-- **`src/core/run-state.ts` cannot simply go.** `src/content/presentation/presentation-asset-definitions.ts` imports `type KeyColor` from it (line 30) and is live content. Move that three-literal type to the file that uses it, or inline it, before deleting the rest.
-- **`dev/tools/validate-floor-set.ts` and `dev/tools/generate-floor-set.ts`** go too, along with the `validate:floor-set` and `generate:floor-set` scripts in `package.json`. Read `dev/foundation/platforms/web-react/standards/command_surface_standard.md` before touching a script name.
-- **`test/e2e/debug-route.spec.ts` names the tool being deleted**, by link text `Floor Set Workbench` and by the URL `/debug/floor-workbench`. Point it at the new tool. Note that `npm run verify` does not run the end-to-end suite, so this failure will not be caught by the gate.
-- The `floorSet` target in `dev/tools/authoring/api-contract.ts` and its branch in `validateSource`, plus `dev/tools/floor-set/generator.ts` and `test/unit/dev/tools/floor-set/generator.test.ts`, go at the same time.
-
-`src/content/combat/enemies.ts` stays: six live modules across the demo, presentation, and content halves still reach it, and untangling that is nobody's work yet.

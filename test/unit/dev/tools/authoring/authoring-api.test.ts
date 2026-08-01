@@ -1,6 +1,5 @@
 import { AUTHORING_API_ROOT, type AuthoringFile } from "../../../../../dev/tools/authoring/api-contract";
 import { handleAuthoringRequest, type AuthoringDependencies } from "../../../../../dev/tools/authoring/authoring-api";
-import { generateFloorSet } from "../../../../../dev/tools/floor-set/generator";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
 import mapJson from "@/content/maps/pantry-depths.map.json";
 import decorPresetsJson from "@/content/presentation/decor-presets.json";
@@ -14,7 +13,6 @@ function createDependencies(): AuthoringDependencies & Readonly<{ writeCanonical
   const sources: Readonly<Record<string, unknown>> = {
     decor: decorPresetsJson,
     entityDisplay: entityDisplayJson,
-    floorSet: generateFloorSet({ seed: 1, floorCount: 1 }),
     "map/pantry-depths": mapJson,
     meleeAttacks: MELEE_ATTACKS,
     propDisplay: propDisplayJson,
@@ -32,56 +30,40 @@ function createDependencies(): AuthoringDependencies & Readonly<{ writeCanonical
 }
 
 describe("handleAuthoringRequest", () => {
-  it("loads a whitelisted target and generates deterministic floor content without writing", async () => {
+  it("loads a whitelisted target without writing", async () => {
     const dependencies = createDependencies();
     const loaded = await handleAuthoringRequest(
       { method: "GET", pathname: `${AUTHORING_API_ROOT}/meleeAttacks/canonical` },
       dependencies,
     );
-    const generated = await handleAuthoringRequest(
-      {
-        method: "POST",
-        pathname: `${AUTHORING_API_ROOT}/floorSet/generate`,
-        body: { seed: 42, floorCount: 3 },
-      },
-      dependencies,
-    );
 
     expect(loaded).toMatchObject({ status: 200, body: { source: MELEE_ATTACKS } });
-    expect(generated).toMatchObject({
-      status: 200,
-      body: { source: generateFloorSet({ seed: 42, floorCount: 3 }) },
-    });
     expect(dependencies.writeCanonical).not.toHaveBeenCalled();
   });
 
-  it("rejects paths outside the target whitelist and invalid generation input", async () => {
+  it("rejects paths outside the target whitelist, including the retired floor-set target", async () => {
     const dependencies = createDependencies();
     const unknown = await handleAuthoringRequest(
       { method: "GET", pathname: `${AUTHORING_API_ROOT}/other/canonical` },
       dependencies,
     );
-    const invalid = await handleAuthoringRequest(
-      {
-        method: "POST",
-        pathname: `${AUTHORING_API_ROOT}/floorSet/generate`,
-        body: { seed: 17, floorCount: 0 },
-      },
+    const retired = await handleAuthoringRequest(
+      { method: "GET", pathname: `${AUTHORING_API_ROOT}/floorSet/canonical` },
       dependencies,
     );
 
     expect(unknown).toMatchObject({ status: 400 });
-    expect(invalid).toEqual({ status: 400, body: { message: "floorCount must be at least 1." } });
+    expect(retired).toMatchObject({ status: 400 });
     expect(dependencies.writeCanonical).not.toHaveBeenCalled();
   });
 
   it("validates each target with its own contract before writing", async () => {
     const dependencies = createDependencies();
-    const invalidFloor = await handleAuthoringRequest(
+    const invalidRoom = await handleAuthoringRequest(
       {
         method: "POST",
-        pathname: `${AUTHORING_API_ROOT}/floorSet/save`,
-        body: { source: { schemaVersion: 1 } },
+        pathname: `${AUTHORING_API_ROOT}/room/save/main-region`,
+        body: { source: { id: "main-region", width: 1, height: 1 } },
       },
       dependencies,
     );
@@ -102,7 +84,7 @@ describe("handleAuthoringRequest", () => {
       dependencies,
     );
 
-    expect(invalidFloor).toMatchObject({ status: 422 });
+    expect(invalidRoom).toMatchObject({ status: 422 });
     expect(invalidAttacks).toMatchObject({ status: 422 });
     expect(invalidDecor).toMatchObject({ status: 422 });
     expect(dependencies.writeCanonical).not.toHaveBeenCalled();

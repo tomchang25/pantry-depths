@@ -208,8 +208,7 @@ textarea {
 
 .debug-toolbar,
 .debug-form-grid,
-.debug-button-row,
-.debug-floor-controls {
+.debug-button-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
@@ -230,73 +229,6 @@ textarea {
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-
-.debug-generator-controls {
-  display: grid;
-  gap: 1rem;
-}
-
-.debug-generator-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
-  gap: 0.75rem;
-  align-items: end;
-}
-
-/* The finish row holds one field plus the action, so it hugs them instead of stretching both wide. */
-.debug-generator-row--finish {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), max-content));
-}
-
-.debug-generator-colors {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: 0.75rem;
-  /* Start-align so a group that wraps its link label does not stretch its siblings. */
-  align-items: start;
-}
-
-.debug-color-count-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  /* Fieldsets default to min-inline-size: min-content, which stops them shrinking inside a grid track. */
-  min-inline-size: 0;
-  margin: 0;
-  padding: 0.75rem;
-  border: 1px solid var(--debug-border-soft);
-  border-radius: 0.55rem;
-}
-
-.debug-color-count-group legend {
-  padding: 0 0.3rem;
-  color: var(--debug-text-muted);
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.debug-color-count-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
-  gap: 0.6rem;
-}
-
-.debug-color-link-field {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: var(--debug-text-muted);
-  font-size: 0.78rem;
-  text-transform: none;
-}
-
-.debug-color-link-field input {
-  width: auto;
-  min-height: 0;
-  margin: 0;
 }
 
 .debug-page :where(input, select, textarea) {
@@ -571,30 +503,7 @@ textarea {
   line-height: 1.55;
 }
 
-.debug-map-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(16rem, 1fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-.debug-map-grid,
-.debug-action-map {
-  display: grid;
-  width: max-content;
-  gap: 0.2rem;
-  padding: 0.5rem;
-  border: 1px solid var(--debug-border-soft);
-  border-radius: 0.65rem;
-  background: #15121c;
-}
-
-.debug-action-map__row {
-  display: contents;
-}
-
-.debug-map-cell,
-.debug-action-map__cell {
+.debug-map-cell {
   display: flex;
   aspect-ratio: 1;
   align-items: center;
@@ -642,48 +551,6 @@ textarea {
 
 .debug-page .debug-map-cell--selected {
   border: 3px solid #fff;
-}
-
-.debug-key-summary {
-  margin: 1rem 0;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--debug-border-soft);
-  border-radius: 0.65rem;
-  background: rgb(16 13 22 / 44%);
-}
-
-.debug-key-summary > h3 {
-  margin: 0 0 0.65rem;
-  color: var(--debug-accent-strong);
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.debug-key-summary__counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.debug-key-summary__count {
-  margin: 0;
-  padding: 0.45rem 0.65rem;
-  border: 1px solid currentcolor;
-  border-radius: 999px;
-  font-weight: 800;
-}
-
-.debug-key-summary__count--red {
-  color: #ff8897;
-}
-
-.debug-key-summary__count--blue {
-  color: #8cc1ff;
-}
-
-.debug-key-summary__count--yellow {
-  color: #f5d761;
 }
 
 .debug-cell-inspector {
@@ -759,16 +626,6 @@ textarea {
   align-items: center;
   color: var(--debug-text);
   font-size: 0.86rem;
-}
-
-.debug-floor-controls button[aria-pressed="true"] {
-  border-color: var(--debug-accent);
-  background: var(--debug-accent);
-  color: var(--debug-accent-ink);
-}
-
-.debug-floor-controls button {
-  min-width: 2.75rem;
 }
 
 .debug-map-legend {
@@ -855,8 +712,7 @@ textarea {
   border: 2px solid #fff;
 }
 
-.debug-workbench-map > section,
-.debug-floor-inspector {
+.debug-workbench-map > section {
   display: grid;
   gap: 1rem;
 }
@@ -1099,10 +955,6 @@ textarea {
   .debug-page__header,
   .debug-panel {
     border-radius: 0.65rem;
-  }
-
-  .debug-map-layout {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .entity-comparison-grid {

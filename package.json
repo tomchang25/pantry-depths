@@ -11,8 +11,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "generate:floor-set": "vite-node --config dev/tools/vite-node.config.ts dev/tools/generate-floor-set.ts",
-    "validate:floor-set": "vite-node --config dev/tools/vite-node.config.ts dev/tools/validate-floor-set.ts",
     "capture": "node dev/tools/capture-scenes.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

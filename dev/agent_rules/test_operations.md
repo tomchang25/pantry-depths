@@ -64,18 +64,17 @@ Deleting a test alongside the code it covered is a normal part of a change, not 
 
 Use these when iterating; `verify` is what proves the change is deliverable.
 
-| Layer            | Command                      | Notes                                                                                            |
-| ---------------- | ---------------------------- | ------------------------------------------------------------------------------------------------ |
-| Format           | `npm run format:check`       | `npx prettier --write <paths>` to fix                                                            |
-| Typecheck        | `npm run typecheck`          |                                                                                                  |
-| Lint             | `npm run lint`               | Passes at 0 errors; warnings are reported and do not fail                                        |
-| Import boundary  | `npm run check:boundaries`   | Passes at 0 errors; a new warning is worth a sentence                                            |
-| Unit             | `npm run test`               |                                                                                                  |
-| Production build | `npm run build`              |                                                                                                  |
-| Governance       | `npm run check:governance`   | Outside `verify`                                                                                 |
-| Floor content    | `npm run validate:floor-set` | Passes when the selected floor-set JSON has no error findings and yields one structural solution |
-| Browser E2E      | `npm run test:e2e`           | Outside `verify`; scope is narrow — see below                                                    |
-| Scene capture    | `npm run capture`            | Outside `verify`; pictures to look at, never a check — see Looking Is Not Testing                |
+| Layer            | Command                    | Notes                                                                             |
+| ---------------- | -------------------------- | --------------------------------------------------------------------------------- |
+| Format           | `npm run format:check`     | `npx prettier --write <paths>` to fix                                             |
+| Typecheck        | `npm run typecheck`        |                                                                                   |
+| Lint             | `npm run lint`             | Passes at 0 errors; warnings are reported and do not fail                         |
+| Import boundary  | `npm run check:boundaries` | Passes at 0 errors; a new warning is worth a sentence                             |
+| Unit             | `npm run test`             |                                                                                   |
+| Production build | `npm run build`            |                                                                                   |
+| Governance       | `npm run check:governance` | Outside `verify`                                                                  |
+| Browser E2E      | `npm run test:e2e`         | Outside `verify`; scope is narrow — see below                                     |
+| Scene capture    | `npm run capture`          | Outside `verify`; pictures to look at, never a check — see Looking Is Not Testing |
 
 Expected noise: `vitest` prints its include/exclude summary when no test file matches, and `depcruise` prints a module and dependency count on success. Playwright writes `playwright-report/` and `test-results/`; both are ignored by Git.
 

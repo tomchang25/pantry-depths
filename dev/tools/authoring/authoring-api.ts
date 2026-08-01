@@ -7,9 +7,6 @@ import {
   type AuthoringFile,
   type AuthoringTargetId,
 } from "./api-contract";
-import { generateFloorSet } from "../floor-set/generator";
-import { parseFloorSet } from "@/content/floor/floor-schema";
-import { validateFloorSet } from "@/content/floor/floor-validation";
 import { parseEntityDisplays } from "@/content/enemies/entity-display-schema";
 import { MAP_NAME_PATTERN, parseMapSource } from "@/content/maps/map-schema";
 import { ROOM_ID_PATTERN, parseRoomSource } from "@/content/maps/room-schema";
@@ -58,32 +55,6 @@ function asRecord(value: unknown, label: string): Record<string, unknown> {
   }
 
   return value as Record<string, unknown>;
-}
-
-function asInteger(value: unknown, label: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value)) {
-    throw new AuthoringRequestError(`${label} must be an integer.`);
-  }
-
-  return value;
-}
-
-function asOptionalInteger(value: unknown, label: string): number | undefined {
-  return value === undefined ? undefined : asInteger(value, label);
-}
-
-function asOptionalCount(value: unknown, label: string): number | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const count = asInteger(value, label);
-
-  if (count < 0) {
-    throw new AuthoringRequestError(`${label} must not be negative.`);
-  }
-
-  return count;
 }
 
 function targetId(value: string): AuthoringTargetId | undefined {
@@ -229,17 +200,6 @@ function validateSource(file: AuthoringFile, source: unknown): unknown {
     }
   }
 
-  if (target === "floorSet") {
-    const validation = validateFloorSet(source);
-    const errors = validation.findings.filter((finding) => finding.severity === "error");
-
-    if (errors.length > 0 || !validation.solution) {
-      throw new AuthoringValidationError("Floor-set validation failed; canonical content was not changed.", validation);
-    }
-
-    return parseFloorSet(source);
-  }
-
   if (target === "meleeAttacks") {
     try {
       return parseMeleeAttacks(source);
@@ -251,40 +211,6 @@ function validateSource(file: AuthoringFile, source: unknown): unknown {
 
   target satisfies never;
   throw new Error("Unknown authoring target.");
-}
-
-function generateFloorSource(bodyValue: unknown): unknown {
-  const body = asRecord(bodyValue, "generate request");
-  const seed = asInteger(body.seed, "seed");
-  const floorCount = asInteger(body.floorCount, "floorCount");
-
-  if (floorCount < 1) {
-    throw new AuthoringRequestError("floorCount must be at least 1.");
-  }
-
-  const width = asOptionalInteger(body.width, "width");
-  const height = asOptionalInteger(body.height, "height");
-  const redKeys = asOptionalCount(body.redKeys, "redKeys");
-  const redDoors = asOptionalCount(body.redDoors, "redDoors");
-  const blueKeys = asOptionalCount(body.blueKeys, "blueKeys");
-  const blueDoors = asOptionalCount(body.blueDoors, "blueDoors");
-  const yellowKeys = asOptionalCount(body.yellowKeys, "yellowKeys");
-  const yellowDoors = asOptionalCount(body.yellowDoors, "yellowDoors");
-  const enemies = asOptionalCount(body.enemies, "enemies");
-
-  return generateFloorSet({
-    seed,
-    floorCount,
-    ...(width !== undefined ? { width } : {}),
-    ...(height !== undefined ? { height } : {}),
-    ...(redKeys !== undefined ? { redKeys } : {}),
-    ...(redDoors !== undefined ? { redDoors } : {}),
-    ...(blueKeys !== undefined ? { blueKeys } : {}),
-    ...(blueDoors !== undefined ? { blueDoors } : {}),
-    ...(yellowKeys !== undefined ? { yellowKeys } : {}),
-    ...(yellowDoors !== undefined ? { yellowDoors } : {}),
-    ...(enemies !== undefined ? { enemies } : {}),
-  });
 }
 
 /** Handles every read, generation, and save through one target-whitelisted request boundary. */
@@ -317,10 +243,6 @@ export async function handleAuthoringRequest(
       }
 
       return { status: 200, body: { names: await dependencies.listCanonical(route.target) } };
-    }
-
-    if (request.method === "POST" && route.operation === "generate" && route.target === "floorSet") {
-      return { status: 200, body: { source: generateFloorSource(request.body) } };
     }
 
     if (request.method === "POST" && route.operation === "save") {

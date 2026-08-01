@@ -27,9 +27,16 @@ import keyYellow from "@/content/presentation/assets/key-yellow.png";
 import stair from "@/content/presentation/assets/stair.png";
 import wallSpikes from "@/content/presentation/assets/wall-spikes.png";
 import wallTorch from "@/content/presentation/assets/wall-torch.png";
-import type { KeyColor } from "@/core/run-state";
-
 export type EnemySpriteState = "normal" | "attack" | "hurt";
+
+/**
+ * The three colours a key sprite comes in.
+ *
+ * Owned here since the run-state module went with the floor-set tooling: these assets are the one place
+ * the vocabulary still means anything, and a shared type with a single consumer is a dependency wearing
+ * a contract's clothes.
+ */
+export type KeyColor = "red" | "blue" | "yellow";
 
 export const ENEMY_SPRITE_URLS = {
   greenSlime: { normal: slimeGreenNormal, attack: slimeGreenAttack, hurt: slimeGreenHurt },

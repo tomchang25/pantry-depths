@@ -8,7 +8,7 @@ import { AUTHORING_API_ROOT, CANONICAL_AUTHORING_PATHS } from "./dev/tools/autho
 
 const AUTHORING_RUNNER_PATH = fileURLToPath(new URL("./node_modules/vite-node/vite-node.mjs", import.meta.url));
 const AUTHORING_SCRIPT_PATH = fileURLToPath(new URL("./dev/tools/run-authoring-request.ts", import.meta.url));
-const FLOOR_TOOL_CONFIG_PATH = fileURLToPath(new URL("./dev/tools/vite-node.config.ts", import.meta.url));
+const AUTHORING_CONFIG_PATH = fileURLToPath(new URL("./dev/tools/vite-node.config.ts", import.meta.url));
 
 type AuthoringResponse = Readonly<{ status: number; body: unknown }>;
 
@@ -135,7 +135,7 @@ function runAuthoringRequest(request: Readonly<{ method: string; pathname: strin
   return new Promise<AuthoringResponse>((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [AUTHORING_RUNNER_PATH, "--config", FLOOR_TOOL_CONFIG_PATH, AUTHORING_SCRIPT_PATH],
+      [AUTHORING_RUNNER_PATH, "--config", AUTHORING_CONFIG_PATH, AUTHORING_SCRIPT_PATH],
       {
         cwd: process.cwd(),
         stdio: ["pipe", "pipe", "pipe"],

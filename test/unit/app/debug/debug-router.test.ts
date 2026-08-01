@@ -7,16 +7,16 @@ describe("resolveDebugRoute", () => {
     expect(resolveDebugRoute("/debug")).toEqual({ kind: "hub" });
   });
 
-  it("resolves the Floor Set Workbench from the shared debug catalog", () => {
-    const route = resolveDebugRoute("/debug/floor-workbench");
+  it("resolves the Map Workbench from the shared debug catalog", () => {
+    const route = resolveDebugRoute("/debug/map-workbench");
 
     expect(route.kind).toBe("tool");
 
     if (route.kind === "tool") {
       expect(route.tool).toMatchObject({
-        id: "floor-workbench",
-        path: "/debug/floor-workbench",
-        title: "Floor Set Workbench",
+        id: "map-workbench",
+        path: "/debug/map-workbench",
+        title: "Map Workbench",
       });
     }
   });
@@ -49,7 +49,7 @@ describe("resolveDebugRoute", () => {
     }
   });
 
-  it.each(["/debug/unknown", "/debug/floor-workbench/"])(
+  it.each(["/debug/unknown", "/debug/map-workbench/"])(
     "falls back to the hub for an unknown exact path: %s",
     (pathname) => {
       expect(resolveDebugRoute(pathname)).toEqual({ kind: "hub" });

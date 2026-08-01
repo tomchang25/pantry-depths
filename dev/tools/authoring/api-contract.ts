@@ -17,7 +17,6 @@ export const AUTHORING_API_ROOT = "/__debug/authoring";
 export const CANONICAL_AUTHORING_PATHS = {
   decor: { file: "src/content/presentation/decor-presets.json" },
   entityDisplay: { file: "src/content/enemies/entity-display.json" },
-  floorSet: { file: "src/content/floors/provisional-floor-set.json" },
   map: { directory: "src/content/maps", suffix: ".map.json" },
   meleeAttacks: { file: "src/content/viewmodel/melee-attacks.json" },
   propDisplay: { file: "src/content/presentation/prop-display.json" },

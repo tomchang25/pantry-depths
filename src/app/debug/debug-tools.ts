@@ -65,14 +65,4 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
         render: renderMapWorkbench,
       })),
   },
-  {
-    id: "floor-workbench",
-    path: "/debug/floor-workbench",
-    title: "Floor Set Workbench",
-    description: "Generate, edit, validate, preview, and explicitly save floor-set JSON in development.",
-    load: () =>
-      import("@/app/debug/floor-workbench").then(({ renderFloorWorkbench }) => ({
-        render: renderFloorWorkbench,
-      })),
-  },
 ];
