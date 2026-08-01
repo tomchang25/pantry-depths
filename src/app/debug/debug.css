@@ -1126,3 +1126,207 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Which file is open is a different question from what the file says: the open-and-read controls sit
+   in one row above the form, so they stop posing as fields of the thing being edited. */
+.workbench-open-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--debug-border-soft);
+  margin-bottom: 1rem;
+}
+
+.workbench-open-row .debug-field {
+  flex: 1 1 14rem;
+}
+
+.workbench-section-title {
+  margin-top: 1.25rem;
+}
+
+.workbench-actions {
+  margin-top: 1.25rem;
+}
+
+.workbench-preview-actions {
+  margin-bottom: 0.75rem;
+}
+
+/* The two views of one draw, side by side: the diagram answers what landed where, the renderer what it
+   is like to stand in. They are the same width class deliberately — neither is the other's inset. */
+.map-workbench-preview {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(20rem, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.map-workbench-diagram {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--debug-border-soft);
+  border-radius: var(--debug-radius);
+  background: #05070b;
+  image-rendering: pixelated;
+}
+
+.map-workbench-slots {
+  margin-bottom: 0.5rem;
+}
+
+.map-workbench-pool {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.map-workbench-pool__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.map-workbench-pool__row select {
+  flex: 1 1 auto;
+}
+
+.room-workbench-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.room-workbench-quantity {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.room-workbench-quantity__inputs {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.room-workbench-quantity__inputs input {
+  min-width: 0;
+}
+
+/* The base field is a grid that stacks a label over a full-width control, which is right for a number
+   and wrong for a checkbox: it centres a stretched box above its own words. */
+.room-workbench-toggle {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: center;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.room-workbench-toggle input {
+  width: auto;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+/* One optional thing: whether it is there at all, and — when it is — how much of it. */
+.room-workbench-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* Everything a declaration owns sits indented under its toggle, so the left edge alone answers what
+   this room declares. */
+.room-workbench-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0.25rem 0 0.5rem 0.45rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--debug-border-soft);
+}
+
+/* The optional-thing cells at a fixed compact width, all hanging from the left, so an unticked kind is
+   a small label rather than a stray floating in the middle of the row. */
+.room-workbench-kit {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), max-content));
+  gap: 0.6rem 1.5rem;
+  align-items: start;
+}
+
+/* A number is a few digits wide; an input the width of the panel just makes the panel read as full. */
+.map-workbench input[type="number"],
+.room-workbench input[type="number"] {
+  max-width: 9rem;
+}
+
+.room-workbench-quantity select {
+  width: 7.5rem;
+  flex: 0 0 auto;
+}
+
+.room-workbench-authored {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.room-workbench-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.debug-page .room-workbench-swatch {
+  padding: 0.35rem 0.6rem;
+  border-left: 0.9rem solid var(--swatch);
+  font-size: 0.78rem;
+}
+
+.debug-page .room-workbench-swatch[aria-pressed="true"] {
+  border-color: var(--swatch);
+  background: var(--debug-accent-soft, #3b3350);
+  outline: 1px solid var(--debug-border);
+}
+
+.room-workbench-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cells), 1fr);
+  gap: 1px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px;
+  border: 1px solid var(--debug-border-soft);
+  border-radius: var(--debug-radius);
+  background: #05070b;
+}
+
+.debug-page .room-workbench-cell {
+  width: 1.1rem;
+  height: 1.1rem;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--cell);
+}
+
+.debug-page .room-workbench-cell:hover:not(:disabled) {
+  outline: 1px solid #e8ecf5;
+  outline-offset: -1px;
+  background: var(--cell);
+}
+
+@media (max-width: 64rem) {
+  .map-workbench-preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -55,6 +55,17 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
       })),
   },
   {
+    id: "map-workbench",
+    path: "/debug/map-workbench",
+    title: "Map Workbench",
+    description:
+      "Lay out a floor's slots, pool and draw, author the rooms it is built from, and watch the game's own assembler build both.",
+    load: () =>
+      import("@/app/debug/map-workbench").then(({ renderMapWorkbench }) => ({
+        render: renderMapWorkbench,
+      })),
+  },
+  {
     id: "floor-workbench",
     path: "/debug/floor-workbench",
     title: "Floor Set Workbench",
