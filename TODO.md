@@ -12,7 +12,7 @@ This tracker is the forward-work authority.
 
 ## Active
 
-- `dev/docs/briefs/synthesised_sfx.brief.md` — the project has no audio at all; this reads a sibling project's engine and says what to keep.
+> Nothing active.
 
 ---
 
@@ -148,7 +148,7 @@ Not scheduled. What would force it is the next tile kind, or the next silent wro
 
 ### What Remains Of The Core Design
 
-The direction document `dev/docs/design/pantry_demo_core.design.md` is frozen with the rest of its directory, but the work it pointed at is nearly done, and the tail is recorded here so it is a list rather than a memory. Three pieces remain: fleshing out the blessing catalogue; the boss fight, whose current concept is a firing altar the player cannot reach directly — ringed by an impassable moat — and breaks by turning pickups earned from the crowd against it; and sound effects. All three are supervised manual work by nature: the boss is a mechanic decision, blessings are content taste, and audio cannot be judged without ears.
+The direction document `dev/docs/design/pantry_demo_core.design.md` is frozen with the rest of its directory, but the work it pointed at is nearly done, and the tail is recorded here so it is a list rather than a memory. Three pieces remain: fleshing out the blessing catalogue; the boss fight, whose current concept is a firing altar the player cannot reach directly — ringed by an impassable moat — and breaks by turning pickups earned from the crowd against it; and sound effects, whose engine and coverage have now shipped — what is left of them is the entry below. All three are supervised manual work by nature: the boss is a mechanic decision, blessings are content taste, and audio cannot be judged without ears.
 
 This is the next supervised block, not autonomous work, and it lands before the two entries above — the migration and the enemy record — become safe to start.
 
@@ -168,3 +168,15 @@ Only playing answers these; none of them blocks work, and all of them are produc
 ### Architecture Report Contents
 
 The report at `dev/docs/reports/pantry_depths_architecture.html` is hand-written and still a skeleton. Its requirements were held only by the milestone plan, so they are recorded here: a self-contained page, light and dark themes, anchored sections, ending in an entry point to the source. It must at least answer how one Action travels from key press to screen, why the layer boundaries fall where they do and how they are machine-enforced, which files change to add an enemy, and which change to add a floor.
+
+### Real Samples Instead Of The Synthesised Placeholders
+
+Every sound in the game is synthesised from an authored recipe, and all fifty-two of them are placeholders by construction — the plan that built them said so, and its tuning pass was withdrawn rather than spent on sounds that were always going to be replaced. The engine is not the placeholder half: the mixer only ever knew about buffers, so a sample-backed cue reuses the voice cap, the limiting, the pitch jitter, the distance falloff and the volume keys without touching any of them. What changes is where a buffer comes from, which is one branch in the cue schema.
+
+The library is at `D:\Audio`, in two halves that want different handling. `SFX/` holds about twenty already-processed files in ten semantically named folders — swing, hit, stab, block, the pickups, glass — which map onto cue ids directly and need no selection process at all. `Raw/` holds five purchased packs; nominally four and a half thousand files, but the 96kHz tier duplicates the 44.1kHz one, so the effective pool is around three thousand one hundred. Those packs are already sorted into a hundred and seventy-four semantic folders — bone break, explosion, whoosh, wall impact, crossbow, taser, footsteps by surface — so finding candidates is mostly a path-mapping problem rather than an audio-content one.
+
+The part that cannot be automated is listening, and the part worth automating is everything before it: index the pool, map path keywords to candidate cues, score each candidate against the recipe the cue already declares as its intent, and emit an audition page of roughly five candidates per cue with the current synthesised version beside them for comparison. That turns a day of auditioning into one sitting of a few hundred short clips.
+
+Two costs this buys back, both of which the synthesised plan was built to avoid: a bake step, and bundle weight. Both are now worth paying, because a placeholder is not something anybody can be shown. Licence terms across the five packs are confirmed usable; provenance still wants recording per chosen file.
+
+Not scheduled as written. The direction is agreed and the shape is discussed; what it needs before it starts is a plan of its own.
