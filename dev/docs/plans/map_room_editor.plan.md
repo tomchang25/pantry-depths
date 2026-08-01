@@ -76,7 +76,9 @@ It is not deleted first: the new tool is written beside it and the old one goes 
 | ----- | ---------------------------------- | --------------------------------------------------------------------- |
 | 04    | The deletion of what this replaces | `map_room_editor_04_deleting_what_it_replaces.implementation_spec.md` |
 
-The map surface, the room surface and its painted cells have all shipped. Deletion is what remains, and it takes its own authorization.
+Every surface has shipped. Deletion is what remains.
+
+**Child 05 exists because the first two children were closed against criteria they had not met.** Acceptance criteria 1 and 2 ask that a map be built from an empty state and that a room be created; what shipped can only open a file that already exists and rename it, which writes a new file as a side effect of editing an old one. That is not the same act, it is not discoverable, and it silently destroys whatever already answered to the name typed. So the two criteria stand as written, this child is what actually meets them, and copying a map or a room — which the plan never asked for — lands with them because it is the same mechanism seen from the other side.
 
 **Child 04 takes its own authorization** and is not covered by an authorization to run this plan continuously. It is destructive, and a loop carrying the first three children stops on exactly that.
 
@@ -105,6 +107,7 @@ Every criterion below is judged by a person using the tool. None is automated, a
 8. The play action opens the map as it was last saved rather than as it stood when the tool was opened.
 9. The tooling and content this replaces is gone, and the verification gate passes without it.
 10. No test file is added.
+11. A map or a room can be started from nothing and copied from an existing one, and a save says which of the two it is about to do before it does it.
 
 ## Execution
 

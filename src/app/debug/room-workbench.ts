@@ -64,6 +64,40 @@ function settled(value: unknown): string | undefined {
   }
 }
 
+/**
+ * A room that is not a room yet.
+ *
+ * The sandbox's extent and open floor throughout, which is the one structure that is legal with nothing
+ * else declared — no crowd, no scatter, and an identity still to be typed. It reports what an identity
+ * must look like from its first frame, which is the next thing an author has to decide.
+ */
+function blankDraft(): RoomDraft {
+  return { id: "", width: 11, height: 11, structure: { generated: "open" } };
+}
+
+/**
+ * The identity a copy takes: the original with a suffix, and a counter while the name is still taken.
+ *
+ * Derived from the listing rather than from the library the page was built with, because a file created
+ * a minute ago is in one and not the other — and offering a name that is already on disk is the one
+ * thing a copy must not do.
+ */
+function freeName(name: string, taken: readonly string[]): string {
+  const base = `${name}-copy`;
+
+  if (!taken.includes(base)) {
+    return base;
+  }
+
+  let counter = 2;
+
+  while (taken.includes(`${base}-${counter}`)) {
+    counter += 1;
+  }
+
+  return `${base}-${counter}`;
+}
+
 function quantityOf(value: unknown, fallback: number): MapQuantity {
   if (typeof value === "number") {
     return value;
@@ -327,10 +361,13 @@ export function createRoomSurface(): HTMLElement {
   const saveButton = actionButton("Save room", true);
   const reloadButton = actionButton("Reload from disk");
   const refreshButton = actionButton("Refresh room list");
+  const newButton = actionButton("New room");
+  const cloneButton = actionButton("Clone");
   const status = document.createElement("p");
 
   let draft: RoomDraft = {};
   let savedSource: string | undefined;
+  let roomNames: readonly string[] = [];
   let world: DemoWorld | undefined;
   let failure: string | undefined;
 
@@ -712,6 +749,16 @@ export function createRoomSurface(): HTMLElement {
     idInput.value = typeof draft.id === "string" ? draft.id : "";
     roomSelect.value = idInput.value;
     saveButton.disabled = failure !== undefined;
+    cloneButton.disabled = idInput.value.length === 0;
+    // Creating a file and destroying one look identical up to the moment they happen, and starting from
+    // nothing makes typing an occupied name far more likely. The listing is already here, so saying which
+    // of the two this is costs nothing.
+    saveButton.textContent =
+      roomNames.length === 0
+        ? "Save room"
+        : roomNames.includes(idInput.value)
+          ? `Save room (overwrites ${idInput.value})`
+          : "Save room (new file)";
     buildFields();
 
     if (world) {
@@ -735,6 +782,7 @@ export function createRoomSurface(): HTMLElement {
 
   const refreshList = (): Promise<void> =>
     listCanonical("room").then((names) => {
+      roomNames = names;
       roomSelect.replaceChildren();
 
       for (const name of names) {
@@ -761,12 +809,29 @@ export function createRoomSurface(): HTMLElement {
       });
   };
 
+  // Rebuilt as it is typed, not on commit: the identity is one of the things the reader refuses a room
+  // for, so a surface that only redrew the form would leave a room reporting a bad identity after it had
+  // been given a good one. The extent stays on commit for the opposite reason — a half-typed number
+  // would reshape an authored grid to the width of its first digit.
   idInput.addEventListener("input", () => {
     draft.id = idInput.value;
-    refresh();
+    rebuild();
   });
   roomSelect.addEventListener("change", () => {
     run(reloadButton, `Reading "${roomSelect.value}" from disk…`, () => openRoom(roomSelect.value));
+  });
+  newButton.addEventListener("click", () => {
+    draft = blankDraft();
+    // Nothing has been saved under this draft, so it is unsaved from its first frame.
+    savedSource = undefined;
+    rebuild();
+  });
+  cloneButton.addEventListener("click", () => {
+    // The copy is a draft and nothing else, and it carries the painted cells with it. The file it came
+    // from is untouched, and no file exists under the new name until somebody saves one.
+    draft = { ...draft, id: freeName(String(draft.id ?? ""), roomNames) };
+    savedSource = undefined;
+    rebuild();
   });
   drawAgain.addEventListener("click", rebuild);
   reloadButton.addEventListener("click", () => {
@@ -788,7 +853,7 @@ export function createRoomSurface(): HTMLElement {
   // own row above the form rather than posing as fields of the room.
   const openRow = document.createElement("div");
   openRow.className = "workbench-open-row";
-  openRow.append(field("Open room", roomSelect), reloadButton, refreshButton);
+  openRow.append(field("Open room", roomSelect), newButton, cloneButton, reloadButton, refreshButton);
 
   const identityGrid = document.createElement("div");
   identityGrid.className = "debug-form-grid";

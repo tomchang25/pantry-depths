@@ -78,6 +78,40 @@ function settled(value: unknown): string | undefined {
   }
 }
 
+/**
+ * A map that is not a map yet.
+ *
+ * The extent the shipped map uses, and nothing else — so the first thing it reports is that it has no
+ * main region, which is true and is the next thing an author has to decide. A template that arrived
+ * already valid would be a map somebody else designed.
+ */
+function blankDraft(): MapDraft {
+  return { name: "", width: 35, height: 35, fixed: [], pool: [], draw: 0 };
+}
+
+/**
+ * The identity a copy takes: the original with a suffix, and a counter while the name is still taken.
+ *
+ * Derived from the listing rather than from the library the page was built with, because a file created
+ * a minute ago is in one and not the other — and offering a name that is already on disk is the one
+ * thing a copy must not do.
+ */
+function freeName(name: string, taken: readonly string[]): string {
+  const base = `${name}-copy`;
+
+  if (!taken.includes(base)) {
+    return base;
+  }
+
+  let counter = 2;
+
+  while (taken.includes(`${base}-${counter}`)) {
+    counter += 1;
+  }
+
+  return `${base}-${counter}`;
+}
+
 function roomOptions(select: HTMLSelectElement, names: readonly string[], selected: string, allowEmpty: boolean): void {
   select.replaceChildren();
 
@@ -126,11 +160,14 @@ function createMapSurface(): HTMLElement {
   const saveButton = actionButton("Save map", true);
   const reloadButton = actionButton("Reload from disk");
   const refreshButton = actionButton("Refresh room list");
+  const newButton = actionButton("New map");
+  const cloneButton = actionButton("Clone");
   const playButton = actionButton("Play this map");
   const status = document.createElement("p");
 
   let draft: MapDraft = { name: "", width: 0, height: 0, fixed: [], pool: [], draw: 0 };
   let savedSource: string | undefined;
+  let mapNames: readonly string[] = [];
   let roomNames: readonly string[] = [...ROOM_LIBRARY.keys()].sort();
   let world: DemoWorld | undefined;
   let failure: string | undefined;
@@ -159,6 +196,16 @@ function createMapSurface(): HTMLElement {
       ? "What plays is the game reading a file, so a map has to be saved before it can be opened."
       : `Opens the game at "${draft.name}" in a new tab.`;
     saveButton.disabled = failure !== undefined;
+    cloneButton.disabled = draft.name.length === 0;
+    // Creating a file and destroying one look identical up to the moment they happen, and starting from
+    // nothing makes typing an occupied name far more likely. The listing is already here, so saying which
+    // of the two this is costs nothing.
+    saveButton.textContent =
+      mapNames.length === 0
+        ? "Save map"
+        : mapNames.includes(draft.name)
+          ? `Save map (overwrites ${draft.name})`
+          : "Save map (new file)";
 
     slotGrid.replaceChildren();
 
@@ -240,6 +287,7 @@ function createMapSurface(): HTMLElement {
 
   const refreshLists = (): Promise<void> =>
     Promise.all([listCanonical("map"), listCanonical("room")]).then(([maps, rooms]) => {
+      mapNames = maps;
       roomNames = rooms;
       mapSelect.replaceChildren();
 
@@ -267,9 +315,13 @@ function createMapSurface(): HTMLElement {
       });
   };
 
+  // Rebuilt as it is typed, not on commit: the name is one of the things the reader refuses a map for,
+  // so a surface that only redrew the form would leave a map reporting a bad name after it had been
+  // given a good one. The extent stays on commit for the opposite reason — a half-typed number is a
+  // different map.
   nameInput.addEventListener("input", () => {
     draft.name = nameInput.value;
-    refresh();
+    rebuild();
   });
 
   for (const [input, key] of [
@@ -295,6 +347,20 @@ function createMapSurface(): HTMLElement {
   mapSelect.addEventListener("change", () => {
     run(reloadButton, `Reading "${mapSelect.value}" from disk…`, () => openMap(mapSelect.value));
   });
+  newButton.addEventListener("click", () => {
+    draft = blankDraft();
+    // Nothing has been saved under this draft, so it is unsaved from its first frame — which is what
+    // keeps the play action shut until a file exists for the game to read.
+    savedSource = undefined;
+    rebuild();
+  });
+  cloneButton.addEventListener("click", () => {
+    // The copy is a draft and nothing else. The file it came from is untouched, and no file exists under
+    // the new name until somebody saves one.
+    draft = { ...draft, name: freeName(draft.name, mapNames) };
+    savedSource = undefined;
+    rebuild();
+  });
   drawAgain.addEventListener("click", rebuild);
   reloadButton.addEventListener("click", () => {
     run(reloadButton, "Reading the map from disk…", () => openMap(draft.name));
@@ -318,7 +384,7 @@ function createMapSurface(): HTMLElement {
   // own row above the form rather than posing as fields of the map.
   const openRow = document.createElement("div");
   openRow.className = "workbench-open-row";
-  openRow.append(field("Open map", mapSelect), reloadButton, refreshButton);
+  openRow.append(field("Open map", mapSelect), newButton, cloneButton, reloadButton, refreshButton);
 
   grid.append(
     field("Name", nameInput),
