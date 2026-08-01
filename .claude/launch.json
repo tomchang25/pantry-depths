@@ -3,6 +3,8 @@
   "configurations": [
     {
       "name": "pantry-depths",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "url": "http://localhost:5273",
       "port": 5273
     }
