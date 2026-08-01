@@ -47,6 +47,24 @@ export async function loadCanonical(target: string, name?: string): Promise<unkn
   return body.source;
 }
 
+/**
+ * The names one directory target currently holds.
+ *
+ * The manual half of what the file watcher used to do for a library. A map or a room dropped into its
+ * directory — by a hand edit, or by this tool's own save — is invisible to a listing taken when the page
+ * loaded, and nothing reloads the page any more. So a tool asks, when the person using it asks.
+ */
+export async function listCanonical(target: string): Promise<readonly string[]> {
+  const response = await fetch(`${AUTHORING_API_ROOT}/${target}/list`);
+  const body = (await response.json()) as { names?: unknown };
+
+  if (!response.ok) {
+    throw new Error(messageOf(body, `Listing failed with ${response.status}.`));
+  }
+
+  return Array.isArray(body.names) ? (body.names as readonly string[]) : [];
+}
+
 /** Writes one target's canonical file, and answers what the endpoint said about it. */
 export async function saveCanonical(target: string, source: unknown, name?: string): Promise<string> {
   const response = await fetch(addressOf(target, "save", name), {

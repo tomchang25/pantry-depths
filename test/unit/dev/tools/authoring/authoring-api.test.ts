@@ -24,6 +24,10 @@ function createDependencies(): AuthoringDependencies & Readonly<{ writeCanonical
   return {
     readCanonical: async (file) => JSON.stringify(sources[key(file)]),
     writeCanonical: vi.fn(async () => undefined),
+    listCanonical: async (target) =>
+      Object.keys(sources)
+        .filter((entry) => entry.startsWith(`${target}/`))
+        .map((entry) => entry.slice(target.length + 1)),
   };
 }
 

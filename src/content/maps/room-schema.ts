@@ -10,7 +10,7 @@
  * could drop it into is not — that needs the map, and it lives with the resolver.
  *
  * The tile and role vocabularies are declared here rather than imported from the runtime that uses
- * them, because `src/content/` may reach only content and core. They name the runtime's own eight kinds
+ * them, because `src/content/` may reach only content and core. They name the runtime's own nine kinds
  * and four roles and invent nothing: a room that needed a tile the game cannot walk on, see through, or
  * shoot past would be describing a game that does not exist. The half that may import both is the half
  * that holds the two lists equal.
@@ -374,8 +374,17 @@ function parseAuthoredCells(
  * **This is the only thing standing between an author and an unwinnable floor.** The runtime repair
  * that opens water to reach stranded ground cannot open a trench, so a room that seals itself with
  * one has to be refused here, when it is saved, rather than discovered when somebody plays it.
+ *
+ * Exported so a tool painting these cells can ask the same question of a grid that is not a room file
+ * yet. An author who only learns this at save time learns it after the change that caused it has
+ * scrolled out of sight, and a second copy of the walk in the tool is exactly the drift the split
+ * between reading and resolving exists to prevent.
  */
-function unfillableEnclosesRegion(cells: readonly (readonly MapTileKind[])[], width: number, height: number): boolean {
+export function unfillableEnclosesRegion(
+  cells: readonly (readonly MapTileKind[])[],
+  width: number,
+  height: number,
+): boolean {
   const passable = (x: number, y: number): boolean => {
     const kind = cells[y]?.[x];
     return kind !== undefined && kind !== "border" && !UNFILLABLE_GROUND.includes(kind);

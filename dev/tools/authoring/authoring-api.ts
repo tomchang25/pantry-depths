@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -31,6 +31,14 @@ export type AuthoringResponse = Readonly<{
 export type AuthoringDependencies = Readonly<{
   readCanonical(file: AuthoringFile): Promise<string>;
   writeCanonical(file: AuthoringFile, content: string): Promise<void>;
+  /**
+   * The names a directory target currently holds, without their suffix.
+   *
+   * Only a directory target has one. A library is discovered rather than listed in code, and the tool
+   * that edits one creates files — so something has to be able to ask what is there now, and a build-time
+   * view of the directory is fixed at the moment the page loaded.
+   */
+  listCanonical(target: AuthoringTargetId): Promise<readonly string[]>;
 }>;
 
 class AuthoringRequestError extends Error {}
@@ -126,6 +134,17 @@ function parsePath(pathname: string): (AuthoringFile & Readonly<{ operation: str
   if (!("directory" in entry)) {
     if (name !== undefined) {
       throw new AuthoringRequestError(`The ${target} target is one file, so it takes no name.`);
+    }
+
+    return { target, operation };
+  }
+
+  // Listing is the one operation on a directory target that is about the directory rather than a file in
+  // it, so it is the one that takes no name — and it is decided before the rejection below, which exists
+  // to stop a request addressing a whole directory as though it were a file.
+  if (operation === "list") {
+    if (name !== undefined) {
+      throw new AuthoringRequestError(`Listing the ${target} target names no file.`);
     }
 
     return { target, operation };
@@ -289,6 +308,17 @@ export async function handleAuthoringRequest(
       return { status: 200, body: { source } };
     }
 
+    if (request.method === "GET" && route.operation === "list") {
+      if (!("directory" in CANONICAL_AUTHORING_PATHS[route.target])) {
+        return {
+          status: 405,
+          body: { message: `The ${route.target} target is one file, so there is nothing to list.` },
+        };
+      }
+
+      return { status: 200, body: { names: await dependencies.listCanonical(route.target) } };
+    }
+
     if (request.method === "POST" && route.operation === "generate" && route.target === "floorSet") {
       return { status: 200, body: { source: generateFloorSource(request.body) } };
     }
@@ -348,5 +378,23 @@ export function createAuthoringDependencies(projectRoot: string): AuthoringDepen
   return {
     readCanonical: (file) => readFile(canonicalPath(projectRoot, file), "utf8"),
     writeCanonical: (file, content) => writeFile(canonicalPath(projectRoot, file), content, "utf8"),
+    listCanonical: async (target) => {
+      const entry = CANONICAL_AUTHORING_PATHS[target];
+
+      if (!("directory" in entry)) {
+        throw new AuthoringRequestError(`The ${target} target is one file, so there is nothing to list.`);
+      }
+
+      const entries = await readdir(resolve(projectRoot, entry.directory));
+
+      // A name that could not be loaded back is a name nothing should be offered, so the same pattern
+      // the library holds a file to decides what is listed. Anything else in the directory is not a
+      // room or a map by that directory's own rule.
+      return entries
+        .filter((candidate) => candidate.endsWith(entry.suffix))
+        .map((candidate) => candidate.slice(0, -entry.suffix.length))
+        .filter((name) => NAME_PATTERNS[target]?.test(name) ?? false)
+        .sort();
+    },
   };
 }

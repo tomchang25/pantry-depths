@@ -82,6 +82,14 @@ export type DemoCrowd = MapCrowd;
  * never by kind, which is what gives anything that varies per region somewhere honest to live.
  */
 export type DemoRoom = Readonly<{
+  /**
+   * Which room file this was built from.
+   *
+   * Carried because a floor is assembled from a draw, and nothing else on an assembled room can say
+   * which of the pool's rooms landed here — a role is optional and a side says only where. What needs
+   * it is a tool showing an author what one draw did with their pool.
+   */
+  id: string;
   /** What business this room holds, when it holds any. */
   role?: DemoRoomRole;
   /** Which side of the main region it hangs off. The main region hangs off nothing. */
@@ -624,6 +632,7 @@ const NO_CROWD: MapCrowd = { cap: 0, starting: 0 };
 /** Where a room stands on the floor, in the terms everything that walks and draws asks in. */
 function roomOn(block: DemoBlock, source: MapRoom): DemoRoom {
   return {
+    id: source.id,
     ...(source.role === undefined ? {} : { role: source.role }),
     minX: block.x + 1,
     minY: block.y + 1,

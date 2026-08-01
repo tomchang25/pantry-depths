@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath, URL } from "node:url";
 import type { IncomingMessage } from "node:http";
-import type { Plugin } from "vite";
+import { normalizePath, type Plugin, type ViteDevServer } from "vite";
 import { defineConfig } from "vitest/config";
 
 import { AUTHORING_API_ROOT, CANONICAL_AUTHORING_PATHS } from "./dev/tools/authoring/api-contract";
@@ -27,16 +27,91 @@ type AuthoringResponse = Readonly<{ status: number; body: unknown }>;
  *
  * Derived from the whitelist so a target added later is covered without anybody remembering to.
  *
- * **The directory targets are deliberately still watched.** Maps and rooms are a library, and the
- * watcher is the only thing that notices a file appearing in one — ignore the directory and a map
- * dropped into it is invisible until the server restarts, which is the exact failure a library is
- * supposed to be free of. The reload this trades away is the one a save from a map or room workbench
- * would cause, and no such workbench exists yet; when one does, that is the change that should weigh
- * the two against each other.
+ * **The directory targets are covered too, and that is a reversal.** Maps and rooms were watched
+ * because the watcher was the only thing that noticed a file appearing in a library — but the tool that
+ * now edits them is the tool that writes them, so every save reloaded the page doing the editing. Both
+ * jobs the watcher was doing are owned explicitly instead: the editor asks for its listing through the
+ * authoring endpoint, and a save invalidates the modules below without telling any open page.
  */
-const UNWATCHED_AUTHORED_FILES = Object.values(CANONICAL_AUTHORING_PATHS).flatMap((entry) =>
-  "file" in entry ? [fileURLToPath(new URL(entry.file, import.meta.url))] : [],
+const UNWATCHED_AUTHORED_PATHS = Object.values(CANONICAL_AUTHORING_PATHS).map((entry) =>
+  "file" in entry
+    ? { file: normalizePath(fileURLToPath(new URL(entry.file, import.meta.url))) }
+    : {
+        directory: normalizePath(fileURLToPath(new URL(entry.directory, import.meta.url))),
+        suffix: entry.suffix,
+      },
 );
+
+/**
+ * Whether one path is a canonical authored file.
+ *
+ * **A directory target matches by its suffix, not by its directory alone**, and that distinction is
+ * load-bearing rather than fussy: `src/content/maps` holds the map files *and* the schema, resolver and
+ * library modules that read them. Ignoring the whole directory would stop the development server
+ * noticing an edit to any of that source, which looks like the server having silently died.
+ *
+ * A predicate rather than a list of globs because these are absolute paths, and on Windows a backslash
+ * is an escape character to a matcher rather than a separator. Both sides are normalised to forward
+ * slashes for the same reason: the watcher reports a path in one spelling and this file builds it in the
+ * other, and a path compared across that difference never matches — which reads as the ignore silently
+ * not working.
+ */
+function isUnwatchedAuthoredPath(path: string): boolean {
+  const normalized = normalizePath(path);
+
+  return UNWATCHED_AUTHORED_PATHS.some((entry) =>
+    "file" in entry
+      ? normalized === entry.file
+      : normalized.startsWith(`${entry.directory}/`) && normalized.endsWith(entry.suffix),
+  );
+}
+
+/**
+ * The module holding each directory target's glob.
+ *
+ * Editing a map or a room makes a module the library already imports stale, and invalidating that file
+ * is enough. **Creating one is the case this exists for:** a file nothing has imported yet has no module
+ * to invalidate, and the only thing that would notice it is the glob being expanded again — which
+ * happens when the module holding the glob is transformed again.
+ *
+ * Named here rather than in the target whitelist because the endpoint never touches these files. What
+ * goes stale is the development server's view of a directory, not a file the endpoint may write.
+ */
+const LIBRARY_MODULE_BY_TARGET: Readonly<Record<string, string>> = {
+  map: "src/content/maps/map-library.ts",
+  room: "src/content/maps/room-library.ts",
+};
+
+/**
+ * Drops what the development server holds about the files a save changed, and tells no open page.
+ *
+ * Silent on purpose, and it is the whole reason the directories above can go unwatched. A broadcast
+ * here would be the page reload this change exists to remove; without one, nothing on screen moves and
+ * the next document loaded — the game the editor's play action opens — reads what was written.
+ */
+function invalidateAfterSave(server: ViteDevServer, target: string, name: string | undefined): void {
+  const entry = CANONICAL_AUTHORING_PATHS[target as keyof typeof CANONICAL_AUTHORING_PATHS];
+
+  if (!entry) {
+    return;
+  }
+
+  const written =
+    "file" in entry ? entry.file : name === undefined ? undefined : `${entry.directory}/${name}${entry.suffix}`;
+  const library = LIBRARY_MODULE_BY_TARGET[target];
+  const graph = server.environments.client.moduleGraph;
+
+  for (const relative of [written, library]) {
+    if (relative === undefined) {
+      continue;
+    }
+
+    for (const module of graph.getModulesByFile(normalizePath(fileURLToPath(new URL(relative, import.meta.url)))) ??
+      []) {
+      graph.invalidateModule(module);
+    }
+  }
+}
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -110,6 +185,11 @@ function authoringPlugin(): Plugin {
               pathname,
               ...(body === undefined ? {} : { body }),
             });
+            const [target, operation, name] = pathname.slice(AUTHORING_API_ROOT.length + 1).split("/");
+
+            if (result.status === 200 && operation === "save" && target !== undefined) {
+              invalidateAfterSave(server, target, name);
+            }
 
             response.statusCode = result.status;
             response.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -137,7 +217,7 @@ export default defineConfig({
     port: 5273,
     strictPort: true,
     watch: {
-      ignored: UNWATCHED_AUTHORED_FILES,
+      ignored: isUnwatchedAuthoredPath,
     },
   },
   build: {
