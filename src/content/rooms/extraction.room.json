@@ -1,0 +1,8 @@
+{
+  "id": "extraction",
+  "role": "extraction",
+  "width": 7,
+  "height": 7,
+  "crowd": { "cap": 20, "starting": 14, "respawnSeconds": 5 },
+  "structure": { "generated": "open" }
+}

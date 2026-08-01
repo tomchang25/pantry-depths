@@ -55,11 +55,10 @@ It is also the proof this plan works, because it is a map the runtime discovers 
 
 | Child | Focus                                                             | Form             |
 | ----- | ----------------------------------------------------------------- | ---------------- |
-| 01    | Rooms become their own files, and reading splits from resolving   | Spec via `/goal` |
 | 02    | Maps and rooms are discovered, and the endpoint addresses by name | Spec via `/goal` |
 | 03    | The sandbox map ships and plays                                   | Spec via `/goal` |
 
-Landing order is 01 → 02 → 03. The first is a contract change proved by the existing run being unchanged; the second replaces how the contract's files are found; the third is the first thing that could not have existed before either.
+Landing order is 01 → 02 → 03. The first is a contract change proved by the existing run being unchanged; the second replaces how the contract's files are found; the third is the first thing that could not have existed before either. Child 01 has shipped; its spec is archived at `dev/docs/archived/map_library_01_rooms_are_files.implementation_spec.md`.
 
 ## Non-Goals
 
@@ -88,16 +87,6 @@ Landing order is 01 → 02 → 03. The first is a contract change proved by the 
 Perishable: this records the codebase on 2026-08-01. Re-check every coordinate against live code before acting on it.
 
 Child 01 and 02 land mostly in `src/content/` and `dev/tools/`, which keep full ceremony; child 03 is a content file plus a look. No child adds a test. `test/unit/dev/tools/authoring/authoring-api.test.ts` asserts the target whitelist and will break when the targets change — updating it is not adding a test and needs no permission, per `dev/agent_rules/test_operations.md`.
-
-### Child 01 — Rooms become their own files
-
-- `src/content/maps/map-schema.ts` is 490 lines and holds everything. The pieces that move to a room file's own validator: `parseRoom` (about line 263), `parseCrowd` (134), `parseStructure` (243), `parseAuthoredCells` (152), `waterEnclosesRegion` (184), and `MIN_ROOM_EXTENT` (54). The pieces that stay with the map: `parsePlacement` (293), `parseMapSource` (346), and `MAX_MAP_AREA` (51).
-- `checkSideFit` (about line 311) reads `room.width` and `room.height`, so it cannot run at map-read time any more. It moves to the resolver, and the loop at about line 420 that checks every pool room against every free slot moves with it — that loop's reasoning still holds and does not need re-deriving.
-- New types: a room's file shape, a map's file shape naming rooms, and the resolved map the runtime already consumes. Keeping the resolved type structurally identical to today's `MapSource` is what holds the churn in `src/demo/` to a type name.
-- `validateDrawnFloor` (about line 444) is untouched. It already takes a `DrawnFloor` rather than a map.
-- `src/content/maps/pantry-depths.map.json` holds five rooms inline: one main region and four in the pool. Each becomes its own file; the map keeps `name`, `width`, `height`, `draw`, and the slots.
-- `src/demo/maps.ts` parses at module load; it now resolves as well. `src/demo/maze.ts` `buildDemoFloor` (about line 763) and `src/demo/world.ts` `createDemoWorld` (about line 755) both take `MapSource` and want the resolved type.
-- `dev/tools/authoring/authoring-api.ts` `validateSource` (about line 102) has a `map` branch at about line 141 calling `parseMapSource`; it must call the map-file validator, not the resolver.
 
 ### Child 02 — Discovery and naming
 

@@ -19,13 +19,9 @@
  * belongs to the map contract, and it is made once the floor exists rather than while it is built.
  */
 
-import {
-  validateDrawnFloor,
-  type MapRoom,
-  type MapRoomRole,
-  type MapSource,
-  type MapTileKind,
-} from "@/content/maps/map-schema";
+import type { ResolvedMap } from "@/content/maps/map-resolver";
+import { validateDrawnFloor } from "@/content/maps/map-schema";
+import type { MapCrowd, MapRoom, MapRoomRole, MapTileKind } from "@/content/maps/room-schema";
 
 /**
  * How much floor there is, in cells.
@@ -576,6 +572,15 @@ function paintRoom(extent: DemoGridExtent, tiles: DemoTile[], block: DemoBlock, 
   }
 }
 
+/**
+ * What a room holding nobody spends on bodies.
+ *
+ * A cap of zero refuses every reinforcement and a starting count of zero puts none there to begin with.
+ * The interval is infinite rather than long because the spawn clock adds it to itself: a room that
+ * holds nobody is not one whose next arrival is far off, it is one that has no next arrival.
+ */
+const NO_CROWD: MapCrowd = { cap: 0, starting: 0, respawnSeconds: Number.POSITIVE_INFINITY };
+
 /** Where a room stands on the floor, in the terms everything that walks and draws asks in. */
 function roomOn(block: DemoBlock, source: MapRoom): DemoRoom {
   return {
@@ -585,7 +590,7 @@ function roomOn(block: DemoBlock, source: MapRoom): DemoRoom {
     maxX: block.x + block.width - 2,
     maxY: block.y + block.height - 2,
     center: blockCenter(block),
-    crowd: source.crowd,
+    crowd: source.crowd ?? NO_CROWD,
   };
 }
 
@@ -717,7 +722,7 @@ function clearWalkToRooms(extent: DemoGridExtent, tiles: DemoTile[], from: DemoC
  * centred on the other axis. Both are whole-cell placements, which is what the map contract's at-rest
  * rules were written to guarantee — this function trusts them rather than re-deriving them.
  */
-function blockForSlot(map: MapSource, slot: DemoRoomSide | "main", room: MapRoom, main: MapRoom): DemoBlock {
+function blockForSlot(map: ResolvedMap, slot: DemoRoomSide | "main", room: MapRoom, main: MapRoom): DemoBlock {
   const mainX = Math.floor((map.width - main.width) / 2);
   const mainY = Math.floor((map.height - main.height) / 2);
 
@@ -760,7 +765,7 @@ const SIDE_ORDER: readonly DemoRoomSide[] = ["north", "south", "west", "east"];
  * subsequent draw in a seeded run, which is the one cheap piece of evidence this whole change has —
  * the same seed has to produce the same floor it produced before there were maps.
  */
-export function buildDemoFloor(map: MapSource): DemoMaze {
+export function buildDemoFloor(map: ResolvedMap): DemoMaze {
   const extent: DemoGridExtent = { width: map.width, height: map.height };
   const mainPlacement = map.fixed.find((placement) => placement.slot === "main");
 

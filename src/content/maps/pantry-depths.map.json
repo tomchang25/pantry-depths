@@ -2,51 +2,7 @@
   "name": "pantry-depths",
   "width": 35,
   "height": 35,
-  "fixed": [
-    {
-      "slot": "main",
-      "room": {
-        "id": "main-region",
-        "width": 21,
-        "height": 21,
-        "crowd": { "cap": 20, "starting": 14, "respawnSeconds": 5 },
-        "structure": { "generated": "carved" }
-      }
-    }
-  ],
-  "pool": [
-    {
-      "id": "cursed-altar",
-      "role": "cursedAltar",
-      "width": 7,
-      "height": 7,
-      "crowd": { "cap": 20, "starting": 14, "respawnSeconds": 5 },
-      "structure": { "generated": "open" }
-    },
-    {
-      "id": "blessing-altar",
-      "role": "blessingAltar",
-      "width": 7,
-      "height": 7,
-      "crowd": { "cap": 20, "starting": 14, "respawnSeconds": 5 },
-      "structure": { "generated": "open" }
-    },
-    {
-      "id": "hot-spring",
-      "role": "hotSpring",
-      "width": 7,
-      "height": 7,
-      "crowd": { "cap": 20, "starting": 14, "respawnSeconds": 5 },
-      "structure": { "generated": "open" }
-    },
-    {
-      "id": "extraction",
-      "role": "extraction",
-      "width": 7,
-      "height": 7,
-      "crowd": { "cap": 20, "starting": 14, "respawnSeconds": 5 },
-      "structure": { "generated": "open" }
-    }
-  ],
+  "fixed": [{ "slot": "main", "room": "main-region" }],
+  "pool": ["cursed-altar", "blessing-altar", "hot-spring", "extraction"],
   "draw": 4
 }
