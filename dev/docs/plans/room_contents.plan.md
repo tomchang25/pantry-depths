@@ -58,11 +58,10 @@ An empty room, eleven cells square, with nothing standing in it and nothing arri
 
 | Child | Focus                                                             | Form              |
 | ----- | ----------------------------------------------------------------- | ----------------- |
-| 02    | A room declares how its bodies start and how they arrive          | Spec              |
 | 03    | No floor holds ground nothing can walk to                         | Spec              |
 | 04    | Terrain is a share of the room, and unfillable ground is authored | Sketch, then spec |
 
-Landing order is 01 → 02 → 03 → 04. The first two move quantities from code to content and are proved by nothing changing; the third adds a guarantee neither of them needed but the fourth cannot do without; the fourth is the only one that changes what a floor looks like. Child 01 has shipped; its spec is archived as `room_contents_01_a_room_declares_its_scatter.implementation_spec.md`.
+Landing order is 01 → 02 → 03 → 04. The first two move quantities from code to content and are proved by nothing changing; the third adds a guarantee neither of them needed but the fourth cannot do without; the fourth is the only one that changes what a floor looks like. Children 01 and 02 have shipped; their specs are archived as `room_contents_01_a_room_declares_its_scatter.implementation_spec.md` and `room_contents_02_how_bodies_start_and_arrive.implementation_spec.md`.
 
 **This plan is not goal-executable.** Child 04 carries taste — what share of a room should be water, and whether unfillable ground earns its place at all — and a child whose shape is open is a stop that has to be taken rather than written down. Children 01 through 03 may be authorized to run continuously if that is wanted; the fourth needs its own conversation first.
 
@@ -94,16 +93,6 @@ Perishable: this records the codebase on 2026-08-01, immediately after `map_libr
 Every child lands in `src/content/maps/room-schema.ts` and `src/demo/`. The demo half is verified by playing it and by `npm run verify`; there is no automated coverage for `src/demo/` and none is to be added.
 
 **One constraint applies to every child and is easy to miss.** `npm run capture` seeds `Math.random`, and `buildDemoFloor` already records that the draw's position in the random sequence is load-bearing. Every roll this plan adds must therefore be skipped when a range's two ends are equal — `between` in `src/demo/maze.ts` (about line 286) consumes a random number even when minimum equals maximum, so a range of 14 to 14 would shift every subsequent roll and change every seeded picture. Short-circuit it, and give every migrated file today's exact numbers as equal-ended ranges, and the sequence is untouched.
-
-### Child 02 — A room declares how its bodies start and how they arrive
-
-- `MapCrowd` in `src/content/maps/room-schema.ts` (about line 33) is three exact numbers. `starting` and `respawnSeconds` become number-or-range using child 01's reader; `cap` stays exact, because a cap is a promise about the room and a random promise is not one.
-- A fourth field states how many arrive together. Today `spawnReinforcement` in `src/demo/world.ts` (about line 857) adds exactly one and answers whether it managed; the caller in `src/demo/simulation.ts` (about line 977) fires it once per interval. The count is rolled at the caller and the loop stops early when the cap is reached, so a wave of three into two free places is two.
-- `populateFloor` in `src/demo/world.ts` (about line 728) computes `Math.min(crowd.cap, crowd.starting + world.depth - 1)`. The depth term stays exactly as it is — how much a floor's depth adds is the tracker's open question and Non-Goal 1 keeps it out.
-- The announcement in `src/demo/simulation.ts` (about line 982) says "Another one crawls out"; a wave of more than one needs it to say the number, or it reads as a bug.
-- `crowdHere` in `src/demo/world.ts` (about line 535) answers the room the player stands in, and `flattenFloorForTesting` (about line 844) and the surface's fill-crowd key both top up to `cap`. None of those change.
-- The migrated `crowd` values are today's numbers as equal-ended ranges, so the seeded sequence is unchanged.
-- Verify by playing: the default map's pressure has to feel the same, and a room authored with a wave of three has to deliver three.
 
 ### Child 03 — No floor holds ground nothing can walk to
 

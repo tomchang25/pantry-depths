@@ -3,6 +3,15 @@
   "role": "blessingAltar",
   "width": 7,
   "height": 7,
-  "crowd": { "cap": 20, "starting": 14, "respawnSeconds": 5 },
-  "structure": { "generated": "open" }
+  "crowd": {
+    "cap": 20,
+    "starting": 14,
+    "reinforcement": {
+      "every": 5,
+      "count": 1
+    }
+  },
+  "structure": {
+    "generated": "open"
+  }
 }

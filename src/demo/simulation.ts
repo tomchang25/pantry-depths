@@ -32,6 +32,7 @@ import {
   DEMO_WALL_HEIGHT,
   buildDemoFloor,
   isBarricadeCell,
+  roll,
   tileAt,
 } from "@/demo/maze";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
@@ -52,6 +53,7 @@ import {
   crowdHere,
   damageEnemy,
   dropProp,
+  IDLE_SPAWN_RECHECK_SECONDS,
   killEnemy,
   MORTAR_DEAD_ZONE,
   MORTAR_IDLE_SECONDS,
@@ -976,10 +978,29 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
 
     if (world.spawnSeconds <= 0) {
       const crowd = crowdHere(world);
-      world.spawnSeconds += crowd.respawnSeconds;
+      const wave = crowd.reinforcement;
 
-      if (spawnReinforcement(world)) {
-        announce(world, `Another one crawls out (${world.enemies.length}/${crowd.cap})`, 1.4);
+      if (!wave) {
+        // Nothing comes back here. The clock still ticks, because walking one room over changes the
+        // answer and a clock parked on "never" would never notice.
+        world.spawnSeconds = IDLE_SPAWN_RECHECK_SECONDS;
+      } else {
+        // Added rather than assigned, so a frame that ran long does not slow the rate it was owed.
+        world.spawnSeconds += roll(wave.every);
+        const wanted = roll(wave.count);
+        let arrived = 0;
+
+        // Stops early on its own when the cap is full or nowhere is far enough from the player, so a
+        // wave of three into two free places is two — and two is what gets announced.
+        while (arrived < wanted && spawnReinforcement(world)) {
+          arrived += 1;
+        }
+
+        if (arrived === 1) {
+          announce(world, `Another one crawls out (${world.enemies.length}/${crowd.cap})`, 1.4);
+        } else if (arrived > 1) {
+          announce(world, `${arrived} more crawl out (${world.enemies.length}/${crowd.cap})`, 1.4);
+        }
       }
     }
   }

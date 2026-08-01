@@ -65,17 +65,13 @@ export type DemoRoomRole = MapRoomRole;
  *
  * Owned by the room rather than by the floor because a body walks between rooms freely: a floor-wide
  * cap can state a total and can never say what any part of it holds, and that difference is exactly
- * what a boss room or an empty corridor needs to say. Every room a generated floor builds declares
- * the same three numbers, so the crowd is still the floor's until something authored says otherwise.
+ * what a boss room or an empty corridor needs to say.
+ *
+ * Aliased from the content layer rather than copied, the same as the tiles and the roles, so the shape
+ * an author writes and the shape the spawn code reads cannot drift apart. What arrives here is the
+ * declaration, not one floor's numbers — the rolling happens where the question is asked.
  */
-export type DemoCrowd = Readonly<{
-  /** The most bodies walking at once. */
-  cap: number;
-  /** How many are already standing there when the floor is built, before depth adds to it. */
-  starting: number;
-  /** Seconds between reinforcements. */
-  respawnSeconds: number;
-}>;
+export type DemoCrowd = MapCrowd;
 
 /**
  * A block of a floor, large or small.
@@ -585,11 +581,11 @@ function paintRoom(extent: DemoGridExtent, tiles: DemoTile[], block: DemoBlock, 
 /**
  * What a room holding nobody spends on bodies.
  *
- * A cap of zero refuses every reinforcement and a starting count of zero puts none there to begin with.
- * The interval is infinite rather than long because the spawn clock adds it to itself: a room that
- * holds nobody is not one whose next arrival is far off, it is one that has no next arrival.
+ * Nothing standing there, room for nothing, and no reinforcement at all — which is a statement rather
+ * than a very large number. It used to be a cap of zero paired with an infinite interval, which is the
+ * same contradiction an optional crowd exists to avoid, one layer further down.
  */
-const NO_CROWD: MapCrowd = { cap: 0, starting: 0, respawnSeconds: Number.POSITIVE_INFINITY };
+const NO_CROWD: MapCrowd = { cap: 0, starting: 0 };
 
 /** Where a room stands on the floor, in the terms everything that walks and draws asks in. */
 function roomOn(block: DemoBlock, source: MapRoom): DemoRoom {

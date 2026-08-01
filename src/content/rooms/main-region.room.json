@@ -2,12 +2,40 @@
   "id": "main-region",
   "width": 21,
   "height": 21,
-  "crowd": { "cap": 20, "starting": 14, "respawnSeconds": 5 },
-  "scatter": {
-    "pools": { "count": { "minimum": 3, "maximum": 6 }, "size": { "minimum": 1, "maximum": 4 } },
-    "barricades": { "minimum": 4, "maximum": 7 },
-    "mortars": { "minimum": 2, "maximum": 3 },
-    "props": { "stick": 4, "rock": 5, "bomb": 2 }
+  "crowd": {
+    "cap": 20,
+    "starting": 14,
+    "reinforcement": {
+      "every": 5,
+      "count": 1
+    }
   },
-  "structure": { "generated": "carved" }
+  "scatter": {
+    "pools": {
+      "count": {
+        "minimum": 3,
+        "maximum": 6
+      },
+      "size": {
+        "minimum": 1,
+        "maximum": 4
+      }
+    },
+    "barricades": {
+      "minimum": 4,
+      "maximum": 7
+    },
+    "mortars": {
+      "minimum": 2,
+      "maximum": 3
+    },
+    "props": {
+      "stick": 4,
+      "rock": 5,
+      "bomb": 2
+    }
+  },
+  "structure": {
+    "generated": "carved"
+  }
 }

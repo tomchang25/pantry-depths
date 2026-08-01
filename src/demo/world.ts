@@ -527,6 +527,15 @@ export const PLAYER_BASE_MAX_HP = 150;
 const SPAWN_CLEARANCE = 7;
 
 /**
+ * How long the spawn clock waits before asking again, while the player stands where nothing arrives.
+ *
+ * Not infinity, which is the obvious answer and the wrong one: the crowd in force is the one belonging
+ * to the room the player is standing in, so an answer of "never" stops being true the moment they walk
+ * out of that room. A short re-check costs one comparison a second and is always right.
+ */
+export const IDLE_SPAWN_RECHECK_SECONDS = 1;
+
+/**
  * The crowd numbers in force where the player is standing.
  *
  * How many walk at once and how fast they come back are the room's, not the floor's: a body walks
@@ -714,13 +723,13 @@ export function populateFloor(world: DemoWorld): void {
   // Read after the player has been put on the entrance, because the room the numbers come from is the
   // one they are standing in.
   const crowd = crowdHere(world);
-  world.spawnSeconds = crowd.respawnSeconds;
+  world.spawnSeconds = crowd.reinforcement ? roll(crowd.reinforcement.every) : IDLE_SPAWN_RECHECK_SECONDS;
 
   // Far enough that the first thing a floor does is look around rather than swing.
   const spawnPool = walkableCells(maze).filter(
     (cell) => Math.hypot(cell.x + 0.5 - world.player.x, cell.y + 0.5 - world.player.y) > 6.5,
   );
-  const count = Math.min(crowd.cap, crowd.starting + world.depth - 1);
+  const count = Math.min(crowd.cap, roll(crowd.starting) + world.depth - 1);
 
   for (let index = 0; index < count; index += 1) {
     const cell = takeRandom(spawnPool);

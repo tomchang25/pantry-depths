@@ -71,13 +71,31 @@ export type MapScatter = Readonly<{
   props?: Readonly<Partial<Record<PropKind, MapQuantity>>>;
 }>;
 
+/**
+ * How bodies keep coming, when they do.
+ *
+ * Optional on the crowd, and the absence is a statement an author can mean: a room whose bodies stand
+ * once and are never replaced. Both numbers are rolled at each arrival rather than once per floor, so a
+ * range here reads as "somewhere between four and six seconds" rather than "this floor's rate".
+ */
+export type MapReinforcement = Readonly<{
+  /** Seconds between arrivals. */
+  every: MapQuantity;
+  /** How many arrive at once. Fewer come if the cap has no room for them. */
+  count: MapQuantity;
+}>;
+
 export type MapCrowd = Readonly<{
-  /** The most bodies walking in this room at once. */
+  /**
+   * The most bodies walking in this room at once.
+   *
+   * Exact rather than a quantity, deliberately: a cap is a promise about the room, and a promise that
+   * is rolled for is not one.
+   */
   cap: number;
   /** How many are standing there when the floor is built, before depth adds to it. */
-  starting: number;
-  /** Seconds between reinforcements. */
-  respawnSeconds: number;
+  starting: MapQuantity;
+  reinforcement?: MapReinforcement;
 }>;
 
 /**
@@ -133,20 +151,48 @@ function wholeNumber(value: unknown, label: string): number {
   return value;
 }
 
-function parseQuantity(value: unknown, label: string): MapQuantity {
+/** Seconds, which unlike a count of things may be a fraction of one. */
+function positiveSeconds(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw new TypeError(`${label} must be more than zero seconds.`);
+  }
+
+  return value;
+}
+
+/**
+ * Either form of a quantity, over whatever a single value has to satisfy.
+ *
+ * The check is a parameter because a count of caltrops and a number of seconds are both quantities and
+ * are not the same kind of number — one is whole, the other may be a fraction — and a reader that
+ * insisted on whole seconds would tighten a rule nobody asked to have tightened.
+ */
+function parseQuantityWith(
+  value: unknown,
+  label: string,
+  readNumber: (value: unknown, label: string) => number,
+): MapQuantity {
   if (typeof value === "number") {
-    return wholeNumber(value, label);
+    return readNumber(value, label);
   }
 
   const source = record(value, label);
-  const minimum = wholeNumber(source.minimum, `${label}.minimum`);
-  const maximum = wholeNumber(source.maximum, `${label}.maximum`);
+  const minimum = readNumber(source.minimum, `${label}.minimum`);
+  const maximum = readNumber(source.maximum, `${label}.maximum`);
 
   if (minimum > maximum) {
     throw new TypeError(`${label} runs from ${minimum} down to ${maximum}, which is no range at all.`);
   }
 
   return { minimum, maximum };
+}
+
+function parseQuantity(value: unknown, label: string): MapQuantity {
+  return parseQuantityWith(value, label, wholeNumber);
+}
+
+function parseSeconds(value: unknown, label: string): MapQuantity {
+  return parseQuantityWith(value, label, positiveSeconds);
 }
 
 function parseProps(value: unknown, label: string): Readonly<Partial<Record<PropKind, MapQuantity>>> {
@@ -184,22 +230,36 @@ function parseScatter(value: unknown, label: string): MapScatter {
   };
 }
 
+/** The largest a quantity can come out, which is what a cap has to be checked against. */
+function most(quantity: MapQuantity): number {
+  return typeof quantity === "number" ? quantity : quantity.maximum;
+}
+
+function parseReinforcement(value: unknown, label: string): MapReinforcement {
+  const source = record(value, label);
+
+  return {
+    every: parseSeconds(source.every, `${label}.every`),
+    count: parseQuantity(source.count, `${label}.count`),
+  };
+}
+
 function parseCrowd(value: unknown, label: string): MapCrowd {
   const source = record(value, label);
-  const respawnSeconds = source.respawnSeconds;
-
-  if (typeof respawnSeconds !== "number" || !Number.isFinite(respawnSeconds) || respawnSeconds <= 0) {
-    throw new TypeError(`${label}.respawnSeconds must be more than zero seconds.`);
-  }
-
   const cap = wholeNumber(source.cap, `${label}.cap`);
-  const starting = wholeNumber(source.starting, `${label}.starting`);
+  const starting = parseQuantity(source.starting, `${label}.starting`);
 
-  if (starting > cap) {
-    throw new TypeError(`${label}.starting is ${starting}, which is more than its cap of ${cap}.`);
+  if (most(starting) > cap) {
+    throw new TypeError(`${label}.starting can be as many as ${most(starting)}, which is more than its cap of ${cap}.`);
   }
 
-  return { cap, starting, respawnSeconds };
+  return {
+    cap,
+    starting,
+    ...(source.reinforcement === undefined
+      ? {}
+      : { reinforcement: parseReinforcement(source.reinforcement, `${label}.reinforcement`) }),
+  };
 }
 
 function parseAuthoredCells(
