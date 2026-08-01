@@ -20,6 +20,7 @@ export const CANONICAL_AUTHORING_PATHS = {
   meleeAttacks: { file: "src/content/viewmodel/melee-attacks.json" },
   propDisplay: { file: "src/content/presentation/prop-display.json" },
   room: { directory: "src/content/rooms", suffix: ".room.json" },
+  sfx: { file: "src/content/sfx/sfx-cues.json" },
 } as const;
 
 export type AuthoringTargetId = keyof typeof CANONICAL_AUTHORING_PATHS;

@@ -11,6 +11,7 @@ import { parseEntityDisplays } from "@/content/enemies/entity-display-schema";
 import { MAP_NAME_PATTERN, parseMapSource } from "@/content/maps/map-schema";
 import { ROOM_ID_PATTERN, parseRoomSource } from "@/content/maps/room-schema";
 import { parsePropDisplays } from "@/content/presentation/prop-display-schema";
+import { parseSfxCues } from "@/content/sfx/sfx-cue-schema";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
 
 export type AuthoringRequest = Readonly<{
@@ -195,6 +196,15 @@ function validateSource(file: AuthoringFile, source: unknown): unknown {
       return parseMeleeAttacks(source);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Melee attack validation failed.";
+      throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
+    }
+  }
+
+  if (target === "sfx") {
+    try {
+      return parseSfxCues(source);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "SFX cue validation failed.";
       throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
     }
   }
