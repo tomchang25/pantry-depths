@@ -7,9 +7,9 @@
  * and a body's size was guessed at three times in a row before anyone noticed the loop was the
  * problem rather than the number.
  *
- * Tuned in the entity workbench and saved back through the authoring endpoint, the same way decor
- * presets are. Nothing here changes behaviour: a body's reach, collision and damage are the
- * simulation's, and none of them read this file.
+ * Tuned in the entity workbench and saved back through the authoring endpoint, the same way every
+ * other authored table is. Nothing here changes behaviour: a body's reach, collision and damage are
+ * the simulation's, and none of them read this file.
  */
 
 import { type EnemyAppearanceId } from "@/content/combat/enemies";

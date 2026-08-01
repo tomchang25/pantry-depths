@@ -19,14 +19,10 @@ import skeletonSwordsmanHurt from "@/content/enemies/assets/skeleton-swordsman/s
 import skeletonSwordsmanNormal from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-normal.png";
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
 import blockPlaceholder from "@/content/presentation/assets/block-placeholder.png";
-import bones from "@/content/presentation/assets/bones.png";
-import hotSpring from "@/content/presentation/assets/hot-spring.png";
 import keyBlue from "@/content/presentation/assets/key-blue.png";
 import keyRed from "@/content/presentation/assets/key-red.png";
 import keyYellow from "@/content/presentation/assets/key-yellow.png";
 import stair from "@/content/presentation/assets/stair.png";
-import wallSpikes from "@/content/presentation/assets/wall-spikes.png";
-import wallTorch from "@/content/presentation/assets/wall-torch.png";
 export type EnemySpriteState = "normal" | "attack" | "hurt";
 
 /**
@@ -69,10 +65,6 @@ export const PRESENTATION_SPRITE_URLS = {
   stair,
   // Stands in for authored exit artwork; deliberately not the stair sprite so the two never read alike.
   exit: blockPlaceholder,
-  hotSpring,
-  bones,
-  wallTorch,
-  wallSpikes,
 } as const;
 
 export const REQUIRED_PRESENTATION_ASSETS = {

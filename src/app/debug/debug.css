@@ -933,19 +933,6 @@ textarea {
   margin-bottom: 0;
 }
 
-.decor-workbench {
-  display: grid;
-  gap: 1rem;
-}
-
-.decor-workbench-controls {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-}
-
-.decor-workbench-status {
-  margin-bottom: 0;
-}
-
 @media (max-width: 48rem) {
   .debug-page {
     width: min(calc(100% - 1rem), 72rem);

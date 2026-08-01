@@ -4,8 +4,8 @@ export const AUTHORING_API_ROOT = "/__debug/authoring";
 /**
  * Every file the endpoint may touch, in the only two shapes an authored target comes in.
  *
- * Most targets are one file: there is exactly one decor table and exactly one melee-attack table, so a
- * path is all the whitelist has to carry. Maps and rooms are a library — a directory the editor adds
+ * Most targets are one file: there is exactly one melee-attack table and exactly one prop-display table,
+ * so a path is all the whitelist has to carry. Maps and rooms are a library — a directory the editor adds
  * files to — so their entry names the directory and the suffix a file in it wears, and the request has
  * to say which one it means. Nothing else becomes directory-shaped just for symmetry: a target that has
  * one file is honestly described by one path.
@@ -15,7 +15,6 @@ export const AUTHORING_API_ROOT = "/__debug/authoring";
  * `src/` here would break the development server rather than the tooling.
  */
 export const CANONICAL_AUTHORING_PATHS = {
-  decor: { file: "src/content/presentation/decor-presets.json" },
   entityDisplay: { file: "src/content/enemies/entity-display.json" },
   map: { directory: "src/content/maps", suffix: ".map.json" },
   meleeAttacks: { file: "src/content/viewmodel/melee-attacks.json" },

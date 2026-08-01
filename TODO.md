@@ -12,7 +12,7 @@ This tracker is the forward-work authority.
 
 ## Active
 
-[floor_surfaces] `dev/docs/plans/floor_surface_channels.plan.md` — goal-executable
+- `dev/docs/plans/capture_on_demand.sketch.md` — photograph any page on demand, and let a curated scene name the address it points at.
 
 ---
 
@@ -22,7 +22,6 @@ Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line 
 
 A brief lives here too and is the one kind of line `/implement` cannot take: it is format-free material handed to a later session, it authorizes nothing, and it is spent once it has seeded a real artifact. `dev/standards/work_lifecycle.addendum.md` owns its rules.
 
-- `dev/docs/plans/capture_on_demand.sketch.md` — photograph any page on demand, and let a curated scene name the address it points at.
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
 - `dev/docs/briefs/synthesised_sfx.brief.md` — the project has no audio at all; this reads a sibling project's engine and says what to keep.
 

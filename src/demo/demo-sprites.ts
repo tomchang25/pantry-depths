@@ -20,8 +20,6 @@ export const DEMO_ASSET_IDS = {
   stickPile: "demo.stickPile",
   rockPile: "demo.rockPile",
   bombPile: "demo.bombPile",
-  exit: "demo.exit",
-  entrance: "demo.entrance",
   altar: "demo.altar",
   altarSpent: "demo.altarSpent",
   blast: "demo.blast",
@@ -867,24 +865,6 @@ function bombPile(): HTMLCanvasElement {
   return canvas;
 }
 
-function marker(inner: string, outer: string, glyph: string): HTMLCanvasElement {
-  const [canvas, context] = surface();
-  context.fillStyle = outer;
-  context.beginPath();
-  context.ellipse(256, 256, 236, 236, 0, 0, Math.PI * 2);
-  context.fill();
-  context.fillStyle = inner;
-  context.beginPath();
-  context.ellipse(256, 256, 176, 176, 0, 0, Math.PI * 2);
-  context.fill();
-  context.fillStyle = "#fdf3d8";
-  context.font = "bold 210px Georgia, serif";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText(glyph, 256, 268);
-  return canvas;
-}
-
 /** Loads the shipped manifest and folds the demo-only procedural sprites in beside it. */
 export async function loadDemoImages(): Promise<PresentationImages> {
   const [shipped, skeletonAtlases, skeletonPickups] = await Promise.all([
@@ -905,8 +885,6 @@ export async function loadDemoImages(): Promise<PresentationImages> {
   merged.set(DEMO_ASSET_IDS.stickPile, spikePile());
   merged.set(DEMO_ASSET_IDS.rockPile, rockPile());
   merged.set(DEMO_ASSET_IDS.bombPile, bombPile());
-  merged.set(DEMO_ASSET_IDS.exit, marker("#2f6b46", "#7fd8a2", "↑"));
-  merged.set(DEMO_ASSET_IDS.entrance, marker("#4a3060", "#a789d4", "↓"));
   merged.set(DEMO_ASSET_IDS.altar, altar(false));
   merged.set(DEMO_ASSET_IDS.altarSpent, altar(true));
   merged.set(DEMO_ASSET_IDS.blast, blast());

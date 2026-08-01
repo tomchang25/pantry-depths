@@ -944,9 +944,6 @@ function sprites(world: DemoWorld): RenderSprite[] {
       xray: EXIT_XRAY,
     });
   }
-  built.push(
-    ground("demo-entrance", world.maze.entrance.x + 0.5, world.maze.entrance.y + 0.5, DEMO_ASSET_IDS.entrance, 0.9),
-  );
 
   for (const prop of world.props) {
     built.push(

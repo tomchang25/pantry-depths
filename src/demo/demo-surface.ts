@@ -197,8 +197,8 @@ function cardModel(token: string): DemoHudCard {
 /**
  * A mark per kind for the left hand.
  *
- * Provisional and deliberately local: the moment authored decor presets can carry a HUD glyph, the
- * table belongs with them rather than beside the frame loop.
+ * Provisional and deliberately local: the moment a prop's authored display record can carry a HUD
+ * glyph, the table belongs with it rather than beside the frame loop.
  */
 const PROP_GLYPHS: Readonly<Record<DemoPropKind, string>> = {
   stick: "↑",

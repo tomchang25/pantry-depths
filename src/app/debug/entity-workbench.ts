@@ -1,6 +1,5 @@
 import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
-import { createDecorWorkbench } from "@/app/debug/decor-workbench";
 import { createPropWorkbench } from "@/app/debug/prop-workbench";
 import { createRenderPanel } from "@/app/debug/render-panel";
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
@@ -1106,21 +1105,18 @@ function comparisonScene(
   return scene(projectDemoDeath(createContext(elapsedSeconds), createDeath(archetypeId, cause, progress)));
 }
 
-/** Renders the entity and decor authoring tabs behind one shared asset-workbench route. */
+/** Renders the entity and pickup authoring tabs behind one shared asset-workbench route. */
 export function renderEntityWorkbench(mount: HTMLElement): void {
   const { page, content } = createDebugPage({
     title: "Entity Workbench",
-    description:
-      "Inspect entity animation coverage and named decor presets through the same renderer seams used by the live demo.",
+    description: "Inspect entity animation coverage through the same renderer seams used by the live demo.",
     width: "wide",
   });
   const tabs = document.createElement("div");
   const entityTab = document.createElement("button");
   const propTab = document.createElement("button");
-  const decorTab = document.createElement("button");
   const entitySection = document.createElement("div");
   const propSection = document.createElement("div");
-  const decorSection = document.createElement("div");
   tabs.className = "workbench-tabs";
   tabs.setAttribute("role", "tablist");
   entityTab.type = "button";
@@ -1131,29 +1127,20 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   propTab.textContent = "Pickups";
   propTab.setAttribute("role", "tab");
   propTab.setAttribute("aria-controls", "prop-workbench-tab");
-  decorTab.type = "button";
-  decorTab.textContent = "Decor";
-  decorTab.setAttribute("role", "tab");
-  decorTab.setAttribute("aria-controls", "decor-workbench-tab");
   entitySection.id = "entity-workbench-tab";
   entitySection.setAttribute("role", "tabpanel");
   propSection.id = "prop-workbench-tab";
   propSection.setAttribute("role", "tabpanel");
-  decorSection.id = "decor-workbench-tab";
-  decorSection.setAttribute("role", "tabpanel");
-  tabs.append(entityTab, propTab, decorTab);
+  tabs.append(entityTab, propTab);
 
-  const selectTab = (tab: "entity" | "prop" | "decor"): void => {
+  const selectTab = (tab: "entity" | "prop"): void => {
     entityTab.setAttribute("aria-selected", String(tab === "entity"));
     propTab.setAttribute("aria-selected", String(tab === "prop"));
-    decorTab.setAttribute("aria-selected", String(tab === "decor"));
     entitySection.hidden = tab !== "entity";
     propSection.hidden = tab !== "prop";
-    decorSection.hidden = tab !== "decor";
   };
   entityTab.addEventListener("click", () => selectTab("entity"));
   propTab.addEventListener("click", () => selectTab("prop"));
-  decorTab.addEventListener("click", () => selectTab("decor"));
 
   const bodyPanel = createDebugPanel(
     "Body",
@@ -1684,8 +1671,7 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
     matrixPanel.panel,
   );
   propSection.append(createPropWorkbench());
-  decorSection.append(createDecorWorkbench());
-  content.append(tabs, entitySection, propSection, decorSection);
+  content.append(tabs, entitySection, propSection);
   mount.replaceChildren(page);
   selectTab("entity");
 }

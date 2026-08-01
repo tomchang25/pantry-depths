@@ -1982,7 +1982,13 @@ export class CanvasGameplayRenderer {
     }
   }
 
-  /** Culls a wall decoration seen from behind its own face and narrows it as the view turns oblique. */
+  /**
+   * Culls a wall-placed sprite seen from behind its own face and narrows it as the view turns oblique.
+   *
+   * One consumer left, now the flat decor vocabulary is gone: the mark a body leaves where it was
+   * driven into masonry. It is kept general because that is what makes the mark lie in the wall rather
+   * than hover in front of it, not because a second wall-placed sprite is expected.
+   */
   #wallFacing(scene: RenderScene, sprite: RenderSprite): number | undefined {
     if (sprite.placement !== "wall" || !sprite.wallFace) {
       return 1;

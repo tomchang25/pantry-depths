@@ -10,7 +10,6 @@ import {
 import { parseEntityDisplays } from "@/content/enemies/entity-display-schema";
 import { MAP_NAME_PATTERN, parseMapSource } from "@/content/maps/map-schema";
 import { ROOM_ID_PATTERN, parseRoomSource } from "@/content/maps/room-schema";
-import { parseDecorPresets } from "@/content/presentation/decor-preset-schema";
 import { parsePropDisplays } from "@/content/presentation/prop-display-schema";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
 
@@ -169,15 +168,6 @@ function validateSource(file: AuthoringFile, source: unknown): unknown {
       return room;
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Room validation failed.";
-      throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
-    }
-  }
-
-  if (target === "decor") {
-    try {
-      return parseDecorPresets(source);
-    } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "Decor preset validation failed.";
       throw new AuthoringValidationError(`${message} Canonical content was not changed.`);
     }
   }

@@ -2,7 +2,6 @@ import { AUTHORING_API_ROOT, type AuthoringFile } from "../../../../../dev/tools
 import { handleAuthoringRequest, type AuthoringDependencies } from "../../../../../dev/tools/authoring/authoring-api";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
 import mapJson from "@/content/maps/pantry-depths.map.json";
-import decorPresetsJson from "@/content/presentation/decor-presets.json";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import mainRegionRoomJson from "@/content/rooms/main-region.room.json";
 import { MELEE_ATTACKS } from "@/content/viewmodel/melee-viewmodel";
@@ -11,7 +10,6 @@ import { describe, expect, it, vi } from "vitest";
 
 function createDependencies(): AuthoringDependencies & Readonly<{ writeCanonical: ReturnType<typeof vi.fn> }> {
   const sources: Readonly<Record<string, unknown>> = {
-    decor: decorPresetsJson,
     entityDisplay: entityDisplayJson,
     "map/pantry-depths": mapJson,
     meleeAttacks: MELEE_ATTACKS,
@@ -75,10 +73,10 @@ describe("handleAuthoringRequest", () => {
       },
       dependencies,
     );
-    const invalidDecor = await handleAuthoringRequest(
+    const invalidPropDisplay = await handleAuthoringRequest(
       {
         method: "POST",
-        pathname: `${AUTHORING_API_ROOT}/decor/save`,
+        pathname: `${AUTHORING_API_ROOT}/propDisplay/save`,
         body: { source: [] },
       },
       dependencies,
@@ -86,7 +84,7 @@ describe("handleAuthoringRequest", () => {
 
     expect(invalidRoom).toMatchObject({ status: 422 });
     expect(invalidAttacks).toMatchObject({ status: 422 });
-    expect(invalidDecor).toMatchObject({ status: 422 });
+    expect(invalidPropDisplay).toMatchObject({ status: 422 });
     expect(dependencies.writeCanonical).not.toHaveBeenCalled();
   });
 
@@ -109,21 +107,21 @@ describe("handleAuthoringRequest", () => {
     );
   });
 
-  it("validates and writes decor presets through the decor target", async () => {
+  it("validates and writes an authored JSON table through its own target", async () => {
     const dependencies = createDependencies();
     const saved = await handleAuthoringRequest(
       {
         method: "POST",
-        pathname: `${AUTHORING_API_ROOT}/decor/save`,
-        body: { source: decorPresetsJson },
+        pathname: `${AUTHORING_API_ROOT}/propDisplay/save`,
+        body: { source: propDisplayJson },
       },
       dependencies,
     );
 
     expect(saved).toMatchObject({ status: 200 });
     expect(dependencies.writeCanonical).toHaveBeenCalledWith(
-      { target: "decor" },
-      `${JSON.stringify(decorPresetsJson, null, 2)}\n`,
+      { target: "propDisplay" },
+      `${JSON.stringify(propDisplayJson, null, 2)}\n`,
     );
   });
 });
