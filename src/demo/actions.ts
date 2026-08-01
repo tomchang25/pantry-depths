@@ -7,7 +7,8 @@
 
 import { chooseMeleeAttack } from "@/content/viewmodel/melee-viewmodel";
 import { blessBonus, hasBless } from "@/demo/bless";
-import { canCarry } from "@/demo/enemy-archetypes";
+import { canCarry, isBoned } from "@/demo/enemy-archetypes";
+import { playSfx } from "@/presentation/audio/sfx";
 import { takeSealed } from "@/demo/extraction";
 import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
 import { burst } from "@/demo/particles";
@@ -442,6 +443,21 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
   announce(world, wasWood ? "The wood wall splinters!" : "The stone wall shatters!");
 }
 
+/**
+ * Which release a throw sounds like, from how fast the thing leaves the hand.
+ *
+ * Derived from the weight rather than authored a fourth time: speed is already the number that
+ * separates a flicked bolt from a heaved body, so a new throwable gets a sound without anyone
+ * remembering to give it one. The two brackets are a first guess, to be settled by ear.
+ */
+function releaseCue(speed: number): "throwLight" | "throwMedium" | "throwHeavy" {
+  if (speed >= 18) {
+    return "throwLight";
+  }
+
+  return speed >= 13 ? "throwMedium" : "throwHeavy";
+}
+
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
   const direction = facing(world);
   const weight = throwWeight(kind, payload?.archetype.weight);
@@ -477,6 +493,11 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
   // What it cost to get rid of: a shove backwards along the throw and a jolt of the view. Nothing
   // else in the demo moves the player without an enemy doing it, which is exactly why heaving a
   // body registers.
+  // A bolt is a trigger, not an open hand, and says so in its own cue below.
+  if (kind !== "crossbowBolt") {
+    playSfx(payload ? "throwEnemy" : releaseCue(weight.speed));
+  }
+
   world.player.pushX -= direction.x * weight.recoil * RECOIL_SHOVE;
   world.player.pushY -= direction.y * weight.recoil * RECOIL_SHOVE;
   world.shake = Math.max(world.shake, weight.recoil * RECOIL_SHAKE);
@@ -530,6 +551,7 @@ function shootHeld(world: DemoWorld): void {
         ? { kind: "prop", prop: behaviour.spends, count: 1 }
         : undefined;
   spawnProjectile(world, "crossbowBolt", undefined);
+  playSfx("shootBolt");
   burst(world.particles, "ember", world.player.x, world.player.y, 0.5, 4, {
     speed: 2.2,
     spreadZ: 1.2,
@@ -629,6 +651,7 @@ function melee(world: DemoWorld): void {
     for (const enemy of struck) {
       enemy.pushX += direction.x * knockback;
       enemy.pushY += direction.y * knockback;
+      playSfx(isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
       damageEnemy(world, enemy, damage, "cleaved");
       burst(world.particles, "blood", enemy.x, enemy.y, 0.36, 6, {
         speed: 2,
@@ -652,6 +675,7 @@ function melee(world: DemoWorld): void {
   }
 
   if (strikeAltar(world)) {
+    playSfx("meleeHitAltar", { x: world.altar.x, y: world.altar.y });
     world.swingTarget = { x: world.altar.x, y: world.altar.y, z: 0.6, connected: true };
     world.impact = 1;
     return;
@@ -662,6 +686,7 @@ function melee(world: DemoWorld): void {
   const cell = wallAhead(world, reach);
 
   if (cell) {
+    playSfx("meleeHitWall", { x: cell.x + 0.5, y: cell.y + 0.5 });
     world.swingTarget = { x: cell.x + 0.5, y: cell.y + 0.5, z: 0.55, connected: true };
     world.impact = 1;
     damageWall(world, cell, MELEE_WALL_DAMAGE);
@@ -714,6 +739,8 @@ export function primaryAction(world: DemoWorld): void {
   // Never the cut just played, so consecutive swings always differ — the one repetition the eye
   // catches when there is no chain to give the sequence a shape.
   world.swingKind = chooseMeleeAttack(world.swingKind === "throw" ? undefined : world.swingKind).id;
+  // On the press rather than on the hit, because the whoosh is the arm moving and that starts now.
+  playSfx("meleeSwing");
   world.swing = SWING_SECONDS;
   world.swingTotal = SWING_SECONDS;
   world.swingResolved = false;
@@ -758,6 +785,7 @@ function dropHeld(world: DemoWorld): void {
   // Whatever is left of the stack goes back on the floor as one pickup, so putting something down
   // and taking it again is never a way to lose or gain uses.
   world.props.push({ id: nextId(world, "prop"), kind: held.prop, count: held.count, x, y });
+  playSfx("propDrop");
   announce(world, `Dropped ${PROP_LABELS[held.prop]} x${held.count}`);
 }
 
@@ -777,6 +805,7 @@ export function grabAction(world: DemoWorld): void {
   if (enemy) {
     world.enemies.splice(world.enemies.indexOf(enemy), 1);
     world.held = { kind: "enemy", enemy };
+    playSfx("propPickup");
     announce(world, "Grabbed an enemy!");
     return;
   }
@@ -786,6 +815,7 @@ export function grabAction(world: DemoWorld): void {
   if (prop) {
     world.props.splice(world.props.indexOf(prop), 1);
     world.held = { kind: "prop", prop: prop.kind, count: prop.count };
+    playSfx("propPickup");
     announce(world, `Picked up ${PROP_LABELS[prop.kind]} x${prop.count}`);
     return;
   }

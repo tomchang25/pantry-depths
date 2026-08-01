@@ -17,6 +17,7 @@
 import type { DemoHudOverlay, DemoHudOverlayReward } from "@/demo/demo-hud";
 import { findBless } from "@/demo/bless";
 import { padRoomAt } from "@/demo/maze";
+import { playSfx } from "@/presentation/audio/sfx";
 import { bankReward, bankedRewards, resolveReward, type ResolvedReward } from "@/demo/sealed";
 import { announce, endRun, runClockSeconds, type DemoWorld } from "@/demo/world";
 
@@ -38,6 +39,7 @@ let lastResolved: readonly ResolvedReward[] = [];
 export function takeSealed(world: DemoWorld, source: "clean" | "cursed"): void {
   world.carried.push({ source });
   world.pendingCard = `${SEALED_CARD_PREFIX}${source}`;
+  playSfx("sealedReward");
   announce(world, `Sealed and ${source === "cursed" ? "cursed" : "clean"} - carry it out or lose it`, 3);
 }
 
@@ -57,6 +59,7 @@ function extract(world: DemoWorld): void {
   lastResolved = resolved;
   world.carried = [];
   endRun(world, "extracted");
+  playSfx("extractionDone");
   announce(world, "Out, with everything you were carrying", 6);
 }
 

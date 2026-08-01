@@ -39,6 +39,7 @@ import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
 import { stepRooms } from "@/demo/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
+import { playSfx } from "@/presentation/audio/sfx";
 import { stepTasks } from "@/demo/tasks";
 import {
   breaksThroughWalls,
@@ -896,6 +897,7 @@ function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
  * out of a floor whose business is finished.
  */
 export function descend(world: DemoWorld): void {
+  playSfx("descend");
   world.depth += 1;
   // A swing in mid-air when the stairs are taken has nothing left to land on: the floor it was aimed
   // at no longer exists. Dropping it stops the blade arriving on the next floor and cleaving whatever

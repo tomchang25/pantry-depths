@@ -13,6 +13,7 @@ import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/demo/actions";
 import { hasBless } from "@/demo/bless";
 import { isBarricadeCell, isTrenchCell, isWaterCell, tileIndex } from "@/demo/maze";
 import { burst } from "@/demo/particles";
+import { playSfx } from "@/presentation/audio/sfx";
 import { addVfx, damageEnemy, killEnemy, stunEnemy, type DemoEnemy, type DemoWorld } from "@/demo/world";
 
 /** How wide "near the impact" is for a rock or a thrown body. */
@@ -82,6 +83,7 @@ export function checkHazards(world: DemoWorld, enemy: DemoEnemy): void {
   }
 
   enemy.drowningSeconds = DROWN_SECONDS;
+  playSfx("waterEntry", { x: enemy.x, y: enemy.y });
   enemy.pushX = 0;
   enemy.pushY = 0;
   enemy.intent = "none";
@@ -167,6 +169,7 @@ export function chainLightning(world: DemoWorld, seeds: readonly DemoEnemy[]): v
           age: 0,
           life: 0.3,
         });
+        playSfx("chainHop", { x: target.x, y: target.y });
         damageEnemy(world, target, CHAIN_DAMAGE);
         next.push(target);
       }
@@ -216,6 +219,7 @@ export function detonate(
   y: number,
   damageWall: (cell: { x: number; y: number }, damage: number) => void,
 ): void {
+  playSfx("detonation", { x, y });
   addVfx(world, { kind: "blast", x, y, radius: BOMB_CORE_RADIUS, age: 0, life: 0.42 });
 
   for (const enemy of enemiesWithin(world, x, y, BOMB_PUSH_RADIUS)) {
@@ -260,6 +264,7 @@ export function shellImpact(
   radius: number,
   hurtPlayer: (world: DemoWorld, amount: number, fromX: number, fromY: number) => void,
 ): void {
+  playSfx("shellLand", { x, y });
   addVfx(world, { kind: "blast", x, y, radius, age: 0, life: 0.36 });
   burst(world.particles, "dust", x, y, 0.2, 14, {
     speed: 3,
@@ -283,6 +288,7 @@ export function shellImpact(
 
 /** A rock landing: everyone in a small radius takes a swing's worth and gets scattered. */
 export function rockImpact(world: DemoWorld, x: number, y: number): void {
+  playSfx("rockLand", { x, y });
   const struck = enemiesWithin(world, x, y, IMPACT_RADIUS);
 
   for (const enemy of struck) {
@@ -319,6 +325,7 @@ export function bargeInto(
   const side = lean >= 0 ? 1 : -1;
   enemy.pushX += perpendicularX * side * BODY_SHOVE * heft;
   enemy.pushY += perpendicularY * side * BODY_SHOVE * heft;
+  playSfx("bodyBarge", { x: enemy.x, y: enemy.y });
   stunEnemy(enemy, BODY_STUN_SECONDS);
   damageEnemy(world, enemy, thrownImpactDamage(world));
 }
@@ -348,6 +355,7 @@ function arrival(world: DemoWorld, x: number, y: number, thud: number): void {
     });
   }
 
+  playSfx("bodyLand", { x, y });
   const nearness = Math.max(0, 1 - Math.hypot(x - world.player.x, y - world.player.y) / LANDING_HEARD_WITHIN);
   world.shake = Math.max(world.shake, thud * nearness);
 }

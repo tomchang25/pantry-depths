@@ -57,6 +57,15 @@ import {
   type DemoWorld,
 } from "@/demo/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
+import {
+  playSfx,
+  resumeSfx,
+  setSfxListener,
+  stepSfxVolume,
+  suspendSfx,
+  toggleSfxMute,
+  unlockSfx,
+} from "@/presentation/audio/sfx";
 
 export type MountedDemo = Readonly<{ dispose: () => void }>;
 
@@ -99,6 +108,16 @@ const MOVEMENT_KEYS: Readonly<Record<string, keyof DemoInput>> = {
 
 function suppressContextMenu(event: MouseEvent): void {
   event.preventDefault();
+}
+
+/** A tab in the background makes no sound; coming back to it does. */
+function handleVisibility(): void {
+  if (document.hidden) {
+    suspendSfx();
+    return;
+  }
+
+  resumeSfx();
 }
 
 const ENEMY_DOT_COLORS: Readonly<Record<DemoArchetypeId, string>> = {
@@ -678,6 +697,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
   };
 
   const restart = (): void => {
+    playSfx("uiRestart");
     // A cheat is a property of the session, not of the run. Losing god mode on every R would make it
     // useless for exactly the thing it is for: dying repeatedly on purpose.
     const carriedGodMode = world.godMode;
@@ -777,6 +797,9 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     }
 
     turnInput = 0;
+    // Pushed rather than read: the particle funnel raises most of the positional cues and has
+    // coordinates but no world to ask where the ears are.
+    setSfxListener(world.player.x, world.player.y);
 
     const active = locked() && world.status === "playing" && !paused;
 
@@ -810,6 +833,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     const aim = target ? renderer.project(scene, target) : undefined;
     drawDemoViewmodel(sceneContext, images, world, aim ? { x: aim.screenX, y: aim.screenY } : undefined);
     if (world.pendingCard !== undefined) {
+      playSfx("uiCard");
       showCard(world.pendingCard);
       world.pendingCard = undefined;
     }
@@ -843,6 +867,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
 
       if (locked() && world.status === "playing") {
         paused = !paused;
+        playSfx(paused ? "uiPause" : "uiResume");
         refreshHud();
       }
 
@@ -852,6 +877,22 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     if (key === "r") {
       event.preventDefault();
       restart();
+      return;
+    }
+
+    // Keys rather than a slider, and for the reason every other toggle here is a key: the pointer stays
+    // locked through the pause, so there is no cursor to drag anything with. The level is announced
+    // because a volume you cannot see and cannot hear is a key that appears to do nothing.
+    if (key === "m") {
+      event.preventDefault();
+      announce(world, toggleSfxMute() ? "Sound muted (M)" : "Sound on (M)", 1.6);
+      return;
+    }
+
+    if (key === "[" || key === "]") {
+      event.preventDefault();
+      const level = stepSfxVolume(key === "]" ? 1 : -1);
+      announce(world, `Sound ${Math.round(level * 100)}%`, 1.2);
       return;
     }
 
@@ -967,6 +1008,9 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
    * re-click appeared to fix it. Unadjusted movement reads the device instead and has no edge.
    */
   const requestLook = (): void => {
+    // The gesture that starts play is also the only moment a browser will hand over an audio context,
+    // so arming the sound rides on it rather than needing a prompt of its own.
+    unlockSfx();
     const request = canvas.requestPointerLock({ unadjustedMovement: true }) as unknown;
 
     if (request instanceof Promise) {
@@ -1034,6 +1078,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
   window.addEventListener("blur", clearInput);
+  document.addEventListener("visibilitychange", handleVisibility);
   document.addEventListener("mousemove", handleMouseMove);
   document.addEventListener("mousedown", handleMouseDown);
   document.addEventListener("contextmenu", suppressContextMenu);
@@ -1061,6 +1106,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", clearInput);
+      document.removeEventListener("visibilitychange", handleVisibility);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mousedown", handleMouseDown);
       document.removeEventListener("contextmenu", suppressContextMenu);
