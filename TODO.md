@@ -12,7 +12,7 @@ This tracker is the forward-work authority.
 
 ## Active
 
-[room_contents] `dev/docs/plans/room_contents.plan.md` — children 01–03 are specified; 04 needs a sketch first, so the plan is not goal-executable
+[room_contents] `dev/docs/plans/room_contents.plan.md` — children 01–03 have shipped; 04 needs a sketch first, so the plan is not goal-executable
 [map_editor] `dev/docs/plans/map_room_editor.plan.md` — judged by a person, never goal-executable
 [floor_surfaces] `dev/docs/plans/floor_surface_channels.plan.md` — goal-executable
 
