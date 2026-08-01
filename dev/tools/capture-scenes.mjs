@@ -9,31 +9,35 @@
  *
  * Determinism comes from replacing `Math.random` with a seeded generator before the page loads, so
  * the same seed grows the same floor on every run and two captures of a scene differ only by the
- * change being judged.
+ * change being judged. The browser work itself lives in `./capture/browser.mjs`, shared with the
+ * ad-hoc command; a scene may point at any address that server serves.
  *
  * Usage: node dev/tools/capture-scenes.mjs [--seed 42] [--scene <name>]
  *
  * Output: capture-output/latest/<scene>.png, capture-output/latest/stats.json, and
- * capture-output/index.html; the previous run is rotated into capture-output/previous/ first.
+ * capture-output/index.html; the previous run is rotated into capture-output/previous/ first. A
+ * picture taken by the ad-hoc command lives outside both directories and survives this rotation.
  */
 
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import net from "node:net";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
-
-import { chromium } from "@playwright/test";
 
 import { contactSheetHtml } from "./capture/contact-sheet.mjs";
+import {
+  DEMO_WORLD_READY,
+  ROOT,
+  VIEWPORT,
+  openBrowser,
+  openPage,
+  selectorReady,
+  settleFrames,
+  startDevServer,
+} from "./capture/browser.mjs";
 import { SCENES } from "./capture/scenes.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const OUTPUT_ROOT = path.join(ROOT, "capture-output");
-const VITE_BIN = path.join(ROOT, "node_modules", "vite", "bin", "vite.js");
-const VIEWPORT = { width: 1280, height: 720 };
 /** Frames the FPS sample spans; two seconds at sixty, long enough to catch a stutter. */
 const FPS_SAMPLE_FRAMES = 120;
 
@@ -57,77 +61,6 @@ function parseArguments(argv) {
   }
 
   return options;
-}
-
-/** Asks the operating system for a free ephemeral port, so 5273 is never contested. */
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      server.close((error) => (error ? reject(error) : resolve(port)));
-    });
-  });
-}
-
-async function waitForServer(url) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    try {
-      const response = await fetch(url);
-
-      if (response.ok) {
-        return;
-      }
-    } catch {
-      // Not up yet; keep waiting.
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-
-  throw new Error(`Dev server did not answer at ${url} within 30 seconds.`);
-}
-
-/**
- * Mulberry32 as an init script, replacing `Math.random` before any module runs.
- *
- * Page-level rather than a code change: every random call site in the demo flows through
- * `Math.random`, so seeding here makes floor generation deterministic without the shipped code
- * learning that seeds exist.
- */
-function seedScript(seed) {
-  return `(() => {
-  let state = ${seed} >>> 0;
-  Math.random = () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-})();`;
-}
-
-/** Waits `frames` animation frames inside the page, so "settle" is frame-time rather than wall-time. */
-function settleFrames(page, frames) {
-  return page.evaluate(
-    (count) =>
-      new Promise((resolve) => {
-        let seen = 0;
-        const step = () => {
-          seen += 1;
-
-          if (seen >= count) {
-            resolve(undefined);
-          } else {
-            requestAnimationFrame(step);
-          }
-        };
-        requestAnimationFrame(step);
-      }),
-    frames,
-  );
 }
 
 function sampleFps(page) {
@@ -173,14 +106,13 @@ function worldSnapshot(page) {
 }
 
 async function captureScene(context, baseUrl, scene) {
-  const page = await context.newPage();
+  // A scene that names no address photographs the play surface, and one that names no selector waits
+  // for the handle only the play surface publishes. Both defaults are what every scene did before a
+  // scene could say otherwise.
+  const readiness = scene.readySelector ? selectorReady(scene.readySelector) : DEMO_WORLD_READY;
+  const page = await openPage(context, baseUrl, scene.address ?? "/", { hideInstruments: true, readiness });
 
   try {
-    await page.goto(`${baseUrl}/?capture=1`);
-    await page.waitForFunction(() => window.demoWorld !== undefined, undefined, { timeout: 30_000 });
-    // The instrument panel is for a person at the keyboard; a screenshot judging the game's own
-    // picture should not have the tooling in frame.
-    await page.addStyleTag({ content: ".demo-dev { display: none !important; }" });
     await settleFrames(page, 10);
 
     const helpers = {
@@ -247,22 +179,12 @@ async function main() {
     throw new Error(`No scene named "${options.scene}". Known scenes: ${SCENES.map((s) => s.name).join(", ")}`);
   }
 
-  const port = await freePort();
-  const baseUrl = `http://localhost:${port}`;
-  console.log(`Starting dev server on ${baseUrl} (5273 stays untouched) ...`);
-  const server = spawn(process.execPath, [VITE_BIN, "--port", String(port)], { cwd: ROOT, stdio: "pipe" });
-  const serverFailure = new Promise((_, reject) => {
-    server.on("error", reject);
-    server.on("exit", (code) => reject(new Error(`Dev server exited early with code ${code}.`)));
-  });
-
+  console.log("Starting a dev server on a free port (5273 stays untouched) ...");
+  const server = await startDevServer();
   let browser;
 
   try {
-    await Promise.race([waitForServer(baseUrl), serverFailure]);
-    browser = await chromium.launch();
-    const context = await browser.newContext({ deviceScaleFactor: 1, viewport: VIEWPORT });
-    await context.addInitScript(seedScript(options.seed));
+    browser = await openBrowser(options.seed);
     await rotateOutput();
 
     const results = [];
@@ -271,7 +193,7 @@ async function main() {
       console.log(`Capturing ${scene.name} ...`);
       // Every scene gets a fresh page: the same seed then grows the same floor, so scenes are
       // comparable with each other and with their own past runs.
-      results.push(await captureScene(context, baseUrl, scene));
+      results.push(await captureScene(browser.context, server.baseUrl, scene));
     }
 
     const stamp = new Date().toISOString();
@@ -288,7 +210,7 @@ async function main() {
     );
   } finally {
     await browser?.close();
-    server.kill();
+    server.stop();
   }
 }
 

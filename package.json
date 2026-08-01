@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "capture": "node dev/tools/capture-scenes.mjs",
+    "capture:page": "node dev/tools/capture-page.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "oxlint",

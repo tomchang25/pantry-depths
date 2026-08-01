@@ -35,6 +35,8 @@ The line that keeps the harness from becoming the thing the guard forbids: **it 
 
 Two facts about it are easy to trip over. It never uses port 5273: it asks the operating system for a free port and starts its own server there, so it is safe to run while the user's dev server is up, and the `PLAYWRIGHT_PORT` note under Environment does not apply to it. And its `stats.json` reads `window.demoWorld`, a development-only handle rather than an import, so renaming a field on the world makes those numbers quietly absent rather than failing the run.
 
+There is a second instrument beside it, `npm run capture:page`, and the same line governs it: one address in, one picture out, no verdict. It photographs anything the dev server serves — a named map, a workbench — starts a server of its own on a free port like the harness does, and writes to `capture-output/adhoc/` so that a casual picture can never be mistaken for a scene or destroyed by the harness rotating `latest/` into `previous/`. It presses no keys, which is what keeps it clear of the authoring endpoint's save operation; a curated scene does press keys, so the prohibition below reaches whoever writes one, and `dev/tools/capture/scenes.mjs` states it where they will read it. Its `--port` switch attaches to a server somebody else started, and then it photographs whatever that server is serving from whichever working tree it was started in.
+
 ## No New Test Without Being Asked For One
 
 Adding a test is forbidden by default. A new test file, or a new case inside an existing one, requires the user to ask for it explicitly and in as many words, for that change. Nothing else grants it: not a rule elsewhere in this document that reads as though some layer ought to be covered, not a boundary that has no other observer, not the cheapness of the test, not the risk of the change. Absent the sentence, the answer is no — say what is untested and move on.
@@ -57,7 +59,7 @@ Deleting a test alongside the code it covered is a normal part of a change, not 
 
 - Package manager `npm`; Node `>=22.12` (developed on v24.18.0). Install with `npm install` at the repository root. No network access is required after install.
 - `npm run check:governance` additionally requires Python 3 on `PATH` (developed on 3.14.6).
-- `npm run test:e2e` and `npm run capture` additionally require the Chromium build Playwright pins, installed once with `npx playwright install chromium`. Do not install it unless browser coverage or a capture run is actually being asked for.
+- `npm run test:e2e`, `npm run capture`, and `npm run capture:page` additionally require the Chromium build Playwright pins, installed once with `npx playwright install chromium`. Do not install it unless browser coverage or a capture run is actually being asked for.
 - The Vite dev server binds `http://localhost:5273` with `strictPort`. **Treat every listener on that port as user-owned**, including a development server or a test run. Never stop, restart, or reconfigure it to make a command run. Playwright reuses a server it finds there; when the port is occupied by something that is not this project's dev server, set `PLAYWRIGHT_PORT=<available-port>` for that one invocation instead of editing `vite.config.ts` or `playwright.config.ts`. `npm run capture` sidesteps all of this by starting a server of its own on a port the operating system picks.
 
 ## Individual Layers
@@ -75,6 +77,7 @@ Use these when iterating; `verify` is what proves the change is deliverable.
 | Governance       | `npm run check:governance` | Outside `verify`                                                                  |
 | Browser E2E      | `npm run test:e2e`         | Outside `verify`; scope is narrow — see below                                     |
 | Scene capture    | `npm run capture`          | Outside `verify`; pictures to look at, never a check — see Looking Is Not Testing |
+| Page capture     | `npm run capture:page`     | Outside `verify`; one address in, one picture out — same line, same section       |
 
 Expected noise: `vitest` prints its include/exclude summary when no test file matches, and `depcruise` prints a module and dependency count on success. Playwright writes `playwright-report/` and `test-results/`; both are ignored by Git.
 
