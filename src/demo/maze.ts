@@ -20,7 +20,7 @@
  */
 
 import type { ResolvedMap } from "@/content/maps/map-resolver";
-import { validateDrawnFloor } from "@/content/maps/map-schema";
+import { strandedGround, validateDrawnFloor, validateDrawnWalk } from "@/content/maps/map-schema";
 import type { MapCrowd, MapQuantity, MapRoom, MapRoomRole, MapTileKind } from "@/content/maps/room-schema";
 
 /**
@@ -722,6 +722,120 @@ function clearWalkToRooms(extent: DemoGridExtent, tiles: DemoTile[], from: DemoC
 }
 
 /**
+ * Opens whatever water has closed a ring around a piece of a floor.
+ *
+ * The content layer says which ground nothing can walk to; making it walkable is the business of the
+ * thing that put the water there, which is here. **A floor is repaired rather than refused** because a
+ * refusal means a run that does not start over a roll of the dice, and that is the worst possible way
+ * to spend a guarantee.
+ *
+ * The walk back stops the moment it meets ground that was already reachable, so the pool that caused
+ * the problem loses the cells that were in the way and keeps the rest. Nothing here draws a random
+ * number, so a seeded floor is the floor it was unless it genuinely needed this.
+ *
+ * The whole pass repeats because opening one pool can expose ground still shut in behind another. The
+ * bound is a backstop: reaching it leaves the floor stranded, and the refusal that runs afterwards is
+ * what turns that into a loud failure rather than a quiet one.
+ */
+function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: DemoCell): void {
+  const kinds = (): MapTileKind[] => tiles.map((tile) => tile.kind);
+  const STEPS: readonly DemoCell[] = [
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 },
+  ];
+
+  for (let pass = 0; pass < 16; pass += 1) {
+    const stranded = strandedGround({
+      mapName: "",
+      width: extent.width,
+      height: extent.height,
+      tiles: kinds(),
+      entrance: from,
+      exit: from,
+      drawnRoomIds: [],
+    });
+
+    if (stranded.length === 0) {
+      return;
+    }
+
+    // Reachable ignoring water, which is exactly the set the walk back below is trying to rejoin.
+    const dry = new Set<number>();
+    const dryQueue: number[] = [tileIndex(extent, from.x, from.y)];
+    dry.add(dryQueue[0] as number);
+
+    for (let head = 0; head < dryQueue.length; head += 1) {
+      const { x: currentX, y: currentY } = cellFromIndex(extent, dryQueue[head] as number);
+
+      for (const step of STEPS) {
+        const nextX = currentX + step.x;
+        const nextY = currentY + step.y;
+
+        if (!isInsideGrid(extent, nextX, nextY)) {
+          continue;
+        }
+
+        const next = tileIndex(extent, nextX, nextY);
+        const kind = tiles[next]?.kind;
+
+        if (kind === undefined || kind === "border" || kind === "water" || dry.has(next)) {
+          continue;
+        }
+
+        dry.add(next);
+        dryQueue.push(next);
+      }
+    }
+
+    // The same search again, this time allowed through water, so every stranded cell has a route home.
+    const cameFrom = new Map<number, number>();
+    const wetQueue: number[] = [tileIndex(extent, from.x, from.y)];
+    const wet = new Set<number>(wetQueue);
+
+    for (let head = 0; head < wetQueue.length; head += 1) {
+      const current = wetQueue[head] as number;
+      const { x: currentX, y: currentY } = cellFromIndex(extent, current);
+
+      for (const step of STEPS) {
+        const nextX = currentX + step.x;
+        const nextY = currentY + step.y;
+
+        if (!isInsideGrid(extent, nextX, nextY)) {
+          continue;
+        }
+
+        const next = tileIndex(extent, nextX, nextY);
+        const kind = tiles[next]?.kind;
+
+        if (kind === undefined || kind === "border" || wet.has(next)) {
+          continue;
+        }
+
+        wet.add(next);
+        cameFrom.set(next, current);
+        wetQueue.push(next);
+      }
+    }
+
+    for (const cell of stranded) {
+      let cursor: number | undefined = tileIndex(extent, cell.x, cell.y);
+
+      while (cursor !== undefined && !dry.has(cursor)) {
+        const tile = tiles[cursor];
+
+        if (tile && tile.kind === "water") {
+          tiles[cursor] = openTile();
+        }
+
+        cursor = cameFrom.get(cursor);
+      }
+    }
+  }
+}
+
+/**
  * Where a room stands, given the slot it landed in.
  *
  * The main region sits centred in the grid; a side room sits flush against its own grid edge and
@@ -864,14 +978,20 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
   const open = walkableCells(extent, tiles, mainBlock);
   const entrance = pick(open) ?? blockCenter(mainBlock);
   clearWalkToRooms(extent, tiles, entrance, rooms);
+  // After the walks to the rooms, because that pass opens hazards along them and so frees some ground
+  // for nothing. The descent is drawn from cells captured before both, which is safe: neither can turn
+  // open ground into anything else.
+  openStrandedGround(extent, tiles, entrance);
   const away = open.filter((cell) => cell.x !== entrance.x || cell.y !== entrance.y);
   const exit = pick(away) ?? entrance;
   const altar = byRole.get("cursedAltar")?.center ?? entrance;
   const extraction = byRole.get("extraction")?.center ?? entrance;
 
   // Asked of the finished floor rather than during assembly. Whether a floor is legal is the map
-  // contract's question, and folding it into the builder would leave nothing able to refuse one.
-  validateDrawnFloor({
+  // contract's question, and folding it into the builder would leave nothing able to refuse one. Two
+  // questions, because "can the stairs be reached, masonry coming down" and "is any ground cut off by
+  // something that does not come down" are different and a floor has to answer both.
+  const drawnFloor = {
     mapName: map.name,
     width: extent.width,
     height: extent.height,
@@ -879,7 +999,9 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
     entrance,
     exit,
     drawnRoomIds: drawn.map((room) => room.id),
-  });
+  };
+  validateDrawnFloor(drawnFloor);
+  validateDrawnWalk(drawnFloor);
 
   return {
     width: extent.width,

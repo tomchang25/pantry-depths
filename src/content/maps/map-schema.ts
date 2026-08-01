@@ -193,6 +193,98 @@ export function parseMapSource(value: unknown): MapSource {
 }
 
 /**
+ * Ground this floor holds that nothing can walk to.
+ *
+ * A second question beside the one below, not a replacement for it, and the difference is which things
+ * stop a walk. That one asks whether the way out can be reached at all and so treats every breakable
+ * thing as already broken; this one asks whether any ground is cut off by something that does not
+ * break. **Masonry, caltrops and emplacements all come down to a weapon**, so ground behind them is
+ * reachable and this says nothing about it. Water does not come down reliably — closing one cell costs
+ * three bodies, and a floor early in a run may not have three to spend — so ground behind water is cut
+ * off, and that is the whole of what this finds.
+ *
+ * The same rule a room's authored cells are already held to, asked of a floor a generator built.
+ */
+export function strandedGround(floor: DrawnFloor): readonly Readonly<{ x: number; y: number }>[] {
+  const { width, height, tiles } = floor;
+  const index = (x: number, y: number): number => y * width + x;
+  const crossable = (x: number, y: number): boolean => {
+    const kind = tiles[index(x, y)];
+    return kind !== undefined && kind !== "border" && kind !== "water";
+  };
+
+  const start = index(floor.entrance.x, floor.entrance.y);
+  const queue: number[] = [start];
+  const seen = new Set<number>(queue);
+  let head = 0;
+
+  while (head < queue.length) {
+    const current = queue[head] as number;
+    head += 1;
+    const currentX = current % width;
+    const currentY = Math.floor(current / width);
+
+    for (const step of [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+    ]) {
+      const nextX = currentX + step.x;
+      const nextY = currentY + step.y;
+
+      if (
+        nextX < 0 ||
+        nextY < 0 ||
+        nextX >= width ||
+        nextY >= height ||
+        seen.has(index(nextX, nextY)) ||
+        !crossable(nextX, nextY)
+      ) {
+        continue;
+      }
+
+      seen.add(index(nextX, nextY));
+      queue.push(index(nextX, nextY));
+    }
+  }
+
+  const stranded: Readonly<{ x: number; y: number }>[] = [];
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const kind = tiles[index(x, y)];
+
+      // Only ground somebody stands on. A cell holding a caltrop or an emplacement is not that, and
+      // neither is the boundary or a corner no room ever painted.
+      if ((kind === "open" || kind === "filled") && !seen.has(index(x, y))) {
+        stranded.push({ x, y });
+      }
+    }
+  }
+
+  return stranded;
+}
+
+/**
+ * Refuses a floor holding ground nothing can walk to.
+ *
+ * Runs after the assembly has had its chance to repair one, which is what makes this a check on the
+ * repair rather than a coin toss on whether a run starts. A floor reaching here with ground cut off is
+ * a bug in whatever built it.
+ */
+export function validateDrawnWalk(floor: DrawnFloor): void {
+  const stranded = strandedGround(floor);
+  const first = stranded[0];
+
+  if (first) {
+    throw new TypeError(
+      `Map "${floor.mapName}" drew a floor with ${stranded.length} cells of ground nothing can walk to, the first at ${first.x},${first.y}.`,
+    );
+  }
+}
+
+/**
  * Refuses a floor one particular draw has produced.
  *
  * The declarations were checked when the file was saved and nothing here re-checks them. What is only

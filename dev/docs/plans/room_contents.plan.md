@@ -58,10 +58,11 @@ An empty room, eleven cells square, with nothing standing in it and nothing arri
 
 | Child | Focus                                                             | Form              |
 | ----- | ----------------------------------------------------------------- | ----------------- |
-| 03    | No floor holds ground nothing can walk to                         | Spec              |
 | 04    | Terrain is a share of the room, and unfillable ground is authored | Sketch, then spec |
 
-Landing order is 01 → 02 → 03 → 04. The first two move quantities from code to content and are proved by nothing changing; the third adds a guarantee neither of them needed but the fourth cannot do without; the fourth is the only one that changes what a floor looks like. Children 01 and 02 have shipped; their specs are archived as `room_contents_01_a_room_declares_its_scatter.implementation_spec.md` and `room_contents_02_how_bodies_start_and_arrive.implementation_spec.md`.
+Landing order is 01 → 02 → 03 → 04. The first two move quantities from code to content and are proved by nothing changing; the third adds a guarantee neither of them needed but the fourth cannot do without; the fourth is the only one that changes what a floor looks like.
+
+Children 01 through 03 have shipped, and their specs are archived as `room_contents_01_a_room_declares_its_scatter.implementation_spec.md`, `room_contents_02_how_bodies_start_and_arrive.implementation_spec.md` and `room_contents_03_no_stranded_ground.implementation_spec.md`. Child 03 found that the stranding it guards against was real rather than theoretical: eight floors in four thousand held ground nothing could walk to, and none do now.
 
 **This plan is not goal-executable.** Child 04 carries taste — what share of a room should be water, and whether unfillable ground earns its place at all — and a child whose shape is open is a stop that has to be taken rather than written down. Children 01 through 03 may be authorized to run continuously if that is wanted; the fourth needs its own conversation first.
 
@@ -93,15 +94,6 @@ Perishable: this records the codebase on 2026-08-01, immediately after `map_libr
 Every child lands in `src/content/maps/room-schema.ts` and `src/demo/`. The demo half is verified by playing it and by `npm run verify`; there is no automated coverage for `src/demo/` and none is to be added.
 
 **One constraint applies to every child and is easy to miss.** `npm run capture` seeds `Math.random`, and `buildDemoFloor` already records that the draw's position in the random sequence is load-bearing. Every roll this plan adds must therefore be skipped when a range's two ends are equal — `between` in `src/demo/maze.ts` (about line 286) consumes a random number even when minimum equals maximum, so a range of 14 to 14 would shift every subsequent roll and change every seeded picture. Short-circuit it, and give every migrated file today's exact numbers as equal-ended ranges, and the sequence is untouched.
-
-### Child 03 — No floor holds ground nothing can walk to
-
-- `validateDrawnFloor` in `src/content/maps/map-schema.ts` (about line 444) is **not** changed. Its `passable` is `tiles[index] !== "border"`, which is deliberate: it asks whether the way out can be broken through to, and treating masonry as already broken is the right answer to that question.
-- The new refusal sits beside it in the same module and takes the same `DrawnFloor`. Its passability is the one `waterEnclosesRegion` in `src/content/maps/room-schema.ts` (about line 184) already uses — `border` and `water` impassable, everything else passable — and the two should be read together, because they are the same rule asked at two moments.
-- The repair belongs in `src/demo/maze.ts`, not in the content layer: the content layer answers whether a floor is legal, and the assembly is what makes it so. `clearWalkToRooms` (about line 651) is the pattern to copy — a came-from breadth-first search from the entrance, then a walk back along the path opening what is in the way. It already searches over floor and hazards together for exactly this purpose.
-- Run the repair after the three scatters and after the entrance is picked, before `validateDrawnFloor` is called. The entrance is picked from `walkableCells` of the main block, so it is open ground by construction.
-- The repair converts water, and only water. Caltrops and emplacements are passable to this check, so they never trigger it.
-- Verify by playing several floors and by `npm run capture`: the repair opening a cell shifts no roll, so the pictures should be identical unless a floor actually needed repairing.
 
 ### Child 04 — Terrain is a share, and unfillable ground is authored
 
