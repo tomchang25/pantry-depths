@@ -11,8 +11,9 @@ Give a room authority over what stands in it. Today the quantities that fill a f
 3. Reinforcements arrive in the number the room asks for. Exactly one body arrives per interval, everywhere, always, so the only pressure a room can dial is how often — and "a wave" and "a trickle" are the same thing at different speeds rather than different things.
 4. No floor is built holding a piece of walkable ground nothing can walk to. Only what cannot be broken through counts as cutting ground off: masonry, caltrops and emplacements are the player's business and there are ways through every one of them, while water costs bodies the floor may not have yet. Today nothing checks this at all — the one refusal that looks like it does treats every breakable thing as already broken, so it fires only on the boundary, which is never.
 5. What plays today keeps playing identically, including the floors the capture harness photographs from a fixed seed. Moving a number from code to content changes where it is written and nothing else.
-6. A room's terrain is stated as a share of its floor rather than a count of cells. A count is what made a small room unplayable when it received a large room's tally, and terrain is the part of a room that should thin out or thicken with its size rather than arriving in a fixed lot.
-7. Ground that cannot be filled is authored, never generated. Water has a way out — bodies close it over — so a generator that makes a mistake with it makes a floor that is hard rather than dead. Ground with no such escape has no margin for a generator's mistake, so the only hand allowed to place it is an author's.
+6. A room states its composition as shares of itself: how much of it is floor, what its walls are made of, and how much of it is water. **The original reason for this has been spent and the honest one is narrower.** Shares were asked for because a small room used to receive a large room's tally, but the first child cured that by moving the quantities onto the room. What remains is that composition is one statement — an author describing a room says "mostly open, half its walls timber, a little water", not three numbers in two unrelated units — and that a room resized should not need its contents recomputed.
+7. A share never places a wall, only decides how many there are. A distribution can say what proportion of a room is masonry and cannot say where masonry goes; sprinkling walls to hit a percentage produces isolated blocks on open ground, with none of the corridors, dead ends and loops that make a room worth walking through. So the generator keeps deciding shape and the share decides how far it opens that shape up.
+8. Ground that cannot be filled is authored, never generated. Water has a way out — bodies close it over — so a generator that makes a mistake with it makes a floor that is hard rather than dead. Ground with no such escape has no margin for a generator's mistake, so the only hand allowed to place it is an author's.
 
 ## Design
 
@@ -26,7 +27,7 @@ What fills a room divides cleanly, and the division decides how each is stated.
 | Objects — caltrops, emplacements, ground kit | A count range | An author means "one emplacement in this room", never "three percent of it" |
 | Bodies                                       | A count range | A cap is a promise about the room, and a promise is not a percentage        |
 
-The share is the last child's business, because the same question — how does what a room holds scale with the room — has to be answered once for terrain and bodies together rather than twice with different answers.
+Bodies were considered for a share too and deliberately kept as counts. A room has one fixed size, so an author writing a cap is already writing it for that room; a density would be the same number in a longer form. Terrain earns a share for a different reason — it sits beside the wall mix and the openness, and those three are one description of what a room is made of.
 
 ### Everything a room states may be a range
 
@@ -50,21 +51,40 @@ The refusal that looks like it covers this does not. It asks whether the way out
 
 **A floor that fails is repaired, not refused.** Refusing means a run that does not start because of a roll, which is the worst possible way to spend a guarantee. The repair is the one the assembly already performs to keep the ways between rooms open: walk back from the stranded ground to the ground that can be reached, and open what was in the way. It always succeeds, and it costs one pool cell.
 
+### Composition is three questions, and only two of them take a share
+
+A room's make-up looks like one table — so much floor, so much timber, so much stone, so much water — and writing it as one would be wrong, because the three questions underneath are answered at different moments by different things.
+
+| Question                     | Answered by                | Stated as         |
+| ---------------------------- | -------------------------- | ----------------- |
+| Where are the walls?         | The generator's own shape  | Not stated at all |
+| How much of the room is open | Opening up that shape      | A share           |
+| What is each wall made of    | A draw per wall            | A share           |
+| How much of the floor is wet | Scattering onto open floor | A share           |
+
+**Where the walls go cannot be a share**, and that is the whole reason this is not one table. The generator runs a backtracker and leaves corridors, dead ends and — once opened up — loops; a room built by drawing each cell against a percentage instead is static, and static is not a room. Measured on the region the shipped map hangs everything off: the bare carve leaves just over half the interior open, and that is the tightest the room can be. A share cannot ask for less, because the corridors are already the minimum.
+
+**How open the room is** is therefore a target the opening-up works towards rather than a rate applied blindly. Today a fixed proportion of the surviving walls is knocked out and the result lands wherever it lands; stating the destination instead means a room says how open it wants to be and the generator gets it there.
+
+**Water is scattered, not drawn.** It can only go on ground that is already open, and never across the ways between rooms, so it cannot come out of the same draw the walls do — it happens later, on what the walls left. It takes a share because it is terrain, but it stays where the other scattered things are, and a file that puts the two blocks next to each other reads as one recipe without pretending they are one operation.
+
 ### The proof
 
 An empty room, eleven cells square, with nothing standing in it and nothing arriving — the map the previous plan could not finish, because nothing could say "nothing". It lands with the first child, and it stays the thing every later child is checked against: whatever a room can now declare, the room that declares none of it is still empty.
 
 ### Children
 
-| Child | Focus                                                             | Form              |
-| ----- | ----------------------------------------------------------------- | ----------------- |
-| 04    | Terrain is a share of the room, and unfillable ground is authored | Sketch, then spec |
+| Child | Focus                                       | Form              |
+| ----- | ------------------------------------------- | ----------------- |
+| 05    | Ground that cannot be filled, authored only | Sketch, then spec |
 
-Landing order is 01 → 02 → 03 → 04. The first two move quantities from code to content and are proved by nothing changing; the third adds a guarantee neither of them needed but the fourth cannot do without; the fourth is the only one that changes what a floor looks like.
+Landing order is 01 → 02 → 03 → 04 → 05. The first two move quantities from code to content and are proved by nothing changing; the third adds a guarantee neither of them needed but the last two cannot do without; the fourth is the first that changes what a floor looks like.
 
-Children 01 through 03 have shipped, and their specs are archived as `room_contents_01_a_room_declares_its_scatter.implementation_spec.md`, `room_contents_02_how_bodies_start_and_arrive.implementation_spec.md` and `room_contents_03_no_stranded_ground.implementation_spec.md`. Child 03 found that the stranding it guards against was real rather than theoretical: eight floors in four thousand held ground nothing could walk to, and none do now.
+**The fourth and fifth were one child until the fifth's cost was measured.** A new kind of ground is not a tile added to a list: it needs a procedural floor texture, which is an asset, and around ten separate answers about whether a body can see over it, throw over it, fall into it, bleed into it or drown in it. Every one of those is judged by looking, which is a person's call and not something a spec can settle in advance. Composition needs none of that and ships on its own.
 
-**This plan is not goal-executable.** Child 04 carries taste — what share of a room should be water, and whether unfillable ground earns its place at all — and a child whose shape is open is a stop that has to be taken rather than written down. Children 01 through 03 may be authorized to run continuously if that is wanted; the fourth needs its own conversation first.
+Children 01 through 04 have shipped and their specs are archived. Two of them found something the plan had assumed away. Child 03's stranding was real rather than theoretical — eight floors in four thousand held ground nothing could walk to, and none do now. Child 04 found that a room never keeps everything it scatters: the floor's guarantee of a walk to each room hanging off it reopens whatever stands on those routes, at roughly two cells per room, so the shipped region pours eighteen cells of water and keeps about thirteen. That has always been true of the caltrops and the emplacements too; stating water as a share is what made it visible. Delivering the declared amount exactly would mean scattering after those walks are cleared rather than before, which would keep pools off the routes between rooms entirely — a decision about how a floor should feel, and one this plan has not taken.
+
+**This plan is not goal-executable.** Child 05 carries taste — whether unfillable ground earns its place at all, and how it should behave against every one of the game's verbs — and a child whose shape is open is a stop that has to be taken rather than written down. The first four were each authorized in their own right.
 
 ## Non-Goals
 
@@ -84,8 +104,10 @@ Children 01 through 03 have shipped, and their specs are archived as `room_conte
 5. A room can state how many bodies arrive together, and a room asking for more than one gets more than one.
 6. No floor is built holding walkable ground that cannot be walked to from where the run arrives.
 7. Ground behind masonry, caltrops or an emplacement is never treated as cut off; ground behind water always is.
-8. A room states its terrain as a share of its own floor, and the same room at two sizes holds proportionally the same amount.
-9. The verification gate passes at every child, and no test file is added.
+8. A room states how open it is, what its walls are made of, and how much of it is water, each as a share of itself, and the built floor matches what it asked for.
+9. A room asking to be more open than its own corridors already make it gets those corridors and no less, rather than a refusal or a run that does not start.
+10. Ground that cannot be filled appears only where an author placed it, never where a generator did.
+11. The verification gate passes at every child, and no test file is added.
 
 ## Execution
 
@@ -95,8 +117,10 @@ Every child lands in `src/content/maps/room-schema.ts` and `src/demo/`. The demo
 
 **One constraint applies to every child and is easy to miss.** `npm run capture` seeds `Math.random`, and `buildDemoFloor` already records that the draw's position in the random sequence is load-bearing. Every roll this plan adds must therefore be skipped when a range's two ends are equal — `between` in `src/demo/maze.ts` (about line 286) consumes a random number even when minimum equals maximum, so a range of 14 to 14 would shift every subsequent roll and change every seeded picture. Short-circuit it, and give every migrated file today's exact numbers as equal-ended ranges, and the sequence is untouched.
 
-### Child 04 — Terrain is a share, and unfillable ground is authored
+### Child 05 — Ground that cannot be filled, authored only
 
-- Needs a sketch first. What share of a room should be water, whether a second unfillable ground earns its place at all, and whether bodies should also be stated as a density are all taste, and this plan deliberately does not answer them.
-- What is already decided and does not need re-deciding: unfillable ground is authored only, never generated, per Requirement 7; and if it is added, it joins `water` in both the room's authored-cell check and child 03's refusal, in `src/content/maps/room-schema.ts` and `map-schema.ts` respectively.
-- `MAP_TILE_KINDS` in `src/content/maps/room-schema.ts` (about line 22) is the list a new ground would join, and `src/demo/maze.ts` aliases it as `DemoTileKind` so that a kind added there without a branch here fails to compile. The branches to expect: `tileOfKind` (about line 505), `isFloorKind` (929), `blocksWalk` (951), `blocksVision` (934), and the renderer's own tile handling in `src/presentation/`.
+- Needs a sketch first, and the sketch's job is the behaviour table rather than the plumbing.
+- Already decided: it is authored only and no generator places it; nothing forbids that changing later. It joins `water` as impassable in `waterEnclosesRegion` (`src/content/maps/room-schema.ts`, about line 184) and in `strandedGround` (`src/content/maps/map-schema.ts`), but **it must not join water in child 03's repair** — the repair opens water, and ground that cannot be filled cannot be opened either.
+- `MAP_TILE_KINDS` (`src/content/maps/room-schema.ts`, about line 24) is the list it joins. `src/demo/maze.ts` aliases it as `DemoTileKind`, so a kind added there without a branch here fails to compile — which is the mechanism that will surface the work.
+- The branches to expect, all in `src/demo/` unless noted: `tileOfKind`, `isFloorKind`, `blocksVision`, `blocksProjectile`, `isHazardKind`, `holdsStains`, `sinkBody`, `isWaterCell`, the throw-height checks, `actions.ts`'s open-or-water test, and `demo-scene.ts`'s floor-material lookup.
+- The expensive part is not any of those. `src/presentation/render-scene.ts` holds `RenderFloorMaterial`, `src/presentation/canvas-gameplay-renderer.ts` holds the `FLOOR_MATERIALS` order and the water-specific patch table, and `src/presentation/procedural-textures.ts` holds one texture-drawing function per material. A new ground needs one written, and a texture is judged by looking at it.

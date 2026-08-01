@@ -63,8 +63,21 @@ export type MapQuantity = number | MapRange;
  * that room — making it per-room would move every piece of kit on every floor a seed has ever drawn.
  */
 export type MapScatter = Readonly<{
-  /** How many pools, and how many cells each grows to. */
-  pools?: Readonly<{ count: MapQuantity; size: MapQuantity }>;
+  /**
+   * How much of the room is water, and how many cells one pool grows to.
+   *
+   * A share of the room's interior rather than a number of pools, because water is terrain and a room
+   * describing itself says how wet it is. The share is a plain fraction while the size stays a range:
+   * pools of varying size adding up to a fixed total already give a different number of pools in
+   * different shapes on every floor, which is the variety a range of shares would have bought.
+   *
+   * **This is what gets poured, not what survives.** A floor guarantees a walk from where the run
+   * arrives to every room hanging off it, and that guarantee opens whatever stands on those routes
+   * afterwards — so a region with four rooms attached keeps around two thirds of what it asked for.
+   * Measured on the shipped region: eighteen cells poured, roughly thirteen left. The same has always
+   * been true of the caltrops and the emplacements; stating water as a share is what made it visible.
+   */
+  pools?: Readonly<{ share: number; size: MapQuantity }>;
   barricades?: MapQuantity;
   mortars?: MapQuantity;
   /** How much of each kind lies on the floor. Read only from a map's main room. */
@@ -106,8 +119,30 @@ export type MapCrowd = Readonly<{
  * then perforated; `open` is floor throughout, which is what a room holding one piece of business
  * wants; `authored` is the cells themselves, row by row.
  */
+/**
+ * What a room's walls are made of, as a ratio between the two masonries.
+ *
+ * Normalised rather than required to sum to one, so an author may write 20 and 20, or 58 and 42, or a
+ * half and a half. Refusing one spelling of the same intent buys nothing.
+ */
+export type MapWallMix = Readonly<{ stone: number; wood: number }>;
+
 export type MapRoomStructure =
-  Readonly<{ generated: "carved" | "open" }> | Readonly<{ authored: readonly (readonly MapTileKind[])[] }>;
+  | Readonly<{
+      generated: "carved";
+      /**
+       * How much of the room's interior is floor when the walls are done.
+       *
+       * **A floor the carve is worked up towards, never a ceiling it is cut down to.** The backtracker
+       * leaves connected corridors and those are already the tightest the room can be — closing one to
+       * meet a smaller number would sever the room it just guaranteed was whole. So a room asking for
+       * less than its own corridors give simply gets its corridors.
+       */
+      openShare: number;
+      walls: MapWallMix;
+    }>
+  | Readonly<{ generated: "open" }>
+  | Readonly<{ authored: readonly (readonly MapTileKind[])[] }>;
 
 export type MapRoom = Readonly<{
   /**
@@ -146,6 +181,24 @@ function record(value: unknown, label: string): Record<string, unknown> {
 function wholeNumber(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
     throw new TypeError(`${label} must be a whole number of cells or bodies.`);
+  }
+
+  return value;
+}
+
+/** One side of a ratio. Any non-negative number, because the pair is normalised rather than checked. */
+function positiveOrZero(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new TypeError(`${label} must be zero or more.`);
+  }
+
+  return value;
+}
+
+/** A share of something, which is a fraction between none of it and all of it. */
+function unitInterval(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new TypeError(`${label} must be a share between 0 and 1.`);
   }
 
   return value;
@@ -220,7 +273,7 @@ function parseScatter(value: unknown, label: string): MapScatter {
       ? {}
       : {
           pools: {
-            count: parseQuantity(record(source.pools, `${label}.pools`).count, `${label}.pools.count`),
+            share: unitInterval(record(source.pools, `${label}.pools`).share, `${label}.pools.share`),
             size: parseQuantity(record(source.pools, `${label}.pools`).size, `${label}.pools.size`),
           },
         }),
@@ -353,6 +406,18 @@ function waterEnclosesRegion(cells: readonly (readonly MapTileKind[])[], width: 
   return false;
 }
 
+function parseWallMix(value: unknown, label: string): MapWallMix {
+  const source = record(value, label);
+  const stone = positiveOrZero(source.stone, `${label}.stone`);
+  const wood = positiveOrZero(source.wood, `${label}.wood`);
+
+  if (stone + wood === 0) {
+    throw new TypeError(`${label} asks for neither stone nor timber, so a wall would be made of nothing.`);
+  }
+
+  return { stone, wood };
+}
+
 function parseStructure(value: unknown, label: string, width: number, height: number): MapRoomStructure {
   const source = record(value, label);
 
@@ -361,7 +426,21 @@ function parseStructure(value: unknown, label: string, width: number, height: nu
       throw new TypeError(`${label}.generated must be carved or open.`);
     }
 
-    return { generated: source.generated };
+    if (source.generated === "open") {
+      // Refused rather than ignored. A room that is floor throughout has no walls to make and nothing
+      // to open up, so either field on one is an author describing a room they did not write.
+      if (source.openShare !== undefined || source.walls !== undefined) {
+        throw new TypeError(`${label} is open floor throughout, so it has no openShare and no walls to mix.`);
+      }
+
+      return { generated: "open" };
+    }
+
+    return {
+      generated: "carved",
+      openShare: unitInterval(source.openShare, `${label}.openShare`),
+      walls: parseWallMix(source.walls, `${label}.walls`),
+    };
   }
 
   const authored = parseAuthoredCells(source.authored, `${label}.authored`, width, height);

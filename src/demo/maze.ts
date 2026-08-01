@@ -3,9 +3,9 @@
  *
  * A floor is a grid of boundary brick that its rooms paint themselves onto: the main region in the
  * middle, and a room in each side slot the map's draw filled. How a room paints is the room's own
- * declaration — carved by a recursive backtracker and then perforated so it reads as a dungeon rather
- * than a puzzle, open floor throughout for a room holding one piece of business, or the cells exactly
- * as somebody authored them.
+ * declaration — carved by a recursive backtracker and then opened up to the share of itself the room
+ * asked to be, so it reads as a dungeon rather than a puzzle; open floor throughout for a room holding
+ * one piece of business; or the cells exactly as somebody authored them.
  *
  * **The extent belongs to the floor, not to this module.** A floor carries its own width and height,
  * and the four accessors below are the only code anywhere that turns a coordinate into a flat index
@@ -21,7 +21,7 @@
 
 import type { ResolvedMap } from "@/content/maps/map-resolver";
 import { strandedGround, validateDrawnFloor, validateDrawnWalk } from "@/content/maps/map-schema";
-import type { MapCrowd, MapQuantity, MapRoom, MapRoomRole, MapTileKind } from "@/content/maps/room-schema";
+import type { MapCrowd, MapQuantity, MapRoom, MapRoomRole, MapTileKind, MapWallMix } from "@/content/maps/room-schema";
 
 /**
  * How much floor there is, in cells.
@@ -220,9 +220,6 @@ export const MORTAR_HP = 8;
 /** How high a thrown thing has to be flying to sail over a mortar rather than into it. */
 const MORTAR_CLEAR_HEIGHT = 0.85;
 
-/** Fraction of surviving interior walls knocked out after carving, to make loops and small rooms. */
-const PERFORATION_CHANCE = 0.16;
-const WOOD_SHARE = 0.42;
 /**
  * Bodies one water cell swallows before it is ground again.
  *
@@ -246,6 +243,11 @@ const SLOT_INWARD: Readonly<Record<DemoRoomSide, DemoCell>> = {
   west: { x: 1, y: 0 },
   east: { x: -1, y: 0 },
 };
+
+/** The cells a room actually holds, wall ring excluded. What every share a room states is taken of. */
+function interiorArea(block: DemoBlock): number {
+  return (block.width - 2) * (block.height - 2);
+}
 
 function blockCenter(block: DemoBlock): DemoCell {
   return { x: block.x + Math.floor((block.width - 1) / 2), y: block.y + Math.floor((block.height - 1) / 2) };
@@ -359,11 +361,18 @@ function floodPools(
   open: DemoCell[],
   block: DemoBlock,
   keepClear: ReadonlySet<number>,
-  wanted: Readonly<{ count: MapQuantity; size: MapQuantity }>,
+  wanted: Readonly<{ share: number; size: MapQuantity }>,
 ): void {
-  const pools = roll(wanted.count);
+  // A share of the room rather than a number of pools, so the same declaration reads the same in a
+  // room of any size. Pools of varying size adding to a fixed total still give a different number of
+  // pools in different shapes every floor, which is where the variety comes from now.
+  const target = Math.round(wanted.share * interiorArea(block));
+  // Bounded on attempts rather than successes: a room whose open cells are nearly all on a way
+  // between rooms can never reach its target, and the loop has to give up rather than spin.
+  const attempts = target * 4 + 8;
+  let wet = 0;
 
-  for (let pool = 0; pool < pools; pool += 1) {
+  for (let attempt = 0; attempt < attempts && wet < target; attempt += 1) {
     const seed = pick(open);
 
     if (!seed || tiles[tileIndex(extent, seed.x, seed.y)]?.kind !== "open") {
@@ -371,9 +380,15 @@ function floodPools(
     }
 
     const frontier: DemoCell[] = [seed];
-    const size = roll(wanted.size);
+    const size = Math.min(roll(wanted.size), target - wet);
 
-    for (let filled = 0; filled < size && frontier.length > 0; filled += 1) {
+    // A cell counts against the pool's size only once it is actually wet. The frontier holds the same
+    // cell more than once whenever two of its neighbours reached it, so counting attempts instead
+    // would quietly deliver a pool smaller than the one asked for — which did not matter when the
+    // declaration was a number of pools and does now that it is a number of cells.
+    let filled = 0;
+
+    while (filled < size && frontier.length > 0) {
       const cell = frontier.splice(Math.floor(Math.random() * frontier.length), 1)[0] as DemoCell;
       const tile = tiles[tileIndex(extent, cell.x, cell.y)];
 
@@ -382,6 +397,8 @@ function floodPools(
       }
 
       tile.kind = "water";
+      wet += 1;
+      filled += 1;
 
       for (const step of shuffled([
         { x: 1, y: 0 },
@@ -498,8 +515,9 @@ function borderTile(): DemoTile {
   return { kind: "border", hp: Number.POSITIVE_INFINITY, maxHp: Number.POSITIVE_INFINITY, bodies: 0 };
 }
 
-function wallTile(): DemoTile {
-  return Math.random() < WOOD_SHARE
+/** One wall, drawn against the room's own ratio. Normalised, so the two numbers need not sum to one. */
+function wallTile(walls: MapWallMix): DemoTile {
+  return Math.random() * (walls.stone + walls.wood) < walls.wood
     ? { kind: "wood", hp: WOOD_WALL_HP, maxHp: WOOD_WALL_HP, bodies: 0 }
     : { kind: "stone", hp: STONE_WALL_HP, maxHp: STONE_WALL_HP, bodies: 0 };
 }
@@ -561,19 +579,35 @@ function paintRoom(extent: DemoGridExtent, tiles: DemoTile[], block: DemoBlock, 
   const solid: boolean[] = Array.from({ length: gridArea(extent) }, () => true);
   carve(extent, solid, block);
 
-  // Perforated after the carve rather than instead of it: a backtracker leaves one route between any
-  // two cells, and knocking a share of the surviving walls out is what turns a puzzle into a dungeon.
+  // Opened up after the carve rather than instead of it: a backtracker leaves exactly one route
+  // between any two cells, and knocking walls out is what turns a puzzle into a dungeon.
+  //
+  // **The room's share is a floor, not a target to land on.** The corridors the carve left are
+  // already the tightest this room can be, so a room asking to be less open than that gets its
+  // corridors — closing one to meet a smaller number would sever the room the carve just guaranteed
+  // was whole.
+  const walls: DemoCell[] = [];
+  let openCells = 0;
+
   for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
     for (let x = block.x + 1; x < block.x + block.width - 1; x += 1) {
-      if (solid[tileIndex(extent, x, y)] && Math.random() < PERFORATION_CHANCE) {
-        solid[tileIndex(extent, x, y)] = false;
+      if (solid[tileIndex(extent, x, y)]) {
+        walls.push({ x, y });
+      } else {
+        openCells += 1;
       }
     }
   }
 
+  const wanted = Math.round(room.structure.openShare * interiorArea(block));
+
+  for (const cell of shuffled(walls).slice(0, Math.max(0, wanted - openCells))) {
+    solid[tileIndex(extent, cell.x, cell.y)] = false;
+  }
+
   for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
     for (let x = block.x + 1; x < block.x + block.width - 1; x += 1) {
-      tiles[tileIndex(extent, x, y)] = solid[tileIndex(extent, x, y)] ? wallTile() : openTile();
+      tiles[tileIndex(extent, x, y)] = solid[tileIndex(extent, x, y)] ? wallTile(room.structure.walls) : openTile();
     }
   }
 }
@@ -655,6 +689,13 @@ function isHazardKind(kind: DemoTileKind): boolean {
  * this a floor arrives with a room — sometimes the extraction room — that cannot be walked to at all.
  * Masonry is left alone on purpose: a wall in the way is the player's business and they have four
  * ways to open one. A pool is not, because filling one costs bodies the floor may not have yet.
+ *
+ * **This is why a room gets less of what it scattered than it asked for.** Every route cleared here
+ * gives back whatever stood on it, measured at roughly two cells per room attached — so the shipped
+ * region pours eighteen cells of water and keeps about thirteen, and its caltrops thin out the same
+ * way. Scattering after this pass instead of before it would deliver the declared amount exactly, at
+ * the cost of never putting anything on the routes between rooms, and that is a decision about how a
+ * floor should feel rather than a defect to be quietly patched here.
  *
  * Searches over floor and hazards together, which always succeeds: the carve leaves every open cell
  * in the main region on one tree, and every doorway was forced open onto it.

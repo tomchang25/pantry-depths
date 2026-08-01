@@ -12,10 +12,7 @@
   },
   "scatter": {
     "pools": {
-      "count": {
-        "minimum": 3,
-        "maximum": 6
-      },
+      "share": 0.05,
       "size": {
         "minimum": 1,
         "maximum": 4
@@ -36,6 +33,11 @@
     }
   },
   "structure": {
-    "generated": "carved"
+    "generated": "carved",
+    "openShare": 0.6,
+    "walls": {
+      "stone": 58,
+      "wood": 42
+    }
   }
 }
