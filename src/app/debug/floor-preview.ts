@@ -19,17 +19,20 @@ import type { DemoWorld } from "@/demo/world";
  *
  * This is a diagram and says so. The renderer beside it is what answers how a floor looks; if these
  * agreed with it, the two views would be the same view at two sizes.
+ *
+ * Exported because the palette an author paints from has to name the same colours: two tables held
+ * equal by whoever remembers to edit both is two tables that will disagree.
  */
-const TILE_COLOURS: Readonly<Record<MapTileKind, string>> = {
+export const TILE_COLOURS: Readonly<Record<MapTileKind, string>> = {
   open: "#2b3240",
   border: "#0a0c11",
   stone: "#7b8494",
   wood: "#9a6134",
   water: "#2f6fb5",
   barricade: "#c08a3e",
-  filled: "#454d5e",
+  filled: "#249e8c",
   mortar: "#b1522a",
-  trench: "#05070b",
+  trench: "#152a6e",
 };
 
 /** The largest a diagram cell is drawn, so a small floor does not fill the window with squares. */

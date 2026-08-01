@@ -21,7 +21,7 @@
 import { listCanonical, loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { actionButton, field, numberInput } from "@/app/debug/debug-form";
 import { createDebugPanel } from "@/app/debug/debug-shell";
-import { createFloorPreview } from "@/app/debug/floor-preview";
+import { createFloorPreview, TILE_COLOURS } from "@/app/debug/floor-preview";
 import { resolveMap } from "@/content/maps/map-resolver";
 import { parseMapSource } from "@/content/maps/map-schema";
 import { ROOM_LIBRARY } from "@/content/maps/room-library";
@@ -243,51 +243,50 @@ function optionalBlock(label: string, present: boolean, onToggle: (present: bool
   return wrapper;
 }
 
-/** What each kind is painted as in the palette and the grid, matching the diagram beside it. */
-const CELL_COLOURS: Readonly<Record<MapTileKind, string>> = {
-  open: "#2b3240",
-  border: "#0a0c11",
-  stone: "#7b8494",
-  wood: "#9a6134",
-  water: "#2f6fb5",
-  barricade: "#c08a3e",
-  filled: "#454d5e",
-  mortar: "#b1522a",
-  trench: "#05070b",
-};
-
 /**
- * Which kind the next click paints.
+ * Which kind the next stroke paints.
  *
- * Held across rebuilds of the form, because the form is rebuilt on every edit and an author painting a
- * run of water does not expect the brush to fall back to the first kind between two clicks.
+ * Module-level so it survives a room being closed and another opened. An author who picked water and
+ * then went to look at a different room does not expect to come back holding stone.
  */
 let brush: MapTileKind = "stone";
 
+type RoomPainter = Readonly<{
+  element: HTMLElement;
+  /** Shows these cells, rebuilding the buttons only when the extent has actually changed. */
+  show: (rows: MapTileKind[][]) => void;
+}>;
+
 /**
- * The cells themselves, one button each.
+ * The cells themselves, one button each, painted by holding the pointer down and moving.
+ *
+ * **Made once and kept, which is the whole of what makes a stroke work.** The first version of this was
+ * rebuilt by the form on every painted cell, and that destroyed the button under the cursor and reset
+ * the flag saying a stroke was in progress — so a drag painted exactly one cell and a run had to be
+ * clicked out. Nothing in the form depends on which cells are painted, so painting now recolours one
+ * button in place and asks only for the preview to be rebuilt.
  *
  * Buttons rather than a canvas because a cell is a thing to click, and a canvas would mean rebuilding
- * the hit-testing the browser already does. Holding the pointer down and moving paints a run.
+ * the hit-testing the browser already does.
  */
-function paintingGrid(rows: MapTileKind[][], onChange: (rows: MapTileKind[][]) => void): HTMLElement {
-  const wrapper = document.createElement("div");
+function createPainter(onPaint: (rows: MapTileKind[][]) => void): RoomPainter {
+  const element = document.createElement("div");
   const palette = document.createElement("div");
   const grid = document.createElement("div");
-  const width = rows[0]?.length ?? 0;
+  let cells: HTMLButtonElement[] = [];
+  let rows: MapTileKind[][] = [];
   let painting = false;
 
-  wrapper.className = "room-workbench-authored";
+  element.className = "room-workbench-authored";
   palette.className = "room-workbench-palette";
   grid.className = "room-workbench-grid";
-  grid.style.setProperty("--cells", String(width));
   grid.setAttribute("role", "group");
   grid.setAttribute("aria-label", "The room's cells");
 
   for (const kind of MAP_TILE_KINDS) {
     const swatch = actionButton(kind);
     swatch.className = "room-workbench-swatch";
-    swatch.style.setProperty("--swatch", CELL_COLOURS[kind]);
+    swatch.style.setProperty("--swatch", TILE_COLOURS[kind]);
     swatch.setAttribute("aria-pressed", String(kind === brush));
     swatch.addEventListener("click", () => {
       brush = kind;
@@ -299,6 +298,12 @@ function paintingGrid(rows: MapTileKind[][], onChange: (rows: MapTileKind[][]) =
     palette.append(swatch);
   }
 
+  const dress = (button: HTMLButtonElement, x: number, y: number, kind: MapTileKind): void => {
+    button.style.setProperty("--cell", TILE_COLOURS[kind]);
+    button.title = `${x}, ${y} — ${kind}`;
+    button.setAttribute("aria-label", `Cell ${x}, ${y}, ${kind}`);
+  };
+
   const paint = (x: number, y: number): void => {
     const row = rows[y];
 
@@ -306,39 +311,77 @@ function paintingGrid(rows: MapTileKind[][], onChange: (rows: MapTileKind[][]) =
       return;
     }
 
-    onChange(rows.map((cells, index) => (index === y ? cells.map((cell, at) => (at === x ? brush : cell)) : cells)));
-  };
+    const width = row.length;
+    rows = rows.map((line, index) => (index === y ? line.map((cell, at) => (at === x ? brush : cell)) : line));
+    const button = cells[y * width + x];
 
-  for (const [y, row] of rows.entries()) {
-    for (const [x, cell] of row.entries()) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "room-workbench-cell";
-      button.style.setProperty("--cell", CELL_COLOURS[cell]);
-      button.title = `${x}, ${y} — ${cell}`;
-      button.setAttribute("aria-label", `Cell ${x}, ${y}, ${cell}`);
-      button.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        painting = true;
-        paint(x, y);
-      });
-      button.addEventListener("pointerenter", () => {
-        if (painting) {
-          paint(x, y);
-        }
-      });
-      grid.append(button);
+    if (button) {
+      dress(button, x, y, brush);
     }
-  }
 
-  // On the window rather than the grid, so releasing the pointer outside it still ends the run.
-  const stop = (): void => {
-    painting = false;
+    onPaint(rows);
   };
-  window.addEventListener("pointerup", stop);
 
-  wrapper.append(palette, grid);
-  return wrapper;
+  const build = (): void => {
+    const width = rows[0]?.length ?? 0;
+    grid.style.setProperty("--cells", String(width));
+    cells = [];
+
+    for (const [y, row] of rows.entries()) {
+      for (const [x, cell] of row.entries()) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "room-workbench-cell";
+        dress(button, x, y, cell);
+        button.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          painting = true;
+          paint(x, y);
+        });
+        button.addEventListener("pointerenter", () => {
+          if (painting) {
+            paint(x, y);
+          }
+        });
+        cells.push(button);
+      }
+    }
+
+    grid.replaceChildren(...cells);
+  };
+
+  // On the window rather than the grid, so releasing the pointer outside it still ends the stroke. Added
+  // once, because this element is now made once — the version that rebuilt itself leaked one of these
+  // per painted cell.
+  window.addEventListener("pointerup", () => {
+    painting = false;
+  });
+
+  element.append(palette, grid);
+
+  return {
+    element,
+    show: (next) => {
+      const sameExtent = next.length === rows.length && (next[0]?.length ?? 0) === (rows[0]?.length ?? 0);
+      rows = next;
+
+      if (sameExtent && cells.length > 0) {
+        for (const [y, row] of rows.entries()) {
+          for (const [x, cell] of row.entries()) {
+            const button = cells[y * row.length + x];
+
+            if (button) {
+              dress(button, x, y, cell);
+            }
+          }
+        }
+
+        return;
+      }
+
+      build();
+    },
+  };
 }
 
 /** Builds the room tab, which owns its own draft, preview and saving and nothing else's. */
@@ -368,6 +411,9 @@ export function createRoomSurface(): HTMLElement {
   let draft: RoomDraft = {};
   let savedSource: string | undefined;
   let roomNames: readonly string[] = [];
+  let painter: RoomPainter | undefined;
+  /** Something worth saying about a room that is nonetheless legal, so it never blocks a save. */
+  let warning: string | undefined;
   let world: DemoWorld | undefined;
   let failure: string | undefined;
 
@@ -386,21 +432,21 @@ export function createRoomSurface(): HTMLElement {
    * The extent of the throwaway map is the room's own, which is what leaves no margin for a side room and
    * therefore nothing for the fit check to refuse.
    */
-  const rebuild = (): void => {
+  const rebuild = (keepForm = false): void => {
+    warning = undefined;
+
     try {
-      // Asked before the reader is, so a sealed region reports as the thing that is wrong rather than as
-      // whatever the reader happens to complain about first. It is the one refusal an author can paint
-      // their way into and the one the runtime repair cannot undo.
+      // A remark, not a refusal. An island in a pool is a floor that costs bodies to reach rather than
+      // one nobody can finish, and the assembly leaves an authored room's cells exactly as painted — so
+      // this says what was made without standing in the way of making it.
       const held = asRecord(draft.structure);
 
-      if (held.authored !== undefined) {
-        const rows = rowsOf(held.authored);
-
-        if (unfillableEnclosesRegion(rows, Number(draft.width ?? 0), Number(draft.height ?? 0))) {
-          throw new TypeError(
-            "These cells seal a region off: nothing could walk out of it, and neither water nor a trench can be filled in to reach it.",
-          );
-        }
+      if (
+        held.authored !== undefined &&
+        unfillableEnclosesRegion(rowsOf(held.authored), Number(draft.width ?? 0), Number(draft.height ?? 0))
+      ) {
+        warning =
+          "These cells seal a region off. Nothing walks into it, and only filling the water in reaches it — three bodies a cell. Saved as painted.";
       }
 
       const room: MapRoom = parseRoomSource(draft);
@@ -424,7 +470,7 @@ export function createRoomSurface(): HTMLElement {
       failure = error instanceof Error ? error.message : String(error);
     }
 
-    refresh();
+    refresh(keepForm);
   };
 
   const edit = (change: (draft: RoomDraft) => void): void => {
@@ -705,10 +751,14 @@ export function createRoomSurface(): HTMLElement {
     structureGrid.append(field("Structure", kindSelect));
 
     if (structure.authored !== undefined) {
-      fields.append(
-        structureGrid,
-        paintingGrid(rowsOf(structure.authored), (rows) => edit((next) => (next.structure = { authored: rows }))),
-      );
+      // Made once and kept, so a stroke is not cut short by its own first cell. Painting asks for the
+      // preview and nothing else, because no other field on this form depends on which cells are painted.
+      painter ??= createPainter((rows) => {
+        draft.structure = { authored: rows };
+        rebuild(true);
+      });
+      painter.show(rowsOf(structure.authored));
+      fields.append(structureGrid, painter.element);
       return;
     }
 
@@ -745,7 +795,7 @@ export function createRoomSurface(): HTMLElement {
     fields.append(structureGrid);
   };
 
-  const refresh = (): void => {
+  const refresh = (keepForm = false): void => {
     idInput.value = typeof draft.id === "string" ? draft.id : "";
     roomSelect.value = idInput.value;
     saveButton.disabled = failure !== undefined;
@@ -759,18 +809,24 @@ export function createRoomSurface(): HTMLElement {
         : roomNames.includes(idInput.value)
           ? `Save room (overwrites ${idInput.value})`
           : "Save room (new file)";
-    buildFields();
+
+    // Skipped mid-stroke: rebuilding the form detaches the grid being painted on, which is exactly what
+    // used to end a drag after its first cell.
+    if (!keepForm) {
+      buildFields();
+    }
 
     if (world) {
       preview.show(world, `Room ${idInput.value}`);
     }
 
-    status.dataset.tone = failure === undefined ? "success" : "error";
-    status.textContent =
-      failure ??
-      (world
-        ? `${idInput.value}: ${world.maze.width} by ${world.maze.height}, ${world.enemies.length} bodies standing.${dirty() ? " Unsaved." : ""}`
-        : "Nothing assembled yet.");
+    const built = world
+      ? `${idInput.value}: ${world.maze.width} by ${world.maze.height}, ${world.enemies.length} bodies standing.${dirty() ? " Unsaved." : ""}`
+      : "Nothing assembled yet.";
+    // A warning never hides a failure and never takes a save away: what is refused is said first, what
+    // is merely worth knowing is said when there is nothing to refuse.
+    status.dataset.tone = failure !== undefined ? "error" : warning !== undefined ? "warning" : "success";
+    status.textContent = failure ?? (warning === undefined ? built : `${built} ${warning}`);
   };
 
   const openRoom = (name: string): Promise<void> =>
@@ -833,7 +889,7 @@ export function createRoomSurface(): HTMLElement {
     savedSource = undefined;
     rebuild();
   });
-  drawAgain.addEventListener("click", rebuild);
+  drawAgain.addEventListener("click", () => rebuild());
   reloadButton.addEventListener("click", () => {
     run(reloadButton, "Reading the room from disk…", () => openRoom(String(draft.id ?? "")));
   });
