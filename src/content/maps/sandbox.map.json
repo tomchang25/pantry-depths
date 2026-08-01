@@ -1,0 +1,8 @@
+{
+  "name": "sandbox",
+  "width": 11,
+  "height": 11,
+  "fixed": [{ "slot": "main", "room": "sandbox" }],
+  "pool": [],
+  "draw": 0
+}

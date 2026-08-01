@@ -51,13 +51,16 @@ A sandbox: eleven cells square, one main region that fills it, floor throughout 
 
 It is also the proof this plan works, because it is a map the runtime discovers rather than imports, and its room is a file rather than a passage inside a map.
 
+**It could not be finished here, and it moved.** The sandbox loads, is discovered rather than imported, and holds nobody — every part of it this plan is responsible for. What it is not is empty: the code that assembles a floor scatters pools, caltrops, emplacements and loose kit into the main region from fixed constants, so an eleven-square room receives a thirty-five-square room's quantity, and nothing a room can declare says otherwise. Making it say so means moving those constants onto the room, which is a change to how a floor is assembled and is this plan's second non-goal. So the sandbox and the criterion asking it to be empty moved to `room_contents.plan.md`, which owns what a room holds, and this plan closed at two children.
+
 ### Children
 
-| Child | Focus                           | Form             |
-| ----- | ------------------------------- | ---------------- |
-| 03    | The sandbox map ships and plays | Spec via `/goal` |
+| Child | Focus                                                             | Form                                                         |
+| ----- | ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| 01    | Rooms become their own files, and reading splits from resolving   | `map_library_01_rooms_are_files.implementation_spec.md`      |
+| 02    | Maps and rooms are discovered, and the endpoint addresses by name | `map_library_02_discovery_and_naming.implementation_spec.md` |
 
-Landing order is 01 → 02 → 03. The first is a contract change proved by the existing run being unchanged; the second replaces how the contract's files are found; the third is the first thing that could not have existed before either. Children 01 and 02 have shipped; their specs are archived as `map_library_01_rooms_are_files.implementation_spec.md` and `map_library_02_discovery_and_naming.implementation_spec.md`.
+Both have shipped and both specs are archived. The third child — the sandbox — moved to `room_contents.plan.md` for the reason above.
 
 ## Non-Goals
 
@@ -76,20 +79,8 @@ Landing order is 01 → 02 → 03. The first is a contract change proved by the 
 3. A map naming a room nothing answers is refused when the map is read, and the message names the map and the missing room.
 4. A room no map names loads without complaint.
 5. A room declaring no crowd holds no bodies at the moment the floor is built and never gains one however long the run lasts.
-6. Starting the game with the sandbox named plays an empty walled room, eleven cells square, with nothing in it and nothing arriving.
-7. The endpoint reads and writes a map or a room chosen by name, and refuses a name that is not a plain slug or that would reach outside its directory.
-8. Adding a map file or a room file to the working tree makes it available without any source file being edited.
-9. The verification gate passes at every child, and no test file is added.
+6. The endpoint reads and writes a map or a room chosen by name, and refuses a name that is not a plain slug or that would reach outside its directory.
+7. Adding a map file or a room file to the working tree makes it available without any source file being edited.
+8. The verification gate passes at every child, and no test file is added.
 
-## Execution
-
-Perishable: this records the codebase on 2026-08-01. Re-check every coordinate against live code before acting on it.
-
-Child 01 and 02 land mostly in `src/content/` and `dev/tools/`, which keep full ceremony; child 03 is a content file plus a look. No child adds a test. `test/unit/dev/tools/authoring/authoring-api.test.ts` asserts the target whitelist and will break when the targets change — updating it is not adding a test and needs no permission, per `dev/agent_rules/test_operations.md`.
-
-### Child 03 — The sandbox
-
-- `src/content/rooms/` gains a room: eleven by eleven, `{ generated: "open" }`, no crowd. Eleven includes the wall ring, so nine by nine of floor.
-- `src/content/maps/` gains `sandbox`: eleven by eleven, one fixed placement in the main slot naming that room, an empty pool, a draw of zero.
-- The margin check in the resolver computes `(gridAlong - mainAlong) / 2`, which is zero here — an integer, and legal. With no side rooms nothing else is checked.
-- Verify by opening it: the address names the sandbox, the run starts, the room is empty, and it stays empty. `npm run capture` is available but this one is judged by standing in it.
+Every one of these was met. The criterion asking the sandbox to play an empty room moved to `room_contents.plan.md` with the sandbox itself.

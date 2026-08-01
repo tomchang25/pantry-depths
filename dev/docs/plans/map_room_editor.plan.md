@@ -79,7 +79,7 @@ Every criterion below is judged by a person using the tool. None is automated, a
 
 ## Execution
 
-Perishable: this records the codebase on 2026-08-01. Re-check every coordinate against live code before acting on it. This plan cannot start until `dev/docs/plans/map_library.plan.md` has landed: until a room is its own file and the endpoint can address one by name, there is nothing for this tool to write.
+Perishable: this records the codebase on 2026-08-01. Re-check every coordinate against live code before acting on it. What this plan was waiting for has landed — a room is its own file, both libraries are discovered rather than listed, and the endpoint reads and writes either by name. The library is at `dev/docs/archived/map_library.plan.md`. Note that `dev/docs/plans/room_contents.plan.md` is still adding fields to the room file, so a tool built before it lands will need a second pass over whatever it edits.
 
 ### What to build on
 
