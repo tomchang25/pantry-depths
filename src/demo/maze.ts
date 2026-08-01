@@ -21,7 +21,7 @@
 
 import type { ResolvedMap } from "@/content/maps/map-resolver";
 import { validateDrawnFloor } from "@/content/maps/map-schema";
-import type { MapCrowd, MapRoom, MapRoomRole, MapTileKind } from "@/content/maps/room-schema";
+import type { MapCrowd, MapQuantity, MapRoom, MapRoomRole, MapTileKind } from "@/content/maps/room-schema";
 
 /**
  * How much floor there is, in cells.
@@ -211,7 +211,6 @@ export const WOOD_WALL_HP = 2;
  * you can walk around it — and destroying one is giving up the free kills it would have handed you.
  */
 export const BARRICADE_HP = 8;
-const BARRICADE_COUNT = { minimum: 4, maximum: 7 };
 
 /**
  * The floor's own artillery: a squat mortar on a carriage that shells whatever is standing in the open.
@@ -222,15 +221,12 @@ const BARRICADE_COUNT = { minimum: 4, maximum: 7 };
  * range across the whole floor.
  */
 export const MORTAR_HP = 8;
-const MORTAR_COUNT = { minimum: 2, maximum: 3 };
 /** How high a thrown thing has to be flying to sail over a mortar rather than into it. */
 const MORTAR_CLEAR_HEIGHT = 0.85;
 
 /** Fraction of surviving interior walls knocked out after carving, to make loops and small rooms. */
 const PERFORATION_CHANCE = 0.16;
 const WOOD_SHARE = 0.42;
-const POOL_COUNT = { minimum: 3, maximum: 6 };
-const POOL_SIZE = { minimum: 1, maximum: 4 };
 /**
  * Bodies one water cell swallows before it is ground again.
  *
@@ -283,8 +279,21 @@ export function gridArea(extent: DemoGridExtent): number {
   return extent.width * extent.height;
 }
 
+/**
+ * A whole number somewhere between two ends, inclusive.
+ *
+ * **Draws nothing when there is nothing to choose between.** A seeded run reproduces a floor only if
+ * every roll happens the same number of times in the same order, so a range whose ends are equal has to
+ * cost no randomness — otherwise stating a fixed quantity as a one-value range, which is exactly how an
+ * exact number migrates out of code and into a room file, silently moves every later roll.
+ */
 function between(minimum: number, maximum: number): number {
-  return minimum + Math.floor(Math.random() * (maximum - minimum + 1));
+  return minimum >= maximum ? minimum : minimum + Math.floor(Math.random() * (maximum - minimum + 1));
+}
+
+/** What a quantity a room stated comes to on this particular floor. A bare number costs no randomness. */
+export function roll(quantity: MapQuantity): number {
+  return typeof quantity === "number" ? quantity : between(quantity.minimum, quantity.maximum);
 }
 
 function pick<T>(values: readonly T[]): T | undefined {
@@ -354,8 +363,9 @@ function floodPools(
   open: DemoCell[],
   block: DemoBlock,
   keepClear: ReadonlySet<number>,
+  wanted: Readonly<{ count: MapQuantity; size: MapQuantity }>,
 ): void {
-  const pools = between(POOL_COUNT.minimum, POOL_COUNT.maximum);
+  const pools = roll(wanted.count);
 
   for (let pool = 0; pool < pools; pool += 1) {
     const seed = pick(open);
@@ -365,7 +375,7 @@ function floodPools(
     }
 
     const frontier: DemoCell[] = [seed];
-    const size = between(POOL_SIZE.minimum, POOL_SIZE.maximum);
+    const size = roll(wanted.size);
 
     for (let filled = 0; filled < size && frontier.length > 0; filled += 1) {
       const cell = frontier.splice(Math.floor(Math.random() * frontier.length), 1)[0] as DemoCell;
@@ -408,8 +418,8 @@ function floodPools(
  * onto is only interesting where the fighting happens, and where the fighting happens is not where
  * the walls were.
  */
-function scatterBarricades(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCell[]): void {
-  const wanted = between(BARRICADE_COUNT.minimum, BARRICADE_COUNT.maximum);
+function scatterBarricades(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCell[], quantity: MapQuantity): void {
+  const wanted = roll(quantity);
   const placed: DemoCell[] = [];
   const pool = shuffled(open);
 
@@ -444,8 +454,8 @@ function scatterBarricades(extent: DemoGridExtent, tiles: DemoTile[], open: Demo
  * same patch of floor and turn a readable hazard into a coin flip. The floor is small enough that a
  * handful of them reach everywhere between them.
  */
-function scatterMortars(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCell[]): void {
-  const wanted = between(MORTAR_COUNT.minimum, MORTAR_COUNT.maximum);
+function scatterMortars(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCell[], quantity: MapQuantity): void {
+  const wanted = roll(quantity);
   const placed: DemoCell[] = [];
 
   for (const cell of shuffled(open)) {
@@ -811,20 +821,47 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
   const rooms: readonly DemoRoom[] = [roomOn(mainBlock, main), ...sideRooms];
   const byRole = new Map(sideRooms.map((room) => [room.role, room]));
 
-  // Hazards belong to the main region. A pool in the hot spring or caltrops around an altar is not a
-  // decision, it is noise on top of the one thing that room is for.
-  const scatterable = walkableCells(extent, tiles, mainBlock).filter(
-    (cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)),
-  );
-  floodPools(extent, tiles, scatterable, mainBlock, keepClear);
-  const afterPools = walkableCells(extent, tiles, mainBlock).filter(
-    (cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)),
-  );
-  scatterBarricades(extent, tiles, afterPools);
-  const afterBarricades = walkableCells(extent, tiles, mainBlock).filter(
-    (cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)),
-  );
-  scatterMortars(extent, tiles, afterBarricades);
+  // Each room is furnished with what it asked for and nothing else, so a room that asked for nothing
+  // draws no random number at all. That a pool in the hot spring or caltrops around an altar is noise
+  // on top of the one thing that room is for is still true — it is now the four side rooms saying so
+  // in their own files rather than this loop saying it for them.
+  //
+  // The main region comes first and each thing is placed over a freshly recomputed list of free cells,
+  // which is the order a seeded floor was drawn in before any of this was authorable.
+  const furnished: readonly Readonly<{ block: DemoBlock; room: MapRoom }>[] = [
+    { block: mainBlock, room: main },
+    ...fixedSides.map((placement) => ({
+      block: blockForSlot(map, placement.slot as DemoRoomSide, placement.room, main),
+      room: placement.room,
+    })),
+    ...placedSides.map((placed) => ({
+      block: blockForSlot(map, placed.side, placed.room, main),
+      room: placed.room,
+    })),
+  ];
+
+  for (const { block, room } of furnished) {
+    const scatter = room.scatter;
+
+    if (!scatter) {
+      continue;
+    }
+
+    const free = (): DemoCell[] =>
+      walkableCells(extent, tiles, block).filter((cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)));
+
+    if (scatter.pools) {
+      floodPools(extent, tiles, free(), block, keepClear, scatter.pools);
+    }
+
+    if (scatter.barricades !== undefined) {
+      scatterBarricades(extent, tiles, free(), scatter.barricades);
+    }
+
+    if (scatter.mortars !== undefined) {
+      scatterMortars(extent, tiles, free(), scatter.mortars);
+    }
+  }
 
   // Both the arrival and the descent stand in the main region, because descending is the main
   // region's business and a room only ever holds one thing.

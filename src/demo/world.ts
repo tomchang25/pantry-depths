@@ -27,6 +27,7 @@ import {
   holdsStains,
   isInsideGrid,
   isWaterCell,
+  roll,
   sinkBody,
   standingRoom,
   tileIndex,
@@ -536,12 +537,6 @@ export function crowdHere(world: DemoWorld): DemoCrowd {
   return standingRoom(world.maze, Math.floor(world.player.x), Math.floor(world.player.y)).crowd;
 }
 
-const LOOSE_PROPS: readonly Readonly<{ kind: DemoPropKind; scatter: number }>[] = [
-  { kind: "stick", scatter: 4 },
-  { kind: "rock", scatter: 5 },
-  { kind: "bomb", scatter: 2 },
-];
-
 export const AMMO_KINDS: readonly DemoPropKind[] = ["stick", "rock", "bomb"];
 
 export function randomAmmo(): DemoPropKind {
@@ -737,17 +732,34 @@ export function populateFloor(world: DemoWorld): void {
     world.enemies.push(createEnemy(world, cell.x + 0.5, cell.y + 0.5));
   }
 
+  // Kit is the floor's rather than any one room's: it lands anywhere walkable, side rooms included. So
+  // the room standing in the main slot is what declares it — that is the one room every map has, and
+  // the alternative, a share per room, would move every piece on every floor a seed has ever drawn.
+  const kit = world.map.fixed.find((placement) => placement.slot === "main")?.room.scatter?.props;
+
+  if (!kit) {
+    return;
+  }
+
   const propPool = walkableCells(maze);
 
-  for (const group of LOOSE_PROPS) {
-    for (let index = 0; index < group.scatter; index += 1) {
+  for (const [kind, quantity] of Object.entries(kit)) {
+    const wanted = roll(quantity);
+
+    for (let index = 0; index < wanted; index += 1) {
       const cell = takeRandom(propPool);
 
       if (!cell) {
         break;
       }
 
-      world.props.push({ id: nextId(world, "prop"), kind: group.kind, count: 3, x: cell.x + 0.5, y: cell.y + 0.5 });
+      world.props.push({
+        id: nextId(world, "prop"),
+        kind: kind as DemoPropKind,
+        count: 3,
+        x: cell.x + 0.5,
+        y: cell.y + 0.5,
+      });
     }
   }
 }

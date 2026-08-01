@@ -14,7 +14,12 @@
  * and four roles and invent nothing: a room that needed a tile the game cannot walk on, see through, or
  * shoot past would be describing a game that does not exist. The half that may import both is the half
  * that holds the two lists equal.
+ *
+ * The kit that lies on a floor is the exception, and only because it already had a home: its kinds are
+ * the presentation layer's, which is content, so they are imported rather than restated.
  */
+
+import { PROP_KINDS, type PropKind } from "@/content/presentation/prop-display-schema";
 
 export const MAP_TILE_KINDS = ["open", "border", "stone", "wood", "water", "barricade", "filled", "mortar"] as const;
 
@@ -29,6 +34,42 @@ const MIN_ROOM_EXTENT = 3;
 
 /** What a room's identity may look like. The same shape a map name takes, and for the same reason. */
 export const ROOM_ID_PATTERN = /^[a-z][\da-z-]*$/;
+
+/**
+ * A number a room states, which may be one value or two ends to choose between.
+ *
+ * The bare number stays legal and stays the common case, because most quantities have one right value
+ * and a range around it would be noise. What the range buys is the quantities that should not be
+ * identical on every floor.
+ *
+ * The two forms are kept as written rather than normalised into one, because the authoring endpoint
+ * writes a validator's return value verbatim into the file it validated — a reader that helpfully
+ * turned every number into a range would rewrite every file it touched.
+ */
+export type MapRange = Readonly<{ minimum: number; maximum: number }>;
+
+export type MapQuantity = number | MapRange;
+
+/**
+ * What is scattered into a room, beyond the bodies walking in it.
+ *
+ * Optional throughout, and absent means none of that thing — the same rule the crowd follows, for the
+ * same reason: a room meant to hold nothing needs a way to say so, and a count of zero is a different
+ * statement from an absence.
+ *
+ * Loose kit is the odd one out and deliberately so. The other three are placed inside one room's own
+ * block; kit is scattered across the whole floor from one pool of cells, side rooms included. It is
+ * therefore declared by whichever room stands in a map's main slot and applies to the floor, not to
+ * that room — making it per-room would move every piece of kit on every floor a seed has ever drawn.
+ */
+export type MapScatter = Readonly<{
+  /** How many pools, and how many cells each grows to. */
+  pools?: Readonly<{ count: MapQuantity; size: MapQuantity }>;
+  barricades?: MapQuantity;
+  mortars?: MapQuantity;
+  /** How much of each kind lies on the floor. Read only from a map's main room. */
+  props?: Readonly<Partial<Record<PropKind, MapQuantity>>>;
+}>;
 
 export type MapCrowd = Readonly<{
   /** The most bodies walking in this room at once. */
@@ -71,6 +112,8 @@ export type MapRoom = Readonly<{
    * something that never happens, which is a different statement from "nothing lives here".
    */
   crowd?: MapCrowd;
+  /** What is put on its floor beyond the bodies. Absent means nothing is. */
+  scatter?: MapScatter;
   structure: MapRoomStructure;
 }>;
 
@@ -88,6 +131,57 @@ function wholeNumber(value: unknown, label: string): number {
   }
 
   return value;
+}
+
+function parseQuantity(value: unknown, label: string): MapQuantity {
+  if (typeof value === "number") {
+    return wholeNumber(value, label);
+  }
+
+  const source = record(value, label);
+  const minimum = wholeNumber(source.minimum, `${label}.minimum`);
+  const maximum = wholeNumber(source.maximum, `${label}.maximum`);
+
+  if (minimum > maximum) {
+    throw new TypeError(`${label} runs from ${minimum} down to ${maximum}, which is no range at all.`);
+  }
+
+  return { minimum, maximum };
+}
+
+function parseProps(value: unknown, label: string): Readonly<Partial<Record<PropKind, MapQuantity>>> {
+  const source = record(value, label);
+  const parsed: Partial<Record<PropKind, MapQuantity>> = {};
+
+  // Walked in the file's own order rather than the vocabulary's, because the order kit is scattered in
+  // is the order it is written in, and a reader that sorted it would move every piece on a seeded floor.
+  for (const [kind, quantity] of Object.entries(source)) {
+    if (!PROP_KINDS.includes(kind as PropKind)) {
+      throw new TypeError(`${label} names "${kind}", which is not a kind of thing that lies on a floor.`);
+    }
+
+    parsed[kind as PropKind] = parseQuantity(quantity, `${label}.${kind}`);
+  }
+
+  return parsed;
+}
+
+function parseScatter(value: unknown, label: string): MapScatter {
+  const source = record(value, label);
+
+  return {
+    ...(source.pools === undefined
+      ? {}
+      : {
+          pools: {
+            count: parseQuantity(record(source.pools, `${label}.pools`).count, `${label}.pools.count`),
+            size: parseQuantity(record(source.pools, `${label}.pools`).size, `${label}.pools.size`),
+          },
+        }),
+    ...(source.barricades === undefined ? {} : { barricades: parseQuantity(source.barricades, `${label}.barricades`) }),
+    ...(source.mortars === undefined ? {} : { mortars: parseQuantity(source.mortars, `${label}.mortars`) }),
+    ...(source.props === undefined ? {} : { props: parseProps(source.props, `${label}.props`) }),
+  };
 }
 
 function parseCrowd(value: unknown, label: string): MapCrowd {
@@ -256,6 +350,7 @@ export function parseRoomSource(value: unknown): MapRoom {
     width,
     height,
     ...(source.crowd === undefined ? {} : { crowd: parseCrowd(source.crowd, `${label} crowd`) }),
+    ...(source.scatter === undefined ? {} : { scatter: parseScatter(source.scatter, `${label} scatter`) }),
     structure: parseStructure(source.structure, `${label} structure`, width, height),
   };
 }

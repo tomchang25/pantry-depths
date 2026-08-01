@@ -58,12 +58,11 @@ An empty room, eleven cells square, with nothing standing in it and nothing arri
 
 | Child | Focus                                                             | Form              |
 | ----- | ----------------------------------------------------------------- | ----------------- |
-| 01    | A room declares what is scattered into it, and the sandbox ships  | Spec              |
 | 02    | A room declares how its bodies start and how they arrive          | Spec              |
 | 03    | No floor holds ground nothing can walk to                         | Spec              |
 | 04    | Terrain is a share of the room, and unfillable ground is authored | Sketch, then spec |
 
-Landing order is 01 → 02 → 03 → 04. The first two move quantities from code to content and are proved by nothing changing; the third adds a guarantee neither of them needed but the fourth cannot do without; the fourth is the only one that changes what a floor looks like.
+Landing order is 01 → 02 → 03 → 04. The first two move quantities from code to content and are proved by nothing changing; the third adds a guarantee neither of them needed but the fourth cannot do without; the fourth is the only one that changes what a floor looks like. Child 01 has shipped; its spec is archived as `room_contents_01_a_room_declares_its_scatter.implementation_spec.md`.
 
 **This plan is not goal-executable.** Child 04 carries taste — what share of a room should be water, and whether unfillable ground earns its place at all — and a child whose shape is open is a stop that has to be taken rather than written down. Children 01 through 03 may be authorized to run continuously if that is wanted; the fourth needs its own conversation first.
 
@@ -95,17 +94,6 @@ Perishable: this records the codebase on 2026-08-01, immediately after `map_libr
 Every child lands in `src/content/maps/room-schema.ts` and `src/demo/`. The demo half is verified by playing it and by `npm run verify`; there is no automated coverage for `src/demo/` and none is to be added.
 
 **One constraint applies to every child and is easy to miss.** `npm run capture` seeds `Math.random`, and `buildDemoFloor` already records that the draw's position in the random sequence is load-bearing. Every roll this plan adds must therefore be skipped when a range's two ends are equal — `between` in `src/demo/maze.ts` (about line 286) consumes a random number even when minimum equals maximum, so a range of 14 to 14 would shift every subsequent roll and change every seeded picture. Short-circuit it, and give every migrated file today's exact numbers as equal-ended ranges, and the sequence is untouched.
-
-### Child 01 — A room declares what is scattered into it
-
-- The constants to move, all in `src/demo/maze.ts`: `POOL_COUNT` and `POOL_SIZE` (about line 232), `BARRICADE_COUNT` (214), `MORTAR_COUNT` (225). Their consumers are `floodPools` (about line 351), `scatterBarricades` (411) and `scatterMortars` (447), each of which reads its constant on its first line and is otherwise already parameterised by the block it is given.
-- `LOOSE_PROPS` is in `src/demo/world.ts` (about line 539) and is the expensive third of this child. It is consumed in `populateFloor` (about line 740) over `walkableCells(maze)` — the whole floor, not a block — so moving it per-room means the prop loop has to walk the floor's rooms instead. `DemoMaze` already carries `rooms`, each with inclusive interior bounds, so the information is present; what is missing is a per-room cell list, and `walkableCells` in `src/demo/maze.ts` (about line 473) already takes a block and is not exported.
-- `buildDemoFloor` (about line 768) calls the three scatters against `mainBlock` only, between the doorways being opened and the entrance being picked. **Keep that position.** Running them per-room means iterating rooms there instead; iterate with the main region first and the side rooms in the order they were assembled, and give the side rooms no scatter, so the number of rolls and their order are what they are today.
-- New room-file shape: an optional `scatter`, holding optional `pools`, `barricades`, `mortars` and `props`. Absent means none, exactly as `crowd` already works — see `parseRoomSource` in `src/content/maps/room-schema.ts` and the `...(source.crowd === undefined ? {} : ...)` spread it ends with.
-- The room-or-range reader belongs in `room-schema.ts` beside the crowd reader and is reused by child 02. A bare number and a `{ minimum, maximum }` pair are both legal; the parser must answer the shape the file held, because the authoring endpoint writes its return value verbatim.
-- `src/content/rooms/main-region.room.json` receives today's constants as equal-ended ranges. The four side rooms receive no `scatter` key at all, which is what makes the current "hazards belong to the main region" comment in `buildDemoFloor` a content statement rather than a code one — delete the comment's rule, keep its reasoning in the plan.
-- The sandbox is `src/content/rooms/sandbox.room.json` and `src/content/maps/sandbox.map.json`, both already written and uncommitted in the working tree. They need no edit: they already declare no crowd and no scatter. They ship with this child.
-- Verify by opening `?map=sandbox` and confirming the floor is empty, then the default map and confirming it is not.
 
 ### Child 02 — A room declares how its bodies start and how they arrive
 
