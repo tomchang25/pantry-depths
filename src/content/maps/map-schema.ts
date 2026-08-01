@@ -75,6 +75,14 @@ export type DrawnFloor = Readonly<{
   exit: Readonly<{ x: number; y: number }>;
   /** The rooms this draw put on the floor, so a refusal names the combination that failed. */
   drawnRoomIds: readonly string[];
+  /**
+   * Cells an author placed by hand, as indices into `tiles`.
+   *
+   * The one thing that separates a floor shape somebody meant from one nobody did. Ground an author
+   * sealed off is a design that costs bodies to reach; the same shape a generator arrived at is a
+   * defect. Only the second is repaired, and only the second is refused.
+   */
+  authoredCells: readonly number[];
 }>;
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -268,14 +276,20 @@ export function strandedGround(floor: DrawnFloor): readonly Readonly<{ x: number
 }
 
 /**
- * Refuses a floor holding ground nothing can walk to.
+ * Refuses a floor holding ground nothing can walk to, unless an author put it there.
  *
  * Runs after the assembly has had its chance to repair one, which is what makes this a check on the
- * repair rather than a coin toss on whether a run starts. A floor reaching here with ground cut off is
- * a bug in whatever built it.
+ * repair rather than a coin toss on whether a run starts. A floor reaching here with generated ground
+ * cut off is a bug in whatever built it.
+ *
+ * **An author's cells are exempt, and that is the whole of the exemption.** A room painted cell by cell
+ * may hold an island in a pool, which is a floor that costs three bodies a cell to reach rather than a
+ * floor nobody can finish. Nothing a generator produced is exempt, so the guarantee this was written
+ * for still holds everywhere it was written for.
  */
 export function validateDrawnWalk(floor: DrawnFloor): void {
-  const stranded = strandedGround(floor);
+  const authored = new Set(floor.authoredCells);
+  const stranded = strandedGround(floor).filter((cell) => !authored.has(cell.y * floor.width + cell.x));
   const first = stranded[0];
 
   if (first) {

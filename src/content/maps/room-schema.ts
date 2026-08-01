@@ -371,14 +371,16 @@ function parseAuthoredCells(
  * open one; unfillable ground is not, because closing a pool costs bodies the floor may not have yet
  * and closing a trench is impossible. So a region walled off is legal and a region moated off is not.
  *
- * **This is the only thing standing between an author and an unwinnable floor.** The runtime repair
- * that opens water to reach stranded ground cannot open a trench, so a room that seals itself with
- * one has to be refused here, when it is saved, rather than discovered when somebody plays it.
+ * **This answers a question; it no longer refuses the file.** It used to, on the grounds that a sealed
+ * region is an unwinnable floor — but that is true of a generator's mistake and not of an author's
+ * decision. An island in the middle of a pool is a floor that costs bodies to reach, which is a design;
+ * the same shape arrived at by a generator is a floor nobody meant, which is a defect. The project
+ * already draws that line for unfillable ground itself — a generator may not place it and an author
+ * may — and this is the same line one step further out.
  *
- * Exported so a tool painting these cells can ask the same question of a grid that is not a room file
- * yet. An author who only learns this at save time learns it after the change that caused it has
- * scrolled out of sight, and a second copy of the walk in the tool is exactly the drift the split
- * between reading and resolving exists to prevent.
+ * So the refusal moved to where it can tell the two apart: the assembly repairs and refuses stranded
+ * ground in generated rooms, and leaves an authored room's cells exactly as they were painted. What is
+ * left here is a warning an editor shows while an author paints, which is the moment it is useful.
  */
 export function unfillableEnclosesRegion(
   cells: readonly (readonly MapTileKind[])[],
@@ -480,13 +482,9 @@ function parseStructure(value: unknown, label: string, width: number, height: nu
     };
   }
 
-  const authored = parseAuthoredCells(source.authored, `${label}.authored`, width, height);
-
-  if (unfillableEnclosesRegion(authored, width, height)) {
-    throw new TypeError(`${label}.authored encloses a region no body could walk out of or fill its way into.`);
-  }
-
-  return { authored };
+  // Deliberately not refused for enclosing a region. See `unfillableEnclosesRegion`: an author sealing
+  // one off is a design the assembly honours, and a generator doing it is a defect the assembly repairs.
+  return { authored: parseAuthoredCells(source.authored, `${label}.authored`, width, height) };
 }
 
 /**

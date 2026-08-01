@@ -792,7 +792,12 @@ function clearWalkToRooms(extent: DemoGridExtent, tiles: DemoTile[], from: DemoC
  * that will still be there afterwards would report a repair that did not happen. Ground sealed behind
  * a trench is refused when the room file is saved, which is why nothing here has to cope with it.
  */
-function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: DemoCell): void {
+function openStrandedGround(
+  extent: DemoGridExtent,
+  tiles: DemoTile[],
+  from: DemoCell,
+  authored: ReadonlySet<number>,
+): void {
   const kinds = (): MapTileKind[] => tiles.map((tile) => tile.kind);
   const STEPS: readonly DemoCell[] = [
     { x: 1, y: 0 },
@@ -802,6 +807,8 @@ function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: Dem
   ];
 
   for (let pass = 0; pass < 16; pass += 1) {
+    // Ground an author sealed off is left exactly as painted: an island in a pool is a design, and
+    // cutting a channel to it would be this pass quietly editing somebody's room.
     const stranded = strandedGround({
       mapName: "",
       width: extent.width,
@@ -810,7 +817,8 @@ function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: Dem
       entrance: from,
       exit: from,
       drawnRoomIds: [],
-    });
+      authoredCells: [],
+    }).filter((cell) => !authored.has(tileIndex(extent, cell.x, cell.y)));
 
     if (stranded.length === 0) {
       return;
@@ -845,7 +853,8 @@ function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: Dem
     }
 
     // The same search again, this time allowed through water — but never through a trench, which no
-    // walk back could open. Every stranded cell water shut in therefore has a route home.
+    // walk back could open, and never through an author's own cells, which this pass may not edit.
+    // Every stranded cell a generator's water shut in therefore has a route home.
     const cameFrom = new Map<number, number>();
     const wetQueue: number[] = [tileIndex(extent, from.x, from.y)];
     const wet = new Set<number>(wetQueue);
@@ -865,7 +874,7 @@ function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: Dem
         const next = tileIndex(extent, nextX, nextY);
         const kind = tiles[next]?.kind;
 
-        if (kind === undefined || kind === "border" || kind === "trench" || wet.has(next)) {
+        if (kind === undefined || kind === "border" || kind === "trench" || wet.has(next) || authored.has(next)) {
           continue;
         }
 
@@ -1029,6 +1038,23 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
     }
   }
 
+  // Which cells a person placed by hand, so the repair below and the refusal after it can tell a design
+  // from a defect. Empty for every floor built out of generated rooms, which is every floor shipped
+  // today — so nothing about how those are assembled or repaired moves.
+  const authoredCells = new Set<number>();
+
+  for (const { block, room } of furnished) {
+    if (!("authored" in room.structure)) {
+      continue;
+    }
+
+    for (let y = block.y; y < block.y + block.height; y += 1) {
+      for (let x = block.x; x < block.x + block.width; x += 1) {
+        authoredCells.add(tileIndex(extent, x, y));
+      }
+    }
+  }
+
   // Both the arrival and the descent stand in the main region, because descending is the main
   // region's business and a room only ever holds one thing.
   const open = walkableCells(extent, tiles, mainBlock);
@@ -1037,7 +1063,7 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
   // After the walks to the rooms, because that pass opens hazards along them and so frees some ground
   // for nothing. The descent is drawn from cells captured before both, which is safe: neither can turn
   // open ground into anything else.
-  openStrandedGround(extent, tiles, entrance);
+  openStrandedGround(extent, tiles, entrance, authoredCells);
   const away = open.filter((cell) => cell.x !== entrance.x || cell.y !== entrance.y);
   const exit = pick(away) ?? entrance;
   const altar = byRole.get("cursedAltar")?.center ?? entrance;
@@ -1055,6 +1081,7 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
     entrance,
     exit,
     drawnRoomIds: drawn.map((room) => room.id),
+    authoredCells: [...authoredCells],
   };
   validateDrawnFloor(drawnFloor);
   validateDrawnWalk(drawnFloor);
