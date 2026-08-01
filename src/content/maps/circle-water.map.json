@@ -1,0 +1,13 @@
+{
+  "name": "circle-water",
+  "width": 15,
+  "height": 15,
+  "fixed": [
+    {
+      "slot": "main",
+      "room": "circle-water"
+    }
+  ],
+  "pool": [],
+  "draw": 0
+}
