@@ -25,16 +25,18 @@ type AuthoringResponse = Readonly<{ status: number; body: unknown }>;
  * new values on screen. Reading the file back is a button in each workbench rather than something the
  * watcher does behind everyone's back.
  *
- * Derived from the whitelist so a target added later is covered without anybody remembering to. A
- * directory target becomes a glob over the directory, because the files in one are not known in
- * advance — being able to add one without restarting anything is the point of a library.
+ * Derived from the whitelist so a target added later is covered without anybody remembering to.
+ *
+ * **The directory targets are deliberately still watched.** Maps and rooms are a library, and the
+ * watcher is the only thing that notices a file appearing in one — ignore the directory and a map
+ * dropped into it is invisible until the server restarts, which is the exact failure a library is
+ * supposed to be free of. The reload this trades away is the one a save from a map or room workbench
+ * would cause, and no such workbench exists yet; when one does, that is the change that should weigh
+ * the two against each other.
  */
-const UNWATCHED_AUTHORED_FILES = Object.values(CANONICAL_AUTHORING_PATHS).map((entry) => {
-  const file = "file" in entry ? entry.file : `${entry.directory}/`;
-  // The watcher matches with picomatch, which only speaks posix, so a Windows path is spelled forwards.
-  const absolute = fileURLToPath(new URL(file, import.meta.url)).replaceAll("\\", "/");
-  return "file" in entry ? absolute : `${absolute}**`;
-});
+const UNWATCHED_AUTHORED_FILES = Object.values(CANONICAL_AUTHORING_PATHS).flatMap((entry) =>
+  "file" in entry ? [fileURLToPath(new URL(entry.file, import.meta.url))] : [],
+);
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
