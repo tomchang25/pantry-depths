@@ -506,6 +506,37 @@ const PACKED_BODIES: readonly Readonly<{ x: number; y: number; radius: number }>
  * has become ground you can cross. These bodies do reach the tile border, unlike the sunken ones:
  * the heap is meant to run continuously across every cell of a pool that has closed over.
  */
+/**
+ * A trench: strata of rock receding into the dark, with a hairline rim where the floor gives out.
+ *
+ * Drawn as layers rather than as a single dark fill because a run of trench cells has to read as one
+ * continuous cut through the room. A per-cell vignette — the obvious way to say "hole" — would put a
+ * bright ring around every cell and turn a long ditch into a row of separate pits, which is exactly
+ * what the two rejected candidates did.
+ *
+ * The rim is one pixel and the interior falls off towards the middle of the cell, so an edge stays
+ * legible at speed without the cell reading as a tile in a grid.
+ */
+function trench(documentOwner: Document): HTMLCanvasElement {
+  return paint(documentOwner, (x, y) => {
+    const edge = Math.min(x, TEXTURE_SIZE - 1 - x, y, TEXTURE_SIZE - 1 - y);
+
+    if (edge < 1) {
+      const grain = 0.8 + valueNoise(x, y, 31) * 0.4;
+      return [50 * grain, 41 * grain, 62 * grain];
+    }
+
+    // The bands wander rather than running dead straight, so they read as rock rather than as ruling.
+    const wobble = smoothNoise(x, y, 21, 41) * 7;
+    const band = Math.abs(Math.sin(((y + wobble) / TEXTURE_SIZE) * Math.PI * 7));
+    const layer = band > 0.92 ? 1.9 : 1;
+    const rough = 0.7 + smoothNoise(x, y, 6, 43) * 0.6;
+    const depth = 1 - Math.min(1, edge / 16) * 0.55;
+    const light = layer * rough * depth;
+    return [13 * light + 3, 11 * light + 2, 17 * light + 4];
+  });
+}
+
 function carrion(documentOwner: Document): HTMLCanvasElement {
   return paint(documentOwner, (x, y) => {
     const cellEdge = Math.min(x, TEXTURE_SIZE - 1 - x, y, TEXTURE_SIZE - 1 - y);
@@ -567,6 +598,7 @@ export function createProceduralTextures(documentOwner: Document): TextureSet {
       water: stillWater(documentOwner, 0),
       waterFouled: stillWater(documentOwner, 1),
       waterChoked: stillWater(documentOwner, 2),
+      demoTrench: trench(documentOwner),
       demoCarrion: carrion(documentOwner),
       demoFlagstone: flagstone(documentOwner),
       demoVault: vault(documentOwner),

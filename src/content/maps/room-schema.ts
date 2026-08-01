@@ -21,9 +21,32 @@
 
 import { PROP_KINDS, type PropKind } from "@/content/presentation/prop-display-schema";
 
-export const MAP_TILE_KINDS = ["open", "border", "stone", "wood", "water", "barricade", "filled", "mortar"] as const;
+export const MAP_TILE_KINDS = [
+  "open",
+  "border",
+  "stone",
+  "wood",
+  "water",
+  "barricade",
+  "filled",
+  "mortar",
+  "trench",
+] as const;
 
 export type MapTileKind = (typeof MAP_TILE_KINDS)[number];
+
+/**
+ * Ground a walk cannot cross and the floor cannot give back.
+ *
+ * Water is here because closing one cell costs three bodies and a floor early in a run may not have
+ * three to spend; the trench is here because nothing closes it at all. Masonry, caltrops and
+ * emplacements are deliberately absent — every one of them comes down to a weapon, so ground behind
+ * them is the player's problem rather than the floor's.
+ *
+ * The one list both refusals read: the check on an author's own cells, and the check on a built
+ * floor. They ask the same question at two moments and must not be able to disagree about it.
+ */
+export const UNFILLABLE_GROUND: readonly MapTileKind[] = ["water", "trench"];
 
 export const MAP_ROOM_ROLES = ["cursedAltar", "blessingAltar", "hotSpring", "extraction"] as const;
 
@@ -112,14 +135,6 @@ export type MapCrowd = Readonly<{
 }>;
 
 /**
- * How a room's cells come to exist.
- *
- * Generation belongs to a room and not to a map, which is what lets one map carry an authored room
- * beside a generated one without either knowing the other exists. `carved` is a backtracker run and
- * then perforated; `open` is floor throughout, which is what a room holding one piece of business
- * wants; `authored` is the cells themselves, row by row.
- */
-/**
  * What a room's walls are made of, as a ratio between the two masonries.
  *
  * Normalised rather than required to sum to one, so an author may write 20 and 20, or 58 and 42, or a
@@ -127,6 +142,15 @@ export type MapCrowd = Readonly<{
  */
 export type MapWallMix = Readonly<{ stone: number; wood: number }>;
 
+/**
+ * How a room's cells come to exist.
+ *
+ * Generation belongs to a room and not to a map, which is what lets one map carry an authored room
+ * beside a generated one without either knowing the other exists. `carved` is a backtracker run and
+ * then opened up to the share the room asked for; `open` is floor throughout, which is what a room
+ * holding one piece of business wants; `authored` is the cells themselves, row by row — and it is the
+ * only way ground that cannot be filled ever reaches a floor.
+ */
 export type MapRoomStructure =
   | Readonly<{
       generated: "carved";
@@ -344,13 +368,17 @@ function parseAuthoredCells(
  * Whether water cuts part of an authored room off from the rest of it.
  *
  * Crosses masonry deliberately. A wall in the way is the player's business and there are four ways to
- * open one; a pool is not, because filling one costs bodies the floor may not have yet. So a region
- * walled off is legal and a region moated off is not.
+ * open one; unfillable ground is not, because closing a pool costs bodies the floor may not have yet
+ * and closing a trench is impossible. So a region walled off is legal and a region moated off is not.
+ *
+ * **This is the only thing standing between an author and an unwinnable floor.** The runtime repair
+ * that opens water to reach stranded ground cannot open a trench, so a room that seals itself with
+ * one has to be refused here, when it is saved, rather than discovered when somebody plays it.
  */
-function waterEnclosesRegion(cells: readonly (readonly MapTileKind[])[], width: number, height: number): boolean {
+function unfillableEnclosesRegion(cells: readonly (readonly MapTileKind[])[], width: number, height: number): boolean {
   const passable = (x: number, y: number): boolean => {
     const kind = cells[y]?.[x];
-    return kind !== undefined && kind !== "water" && kind !== "border";
+    return kind !== undefined && kind !== "border" && !UNFILLABLE_GROUND.includes(kind);
   };
 
   const queue: number[] = [];
@@ -445,8 +473,8 @@ function parseStructure(value: unknown, label: string, width: number, height: nu
 
   const authored = parseAuthoredCells(source.authored, `${label}.authored`, width, height);
 
-  if (waterEnclosesRegion(authored, width, height)) {
-    throw new TypeError(`${label}.authored has water enclosing a region no body could walk out of.`);
+  if (unfillableEnclosesRegion(authored, width, height)) {
+    throw new TypeError(`${label}.authored encloses a region no body could walk out of or fill its way into.`);
   }
 
   return { authored };

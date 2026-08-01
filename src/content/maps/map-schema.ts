@@ -18,7 +18,7 @@
  * every refusal that needs to see an extent — belongs to `map-resolver.ts`.
  */
 
-import type { MapTileKind } from "./room-schema";
+import { UNFILLABLE_GROUND, type MapTileKind } from "./room-schema";
 
 /**
  * Where a room stands on the map.
@@ -203,14 +203,15 @@ export function parseMapSource(value: unknown): MapSource {
  * three bodies, and a floor early in a run may not have three to spend — so ground behind water is cut
  * off, and that is the whole of what this finds.
  *
- * The same rule a room's authored cells are already held to, asked of a floor a generator built.
+ * The same rule a room's authored cells are already held to, asked of a floor a generator built —
+ * and it reads the same list, so the two cannot come to different answers about a kind.
  */
 export function strandedGround(floor: DrawnFloor): readonly Readonly<{ x: number; y: number }>[] {
   const { width, height, tiles } = floor;
   const index = (x: number, y: number): number => y * width + x;
   const crossable = (x: number, y: number): boolean => {
     const kind = tiles[index(x, y)];
-    return kind !== undefined && kind !== "border" && kind !== "water";
+    return kind !== undefined && kind !== "border" && !UNFILLABLE_GROUND.includes(kind);
   };
 
   const start = index(floor.entrance.x, floor.entrance.y);

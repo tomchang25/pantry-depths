@@ -64,6 +64,7 @@ const FLOOR_MATERIALS: readonly RenderFloorMaterial[] = [
   "water",
   "waterFouled",
   "waterChoked",
+  "demoTrench",
   "demoCarrion",
   "demoFlagstone",
   "demoVault",

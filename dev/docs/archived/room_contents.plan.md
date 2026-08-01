@@ -74,17 +74,27 @@ An empty room, eleven cells square, with nothing standing in it and nothing arri
 
 ### Children
 
-| Child | Focus                                       | Form              |
-| ----- | ------------------------------------------- | ----------------- |
-| 05    | Ground that cannot be filled, authored only | Sketch, then spec |
+| Child | Focus                                             | Shipped as                                                            |
+| ----- | ------------------------------------------------- | --------------------------------------------------------------------- |
+| 01    | A room declares what is scattered into it         | `room_contents_01_a_room_declares_its_scatter.implementation_spec.md` |
+| 02    | A room declares how its bodies start and arrive   | `room_contents_02_how_bodies_start_and_arrive.implementation_spec.md` |
+| 03    | No floor holds ground nothing can walk to         | `room_contents_03_no_stranded_ground.implementation_spec.md`          |
+| 04    | A room states its composition as shares of itself | `room_contents_04_composition_as_shares.implementation_spec.md`       |
+| 05    | Ground that cannot be filled, authored only       | `room_contents_05_unfillable_ground.implementation_spec.md`           |
 
 Landing order is 01 → 02 → 03 → 04 → 05. The first two move quantities from code to content and are proved by nothing changing; the third adds a guarantee neither of them needed but the last two cannot do without; the fourth is the first that changes what a floor looks like.
 
 **The fourth and fifth were one child until the fifth's cost was measured.** A new kind of ground is not a tile added to a list: it needs a procedural floor texture, which is an asset, and around ten separate answers about whether a body can see over it, throw over it, fall into it, bleed into it or drown in it. Every one of those is judged by looking, which is a person's call and not something a spec can settle in advance. Composition needs none of that and ships on its own.
 
-Children 01 through 04 have shipped and their specs are archived. Two of them found something the plan had assumed away. Child 03's stranding was real rather than theoretical — eight floors in four thousand held ground nothing could walk to, and none do now. Child 04 found that a room never keeps everything it scatters: the floor's guarantee of a walk to each room hanging off it reopens whatever stands on those routes, at roughly two cells per room, so the shipped region pours eighteen cells of water and keeps about thirteen. That has always been true of the caltrops and the emplacements too; stating water as a share is what made it visible. Delivering the declared amount exactly would mean scattering after those walks are cleared rather than before, which would keep pools off the routes between rooms entirely — a decision about how a floor should feel, and one this plan has not taken.
+**All five have shipped, and three of them found something the plan had assumed away.**
 
-**This plan is not goal-executable.** Child 05 carries taste — whether unfillable ground earns its place at all, and how it should behave against every one of the game's verbs — and a child whose shape is open is a stop that has to be taken rather than written down. The first four were each authorized in their own right.
+Child 03's stranding was real rather than theoretical — eight floors in four thousand held ground nothing could walk to, and none do now.
+
+Child 04 found that a room never keeps everything it scatters: the floor's guarantee of a walk to each room hanging off it reopens whatever stands on those routes, at roughly two cells per room, so the shipped region pours eighteen cells of water and keeps about thirteen. That has always been true of the caltrops and the emplacements too; stating water as a share is what made it visible. Delivering the declared amount exactly would mean scattering after those walks are cleared rather than before, which would keep pools off the routes between rooms entirely — a decision about how a floor should feel, and one this plan deliberately did not take.
+
+Child 05 found that the compile-time guard this repository believed it had does not exist. The floor assembly's own header claims a tile kind added to the content list without a branch beside it fails to compile; every consumer is an if-chain with a fallthrough, so a new kind compiles cleanly and inherits a wrong default at each one. Six of a dozen were wrong for the trench, and the loudest would have let one swing break something nothing can break. The tracker now carries a `One Tile, One Record` draft: the enumeration is the disease, a data-driven record is the cure, and it waits behind the same gate as the enemy record beside it.
+
+**This plan was never goal-executable**, and child 05 is why: whether unfillable ground earned its place, and how it should answer each of the game's verbs, were decisions a spec could not settle in advance. Each child was authorized in its own right.
 
 ## Non-Goals
 
@@ -116,11 +126,3 @@ Perishable: this records the codebase on 2026-08-01, immediately after `map_libr
 Every child lands in `src/content/maps/room-schema.ts` and `src/demo/`. The demo half is verified by playing it and by `npm run verify`; there is no automated coverage for `src/demo/` and none is to be added.
 
 **One constraint applies to every child and is easy to miss.** `npm run capture` seeds `Math.random`, and `buildDemoFloor` already records that the draw's position in the random sequence is load-bearing. Every roll this plan adds must therefore be skipped when a range's two ends are equal — `between` in `src/demo/maze.ts` (about line 286) consumes a random number even when minimum equals maximum, so a range of 14 to 14 would shift every subsequent roll and change every seeded picture. Short-circuit it, and give every migrated file today's exact numbers as equal-ended ranges, and the sequence is untouched.
-
-### Child 05 — Ground that cannot be filled, authored only
-
-- Needs a sketch first, and the sketch's job is the behaviour table rather than the plumbing.
-- Already decided: it is authored only and no generator places it; nothing forbids that changing later. It joins `water` as impassable in `waterEnclosesRegion` (`src/content/maps/room-schema.ts`, about line 184) and in `strandedGround` (`src/content/maps/map-schema.ts`), but **it must not join water in child 03's repair** — the repair opens water, and ground that cannot be filled cannot be opened either.
-- `MAP_TILE_KINDS` (`src/content/maps/room-schema.ts`, about line 24) is the list it joins. `src/demo/maze.ts` aliases it as `DemoTileKind`, so a kind added there without a branch here fails to compile — which is the mechanism that will surface the work.
-- The branches to expect, all in `src/demo/` unless noted: `tileOfKind`, `isFloorKind`, `blocksVision`, `blocksProjectile`, `isHazardKind`, `holdsStains`, `sinkBody`, `isWaterCell`, the throw-height checks, `actions.ts`'s open-or-water test, and `demo-scene.ts`'s floor-material lookup.
-- The expensive part is not any of those. `src/presentation/render-scene.ts` holds `RenderFloorMaterial`, `src/presentation/canvas-gameplay-renderer.ts` holds the `FLOOR_MATERIALS` order and the water-specific patch table, and `src/presentation/procedural-textures.ts` holds one texture-drawing function per material. A new ground needs one written, and a texture is judged by looking at it.

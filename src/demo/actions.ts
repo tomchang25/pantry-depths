@@ -351,7 +351,9 @@ function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: 
 export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): void {
   const tile = tileAt(world.maze, cell.x, cell.y);
 
-  if (!tile || tile.kind === "open" || tile.kind === "water" || tile.kind === "filled") {
+  // A trench belongs here rather than below: it has no hit points, so without this it would fall
+  // through to the masonry path and break under the first swing that touched it.
+  if (!tile || tile.kind === "open" || tile.kind === "water" || tile.kind === "trench" || tile.kind === "filled") {
     return;
   }
 

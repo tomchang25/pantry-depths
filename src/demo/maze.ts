@@ -777,6 +777,11 @@ function clearWalkToRooms(extent: DemoGridExtent, tiles: DemoTile[], from: DemoC
  * The whole pass repeats because opening one pool can expose ground still shut in behind another. The
  * bound is a backstop: reaching it leaves the floor stranded, and the refusal that runs afterwards is
  * what turns that into a loud failure rather than a quiet one.
+ *
+ * **A trench is not this function's business and both of its searches refuse to cross one.** It cannot
+ * be opened by anything, so a route through one is not a route, and walking a path back through a cell
+ * that will still be there afterwards would report a repair that did not happen. Ground sealed behind
+ * a trench is refused when the room file is saved, which is why nothing here has to cope with it.
  */
 function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: DemoCell): void {
   const kinds = (): MapTileKind[] => tiles.map((tile) => tile.kind);
@@ -802,7 +807,7 @@ function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: Dem
       return;
     }
 
-    // Reachable ignoring water, which is exactly the set the walk back below is trying to rejoin.
+    // Reachable ignoring unfillable ground, which is exactly the set the walk back below rejoins.
     const dry = new Set<number>();
     const dryQueue: number[] = [tileIndex(extent, from.x, from.y)];
     dry.add(dryQueue[0] as number);
@@ -821,7 +826,7 @@ function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: Dem
         const next = tileIndex(extent, nextX, nextY);
         const kind = tiles[next]?.kind;
 
-        if (kind === undefined || kind === "border" || kind === "water" || dry.has(next)) {
+        if (kind === undefined || kind === "border" || kind === "water" || kind === "trench" || dry.has(next)) {
           continue;
         }
 
@@ -830,7 +835,8 @@ function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: Dem
       }
     }
 
-    // The same search again, this time allowed through water, so every stranded cell has a route home.
+    // The same search again, this time allowed through water — but never through a trench, which no
+    // walk back could open. Every stranded cell water shut in therefore has a route home.
     const cameFrom = new Map<number, number>();
     const wetQueue: number[] = [tileIndex(extent, from.x, from.y)];
     const wet = new Set<number>(wetQueue);
@@ -850,7 +856,7 @@ function openStrandedGround(extent: DemoGridExtent, tiles: DemoTile[], from: Dem
         const next = tileIndex(extent, nextX, nextY);
         const kind = tiles[next]?.kind;
 
-        if (kind === undefined || kind === "border" || wet.has(next)) {
+        if (kind === undefined || kind === "border" || kind === "trench" || wet.has(next)) {
           continue;
         }
 
@@ -1126,10 +1132,13 @@ function isFloorKind(kind: DemoTileKind): boolean {
   return kind === "open" || kind === "filled";
 }
 
-/** Line of sight only. You can see over both a pool and a barricade. */
+/** Line of sight only. You can see over a pool, a trench and a barricade — none of them stands up. */
 export function blocksVision(maze: DemoMaze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
-  return tile === undefined || (!isFloorKind(tile.kind) && tile.kind !== "water" && tile.kind !== "barricade");
+  return (
+    tile === undefined ||
+    (!isFloorKind(tile.kind) && tile.kind !== "water" && tile.kind !== "trench" && tile.kind !== "barricade")
+  );
 }
 
 /**
@@ -1140,7 +1149,7 @@ export function blocksVision(maze: DemoMaze, x: number, y: number): boolean {
  */
 export function blocksProjectile(maze: DemoMaze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
-  return tile === undefined || (!isFloorKind(tile.kind) && tile.kind !== "water");
+  return tile === undefined || (!isFloorKind(tile.kind) && tile.kind !== "water" && tile.kind !== "trench");
 }
 
 /** What stops a body moving under its own power. Nothing walks into a pool or onto the spikes. */
@@ -1219,16 +1228,21 @@ export function isWaterCell(maze: DemoMaze, x: number, y: number): boolean {
   return tileAt(maze, x, y)?.kind === "water";
 }
 
+export function isTrenchCell(maze: DemoMaze, x: number, y: number): boolean {
+  return tileAt(maze, x, y)?.kind === "trench";
+}
+
 /**
  * Whether spilled blood settles on a cell.
  *
  * Open water washes it away, and a filled pool is already made of what would have spilled — a stain
- * laid over the heap reads as red mud rather than as carnage. Asked at both ends, where a stain is
+ * laid over the heap reads as red mud rather than as carnage. A trench takes what falls in it out of
+ * sight entirely, so there is nothing on its surface to mark. Asked at both ends, where a stain is
  * recorded and where it is drawn, so the two can never disagree about a cell.
  */
 export function holdsStains(maze: DemoMaze, x: number, y: number): boolean {
   const kind = tileAt(maze, x, y)?.kind;
-  return kind !== "water" && kind !== "filled" && kind !== "mortar";
+  return kind !== "water" && kind !== "trench" && kind !== "filled" && kind !== "mortar";
 }
 
 /**

@@ -79,7 +79,7 @@ Every criterion below is judged by a person using the tool. None is automated, a
 
 ## Execution
 
-Perishable: this records the codebase on 2026-08-01. Re-check every coordinate against live code before acting on it. What this plan was waiting for has landed — a room is its own file, both libraries are discovered rather than listed, and the endpoint reads and writes either by name. The library is at `dev/docs/archived/map_library.plan.md`. Note that `dev/docs/plans/room_contents.plan.md` is still adding fields to the room file, so a tool built before it lands will need a second pass over whatever it edits.
+Perishable: this records the codebase on 2026-08-01. Re-check every coordinate against live code before acting on it. What this plan was waiting for has landed — a room is its own file, both libraries are discovered rather than listed, and the endpoint reads and writes either by name. The library is at `dev/docs/archived/map_library.plan.md`. What a room file holds has since grown too, and `dev/docs/archived/room_contents.plan.md` is the record of it: a scatter declaration, a crowd of quantities rather than fixed numbers, a stated openness and wall mix on a carved room, water as a share, and a trench that only an authored room can place. A tool that edits a room now has all of that to show.
 
 ### What to build on
 

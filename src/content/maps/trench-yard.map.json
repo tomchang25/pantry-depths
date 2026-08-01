@@ -1,0 +1,13 @@
+{
+  "name": "trench-yard",
+  "width": 15,
+  "height": 15,
+  "fixed": [
+    {
+      "slot": "main",
+      "room": "trench-yard"
+    }
+  ],
+  "pool": [],
+  "draw": 0
+}

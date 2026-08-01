@@ -85,6 +85,9 @@ export type RenderFloorMaterial =
   // because what is under a surface cannot be drawn as something standing on it.
   | "waterFouled"
   | "waterChoked"
+  // Ground that is not there. It never slides, wobbles or foams at its shoreline the way the pools
+  // above do, so it is a floor material and nothing more.
+  | "demoTrench"
   | "demoCarrion"
   | "demoFlagstone"
   | "demoVault"

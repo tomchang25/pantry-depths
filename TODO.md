@@ -12,7 +12,6 @@ This tracker is the forward-work authority.
 
 ## Active
 
-[room_contents] `dev/docs/plans/room_contents.plan.md` — children 01–03 have shipped; 04 needs a sketch first, so the plan is not goal-executable
 [map_editor] `dev/docs/plans/map_room_editor.plan.md` — judged by a person, never goal-executable
 [floor_surfaces] `dev/docs/plans/floor_surface_channels.plan.md` — goal-executable
 
@@ -141,6 +140,14 @@ Changing an enemy's action or a number on it touches five or more files today, s
 What makes it a decision rather than a queue is verification. A behaviour-preserving refactor in a half with no tests is proven by playing, so the mechanical half needs a supervised gate — a branch, then a playtest that confirms every enemy still moves and hits as before, before anything builds on top.
 
 Not scheduled. What would force it is the next content pass after the boss — or the next five-file enemy edit that goes wrong.
+
+### One Tile, One Record
+
+What a tile kind is is scattered the same way an enemy is: whether it can be walked on, seen over, thrown over, struck, stained, drowned in, drawn as a wall face or as a floor material, and whether it cuts ground off each live in their own if-chain, spread across the maze module, the action handlers, the scene builder and the presentation layer. None of those chains is exhaustive — a kind the chain does not name falls through to a default that compiles cleanly and is wrong silently. Adding the trench surfaced the count: around a dozen sites walked by hand, six of whose defaults were wrong, one of which would have let a swing break an unbreakable pit.
+
+The fix is the tile version of the enemy record above: one kind becomes one record of its answers, read by the questions instead of enumerated inside them, with exhaustiveness the compiler can check. It waits for the same reason and behind the same gate — a behaviour-preserving refactor in the untested half is proven by playing, so it queues with the enemy record and the migration entry rather than jumping them.
+
+Not scheduled. What would force it is the next tile kind, or the next silent wrong default found in play.
 
 ### What Remains Of The Core Design
 

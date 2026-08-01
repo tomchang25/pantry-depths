@@ -442,6 +442,7 @@ function surfaces(world: DemoWorld): RenderSurface[] {
         !tile ||
         tile.kind === "open" ||
         tile.kind === "water" ||
+        tile.kind === "trench" ||
         tile.kind === "filled" ||
         tile.kind === "barricade" ||
         tile.kind === "mortar"
@@ -2218,6 +2219,10 @@ function floorPatches(world: DemoWorld): RenderFloorPatch[] {
 function floorMaterial(tile: DemoTile | undefined): RenderFloorMaterial {
   if (tile?.kind === "filled") {
     return "demoCarrion";
+  }
+
+  if (tile?.kind === "trench") {
+    return "demoTrench";
   }
 
   if (tile?.kind !== "water") {

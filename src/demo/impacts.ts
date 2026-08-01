@@ -11,7 +11,7 @@
 
 import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/demo/actions";
 import { hasBless } from "@/demo/bless";
-import { isBarricadeCell, isWaterCell, tileIndex } from "@/demo/maze";
+import { isBarricadeCell, isTrenchCell, isWaterCell, tileIndex } from "@/demo/maze";
 import { burst } from "@/demo/particles";
 import { addVfx, damageEnemy, killEnemy, stunEnemy, type DemoEnemy, type DemoWorld } from "@/demo/world";
 
@@ -72,6 +72,11 @@ export function checkHazards(world: DemoWorld, enemy: DemoEnemy): void {
     return;
   }
 
+  if (isTrenchCell(world.maze, cellX, cellY)) {
+    swallow(world, enemy);
+    return;
+  }
+
   if (!isWaterCell(world.maze, cellX, cellY)) {
     return;
   }
@@ -93,6 +98,28 @@ export function checkHazards(world: DemoWorld, enemy: DemoEnemy): void {
     size: 0.055,
     life: 0.7,
   });
+}
+
+/**
+ * Anything that goes into a trench is gone, and the trench is exactly as it was.
+ *
+ * The difference from a pool, and the whole reason the trench exists: a body thrown into water buys
+ * a third of a cell of ground, and a body thrown into a trench buys nothing at all. Dust rather than
+ * blood, because what would have spilled went down with it and the surface holds no mark.
+ *
+ * Killed with the ordinary cause, which the death sprites already draw as a collapse. A trench death
+ * is a kill like any other everywhere downstream — it counts, it scatters bones, it drops what the
+ * body was carrying.
+ */
+function swallow(world: DemoWorld, enemy: DemoEnemy): void {
+  burst(world.particles, "dust", enemy.x, enemy.y, 0.3, 12, {
+    speed: 1.6,
+    spreadZ: 1.2,
+    gravity: 4,
+    size: 0.05,
+    life: 0.8,
+  });
+  killEnemy(world, enemy, "slain");
 }
 
 /** Anything shoved onto the spikes dies there and then, run through where it landed. */
