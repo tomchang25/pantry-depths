@@ -12,7 +12,7 @@ This tracker is the forward-work authority.
 
 ## Active
 
-[map_editor] `dev/docs/plans/map_room_editor.plan.md` — judged by a person, never goal-executable
+[map_editor] `dev/docs/plans/map_room_editor.plan.md` — goal-executable for its first three children; the fourth is destructive and takes its own authorization
 [floor_surfaces] `dev/docs/plans/floor_surface_channels.plan.md` — goal-executable
 
 ---

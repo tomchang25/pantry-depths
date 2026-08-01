@@ -1,6 +1,10 @@
 # The Map And Room Editor
 
-Not goal-executable, and deliberately so. What this plan delivers is judged by whether the tool is usable, which is a person's judgement made while looking at it — the standing loop stops on exactly that, and a plan that claimed otherwise would be claiming its own acceptance could be automated.
+Goal-Executable: yes
+
+Every acceptance criterion below is judged by a person using the tool, and the claim above does not contradict that. What makes a plan goal-executable is that it left no decision for its own execution to take; opening the thing and looking is one of the three ways a criterion is already expected to be judged. An earlier draft of this plan conflated the two and declared itself unexecutable on the strength of it.
+
+The last child is the exception and takes its own authorization. It deletes about six thousand lines and two commands, and a loop carrying the first three stops on a destructive action by its own guard — so the authorization that runs this plan continuously names the first three, and the fourth is asked for again once the tool it replaces has been used.
 
 ## Goal
 
@@ -12,9 +16,10 @@ Give maps and rooms an editor, so that laying out a floor stops being a matter o
 2. A room is edited on its own, because it is its own file and may be used by more than one map: its extent, whether it holds bodies and how many and how fast they return, the business it holds if any, and how its cells come to exist.
 3. A room whose cells are authored is drawn cell by cell. Anything else is typing coordinates with extra steps, which is what this tool exists to end.
 4. Both refusals run before saving, not after. One reads what the file declares; the other reads one particular draw and asks whether that combination leaves a route to the way out. A draw that would fail is a thing an author needs to see while the pool is still in front of them.
-5. What is previewed is what the game assembles, produced by the same assembler the game calls, and it can be re-drawn on demand because which rooms land where is drawn afresh every time.
-6. A saved map can be played from the editor in one action, and the action is unavailable while the draft differs from what is saved. Playing a draft is not offered at all: what plays is the game, reading a file, and a file that has not been written is not a thing the game can read.
-7. The tooling this replaces is deleted once this works, along with the content and rules that only it and its tests still reach.
+5. What is previewed is what the game assembles, produced by the same assembler the game calls, and it can be re-drawn on demand because which rooms land where is drawn afresh every time. Every view of one draw comes from that one assembly — two views built from two calls would be two different floors shown side by side as though they were one.
+6. What the tool lists, and what its play action opens, are the files as they are on disk rather than a snapshot taken when the tool was loaded. The tool creates files: one that cannot see the file it just wrote is lying about its own library, and a play action that opens the previous version of a map is worse than no play action at all.
+7. A saved map can be played from the editor in one action, and the action is unavailable while the draft differs from what is saved. Playing a draft is not offered at all: what plays is the game, reading a file, and a file that has not been written is not a thing the game can read.
+8. The tooling this replaces is deleted once this works, along with the content and rules that only it and its tests still reach.
 
 ## Design
 
@@ -32,13 +37,26 @@ The tool-chain plan that owned this work is archived, but these five were the du
 
 **The map surface** holds the slots, the pool, and the draw count, with the assembled floor beside them and a control that draws again. Choosing a room for a slot or for the pool picks from the library by name; it does not edit that room. The refusals report here, both of them, and saving is unavailable while either is unhappy.
 
-**The room surface** holds one room's extent, its crowd or the absence of one, its role, and its structure. Choosing authored cells opens a grid the size of the room, painted with the eight tile kinds. A room is previewed as itself — a floor of one room — because a room does not know which map will use it or which side it will land on.
+**The room surface** holds one room's extent, its crowd or the absence of one, its role, and its structure. Choosing authored cells opens a grid the size of the room, painted with the nine tile kinds. A room is previewed as itself — a floor of one room — because a room does not know which map will use it or which side it will land on.
 
 ### What the preview is
 
 The floor assembler takes a map and returns an assembled floor, and the editor calls it with the draft. There is no second implementation and therefore nothing to drift. Every call draws the pool afresh, so the control that re-draws is the same call again rather than a feature.
 
+**One draw is shown two ways, from one assembly.** Seen from above, the floor answers which room landed in which slot, where the arrival and the way out fell, and what the scatter did to the ground — none of which a person standing inside a corridor can see. Seen from inside, at the game's own eye height, it answers whether a room is the right size to stand in and whether what fills it reads at all — which no diagram has ever answered. The two questions are both real and neither view answers the other, so the tool shows both; and because a re-draw changes the floor, they are built from one assembly rather than one each.
+
 A room drawn on its own is the same assembler over a one-room map made on the spot. That is a small lie — no map is being edited — and it is the honest kind: what it shows is the room's own cells assembled by the code that will assemble them.
+
+### What the library reads, and why saving no longer reloads the page
+
+Every other authored file in this project is deliberately unwatched by the development server. The reason is that those files live where a module imports them, so a save looks to the server exactly like an edit, and the reload that follows throws away everything on screen that was not saved. The directories holding maps and rooms were the one exception, and the reason was equally good: the watcher was the only thing that noticed a file appearing in a library, and a library nothing notices additions to is not a library.
+
+An editor makes that exception unbearable, because the tool doing the editing is the tool writing the files — every save would reload the page it was saved from. So the directories join the rest and stop being watched, and the two jobs the watcher was doing are given owners instead:
+
+- **The listing is asked for, on demand, through the same development-only channel the tool saves through.** A button asks and nothing asks on the tool's behalf, which is the rule every other workbench already follows for reading a file back.
+- **A save tells the development server that what it holds about those files is stale, and tells no open page.** Nothing on screen moves; the next page loaded — the game the play action opens — reads what was written.
+
+**If the second cannot be arranged, the fallback is decided and needs no further discussion:** keep the directories watched, and let the tool survive the reload by recording in its own address which map or room was open. That is a worse tool, because a save then throws away an unsaved draft in the other surface, and it is not worse than a play action that opens the previous version of the file.
 
 ### Playing what was saved
 
@@ -48,11 +66,22 @@ This is the whole of the answer to "try it". An in-tool playtest was proposed on
 
 ### What gets deleted
 
-The tooling this replaces answers to a schema that no longer describes anything, and it keeps alive the last content and rules that only it and its tests still reach. Roughly five thousand three hundred lines across nine files, plus their unit tests. It is not deleted first: the new tool is written beside it and the old one goes when the new one works.
+The tooling this replaces answers to a schema that no longer describes anything, and it keeps alive the last content and rules that only it and its tests still reach. Roughly five thousand three hundred lines across nine files, plus their unit tests, plus three things a first count missed: a small type that a live piece of presentation content still reads and so has to move rather than die; two command-line tools and the two commands that name them; and the one browser acceptance test that opens the tool being removed, which is pointed at the new one instead.
 
-### The order this lands in
+It is not deleted first: the new tool is written beside it and the old one goes when the new one works.
 
-The map surface first, because it is the one that can be judged against a floor that already exists. Then the room surface without authored cells, then authored cells, which is the largest single piece and the one that benefits most from the rest being settled. Deletion last.
+### Children
+
+| Child | Focus                                                          | Form                                                                  |
+| ----- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 01    | The map surface, and a library read from disk rather than boot | `map_room_editor_01_the_map_surface.implementation_spec.md`           |
+| 02    | The room surface, without authored cells                       | `map_room_editor_02_the_room_surface.implementation_spec.md`          |
+| 03    | Authored cells, painted                                        | `map_room_editor_03_authored_cells.implementation_spec.md`            |
+| 04    | The deletion of what this replaces                             | `map_room_editor_04_deleting_what_it_replaces.implementation_spec.md` |
+
+Landing order is 01 → 02 → 03 → 04. The map surface first, because it is the one that can be judged against a floor that already exists. Then the room surface without authored cells, then authored cells, which is the largest single piece and the one that benefits most from the rest being settled. Deletion last.
+
+**Child 04 takes its own authorization** and is not covered by an authorization to run this plan continuously. It is destructive, and a loop carrying the first three children stops on exactly that.
 
 ## Non-Goals
 
@@ -62,7 +91,8 @@ The map surface first, because it is the one that can be judged against a floor 
 4. No generator. Which cells a generated room gets is the runtime's business and is not previewed as an authorable thing.
 5. No editing of anything below a room. A structure, a crowd, or a set of cells is not separately addressable, so it is not separately editable.
 6. No decor. That vocabulary stays where it is, unwired, until somebody decides it lives.
-7. No tests. The tool is verified by opening it, which is the only way its actual subject can be judged.
+7. No deletion from the editor, and no delete verb on the development-only writer it saves through. That writer gains one listing operation and nothing else: its whitelist is the only thing that has ever kept it honest, and removing a file is done by removing the file.
+8. No tests. The tool is verified by opening it, which is the only way its actual subject can be judged.
 
 ## Acceptance Criteria
 
@@ -72,31 +102,79 @@ Every criterion below is judged by a person using the tool. None is automated, a
 2. A room can be created, given an extent, a crowd or none, a role or none, and a structure, saved, and then named by a map.
 3. A room whose cells are authored can be painted with every tile kind, and what is painted is what the assembled floor shows.
 4. Both refusals appear before saving, and each says which map or room and which rule.
-5. The preview shows the assembled floor, and re-drawing changes which rooms landed where.
+5. The preview shows the assembled floor from above and from inside it, both of one draw, and re-drawing changes which rooms landed where.
 6. The control that plays the map is unavailable while the draft is unsaved, says why, and opens the game at that map when it is available.
-7. The tooling and content this replaces is gone, and the verification gate passes without it.
-8. No test file is added.
+7. Saving does not reload the tool, and a room created in the tool appears in its library listing once that listing is refreshed — neither needing the development server restarted.
+8. The play action opens the map as it was last saved rather than as it stood when the tool was opened.
+9. The tooling and content this replaces is gone, and the verification gate passes without it.
+10. No test file is added.
 
 ## Execution
 
-Perishable: this records the codebase on 2026-08-01. Re-check every coordinate against live code before acting on it. What this plan was waiting for has landed — a room is its own file, both libraries are discovered rather than listed, and the endpoint reads and writes either by name. The library is at `dev/docs/archived/map_library.plan.md`. What a room file holds has since grown too, and `dev/docs/archived/room_contents.plan.md` is the record of it: a scatter declaration, a crowd of quantities rather than fixed numbers, a stated openness and wall mix on a carved room, water as a share, and a trench that only an authored room can place. A tool that edits a room now has all of that to show.
+Perishable: this records the codebase on 2026-08-01. Re-check every coordinate against live code before acting on it.
+
+What this plan was waiting for has landed — a room is its own file, both libraries are discovered rather than listed, and the endpoint reads and writes either by name. The library is at `dev/docs/archived/map_library.plan.md`. What a room file holds has since grown too, and `dev/docs/archived/room_contents.plan.md` is the record of it: a scatter declaration, a crowd of quantities rather than fixed numbers, a stated openness and wall mix on a carved room, water as a share, and a trench that only an authored room can place. A tool that edits a room now has all of that to show.
 
 ### What to build on
 
-- `src/app/debug/debug-shell.ts` — `createDebugPage` gives the page and its landmarks. Take it unchanged.
+- `src/app/debug/debug-shell.ts` — `createDebugPage` and `createDebugPanel` give the page and its landmarks. Take them unchanged.
 - `src/app/debug/render-panel.ts` — `createRenderPanel` owns a canvas, its frame loop, its resize, its error state, and its teardown, and shares presentation image loading across concurrent panels. The caller supplies a scene per frame and owns nothing else.
-- `src/app/debug/authoring-client.ts` — `loadCanonical` and `saveCanonical` are the only two calls needed, and neither reshapes what it carries.
-- `src/app/debug/debug-tools.ts` — `DEBUG_TOOLS` is the catalogue; one entry, lazily importing the shell.
-- `src/app/debug/decor-workbench.ts` is the smallest complete example of the shape at about 350 lines: a preview panel, a form, a save, a reload-from-canonical.
+- `src/app/debug/authoring-client.ts` — `loadCanonical` and `saveCanonical`, neither of which reshapes what it carries. Child 01 adds a third call beside them.
+- `src/app/debug/debug-tools.ts` — `DEBUG_TOOLS` is the catalogue; one entry per tool, lazily importing it.
+- `src/app/debug/decor-workbench.ts` is the smallest complete example of the shape at 346 lines: a preview panel, a form, a save, a reload-from-canonical.
 
-### What to call
+### What to call, and three things an earlier draft of this plan had wrong
 
-- The floor assembler in `src/demo/maze.ts` takes a resolved map and returns an assembled floor. It is the preview, and calling it again is the re-draw.
-- The map-file validator and the room-file validator in `src/content/maps/` are the first refusal; `validateDrawnFloor` in the same place is the second, and it takes an assembled floor rather than a map.
-- A scene is built from an assembled floor by the demo's own scene projection in `src/demo/demo-scene.ts`. The entity workbench already reaches into that module for its own projections and is the precedent for how much of it a tool may use.
+- The floor assembler is `buildDemoFloor` in `src/demo/maze.ts` (line 935). It takes a `ResolvedMap`, returns a `DemoMaze`, and re-draws the pool on every call.
+- **`createDemoScene` in `src/demo/demo-scene.ts` (line 3288) takes a `DemoWorld`, not a `DemoMaze`.** An earlier draft of this plan said a scene is built from an assembled floor, and it is not. The only clean route to a scene is `createDemoWorld(map)` in `src/demo/world.ts` (line 776), which calls `buildDemoFloor` itself — so one `createDemoWorld` call is the single source for both views, or the diagram and the first-person view show two different draws. This is what requirement 5's second sentence exists to forbid.
+- **The second refusal is two functions, not one.** `validateDrawnFloor` and `validateDrawnWalk` are both called at the end of `buildDemoFloor` (lines 1050-1051). `openStrandedGround` runs just before them and repairs stranded ground, so in practice the one that fires is `validateDrawnFloor` — no route to the way out.
+- **`MAP_TILE_KINDS` has nine entries, not eight**: `open`, `border`, `stone`, `wood`, `water`, `barricade`, `filled`, `mortar`, `trench`. The trench arrived with `room_contents.plan.md`'s fifth child.
+- The first refusal is `parseMapSource` and `parseRoomSource` in `src/content/maps/map-schema.ts` and `room-schema.ts`, plus `checkSideFit` inside `resolveMap` in `map-resolver.ts` — the last of which is the only one that can see an extent.
+- The draft path to a preview needs no new content-layer API: `parseMapSource(draft)` → `resolveMap(source, new Map([...ROOM_LIBRARY, [draftRoom.id, draftRoom]]))` → `createDemoWorld(resolved)`. Both refusals then run inside that chain, which is how requirement 4 is met without either being called explicitly.
 
-### What to delete, once the new tool works
+### Child 01 — The map surface, and a library read from disk
 
-`src/app/debug/floor-map.ts` (1154 lines), `src/content/floor/floor-validation.ts` (862), `src/app/debug/floor-authoring.ts` (843), `src/core/run-state.ts` (617), `src/app/debug/floor-workbench.ts` (575), `src/content/floors/provisional-floor-set.json` (481), `src/content/floor/floor-schema.ts` (354), `src/app/debug/floor-viewer.ts` (228), `src/content/floor/floor-catalog.ts` (200). With them: `test/unit/content/floor/` and `test/unit/core/run-state.test.ts`. Check `test/e2e/debug-route.spec.ts` before assuming it does not name a tool by id, and `src/content/combat/enemies.ts` stays — the demo still reaches it, and untangling that is nobody's work yet.
+Ordered so the assumption everything else rests on is proved first.
 
-The `floorSet` target in `dev/tools/authoring/api-contract.ts` and its branch in the endpoint go at the same time, along with `dev/tools/floor-set/generator.ts` and its test if nothing else has claimed them.
+**1. Prove the silent invalidation, or take the fallback the Design already decided.** In `vite.config.ts`, `UNWATCHED_AUTHORED_FILES` (line 37) currently flat-maps only the `"file" in entry` targets; add the two directory targets' directories. The comment above it at lines 30-35 states the opposite of the new decision in as many words and is rewritten in the same edit — it already anticipated this change and named it as the one that should weigh the two sides. Then, in `authoringPlugin`'s `configureServer` (line 96), after a successful save to a directory target, invalidate the library modules without broadcasting to any client: `src/content/maps/map-library.ts` and `src/content/maps/room-library.ts` hold the globs, and the written JSON file itself needs it too.
+
+This project is on Vite 7, where `server.moduleGraph` is deprecated in favour of `server.environments.client.moduleGraph`; check which exists before writing against either. Verify by hand: save a new room, open the game in a new tab, confirm the new content is there without the server restarting. **If it cannot be made to work, take the fallback** — keep both directories watched and record the open map or room in the debug tool's own query string. That decision is made; do not stop to ask it.
+
+**2. A listing operation on the endpoint.** `dev/tools/authoring/api-contract.ts` and `authoring-api.ts`: a `GET <root>/<target>/list` for directory targets only, answering the file names in the directory with the suffix stripped. It accepts no name and so contributes nothing to a path, which is what keeps the whitelist's guarantee intact. Note that `parsePath` (line 112) currently throws for a directory target with no name, so the list operation is routed before that check rather than after it. Add `listCanonical(target)` beside the other two calls in `src/app/debug/authoring-client.ts`.
+
+**3. One field on an assembled room.** `DemoRoom` (`src/demo/maze.ts` line 84) carries `role` and `side` but not the identity of the room file it came from, so nothing downstream can say which named room landed in which slot — which acceptance criterion 5 asks a person to see. `roomOn` (line 625) already has the `MapRoom` in hand, so this is one field on the type and one line in that function. It is the only change this child makes outside the tool itself.
+
+**4. The tool.** A new module under `src/app/debug/`, one `DEBUG_TOOLS` entry, following the decor workbench's shape. Form: the five slots (`main`, `north`, `south`, `west`, `east`), each empty or naming a room from the listing; the pool as an add-and-remove list over the same listing; the draw count; the map's own name and extent. Preview: one `createDemoWorld` per draw, a canvas drawn over `world.maze` from above — one colour per `MapTileKind`, room bounds from `world.maze.rooms` labelled by the new identity field, with the arrival and the way out marked — and a `createRenderPanel` beside it rendering `createDemoScene(world)` with the camera at `world.maze.entrance`. A control that draws again. Refusals are reported by catching from the draft path above and showing the message; saving is disabled while either is unhappy. Save through `saveCanonical("map", source, name)`. Play through `window.open` at `/?map=<name>`, disabled while the draft differs from what was last loaded or saved.
+
+Nothing in `src/app/debug/floor-map.ts` survives child 04, so the top-down canvas is written fresh rather than borrowed from it.
+
+### Child 02 — The room surface, without authored cells
+
+A second surface in the same tool, or a second tool; either is fine and the decision is the implementer's. What it edits is one room file: `id`, `role` or none, `width`, `height`, `crowd` or none (`cap`, `starting`, and `reinforcement` or none with its `every` and `count`), `scatter` or none (`pools` with its `share` and `size`, `barricades`, `mortars`, and `props` per `PropKind`), and `structure` limited to `generated: "carved"` with `openShare` and a `walls` mix, or `generated: "open"`.
+
+**Every quantity field is two-formed.** `MapQuantity` is a bare number or a `{ minimum, maximum }` range, and `room-schema.ts` keeps both spellings as written rather than normalising them, because the endpoint writes a validator's return value verbatim. So each quantity control needs a way to switch between the two forms, and switching to a range must not rewrite a file that held a bare number until the author actually changes it.
+
+Preview is the same assembler over a one-room map made on the spot: a `MapSource` with the draft room in the `main` slot, an empty pool, a draw of zero, and an extent equal to the room's own. `checkSideFit` is not reached with no side rooms, so a room of any legal extent previews.
+
+### Child 03 — Authored cells, painted
+
+`structure: { authored: [...] }` — nine tile kinds, a grid the size of the room, painted cell by cell. `parseAuthoredCells` (`room-schema.ts` line 342) requires exactly `height` rows of exactly `width` cells, so resizing the room has to reshape the grid rather than invalidate it.
+
+`unfillableEnclosesRegion` (line 378) is the refusal specific to this child and it must report while painting rather than on save: it is the only thing standing between an author and a room sealed by a trench, which the runtime repair cannot open. Changing the room's extent re-runs it.
+
+Incidental while in the file: `room-schema.ts`'s header comment still says the runtime has "eight kinds and four roles". It is nine.
+
+### Child 04 — Deleting what it replaces
+
+**Takes its own authorization.** Not covered by an authorization to run children 01 to 03.
+
+Delete: `src/app/debug/floor-map.ts` (1154 lines), `src/content/floor/floor-validation.ts` (862), `src/app/debug/floor-authoring.ts` (843), `src/core/run-state.ts` (617), `src/app/debug/floor-workbench.ts` (575), `src/content/floors/provisional-floor-set.json` (481), `src/content/floor/floor-schema.ts` (354), `src/app/debug/floor-viewer.ts` (228), `src/content/floor/floor-catalog.ts` (200). With them: `test/unit/content/floor/`, `test/unit/core/run-state.test.ts`, `test/unit/app/debug/floor-map.test.ts`, `test/unit/app/debug/floor-authoring.test.ts`, and `test/fixtures/scene-floor-set.ts`.
+
+Four things the original count missed:
+
+- **`src/core/run-state.ts` cannot simply go.** `src/content/presentation/presentation-asset-definitions.ts` imports `type KeyColor` from it (line 30) and is live content. Move that three-literal type to the file that uses it, or inline it, before deleting the rest.
+- **`dev/tools/validate-floor-set.ts` and `dev/tools/generate-floor-set.ts`** go too, along with the `validate:floor-set` and `generate:floor-set` scripts in `package.json`. Read `dev/foundation/platforms/web-react/standards/command_surface_standard.md` before touching a script name.
+- **`test/e2e/debug-route.spec.ts` names the tool being deleted**, by link text `Floor Set Workbench` and by the URL `/debug/floor-workbench`. Point it at the new tool. Note that `npm run verify` does not run the end-to-end suite, so this failure will not be caught by the gate.
+- The `floorSet` target in `dev/tools/authoring/api-contract.ts` and its branch in `validateSource`, plus `dev/tools/floor-set/generator.ts` and `test/unit/dev/tools/floor-set/generator.test.ts`, go at the same time.
+
+`src/content/combat/enemies.ts` stays: six live modules across the demo, presentation, and content halves still reach it, and untangling that is nobody's work yet.
