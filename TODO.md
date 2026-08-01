@@ -12,7 +12,8 @@ This tracker is the forward-work authority.
 
 ## Active
 
-[editor] `dev/docs/plans/pantry_demo_workbench.plan.md` — the map contract it was blocked on has shipped
+[map_library] `dev/docs/plans/map_library.plan.md` — goal-executable
+[map_editor] `dev/docs/plans/map_room_editor.plan.md` — blocked on `[map_library]`; judged by a person, never goal-executable
 [floor_surfaces] `dev/docs/plans/floor_surface_channels.plan.md` — goal-executable
 
 ---

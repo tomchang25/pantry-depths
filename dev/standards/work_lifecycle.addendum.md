@@ -16,7 +16,9 @@ No probe currently exists in this repository, so adopting this narrowing costs n
 
 ## Declared Deviation: The Demo Tool-Chain Plan Carries Code Coordinates
 
-`dev/foundation/core/workflows/plan_standard.md` requires a plan to be written in English and to name no file paths, line numbers, function names, or class names. `dev/docs/plans/pantry_demo_workbench.plan.md` conforms to neither requirement, deliberately and with no expiry.
+`dev/foundation/core/workflows/plan_standard.md` requires a plan to be written in English and to name no file paths, line numbers, function names, or class names. `dev/docs/archived/pantry_demo_workbench.plan.md` conforms to neither requirement, deliberately and with no expiry.
+
+That plan is archived and the deviation is spent: it covered exactly one document, that document takes no more edits, and the section stays only so a reader who opens it knows the Chinese and the coordinates were registered rather than overlooked. No plan since has needed it — the general relaxation below is what a plan uses instead.
 
 **Why:** that plan's subject is the tooling built around an existing codebase, and most of its decisions are statements about specific modules — which one is kept as a skeleton, which one is written beside its predecessor rather than edited in place, which import boundary forces an authored file into one directory rather than another. Rewritten to refer to systems by role, those decisions stop being checkable: "the offline generator" and "the authoring endpoint" name nothing a reader can open. The standard's stated purpose for the ban is that a plan should stay valid as the codebase changes, and this plan accepts the opposite trade — it goes stale when the code moves, and that is the signal it is meant to give.
 
