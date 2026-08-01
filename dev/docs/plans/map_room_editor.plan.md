@@ -72,14 +72,11 @@ It is not deleted first: the new tool is written beside it and the old one goes 
 
 ### Children
 
-| Child | Focus                                                          | Form                                                                  |
-| ----- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
-| 01    | The map surface, and a library read from disk rather than boot | `map_room_editor_01_the_map_surface.implementation_spec.md`           |
-| 02    | The room surface, without authored cells                       | `map_room_editor_02_the_room_surface.implementation_spec.md`          |
-| 03    | Authored cells, painted                                        | `map_room_editor_03_authored_cells.implementation_spec.md`            |
-| 04    | The deletion of what this replaces                             | `map_room_editor_04_deleting_what_it_replaces.implementation_spec.md` |
+| Child | Focus                              | Form                                                                  |
+| ----- | ---------------------------------- | --------------------------------------------------------------------- |
+| 04    | The deletion of what this replaces | `map_room_editor_04_deleting_what_it_replaces.implementation_spec.md` |
 
-Landing order is 01 → 02 → 03 → 04. The map surface first, because it is the one that can be judged against a floor that already exists. Then the room surface without authored cells, then authored cells, which is the largest single piece and the one that benefits most from the rest being settled. Deletion last.
+The map surface, the room surface and its painted cells have all shipped. Deletion is what remains, and it takes its own authorization.
 
 **Child 04 takes its own authorization** and is not covered by an authorization to run this plan continuously. It is destructive, and a loop carrying the first three children stops on exactly that.
 
@@ -131,38 +128,6 @@ What this plan was waiting for has landed — a room is its own file, both libra
 - **`MAP_TILE_KINDS` has nine entries, not eight**: `open`, `border`, `stone`, `wood`, `water`, `barricade`, `filled`, `mortar`, `trench`. The trench arrived with `room_contents.plan.md`'s fifth child.
 - The first refusal is `parseMapSource` and `parseRoomSource` in `src/content/maps/map-schema.ts` and `room-schema.ts`, plus `checkSideFit` inside `resolveMap` in `map-resolver.ts` — the last of which is the only one that can see an extent.
 - The draft path to a preview needs no new content-layer API: `parseMapSource(draft)` → `resolveMap(source, new Map([...ROOM_LIBRARY, [draftRoom.id, draftRoom]]))` → `createDemoWorld(resolved)`. Both refusals then run inside that chain, which is how requirement 4 is met without either being called explicitly.
-
-### Child 01 — The map surface, and a library read from disk
-
-Ordered so the assumption everything else rests on is proved first.
-
-**1. Prove the silent invalidation, or take the fallback the Design already decided.** In `vite.config.ts`, `UNWATCHED_AUTHORED_FILES` (line 37) currently flat-maps only the `"file" in entry` targets; add the two directory targets' directories. The comment above it at lines 30-35 states the opposite of the new decision in as many words and is rewritten in the same edit — it already anticipated this change and named it as the one that should weigh the two sides. Then, in `authoringPlugin`'s `configureServer` (line 96), after a successful save to a directory target, invalidate the library modules without broadcasting to any client: `src/content/maps/map-library.ts` and `src/content/maps/room-library.ts` hold the globs, and the written JSON file itself needs it too.
-
-This project is on Vite 7, where `server.moduleGraph` is deprecated in favour of `server.environments.client.moduleGraph`; check which exists before writing against either. Verify by hand: save a new room, open the game in a new tab, confirm the new content is there without the server restarting. **If it cannot be made to work, take the fallback** — keep both directories watched and record the open map or room in the debug tool's own query string. That decision is made; do not stop to ask it.
-
-**2. A listing operation on the endpoint.** `dev/tools/authoring/api-contract.ts` and `authoring-api.ts`: a `GET <root>/<target>/list` for directory targets only, answering the file names in the directory with the suffix stripped. It accepts no name and so contributes nothing to a path, which is what keeps the whitelist's guarantee intact. Note that `parsePath` (line 112) currently throws for a directory target with no name, so the list operation is routed before that check rather than after it. Add `listCanonical(target)` beside the other two calls in `src/app/debug/authoring-client.ts`.
-
-**3. One field on an assembled room.** `DemoRoom` (`src/demo/maze.ts` line 84) carries `role` and `side` but not the identity of the room file it came from, so nothing downstream can say which named room landed in which slot — which acceptance criterion 5 asks a person to see. `roomOn` (line 625) already has the `MapRoom` in hand, so this is one field on the type and one line in that function. It is the only change this child makes outside the tool itself.
-
-**4. The tool.** A new module under `src/app/debug/`, one `DEBUG_TOOLS` entry, following the decor workbench's shape. Form: the five slots (`main`, `north`, `south`, `west`, `east`), each empty or naming a room from the listing; the pool as an add-and-remove list over the same listing; the draw count; the map's own name and extent. Preview: one `createDemoWorld` per draw, a canvas drawn over `world.maze` from above — one colour per `MapTileKind`, room bounds from `world.maze.rooms` labelled by the new identity field, with the arrival and the way out marked — and a `createRenderPanel` beside it rendering `createDemoScene(world)` with the camera at `world.maze.entrance`. A control that draws again. Refusals are reported by catching from the draft path above and showing the message; saving is disabled while either is unhappy. Save through `saveCanonical("map", source, name)`. Play through `window.open` at `/?map=<name>`, disabled while the draft differs from what was last loaded or saved.
-
-Nothing in `src/app/debug/floor-map.ts` survives child 04, so the top-down canvas is written fresh rather than borrowed from it.
-
-### Child 02 — The room surface, without authored cells
-
-A second surface in the same tool, or a second tool; either is fine and the decision is the implementer's. What it edits is one room file: `id`, `role` or none, `width`, `height`, `crowd` or none (`cap`, `starting`, and `reinforcement` or none with its `every` and `count`), `scatter` or none (`pools` with its `share` and `size`, `barricades`, `mortars`, and `props` per `PropKind`), and `structure` limited to `generated: "carved"` with `openShare` and a `walls` mix, or `generated: "open"`.
-
-**Every quantity field is two-formed.** `MapQuantity` is a bare number or a `{ minimum, maximum }` range, and `room-schema.ts` keeps both spellings as written rather than normalising them, because the endpoint writes a validator's return value verbatim. So each quantity control needs a way to switch between the two forms, and switching to a range must not rewrite a file that held a bare number until the author actually changes it.
-
-Preview is the same assembler over a one-room map made on the spot: a `MapSource` with the draft room in the `main` slot, an empty pool, a draw of zero, and an extent equal to the room's own. `checkSideFit` is not reached with no side rooms, so a room of any legal extent previews.
-
-### Child 03 — Authored cells, painted
-
-`structure: { authored: [...] }` — nine tile kinds, a grid the size of the room, painted cell by cell. `parseAuthoredCells` (`room-schema.ts` line 342) requires exactly `height` rows of exactly `width` cells, so resizing the room has to reshape the grid rather than invalidate it.
-
-`unfillableEnclosesRegion` (line 378) is the refusal specific to this child and it must report while painting rather than on save: it is the only thing standing between an author and a room sealed by a trench, which the runtime repair cannot open. Changing the room's extent re-runs it.
-
-Incidental while in the file: `room-schema.ts`'s header comment still says the runtime has "eight kinds and four roles". It is nine.
 
 ### Child 04 — Deleting what it replaces
 
