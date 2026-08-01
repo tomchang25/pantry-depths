@@ -267,12 +267,37 @@ function createMapSurface(): HTMLElement {
    * map goes briefly invalid is editing it, and taking the picture away mid-edit costs the one thing they
    * were looking at; the status line and the disabled save are what say the draft is refused.
    */
+  /**
+   * Rooms this draft names that are on disk but not in the library this page was built with.
+   *
+   * The listing is asked for over and over; the library is a glob expanded once, when the document
+   * loaded. A room created after that is therefore in the first and not the second, and the refusal an
+   * author sees says the room does not exist — which is true of this page and false of the disk.
+   *
+   * Answered by comparing the two rather than guessing, so the advice below is only ever offered when
+   * it will actually work. A room that is in neither is simply missing, and reloading would not help.
+   */
+  const createdSinceLoad = (): readonly string[] => [
+    ...new Set(
+      [...draft.fixed.map((placement) => placement.room), ...draft.pool].filter(
+        (name) => name !== NO_ROOM && roomNames.includes(name) && !ROOM_LIBRARY.has(name),
+      ),
+    ),
+  ];
+
   const rebuild = (): void => {
     try {
       world = createDemoWorld(resolveMap(parseMapSource(sourceFrom(draft)), ROOM_LIBRARY));
       failure = undefined;
     } catch (error: unknown) {
-      failure = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
+      const stale = createdSinceLoad();
+      // Said here rather than where the refusal is written, because that message is also what the game
+      // shows when a map names a room nothing anywhere answers, and reloading cures nothing there.
+      failure =
+        stale.length === 0
+          ? message
+          : `${message} ${stale.join(" and ")} ${stale.length === 1 ? "was" : "were"} created after this page loaded, so this tool cannot see ${stale.length === 1 ? "it" : "them"} yet — refresh the page (F5) and it will be there.`;
     }
 
     refresh();
