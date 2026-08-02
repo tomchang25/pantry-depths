@@ -72,6 +72,33 @@ function checkSideFit(map: MapSource, main: MapRoom, room: MapRoom, slot: MapSlo
   }
 }
 
+/**
+ * Whether the main region fits inside the grid at all.
+ *
+ * Separate from the side-room check above and asked of every map, because until now nothing asked it:
+ * that check is only reached when a side room exists, so a map holding nothing but a main region was
+ * never told its region was too big. The assembly then painted outside the grid — the rows before it
+ * written to negative indices and silently lost, the rows past it extending the tile array beyond the
+ * extent — while the assembled room still recorded the bounds the room asked for. A body placed from
+ * those bounds stands in masonry, which is a floor arrived on stuck.
+ *
+ * Only the fit is checked here, not whether the leftover space divides in two. An odd margin merely
+ * puts the region half a cell off centre, which the assembly floors and nothing else notices; it is a
+ * problem for a side room hanging off that region, and it stays refused where that is decided.
+ */
+function checkMainFit(map: MapSource, main: MapRoom): void {
+  for (const [along, extent, region] of [
+    ["wide", map.width, main.width],
+    ["tall", map.height, main.height],
+  ] as const) {
+    if (region > extent) {
+      throw new TypeError(
+        `Map "${map.name}" is ${extent} cells ${along} and its main region "${main.id}" is ${region}, so the region cannot be built inside it.`,
+      );
+    }
+  }
+}
+
 function roomFor(map: MapSource, rooms: MapRoomLibrary, name: string): MapRoom {
   const room = rooms.get(name);
 
@@ -98,6 +125,8 @@ export function resolveMap(map: MapSource, rooms: MapRoomLibrary): ResolvedMap {
       `Map "${map.name}" has no main region, so it has nothing to hang a room off and nowhere to arrive.`,
     );
   }
+
+  checkMainFit(map, main);
 
   const takenSlots = new Set(fixed.map((placement) => placement.slot));
   const freeSideSlots = SIDE_SLOTS.filter((slot) => !takenSlots.has(slot));
