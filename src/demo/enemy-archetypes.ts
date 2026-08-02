@@ -23,10 +23,18 @@
  */
 
 import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import type { MapCastKind } from "@/content/maps/room-schema";
 import { DEFAULT_BODY_WEIGHT, type DemoThrowWeight } from "@/demo/throw-weight";
 
-export type DemoArchetypeId =
-  "slimeGreen" | "slimeBlue" | "slimeRed" | "swordsman" | "hammerman" | "javelineer" | "crossbowman";
+/**
+ * What this file's rows are called, taken from the content layer rather than declared here.
+ *
+ * A room may now stand a named body at a named cell, which means the seven names are content: they
+ * are written into room files and read back out of them. Content may not reach this half, so it
+ * declares the list and this alias adopts it — and the table below is keyed by the alias, so a body
+ * added to either half without the other fails to compile rather than failing to appear.
+ */
+export type DemoArchetypeId = MapCastKind;
 
 /**
  * What a body is made of, which decides most of what is true about it besides its behaviour.
@@ -404,7 +412,7 @@ const CROSSBOWMAN: DemoEnemyArchetype = {
   shot: { speed: 8, damage: 12, range: 12, knockback: 0 },
 };
 
-export const ENEMY_ARCHETYPES = {
+export const ENEMY_ARCHETYPES: Readonly<Record<DemoArchetypeId, DemoEnemyArchetype>> = {
   slimeGreen: SLIME_GREEN,
   slimeBlue: SLIME_BLUE,
   slimeRed: SLIME_RED,

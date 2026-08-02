@@ -52,6 +52,44 @@ export const MAP_ROOM_ROLES = ["cursedAltar", "blessingAltar", "hotSpring", "ext
 
 export type MapRoomRole = (typeof MAP_ROOM_ROLES)[number];
 
+/**
+ * The bodies a room may stand in itself, declared here for the same reason the tile kinds and roles
+ * above are: `src/content/` may reach only content and core, and the table describing these seven
+ * lives in the runtime it may not reach. This names that table's own rows and invents nothing.
+ *
+ * The runtime's identifier is an alias of this one and its table is keyed by it, so the two lists are
+ * equal by construction rather than by anybody remembering. That is the only mechanism available: a
+ * test holding them equal would have to import the runtime half, which the repository forbids.
+ *
+ * Deliberately not the appearance list beside the turn-based game's enemy table. That one names ten
+ * ways a body can look, two of which nothing here can be, and looking a certain way is not the same
+ * statement as being a certain thing.
+ */
+export const MAP_CAST_KINDS = [
+  "slimeGreen",
+  "slimeBlue",
+  "slimeRed",
+  "swordsman",
+  "hammerman",
+  "javelineer",
+  "crossbowman",
+] as const;
+
+export type MapCastKind = (typeof MAP_CAST_KINDS)[number];
+
+/**
+ * One body a room stands where it says, rather than wherever a draw puts it.
+ *
+ * The cell is the room's own, in the same coordinate space its authored cells use: the wall ring is
+ * row and column zero, so the first interior cell is 1,1. Sharing that space with the cells is the
+ * point — an editor paints both on one grid, and a cast cell and a tile cell at the same place carry
+ * the same pair of numbers.
+ *
+ * Room-local rather than a coordinate on the floor, because a room is the unit that gets reused: a
+ * cast written against the floor would be a statement about the one map that happened to place it.
+ */
+export type MapCastMember = Readonly<{ kind: MapCastKind; x: number; y: number }>;
+
 /** The smallest room worth declaring: a wall ring with one cell of interior. */
 const MIN_ROOM_EXTENT = 3;
 
@@ -189,6 +227,13 @@ export type MapRoom = Readonly<{
    * something that never happens, which is a different statement from "nothing lives here".
    */
   crowd?: MapCrowd;
+  /**
+   * Bodies this room stands at named cells, as distinct from the crowd it draws.
+   *
+   * Optional, and absent is not the same as empty: a room that never declared one is not rewritten
+   * with an empty list by anything that reads and writes it back.
+   */
+  cast?: readonly MapCastMember[];
   /** What is put on its floor beyond the bodies. Absent means nothing is. */
   scatter?: MapScatter;
   structure: MapRoomStructure;
@@ -337,6 +382,48 @@ function parseCrowd(value: unknown, label: string): MapCrowd {
       ? {}
       : { reinforcement: parseReinforcement(source.reinforcement, `${label}.reinforcement`) }),
   };
+}
+
+/**
+ * The bodies a room stands, refusing only what the file alone can decide.
+ *
+ * Two refusals and no more: a cell outside the room's interior, and two bodies on one cell. Whether a
+ * cell is floor is not decidable here — a carved room's cells are a property of one assembly — and it
+ * is not always a mistake either: a body standing in water drowns on arrival, which an author placing
+ * one there may be doing on purpose.
+ */
+function parseCast(value: unknown, label: string, width: number, height: number): readonly MapCastMember[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError(`${label} must be a list of bodies.`);
+  }
+
+  const taken = new Set<string>();
+
+  return value.map((entry, index) => {
+    const source = record(entry, `${label}[${index}]`);
+
+    if (typeof source.kind !== "string" || !MAP_CAST_KINDS.includes(source.kind as MapCastKind)) {
+      throw new TypeError(`${label}[${index}] must name a kind of body that stands on a floor.`);
+    }
+
+    const x = wholeNumber(source.x, `${label}[${index}].x`);
+    const y = wholeNumber(source.y, `${label}[${index}].y`);
+
+    // The interior is one cell in from each edge, which is what the assembly paints for every
+    // structure kind. A body on the wall ring is a body in the masonry.
+    if (x < 1 || y < 1 || x > width - 2 || y > height - 2) {
+      throw new TypeError(`${label}[${index}] stands at ${x},${y}, which is outside this room's interior.`);
+    }
+
+    const cell = `${x},${y}`;
+
+    if (taken.has(cell)) {
+      throw new TypeError(`${label} stands two bodies on ${cell}, and a cell holds one.`);
+    }
+
+    taken.add(cell);
+    return { kind: source.kind as MapCastKind, x, y };
+  });
 }
 
 function parseAuthoredCells(
@@ -524,6 +611,9 @@ export function parseRoomSource(value: unknown): MapRoom {
     width,
     height,
     ...(source.crowd === undefined ? {} : { crowd: parseCrowd(source.crowd, `${label} crowd`) }),
+    // Returned, not merely read: the authoring endpoint writes this value verbatim into the file it
+    // validated, so a cast parsed and dropped here is a cast the next save silently deletes.
+    ...(source.cast === undefined ? {} : { cast: parseCast(source.cast, `${label} cast`, width, height) }),
     ...(source.scatter === undefined ? {} : { scatter: parseScatter(source.scatter, `${label} scatter`) }),
     structure: parseStructure(source.structure, `${label} structure`, width, height),
   };

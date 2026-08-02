@@ -12,7 +12,7 @@ Let a room declare which bodies stand in it and where, as authored content in ro
 
 **Why.** Nothing in the content layer can say "a swordsman stands here". The only way to get one particular body in one particular place today is to restart runs until the draw produces it. A room already declares how many bodies live in it and how fast they return; what it cannot say is which and where.
 
-**What changes.** A room file may carry a cast: a list of entries, each naming a body kind and a cell inside the room. Coordinates are room-local with the top-left interior cell as origin, so the declaration travels with the room into whichever slot a map gives it.
+**What changes.** A room file may carry a cast: a list of entries, each naming a body kind and a cell inside the room. Coordinates are the room's own, in the same space its authored cells use — the wall ring is row and column zero, so the first interior cell is 1,1 — which means the declaration travels with the room into whichever slot a map gives it, and an editor can paint bodies and tiles on one grid without two coordinate systems.
 
 **The vocabulary problem and its answer.** The body kinds live in the demo half, which the content layer may not import. The content layer therefore declares the names itself — the same move, in the same file, that the nine tile kinds and four room roles already make for the same reason. The demo's table is then keyed by that vocabulary, so a body added to one half and not the other fails to compile. A test cannot hold the two lists equal: no test file may import the demo half.
 
@@ -70,22 +70,22 @@ Let a room declare which bodies stand in it and where, as authored content in ro
 ## Implementation Notes
 
 - The interior bound is one cell in from each edge, matching what the assembler actually paints for every structure kind. A room's outer ring is never interior.
-- Room-local to world is the assembled room's minimum corner plus the local coordinate; bodies stand at cell centres, as every existing spawn does.
+- Room-local to world is the assembled room's minimum corner plus the local coordinate less the wall ring, because the minimum corner is already the first interior cell. Bodies stand at cell centres, as every existing spawn does.
 - The random starting count is computed against the crowd cap and the depth. Subtract the cast placed in that room rather than clamping afterwards, so the intent reads.
 - Reinforcement already measures against the live body count, so it needs no change once the cast is in that count.
 - The floor's kit scatter reads only the main room's declaration and is untouched by this child.
 
 ## Edge Cases
 
-| Case                                               | Expected Handling                                                                                                   |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| A cast cell outside the room's interior            | Refused when the file is read, naming the cell.                                                                     |
-| Two entries on one cell                            | Refused when the file is read, naming the cell.                                                                     |
-| A cast cell that a carved structure leaves as wall | Not refused. The body is placed and settles out of the geometry as any pushed body does.                            |
-| A cast cell that is water                          | Not refused. The body drowns on arrival, which an author may be filming on purpose.                                 |
-| A cast larger than the room's crowd cap            | The cap governs: bodies are placed up to the cap and the surplus is dropped, because the cap is the room's promise. |
-| A room with a cast and no crowd declaration        | The cast stands and nothing else arrives, which is the stage.                                                       |
-| Descending to a new floor                          | The cast is placed again from the room's declaration, like everything else the floor holds.                         |
+| Case                                               | Expected Handling                                                                                                                                                                                                                                                      |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A cast cell outside the room's interior            | Refused when the file is read, naming the cell.                                                                                                                                                                                                                        |
+| Two entries on one cell                            | Refused when the file is read, naming the cell.                                                                                                                                                                                                                        |
+| A cast cell that a carved structure leaves as wall | Not refused. The body is placed and settles out of the geometry as any pushed body does.                                                                                                                                                                               |
+| A cast cell that is water                          | Not refused. The body drowns on arrival, which an author may be filming on purpose.                                                                                                                                                                                    |
+| A cast larger than the room's crowd cap            | The whole cast stands; the cap governs what arrives on top of it, so the random count shrinks to nothing and no reinforcement comes until a body dies. Dropping the surplus instead would empty the cast of every room declaring no crowd, which is what the stage is. |
+| A room with a cast and no crowd declaration        | The cast stands and nothing else arrives, which is the stage.                                                                                                                                                                                                          |
+| Descending to a new floor                          | The cast is placed again from the room's declaration, like everything else the floor holds.                                                                                                                                                                            |
 
 ## Acceptance Criteria
 

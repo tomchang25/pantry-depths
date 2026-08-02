@@ -21,7 +21,15 @@
 
 import type { ResolvedMap } from "@/content/maps/map-resolver";
 import { strandedGround, validateDrawnFloor, validateDrawnWalk } from "@/content/maps/map-schema";
-import type { MapCrowd, MapQuantity, MapRoom, MapRoomRole, MapTileKind, MapWallMix } from "@/content/maps/room-schema";
+import type {
+  MapCastMember,
+  MapCrowd,
+  MapQuantity,
+  MapRoom,
+  MapRoomRole,
+  MapTileKind,
+  MapWallMix,
+} from "@/content/maps/room-schema";
 
 /**
  * How much floor there is, in cells.
@@ -104,6 +112,14 @@ export type DemoRoom = Readonly<{
   /** The interior cell the doorway opens through, on the side facing the main region. */
   doorway?: DemoCell;
   crowd: DemoCrowd;
+  /**
+   * The bodies this room's file stands at named cells, still in room-local coordinates.
+   *
+   * Carried the way the crowd is, and for the same reason: what populates a floor walks the assembled
+   * rooms and has no other way back to the file each one came from — a drawn side room is not
+   * recoverable by name from the map, because which of the pool landed is decided during assembly.
+   */
+  cast: readonly MapCastMember[];
 }>;
 
 /**
@@ -640,6 +656,7 @@ function roomOn(block: DemoBlock, source: MapRoom): DemoRoom {
     maxY: block.y + block.height - 2,
     center: blockCenter(block),
     crowd: source.crowd ?? NO_CROWD,
+    cast: source.cast ?? [],
   };
 }
 

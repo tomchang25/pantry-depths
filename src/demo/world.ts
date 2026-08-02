@@ -711,6 +711,36 @@ export function createEnemy(world: DemoWorld, x: number, y: number, archetype = 
 }
 
 /**
+ * Stands every room's authored cast where its file says, and answers how many the player's own room
+ * stood — which is what the random count below has to be told about, since the cap counts both.
+ *
+ * A cast cell is written in the room's own space, where the wall ring is zero and the first interior
+ * cell is 1,1 — the same space its authored cells use. The room's minimum corner is that first
+ * interior cell on the floor, so the ring is what the subtraction below takes off.
+ *
+ * Nothing here asks whether a cell is walkable. A body on masonry settles out of it on its first
+ * frame the way any shoved body does, and a body in water drowns, which is a thing to author.
+ */
+export function standCast(world: DemoWorld): number {
+  const standing = standingRoom(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
+  let here = 0;
+
+  for (const room of world.maze.rooms) {
+    for (const member of room.cast) {
+      world.enemies.push(
+        createEnemy(world, room.minX + member.x - 0.5, room.minY + member.y - 0.5, ENEMY_ARCHETYPES[member.kind]),
+      );
+
+      if (room === standing) {
+        here += 1;
+      }
+    }
+  }
+
+  return here;
+}
+
+/**
  * Fills a freshly generated maze with everything that is not the player.
  *
  * Used both for a new run and for arriving on the next floor down, which is why it takes the world
@@ -741,11 +771,18 @@ export function populateFloor(world: DemoWorld): void {
   const crowd = crowdHere(world);
   world.spawnSeconds = crowd.reinforcement ? roll(crowd.reinforcement.every) : IDLE_SPAWN_RECHECK_SECONDS;
 
+  // The authored bodies first, and exactly where they say. They ignore the distance rule below on
+  // purpose: that rule stops a floor nobody authored from opening with a swing, and standing a body
+  // at arm's reach is the entire point of authoring one.
+  const staged = standCast(world);
+
   // Far enough that the first thing a floor does is look around rather than swing.
   const spawnPool = walkableCells(maze).filter(
     (cell) => Math.hypot(cell.x + 0.5 - world.player.x, cell.y + 0.5 - world.player.y) > 6.5,
   );
-  const count = Math.min(crowd.cap, roll(crowd.starting) + world.depth - 1);
+  // What the cast already stands is subtracted rather than clamped afterwards, because the cap is the
+  // room's promise about how many bodies are in it, and an authored body is one of them.
+  const count = Math.min(crowd.cap - staged, roll(crowd.starting) + world.depth - 1);
 
   for (let index = 0; index < count; index += 1) {
     const cell = takeRandom(spawnPool);

@@ -77,12 +77,12 @@ One key hides the whole instrument layer — the readouts and the panel together
 
 ### Children
 
-| #   | Focus                                                               | Handoff                                                                  |
-| --- | ------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| 01  | Two kinds of freeze, and the harness scene that wants the other one | Shipped — `filming_stage_01_two_kinds_of_freeze.implementation_spec.md`  |
-| 02  | A cast a room can declare, and the floor that honours it            | `filming_stage_02_a_cast_a_room_declares.implementation_spec.md` (draft) |
-| 03  | Painting a cast on the room surface                                 | `filming_stage_03_painting_the_cast.implementation_spec.md` (draft)      |
-| 04  | The stage, its dressing, and the clear screen                       | `filming_stage_04_the_stage.implementation_spec.md` (draft)              |
+| #   | Focus                                                               | Handoff                                                                    |
+| --- | ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 01  | Two kinds of freeze, and the harness scene that wants the other one | Shipped — `filming_stage_01_two_kinds_of_freeze.implementation_spec.md`    |
+| 02  | A cast a room can declare, and the floor that honours it            | Shipped — `filming_stage_02_a_cast_a_room_declares.implementation_spec.md` |
+| 03  | Painting a cast on the room surface                                 | `filming_stage_03_painting_the_cast.implementation_spec.md` (draft)        |
+| 04  | The stage, its dressing, and the clear screen                       | `filming_stage_04_the_stage.implementation_spec.md` (draft)                |
 
 Landing order is 01, 02, 03, 04. Child 01 is independent of the rest and lands first because it is the one thing currently producing a wrong picture. Children 03 and 04 both depend on 02; 04 depends on 01 for the switch it turns on.
 
@@ -122,17 +122,6 @@ The three later specs were written in one batch ahead of their landing order and
 Perishable: this records the codebase on 2026-08-02. Re-check every coordinate against live code before acting on it.
 
 Two constraints govern all four children. Nothing under `test/` may import `@/demo/` or `@/presentation/` — `test/unit/repository/demo-half-is-untested.test.ts` fails the suite over it, and its exempt list does not grow. And `src/content/` may reach only `src/content/` and `src/core/`, which is why child 02 declares a vocabulary rather than importing one.
-
-### 02 — A cast a room can declare
-
-- `src/content/maps/room-schema.ts` is the owner. Follow the pattern its header comment states at lines 14-19 and that `MAP_TILE_KINDS` (line 24) and `MAP_ROOM_ROLES` (line 51) already follow: declare the vocabulary here, naming the runtime's own kinds.
-- The seven kinds are the keys of `ENEMY_ARCHETYPES` in `src/demo/enemy-archetypes.ts:407`: `slimeGreen`, `slimeBlue`, `slimeRed`, `swordsman`, `hammerman`, `javelineer`, `crossbowman`. Do not reuse `EnemyId` or `EnemyAppearanceId` from `src/content/combat/enemies.ts` — those are the turn-based game's table and a ten-value appearance list, and neither lines up with these seven.
-- Bind the runtime to it: `DemoArchetypeId` (`src/demo/enemy-archetypes.ts:28`) becomes an alias of the content type, and `ENEMY_ARCHETYPES` is annotated as a record keyed by it, so a kind added to one half and not the other fails typecheck. The demo layer may import content; the reverse is what forces this direction.
-- **`parseRoomSource` must return the cast** (`src/content/maps/room-schema.ts:497`). `dev/tools/authoring/authoring-api.ts:164` writes the parser's return value verbatim into the file, so a field the parser drops is a field the next save deletes.
-- The parse-time refusals are bounds and duplicates only. Interior bounds are `1 <= x <= width - 2` and the same for `y`, matching what `paintRoom` (`src/demo/maze.ts:565`) actually paints.
-- Placement goes in `populateFloor` (`src/demo/world.ts:704`), before the spawn-pool loop at line 735. Room-local to world coordinates is `room.minX + x` and `room.minY + y`; `DemoRoom` carries `minX`/`minY` at `src/demo/maze.ts:97`. `createEnemy(world, x, y, archetype)` at line 662 already takes an explicit archetype — the third parameter is the whole placement primitive.
-- The random starting count is computed at line 733 against `crowdHere(world).cap`; subtract the cast already standing in that room so the cap holds. `spawnReinforcement` (line 879) already measures against `world.enemies.length`.
-- `map-resolver.ts`, `map-schema.ts`, `room-library.ts`, and `maze.ts` pass `MapRoom` through and need no change. No test file references `room-schema`; `test/unit/dev/tools/authoring/api-contract.test.ts` is the only authoring test and should be re-run rather than edited.
 
 ### 03 — Painting a cast on the room surface
 
