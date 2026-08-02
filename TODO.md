@@ -46,6 +46,30 @@ One line, no rationale, no backing document.
 
 Not scheduled. Do not start without a decision.
 
+### A Room Whose Size Is Its Own
+
+A map declares an extent and a room declares an extent, and neither knows the other's. The main region is centred in the grid, so a room larger than the map it stands in was painted outside that grid: the rows before it went to negative indices and vanished, the rows past it extended the tile array beyond the extent, and the assembled room still recorded the bounds the room had asked for. A body placed from those bounds stands inside masonry, which is how a floor is arrived on stuck. That is now refused when the map is resolved rather than assembled wrong, so the failure is loud and immediate — but refusing is all it does. A room still cannot be made bigger than its map without going and making the map bigger too, and the two numbers are edited on two different surfaces.
+
+The second half is the same shape one level up. Every floor is built with an arrival, a way down, and a plinth, whether or not anything wants them: the plinth falls on the arrival cell when no room on the floor holds one, the stairway is dropped into whatever open ground is left, and the floor's contract is four hardcoded objectives — twenty bodies, twelve walls, four side rooms, one pool — identical on every map ever authored. A floor cannot say it is not a dungeon. The filming stage works around all of it by moving the way down and the plinth onto a boundary cell where neither can be seen or reached, and by opening with the instrument layer hidden so the four unmeetable objectives are off screen. That is a workaround wearing the shape of a feature, and it is worth naming as one.
+
+What makes this a decision rather than a queue is how far the contract should bend. A room that sizes its own map is one answer; a map that declares which of the three fixtures it wants is another; a floor that carries no contract at all is a third, and it is the one the stage actually wants. All three change what a map file means, and doing them piecemeal means changing that meaning three times.
+
+Not scheduled. What would force it is a second stage, or the first authored floor that genuinely has no stairs.
+
+### Scenes Are Routes, Not A Query Parameter
+
+The direction is chosen: a development scene gets an address of its own. The sandbox goes to `/sandbox`, the room built to film promotional footage in goes to `/soundstage`, and a testbed scene goes to `/testbed/<scene name>`. What is not wanted is what exists — every one of them reached by naming a map in a query on the ordinary play route.
+
+The parameter is the wrong shape for three reasons, and the third is the one that matters. It puts every development floor on the address of the shipped game, which is now shut by ignoring the parameter outside development — a lid on the problem rather than an answer to it. It gives a scene nothing to own but a map name, so two scenes wanting different rules have nowhere to put them. And a scene is not a floor: the filming stage needs a fixed arrival, a way down that cannot be reached, a hidden instrument layer, and four keys nobody else should have, and none of that is expressible as content — so it is keyed off a string comparison against a map name inside the demo half. That comparison is a scene identity smuggled in as a literal, and a second scene doubles it.
+
+What a scene would own, on the evidence of the one that exists: its address, the floor it opens, how arriving on it is dressed, which keys it adds, and what the screen shows by default. Five things, five places they currently live, none of them the same place.
+
+Three questions decide the shape and none is answered. Whether these are more debug routes or a third route class beside the ordinary and debug ones, given that the route resolver today knows exactly two and the production build is defined as everything that is not the second. Whether `sandbox` can mean two things at once — it already names the disposable-experiment source tree entered through the debug hub, and a `/sandbox` scene route would be a second meaning of the same word in the same repository. And whether the play surface can mount under a non-play route at all: its stylesheet locks the document to the viewport and is imported lazily for exactly that reason, so a scene route either is a play route or has to answer what that stylesheet does to it.
+
+Related to the entry above, and not the same work: a soundstage with its own address still cannot decline the stairs and the plinth that every floor is built with. Doing this one first buys a place to put a scene's rules; doing that one first buys rules worth putting there.
+
+Not scheduled. What would force it is the second scene of any kind — a testbed, a second stage, or the sandbox wanting a rule the play route does not have.
+
 ### Three.js, With The Block Skeleton As The Prototype
 
 The direction is chosen: the game moves to a Three.js runtime, and the blocky skeleton is the prototype everything else is built from. That closes the question the block experiment deliberately left open — it kept both the sprite bake and a runtime consumer possible on purpose, and the runtime wins.
