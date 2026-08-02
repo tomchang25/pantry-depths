@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "capture": "node dev/tools/capture-scenes.mjs",
+    "sfx:export": "node node_modules/vite-node/vite-node.mjs --config dev/tools/vite-node.config.ts dev/tools/export-sfx-review.ts",
     "capture:page": "node dev/tools/capture-page.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

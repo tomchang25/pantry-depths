@@ -36,11 +36,11 @@ One row per cue: id, the trigger description, the backing recording and its libr
 
 ### Child overview
 
-| Child | Focus                                                                                                                                               | Form                  |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| 01    | Library rating reform: retire the rejected flag, migrate existing annotations, search hides one-star by default, audition reject key rates one star | Shipped               |
-| 02    | Project review record and the workbench page                                                                                                        | Shipped               |
-| 03    | Export step and the library-side review pass                                                                                                        | Execution notes below |
+| Child | Focus                                                                                                                                               | Form    |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| 01    | Library rating reform: retire the rejected flag, migrate existing annotations, search hides one-star by default, audition reject key rates one star | Shipped |
+| 02    | Project review record and the workbench page                                                                                                        | Shipped |
+| 03    | Export step and the library-side review pass                                                                                                        | Shipped |
 
 Landing order is 01, 02, 03: the workbench (02) wants the fit vocabulary to be the only rejection concept left, and the review pass (03) needs both sides existing.
 
@@ -59,10 +59,4 @@ Landing order is 01, 02, 03: the workbench (02) wants the fit vocabulary to be t
 
 ## Execution
 
-Perishable codebase notes, recorded at planning time (2026-08-02); re-check against live code before each child.
-
-### Child 03 — export and review pass
-
-- Export: an npm script in this repository (`dev/tools/`) copying the review record to `E:/Code/audio-library/catalog/projects/pantry-depths.json`, stamped with the export date. Direct write is safe: one writer per file, and the audition server never loads that area.
-- Review pass: an npm script in audio-library walking `catalog/projects/*.json`, diffing against `catalog/annotations.json`, emitting a proposal list (markdown) for human approval; applying an approved proposal edits annotations through the same additive discipline the tooling already follows. The LLM-assisted sorting can start as a prompt template checked into that repository rather than an API integration.
-- Update `dev/skills/sfx_sourcing.md` in this repository when the commands exist — it currently documents the contract as hand-maintained.
+All three children have shipped; their execution notes are cut per the forward-only rule. The plan stays active until the first acceptance criterion — the workbench heard and judged by an ear — has been taken; closeout follows that verification.

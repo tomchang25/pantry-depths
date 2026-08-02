@@ -42,4 +42,8 @@
 - 聲音層（星等、tags）屬於音庫 annotations，主詞是聲音本身；品質差就是 1 星。
 - 專案層主詞是 `(catalogId, cueId)` 對，記 `status: shipped | trial | misfit`、評語、專案 tags。正本留在本專案，匯出副本放 `audio-library/catalog/projects/pantry-depths.json`，供音庫定期整審（LLM 分揀、人裁決）決定是否回寫聲音層。每個未來專案照同一格式各佔一檔。
 
-專案層的編輯介面（SFX workbench）與匯出、整審命令由各自的 plan 授權；工具就緒前，projects 檔可手寫維護。
+整條迴路的工具都已就位：
+
+- **編輯**：debug hub 的 **SFX Workbench**（`/debug/sfx-workbench`）——每個 cue 走真實管線試聽，音量/pitch 存回 `sfx-cues.json`，fit/評語/tags 存回 `sfx-review.json`，兩者都經 authoring endpoint 驗證後寫入。
+- **匯出**：`npm run sfx:export`（本 repo）——驗證後把 review 檔快照寫到 `audio-library/catalog/projects/pantry-depths.json`。
+- **整審**：`npm run review:projects`（audio-library）——走訪所有 projects 檔，印出 markdown 提案清單；套用提案是人工編輯 `annotations.json`，改完重啟 audition server。
