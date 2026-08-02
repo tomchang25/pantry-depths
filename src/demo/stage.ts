@@ -52,10 +52,16 @@ export function isStage(world: DemoWorld): boolean {
   return world.map.name === STAGE_MAP_NAME;
 }
 
-/** What the next reset would stand, in the words a person would use for it. */
+/**
+ * What the next reset would stand, short enough for the panel to hold.
+ *
+ * The archetype's identifier rather than its display name, and that is a layout constraint rather
+ * than a preference: the instrument panel is a fixed box sized to its longest possible line, and
+ * "Skeleton Crossbowman" does not fit inside it. The identifiers read perfectly well in a monospace
+ * column and every one of them is inside the budget.
+ */
 export function stageChoiceName(): string {
-  const kind = CAST_CHOICES[choice];
-  return kind === undefined ? "as authored" : ENEMY_ARCHETYPES[kind].name;
+  return CAST_CHOICES[choice] ?? "as authored";
 }
 
 /** Steps the choice one either way, wrapping, and answers what is now held. */
@@ -87,7 +93,20 @@ export function restageCast(world: DemoWorld): number {
     projectile.skewered.length = 0;
   }
 
-  return standCast(world, CAST_CHOICES[choice]);
+  const stood = standCast(world, CAST_CHOICES[choice]);
+
+  // Every body is turned to look at where the run arrives, because a body created anywhere else in
+  // this game rolls its facing at random and then turns towards the player within a second — and a
+  // held body never turns at all, so on a stage the roll is permanent and half the cast has its back
+  // to the camera.
+  //
+  // Aimed at the arrival rather than at a fixed compass direction: today those are the same thing,
+  // and only one of them survives the stage being made wider, longer, or turned around.
+  for (const enemy of world.enemies) {
+    enemy.facingAngle = Math.atan2(world.maze.entrance.y + 0.5 - enemy.y, world.maze.entrance.x + 0.5 - enemy.x);
+  }
+
+  return stood;
 }
 
 /**

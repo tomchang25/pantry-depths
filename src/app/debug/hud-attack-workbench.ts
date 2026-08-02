@@ -411,6 +411,7 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
     fillCrowd: noop,
     dropKit: noop,
     grantBless: noop,
+    restageCast: noop,
   });
   const refreshHud = (): void => hud.update(hudModel);
   /**

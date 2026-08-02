@@ -43,6 +43,7 @@ export type DemoDevOverlayActions = Readonly<{
   fillCrowd(): void;
   dropKit(): void;
   grantBless(): void;
+  restageCast(): void;
 }>;
 
 export type MountedDemoDevOverlay = Readonly<{
@@ -107,6 +108,7 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
     minds,
     world,
     cast,
+    command("Restage cast · C", actions.restageCast),
     command("Test arena · T", actions.testArena),
     command("Kill all · K", actions.killAll),
     command("Fill crowd · N", actions.fillCrowd),
@@ -132,10 +134,11 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
     minds.dataset.active = String(model.mindsFrozen);
     world.textContent = `World freeze · ${model.worldFrozen ? "on" : "off"} · O`;
     world.dataset.active = String(model.worldFrozen);
-    // Named rather than switched: what it holds is a choice among eight, and the two keys that step it
-    // are on the row so the pair reads as one control.
+    // Named rather than switched: what it holds is a choice among eight, and the two keys that step
+    // it are on the row so the pair reads as one control. Restaging is not on it — that is a command
+    // and it sits with the commands, which is also what keeps this line inside the panel's width.
     cast.hidden = model.nextCast === undefined;
-    cast.textContent = `Next cast · ${model.nextCast ?? ""} · Q E · restage C`;
+    cast.textContent = `Cast · ${model.nextCast ?? ""} · Q E`;
   };
 
   // The command buttons' listeners go with the nodes they are on, which are removed with the panel.

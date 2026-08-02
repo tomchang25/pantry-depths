@@ -560,6 +560,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     fillCrowd: () => fillCrowd(),
     dropKit: () => dropKit(),
     grantBless: () => grantBless(),
+    restageCast: () => restageStage(),
   });
   surface.className = "demo";
   canvas.className = "demo__canvas";
@@ -584,8 +585,16 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
   let objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
   let disposed = false;
   let frame = 0;
-  /** Whether the readouts and the instrument panel are off screen, so a take carries no furniture. */
-  let instrumentsHidden = false;
+  /**
+   * Whether the readouts and the instrument panel are off screen, so a take carries no furniture.
+   *
+   * A stage opens with them already off, which is the right way round for the one floor whose purpose
+   * is to be photographed: the alternative was making a dungeon's contract mean something in a room
+   * that is not a dungeon, and it does not — every objective a floor carries is unmeetable in there,
+   * from twelve walls it has none of to four side rooms it will never have.
+   */
+  let instrumentsHidden = isStage(world);
+  surface.dataset.bare = String(instrumentsHidden);
   let lastTime: number | undefined;
   let cardTimer: number | undefined;
   let activeCardToken: string | undefined;
@@ -788,6 +797,23 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
   const testArena = (): void => flattenFloorForTesting(world);
 
   /**
+   * Stands the stage's cast again, and refuses to do anything anywhere else.
+   *
+   * The guard is not tidiness. Off a stage this empties the floor of every body without killing one —
+   * no corpse, no drop, no stain — and then stands a cast no ordinary room declares. That is not a
+   * cheat, it is a floor deleted in silence, so the key says no rather than doing it.
+   */
+  const restageStage = (): void => {
+    if (!isStage(world)) {
+      announce(world, "Restaging is the filming stage's; this floor has no cast to stand", 2.5);
+      return;
+    }
+
+    const stood = restageCast(world);
+    announce(world, stood > 0 ? `Cast restaged (${stood})` : "This room stands nobody", 2);
+  };
+
+  /**
    * One blessing, drawn exactly as an altar draws it.
    *
    * Through `awardBless` rather than through the catalogue directly, so the cheat cannot award
@@ -960,7 +986,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     // The three the stage adds. Choosing does not touch what is already standing — it decides what the
     // next reset stands up — so a person can step through the list looking for the right body without
     // destroying the shot they are in.
-    if (key === "q" || key === "e") {
+    if ((key === "q" || key === "e") && isStage(world)) {
       event.preventDefault();
       announce(world, `Next cast: ${stepStageChoice(key === "e" ? 1 : -1)}`, 2);
       refreshDev();
@@ -969,8 +995,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
 
     if (key === "c") {
       event.preventDefault();
-      const stood = restageCast(world);
-      announce(world, stood > 0 ? `Cast restaged (${stood})` : "This room stands nobody", 2);
+      restageStage();
       return;
     }
 
