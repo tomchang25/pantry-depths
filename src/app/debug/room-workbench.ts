@@ -21,15 +21,17 @@
 import { listCanonical, loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { actionButton, field, numberInput } from "@/app/debug/debug-form";
 import { createDebugPanel } from "@/app/debug/debug-shell";
-import { createFloorPreview, TILE_COLOURS } from "@/app/debug/floor-preview";
+import { CAST_COLOURS, createFloorPreview, TILE_COLOURS } from "@/app/debug/floor-preview";
 import { resolveMap } from "@/content/maps/map-resolver";
 import { parseMapSource } from "@/content/maps/map-schema";
 import { ROOM_LIBRARY } from "@/content/maps/room-library";
 import {
+  MAP_CAST_KINDS,
   MAP_ROOM_ROLES,
   MAP_TILE_KINDS,
   parseRoomSource,
   unfillableEnclosesRegion,
+  type MapCastKind,
   type MapQuantity,
   type MapRoom,
   type MapTileKind,
@@ -244,17 +246,70 @@ function optionalBlock(label: string, present: boolean, onToggle: (present: bool
 }
 
 /**
- * Which kind the next stroke paints.
+ * What the next stroke does, which is either a tile kind or a body — never both.
+ *
+ * One held brush across two layers rather than a layer switch beside a palette: a separate switch can
+ * disagree with what is held, and then a stroke paints something the author is not looking at.
  *
  * Module-level so it survives a room being closed and another opened. An author who picked water and
  * then went to look at a different room does not expect to come back holding stone.
  */
-let brush: MapTileKind = "stone";
+type RoomBrush = Readonly<{ layer: "tile"; kind: MapTileKind }> | Readonly<{ layer: "cast"; kind: MapCastKind | "" }>;
+
+let brush: RoomBrush = { layer: "tile", kind: "stone" };
+
+/** What the eraser in the body group is worth, which is a body brush holding no body. */
+const NO_BODY = "";
+
+/** A cast addressed by cell, which is the shape a stroke edits it in. */
+type CastByCell = Map<string, MapCastKind>;
+
+function castKeyOf(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+/** Whatever the draft holds for its cast, keyed by cell. An unreadable entry is dropped rather than guessed. */
+function castOf(value: unknown): CastByCell {
+  const held: CastByCell = new Map();
+
+  if (!Array.isArray(value)) {
+    return held;
+  }
+
+  for (const entry of value) {
+    const member = asRecord(entry);
+
+    if (typeof member.x === "number" && typeof member.y === "number" && isCastKind(member.kind)) {
+      held.set(castKeyOf(member.x, member.y), member.kind);
+    }
+  }
+
+  return held;
+}
+
+function isCastKind(value: unknown): value is MapCastKind {
+  return typeof value === "string" && MAP_CAST_KINDS.includes(value as MapCastKind);
+}
+
+/**
+ * The cast back in the shape its file holds, in a stable order.
+ *
+ * Sorted by cell rather than left in insertion order, so opening a room and painting one body does not
+ * reorder the rest of the list in the file's diff.
+ */
+function castToSource(held: CastByCell): { kind: MapCastKind; x: number; y: number }[] {
+  return [...held.entries()]
+    .map(([cell, kind]) => {
+      const [x, y] = cell.split(",");
+      return { kind, x: Number(x), y: Number(y) };
+    })
+    .sort((first, second) => first.y - second.y || first.x - second.x);
+}
 
 type RoomPainter = Readonly<{
   element: HTMLElement;
-  /** Shows these cells, rebuilding the buttons only when the extent has actually changed. */
-  show: (rows: MapTileKind[][]) => void;
+  /** Shows these cells and this cast, rebuilding the buttons only when the extent has actually changed. */
+  show: (rows: MapTileKind[][], cast: CastByCell, tilesPaintable: boolean) => void;
 }>;
 
 /**
@@ -269,57 +324,114 @@ type RoomPainter = Readonly<{
  * Buttons rather than a canvas because a cell is a thing to click, and a canvas would mean rebuilding
  * the hit-testing the browser already does.
  */
-function createPainter(onPaint: (rows: MapTileKind[][]) => void): RoomPainter {
+function createPainter(
+  onPaintCells: (rows: MapTileKind[][]) => void,
+  onPaintCast: (cast: CastByCell) => void,
+): RoomPainter {
   const element = document.createElement("div");
   const palette = document.createElement("div");
   const grid = document.createElement("div");
+  const swatches = new Map<HTMLButtonElement, RoomBrush>();
   let cells: HTMLButtonElement[] = [];
   let rows: MapTileKind[][] = [];
+  let cast: CastByCell = new Map();
+  let paintable = true;
   let painting = false;
 
   element.className = "room-workbench-authored";
   palette.className = "room-workbench-palette";
   grid.className = "room-workbench-grid";
   grid.setAttribute("role", "group");
-  grid.setAttribute("aria-label", "The room's cells");
+  grid.setAttribute("aria-label", "The room's cells and the bodies standing in them");
 
-  for (const kind of MAP_TILE_KINDS) {
-    const swatch = actionButton(kind);
-    swatch.className = "room-workbench-swatch";
-    swatch.style.setProperty("--swatch", TILE_COLOURS[kind]);
-    swatch.setAttribute("aria-pressed", String(kind === brush));
+  const held = (candidate: RoomBrush): boolean => candidate.layer === brush.layer && candidate.kind === brush.kind;
+
+  const addSwatch = (label: string, candidate: RoomBrush, colour: string): HTMLButtonElement => {
+    const swatch = actionButton(label);
+    swatch.className = candidate.layer === "tile" ? "room-workbench-swatch" : "room-workbench-swatch is-body";
+    swatch.style.setProperty("--swatch", colour);
+    swatch.setAttribute("aria-pressed", String(held(candidate)));
     swatch.addEventListener("click", () => {
-      brush = kind;
+      brush = candidate;
 
-      for (const other of palette.querySelectorAll("button")) {
-        other.setAttribute("aria-pressed", String(other.textContent === kind));
+      for (const [other, its] of swatches) {
+        other.setAttribute("aria-pressed", String(held(its)));
       }
     });
+    swatches.set(swatch, candidate);
     palette.append(swatch);
+    return swatch;
+  };
+
+  const tileSwatches = MAP_TILE_KINDS.map((kind) => addSwatch(kind, { layer: "tile", kind }, TILE_COLOURS[kind]));
+
+  // The eraser sits in the body group rather than beside the palette, because it answers the same
+  // question the body swatches do — what does a stroke put on a cell — and a separate control would be
+  // a second way to say "no body here".
+  addSwatch("no body", { layer: "cast", kind: NO_BODY }, "transparent");
+
+  for (const kind of MAP_CAST_KINDS) {
+    addSwatch(kind, { layer: "cast", kind }, CAST_COLOURS[kind]);
   }
 
   const dress = (button: HTMLButtonElement, x: number, y: number, kind: MapTileKind): void => {
+    const standing = cast.get(castKeyOf(x, y));
     button.style.setProperty("--cell", TILE_COLOURS[kind]);
-    button.title = `${x}, ${y} — ${kind}`;
-    button.setAttribute("aria-label", `Cell ${x}, ${y}, ${kind}`);
+    button.style.setProperty("--body", standing === undefined ? "transparent" : CAST_COLOURS[standing]);
+    button.dataset.body = String(standing !== undefined);
+    button.title = standing === undefined ? `${x}, ${y} — ${kind}` : `${x}, ${y} — ${kind}, ${standing}`;
+    button.setAttribute(
+      "aria-label",
+      standing === undefined ? `Cell ${x}, ${y}, ${kind}` : `Cell ${x}, ${y}, ${kind}, ${standing} standing`,
+    );
   };
 
+  /** One stroke on one cell, on whichever layer the held brush belongs to. */
   const paint = (x: number, y: number): void => {
     const row = rows[y];
 
-    if (!row || row[x] === brush) {
+    if (!row) {
       return;
     }
 
-    const width = row.length;
-    rows = rows.map((line, index) => (index === y ? line.map((cell, at) => (at === x ? brush : cell)) : line));
-    const button = cells[y * width + x];
+    const button = cells[y * row.length + x];
 
-    if (button) {
-      dress(button, x, y, brush);
+    if (brush.layer === "cast") {
+      const cell = castKeyOf(x, y);
+      const standing = cast.get(cell);
+
+      if ((brush.kind === NO_BODY ? undefined : brush.kind) === standing) {
+        return;
+      }
+
+      cast = new Map(cast);
+
+      if (brush.kind === NO_BODY) {
+        cast.delete(cell);
+      } else {
+        cast.set(cell, brush.kind);
+      }
+
+      if (button) {
+        dress(button, x, y, row[x] ?? "open");
+      }
+
+      onPaintCast(cast);
+      return;
     }
 
-    onPaint(rows);
+    if (!paintable || row[x] === brush.kind) {
+      return;
+    }
+
+    const stroke = brush.kind;
+    rows = rows.map((line, index) => (index === y ? line.map((cell, at) => (at === x ? stroke : cell)) : line));
+
+    if (button) {
+      dress(button, x, y, stroke);
+    }
+
+    onPaintCells(rows);
   };
 
   const build = (): void => {
@@ -361,9 +473,18 @@ function createPainter(onPaint: (rows: MapTileKind[][]) => void): RoomPainter {
 
   return {
     element,
-    show: (next) => {
+    show: (next, nextCast, tilesPaintable) => {
       const sameExtent = next.length === rows.length && (next[0]?.length ?? 0) === (rows[0]?.length ?? 0);
       rows = next;
+      cast = nextCast;
+      paintable = tilesPaintable;
+
+      // A room whose cells are generated has nothing to paint tiles onto — the grid is there to stand
+      // bodies on, over a backdrop showing what the extent is. Held rather than hidden, so an author
+      // switching a room to authored cells comes back holding what they had.
+      for (const swatch of tileSwatches) {
+        swatch.disabled = !tilesPaintable;
+      }
 
       if (sameExtent && cells.length > 0) {
         for (const [y, row] of rows.entries()) {
@@ -523,16 +644,30 @@ export function createRoomSurface(): HTMLElement {
     const heightInput = numberInput(Number(draft.height ?? 11));
 
     // The reader demands an authored grid match the extent exactly, so an extent change carries the grid
-    // with it rather than leaving a file that can no longer be read.
+    // with it rather than leaving a file that can no longer be read. A cast entry outside the new
+    // interior goes for the same reason: the reader refuses one, and a draft that cannot be saved is a
+    // worse answer than a body the author can see is gone.
     const resize = (patch: Record<string, number>): void =>
       edit((next) => {
         Object.assign(next, patch);
         const held = asRecord(next.structure);
+        const width = Number(next.width ?? 0);
+        const height = Number(next.height ?? 0);
 
         if (held.authored !== undefined) {
-          next.structure = {
-            authored: reshaped(rowsOf(held.authored), Number(next.width ?? 0), Number(next.height ?? 0)),
-          };
+          next.structure = { authored: reshaped(rowsOf(held.authored), width, height) };
+        }
+
+        if (next.cast !== undefined) {
+          const kept = castToSource(castOf(next.cast)).filter(
+            (member) => member.x >= 1 && member.y >= 1 && member.x <= width - 2 && member.y <= height - 2,
+          );
+
+          if (kept.length === 0) {
+            delete next.cast;
+          } else {
+            next.cast = kept;
+          }
         }
       });
 
@@ -750,18 +885,6 @@ export function createRoomSurface(): HTMLElement {
     );
     structureGrid.append(field("Structure", kindSelect));
 
-    if (structure.authored !== undefined) {
-      // Made once and kept, so a stroke is not cut short by its own first cell. Painting asks for the
-      // preview and nothing else, because no other field on this form depends on which cells are painted.
-      painter ??= createPainter((rows) => {
-        draft.structure = { authored: rows };
-        rebuild(true);
-      });
-      painter.show(rowsOf(structure.authored));
-      fields.append(structureGrid, painter.element);
-      return;
-    }
-
     if (structure.generated === "carved") {
       const openShare = numberInput(Number(structure.openShare ?? 0), 0.01);
       const walls = asRecord(structure.walls);
@@ -793,6 +916,38 @@ export function createRoomSurface(): HTMLElement {
     }
 
     fields.append(structureGrid);
+
+    // The grid is shown for every structure, because a cast is not a property of authored cells: the
+    // room a stage wants is open floor throughout and still has bodies standing in it. A generated
+    // room gets a backdrop of its own extent with the tile swatches unavailable, and the cells it
+    // actually ends up with are the assembly's business, shown in the diagram beside this.
+    //
+    // Made once and kept, so a stroke is not cut short by its own first cell. Painting asks for the
+    // preview and nothing else, because no other field on this form depends on what is painted.
+    painter ??= createPainter(
+      (rows) => {
+        draft.structure = { authored: rows };
+        rebuild(true);
+      },
+      (cast) => {
+        if (cast.size === 0) {
+          // Removed rather than written empty: a room that never declared a cast must not gain one by
+          // being opened, and an empty list is a different statement from an absence.
+          delete draft.cast;
+        } else {
+          draft.cast = castToSource(cast);
+        }
+
+        rebuild(true);
+      },
+    );
+    const authored = structure.authored !== undefined;
+    painter.show(
+      authored ? rowsOf(structure.authored) : seededCells(Number(draft.width ?? 0), Number(draft.height ?? 0)),
+      castOf(draft.cast),
+      authored,
+    );
+    fields.append(heading("The bodies standing in it"), painter.element);
   };
 
   const refresh = (keepForm = false): void => {

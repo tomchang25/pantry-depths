@@ -123,14 +123,6 @@ Perishable: this records the codebase on 2026-08-02. Re-check every coordinate a
 
 Two constraints govern all four children. Nothing under `test/` may import `@/demo/` or `@/presentation/` — `test/unit/repository/demo-half-is-untested.test.ts` fails the suite over it, and its exempt list does not grow. And `src/content/` may reach only `src/content/` and `src/core/`, which is why child 02 declares a vocabulary rather than importing one.
 
-### 03 — Painting a cast on the room surface
-
-- `src/app/debug/room-workbench.ts` owns the grid. The painter is at line 261 onward: `brush` is a module-level `MapTileKind` at line 252, the palette is built around line 288, and `paint` at line 307 recolours one button in place and asks only for a preview rebuild — the comment at lines 262-268 explains why the form must not be rebuilt per stroke, and that constraint holds for the cast layer too.
-- `dress` (line 301) sets `--cell` from `TILE_COLOURS`; a cast marker rides on the same button, so give it a separate visual channel rather than replacing the tile colour.
-- The draft is a loose `Record<string, unknown>` (`RoomDraft`, line 52) held through `asRecord`, so an unedited cast survives in the draft; what strips it is the parser, which child 02 fixes.
-- `TILE_COLOURS` is exported from `src/app/debug/floor-preview.ts:30` precisely so the palette and the diagram cannot disagree; a cast marker colour set belongs there for the same reason. The diagram is drawn in the same file.
-- `src/app/debug/room-workbench.css` — check whether the cell styles live there or in `debug.css` before adding the marker style.
-
 ### 04 — The stage, its dressing, and the clear screen
 
 - New content files: `src/content/rooms/stage.room.json` (id `stage`, 7 by 7, `structure: { "generated": "open" }`, no crowd, no scatter) and `src/content/maps/stage.map.json` (name `stage`, 7 by 7, `fixed` holding the main slot, empty pool, draw 0). Both libraries glob their directories — `src/content/maps/room-library.ts:17` and `map-library.ts:16` — so no registration edit exists. The file name must equal the declared name; both libraries refuse a mismatch.

@@ -9,9 +9,9 @@
  */
 
 import { createRenderPanel, type RenderPanel } from "@/app/debug/render-panel";
-import type { MapTileKind } from "@/content/maps/room-schema";
+import type { MapCastKind, MapTileKind } from "@/content/maps/room-schema";
 import { createDemoScene } from "@/demo/demo-scene";
-import { blocksVision, type DemoMaze } from "@/demo/maze";
+import { blocksVision } from "@/demo/maze";
 import type { DemoWorld } from "@/demo/world";
 
 /**
@@ -33,6 +33,27 @@ export const TILE_COLOURS: Readonly<Record<MapTileKind, string>> = {
   filled: "#249e8c",
   mortar: "#b1522a",
   trench: "#152a6e",
+};
+
+/**
+ * One colour per body, on the same terms as the tiles above: told apart at four pixels rather than
+ * made to look like the game.
+ *
+ * Exported for the same reason too. The palette an author picks a body from and the mark the diagram
+ * puts on a cell are the same statement about the same thing, and two tables would drift.
+ *
+ * The three slimes carry their own colours because that is what tells them apart in play; the four
+ * skeletons share a bone tone and are told apart by which weapon they carry, which a four-pixel square
+ * cannot show — so they are deliberately one colour here and named in the label instead.
+ */
+export const CAST_COLOURS: Readonly<Record<MapCastKind, string>> = {
+  slimeGreen: "#6fbf5b",
+  slimeBlue: "#5b8fd6",
+  slimeRed: "#c9534d",
+  swordsman: "#e6e0cf",
+  hammerman: "#e6e0cf",
+  javelineer: "#e6e0cf",
+  crossbowman: "#e6e0cf",
 };
 
 /** The largest a diagram cell is drawn, so a small floor does not fill the window with squares. */
@@ -89,7 +110,8 @@ function longestView(world: DemoWorld): number {
  * Written rather than borrowed: the authoring map this would have reused answers to a schema that no
  * longer describes anything, and it goes when the tooling around it does.
  */
-function drawDiagram(canvas: HTMLCanvasElement, maze: DemoMaze): void {
+function drawDiagram(canvas: HTMLCanvasElement, world: DemoWorld): void {
+  const maze = world.maze;
   const cell = Math.max(2, Math.min(MAX_CELL, Math.floor(DIAGRAM_WIDTH / maze.width)));
   const ratio = window.devicePixelRatio || 1;
   const context = canvas.getContext("2d");
@@ -110,6 +132,17 @@ function drawDiagram(canvas: HTMLCanvasElement, maze: DemoMaze): void {
       context.fillStyle = tile ? TILE_COLOURS[tile.kind] : TILE_COLOURS.border;
       context.fillRect(x * cell, y * cell, cell, cell);
     }
+  }
+
+  // Every body the assembled floor holds, drawn before the labels so a body under one does not hide
+  // it. Taken from the assembly rather than from the draft on purpose: what an author needs confirmed
+  // is that the cast survived the assembler, and a mark drawn from the form would only restate the
+  // form back to them.
+  for (const enemy of world.enemies) {
+    context.fillStyle = CAST_COLOURS[enemy.archetype.id];
+    context.beginPath();
+    context.arc(enemy.x * cell, enemy.y * cell, Math.max(1.5, cell * 0.3), 0, Math.PI * 2);
+    context.fill();
   }
 
   context.lineWidth = 1;
@@ -168,7 +201,7 @@ export function createFloorPreview(): FloorPreview {
       // make the camera twitch as bodies walked through the line it measured.
       world.player.angle = longestView(world);
       shown = world;
-      drawDiagram(diagram, world.maze);
+      drawDiagram(diagram, world);
       diagram.setAttribute("aria-label", `${label}, ${world.maze.width} by ${world.maze.height} cells`);
 
       // Deferred rather than made with the panel, because the renderer stops its own frame loop on the
