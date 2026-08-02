@@ -48,5 +48,6 @@ Project rows:
 | Work                                                                         | Required reading                                                                                  |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Run `/implement`                                                             | `dev/agent_rules/implement_operations.md` after the canonical `/implement` workflow               |
+| Add or replace a game sound, or touch the audio library                      | `dev/skills/sfx_sourcing.md`                                                                      |
 | Read, cite, or edit anything under `dev/docs/design/` or `dev/docs/reports/` | `dev/standards/frozen_reference_directories.md` — the short answer is do not                      |
 | Anything involving React, IndexedDB, service workers, or PWA                 | The declared deviation in `dev/standards/project_structure.addendum.md` — these do not apply here |
