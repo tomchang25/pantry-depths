@@ -1,8 +1,13 @@
 {
   "name": "stage",
-  "width": 7,
-  "height": 7,
-  "fixed": [{ "slot": "main", "room": "stage" }],
+  "width": 21,
+  "height": 21,
+  "fixed": [
+    {
+      "slot": "main",
+      "room": "stage"
+    }
+  ],
   "pool": [],
   "draw": 0
 }

@@ -1,6 +1,30 @@
 {
   "id": "stage",
   "width": 7,
-  "height": 7,
-  "structure": { "generated": "open" }
+  "height": 14,
+  "cast": [
+    {
+      "kind": "slimeGreen",
+      "x": 3,
+      "y": 2
+    }
+  ],
+  "structure": {
+    "authored": [
+      ["border", "border", "border", "border", "border", "border", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "open", "open", "open", "open", "open", "border"],
+      ["border", "border", "border", "border", "border", "border", "border"]
+    ]
+  }
 }
