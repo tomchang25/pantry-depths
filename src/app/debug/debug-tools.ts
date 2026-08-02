@@ -55,6 +55,17 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
       })),
   },
   {
+    id: "sfx-workbench",
+    path: "/debug/sfx-workbench",
+    title: "SFX Workbench",
+    description:
+      "Play every cue through the real pipeline, tune loudness and pitch into the cue table, and record fit verdicts for the library feedback loop.",
+    load: () =>
+      import("@/app/debug/sfx-workbench").then(({ renderSfxWorkbench }) => ({
+        render: renderSfxWorkbench,
+      })),
+  },
+  {
     id: "map-workbench",
     path: "/debug/map-workbench",
     title: "Map Workbench",

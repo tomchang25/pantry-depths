@@ -38,8 +38,8 @@ One row per cue: id, the trigger description, the backing recording and its libr
 
 | Child | Focus                                                                                                                                               | Form                  |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| 01    | Library rating reform: retire the rejected flag, migrate existing annotations, search hides one-star by default, audition reject key rates one star | Execution notes below |
-| 02    | Project review record and the workbench page                                                                                                        | Execution notes below |
+| 01    | Library rating reform: retire the rejected flag, migrate existing annotations, search hides one-star by default, audition reject key rates one star | Shipped               |
+| 02    | Project review record and the workbench page                                                                                                        | Shipped               |
 | 03    | Export step and the library-side review pass                                                                                                        | Execution notes below |
 
 Landing order is 01, 02, 03: the workbench (02) wants the fit vocabulary to be the only rejection concept left, and the review pass (03) needs both sides existing.
@@ -60,17 +60,6 @@ Landing order is 01, 02, 03: the workbench (02) wants the fit vocabulary to be t
 ## Execution
 
 Perishable codebase notes, recorded at planning time (2026-08-02); re-check against live code before each child.
-
-### Child 01 — library rating reform
-
-All in `E:/Code/audio-library` (own CLAUDE.md; read it first). Annotations live in `catalog/annotations.json`; the audition page serves from `src/serve-audition.mjs` (holds annotations in memory — restart after external writes); search ranking in `src/search-cli.mjs` and `src/mcp-server.mjs`. Migration: every entry carrying the rejected marker becomes `rating: 1`; drop the marker field everywhere. Search: default filter `rating !== 1` unless `--include-rejected`-style flag (name it `--all`).
-
-### Child 02 — review record and workbench
-
-- Review record: `src/content/sfx/sfx-review.json`, one entry per cue id: `{ sample, catalogPath, fit, note, tags }`. Not imported by game code, so it never enters the bundle; validated by a parser beside the cue schema in `src/content/sfx/` (tested half — parser tests are existing-coverage maintenance, ask before adding files).
-- Workbench: `src/app/debug/sfx-workbench.ts` beside the existing workbenches, registered on the debug hub; plays via `playSfx` from `@/presentation/audio/sfx` after a user-gesture `unlockSfx`. Trigger descriptions are authored in the review record, not derived.
-- Saving goes through the authoring endpoint: add targets to `dev/tools/authoring/api-contract.ts` (`sfx` already points at `src/content/sfx/sfx-cues.json`; add `sfxReview`). Validators live in `dev/tools/authoring/authoring-api.ts`.
-- Cue lineage display: promote writes source path into WAV comment metadata; if reading that per file is heavy, carry `catalogPath` in the review record instead (authoritative enough — it is written at wiring time).
 
 ### Child 03 — export and review pass
 

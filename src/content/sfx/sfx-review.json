@@ -1,0 +1,191 @@
+[
+  {
+    "id": "uiSelect",
+    "trigger": "Any interface confirmation: restart, pause, resume, a card popping",
+    "catalogPath": "SFX/ui/snappy-modern-ui-05.wav",
+    "fit": "trial",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "meleeSwing",
+    "trigger": "The arm starting a swing, on the press",
+    "catalogPath": "SFX/weapon_swing/whoosh-001.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "meleeHitFlesh",
+    "trigger": "A swing or thrown weapon connecting with a soft body; also that body's death",
+    "catalogPath": "SFX/hit_flesh/guts-punch-body-impact-fight-5.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "meleeHitBone",
+    "trigger": "A swing or thrown weapon connecting with a skeleton; also its death",
+    "catalogPath": "SFX/hit_bone/bone-break-crunch-1.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "meleeHitWallStone",
+    "trigger": "A swing landing on stone, mortar, or the boundary",
+    "catalogPath": "SFX/hit_stone/wall-impact-1.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "meleeHitWallWood",
+    "trigger": "A swing landing on a wooden wall or the barricade",
+    "catalogPath": "SFX/hit_wood/bullet-sfx-leadin-wood-1-01.wav",
+    "fit": "trial",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "meleeHitAltar",
+    "trigger": "A swing landing on the altar",
+    "catalogPath": "SFX/hit_metal/hit_pot-02.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "wallBreakStone",
+    "trigger": "A stone wall, barricade, mortar, or the altar coming down",
+    "catalogPath": "SFX/break_stone/bang-crash-long-2.wav",
+    "fit": "trial",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "wallBreakWood",
+    "trigger": "A wooden wall coming down",
+    "catalogPath": "SFX/break_wood/bang-crash-long-5.wav",
+    "fit": "trial",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "throw",
+    "trigger": "Anything leaving the hand, prop or body; shares the swing's recording",
+    "catalogPath": "SFX/weapon_swing/whoosh-001.wav",
+    "fit": "trial",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "pinLand",
+    "trigger": "A stake or javelin nailing into a wall",
+    "catalogPath": "SFX/hit_wood/wood-hit-bow-and-arrow-01.wav",
+    "fit": "trial",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "strikeLand",
+    "trigger": "A femur, bolt, hammer, or blade knocking dead against a wall",
+    "catalogPath": "SFX/hit/impact.wav",
+    "fit": "trial",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "rockLand",
+    "trigger": "A rock or skull landing and scattering the crowd",
+    "catalogPath": "SFX/hit/ground-hit-bow-and-arrow-01.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "bodyBarge",
+    "trigger": "A flying body running someone down mid-flight; shares the landing recording",
+    "catalogPath": "SFX/body_fall/body-roll-landing-fall-10.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "bodyLand",
+    "trigger": "A thrown body arriving",
+    "catalogPath": "SFX/body_fall/body-roll-landing-fall-10.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "waterEntry",
+    "trigger": "A body going into a pool",
+    "catalogPath": "SFX/water/bullet-sfx-leadin-water-1-03.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "detonation",
+    "trigger": "A bomb going off; shares the explosive recording",
+    "catalogPath": "SFX/explosion/explosion-blast-bomb-14.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "shellLand",
+    "trigger": "A mortar shell coming down; shares the explosive recording",
+    "catalogPath": "SFX/explosion/explosion-blast-bomb-14.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "rewardGain",
+    "trigger": "A blessing granted or a sealed reward taken",
+    "catalogPath": "SFX/pickup_item/crystal_pling.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "playerHurt",
+    "trigger": "The player taking a hit",
+    "catalogPath": "SFX/hit_flesh/guts-punch-body-impact-fight-9.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  },
+  {
+    "id": "playerDeath",
+    "trigger": "The run ending in death",
+    "catalogPath": "SFX/body_fall/body-roll-landing-fall-1.wav",
+    "fit": "shipped",
+    "note": "",
+    "tags": [],
+    "tried": []
+  }
+]

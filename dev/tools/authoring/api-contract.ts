@@ -21,6 +21,7 @@ export const CANONICAL_AUTHORING_PATHS = {
   propDisplay: { file: "src/content/presentation/prop-display.json" },
   room: { directory: "src/content/rooms", suffix: ".room.json" },
   sfx: { file: "src/content/sfx/sfx-cues.json" },
+  sfxReview: { file: "src/content/sfx/sfx-review.json" },
 } as const;
 
 export type AuthoringTargetId = keyof typeof CANONICAL_AUTHORING_PATHS;

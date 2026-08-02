@@ -200,6 +200,24 @@ export function stepSfxVolume(direction: 1 | -1): number {
   return setting.master;
 }
 
+/**
+ * Development-only working copies of cue rows, consulted before the authored table.
+ *
+ * The seam the SFX workbench tunes through: the authored table is parsed once at import, so a slider
+ * moving a loudness has nowhere to put the new value except beside the table. Play reads an override
+ * first, which is what makes a replay after an adjustment sound like the adjustment. The buffers are
+ * untouched — an override changes how a recording is played, never which recording plays.
+ */
+const cueOverrides = new Map<SfxCueId, SfxCue>();
+
+export function setSfxCueOverrides(cues: readonly SfxCue[]): void {
+  cueOverrides.clear();
+
+  for (const cue of cues) {
+    cueOverrides.set(cue.id, cue);
+  }
+}
+
 export type SfxAt = Readonly<{ x: number; y: number }>;
 
 /**
@@ -224,7 +242,7 @@ export function playSfx(id: SfxCueId, at?: SfxAt): void {
     return;
   }
 
-  const cue = sfxCue(id);
+  const cue = cueOverrides.get(id) ?? sfxCue(id);
   let volume = fromDb(cue.volumeDb);
 
   if (at) {
