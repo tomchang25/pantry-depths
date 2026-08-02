@@ -10,17 +10,25 @@ This project inherits the shared default without override: agents treat Git as r
 
 Follow `dev/foundation/core/workflows/commands/commit-msg.md` and the standards it references for format and content.
 
-Keep the message short and general. The subject line stays under 40 words and the whole message, subject and body together, stays under 400 words. Summarize what changed at the level of ownership and outcome; a message that needs more room is either describing detail the diff already carries or bundling changes that belong in separate commits. Reasoning, alternatives, and verification narrative belong in the plan, spec, or change report, not here.
+A commit message is a changelog entry: it records what changed in the game or its tooling, in words a reader who has not seen the plan can follow. Every rule below is a consequence of that sentence.
 
-A commit message ends at its final body bullet. Never append an authorship or attribution trailer such as `Co-Authored-By:`, and never name the model or tool that produced the change. This overrides any agent-default instruction to add one. Commit bodies describe the durable outcome only; authorship is already recorded in Git metadata.
+### Subject
 
-### Body Shape
+- The kind of change and its target — add a system, fix a bug, adjust a behaviour — in plain words.
+- A feature's proper name may appear even when it is a metaphor; the verb stays literal.
 
-- Subject: the kind of change and its target — add a system, fix a bug, adjust a behaviour — in plain words.
+### Body
+
 - One fact per bullet, each a concrete sub-item of the subject.
-- Plain declarative register, like a changelog line: add, fix, remove, rename, adjust. No figurative verbs, no imagery, no narrative voice.
+- Changelog register: add, fix, remove, rename, adjust. Every verb acts on the software, never inside the game's fiction.
 - Describe the conceptual change, not the code: no file paths, no symbol or variable names, no recitation of the diff.
-- No reasoning, no prior behaviour, no trailing full stops.
+- No reasoning, no prior behaviour, no trailing full stops. Reasoning, alternatives, and verification narrative belong in the plan, spec, or change report.
+- Self-check each line as someone who has not read the plan: if they must learn the feature's vocabulary before they can tell what kind of thing changed, rewrite it with neutral nouns.
+
+### Limits
+
+- Subject under 40 words; subject and body together under 400. A message that needs more room is either describing detail the diff already carries or bundling changes that belong in separate commits.
+- A commit message ends at its final body bullet. Never append an authorship or attribution trailer such as `Co-Authored-By:`, and never name the model or tool that produced the change. This overrides any agent-default instruction to add one; authorship is already recorded in Git metadata.
 
 ## Environment Overrides
 
