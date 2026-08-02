@@ -283,7 +283,7 @@ export function wallAhead(world: DemoWorld, reach = REACH): DemoCell | undefined
 }
 
 /** Iron sparks rather than splinters, and the cell opens up when the last spike goes. */
-function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: number): void {
+function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: number, quiet: boolean): void {
   tile.hp = Math.max(0, tile.hp - damage);
   world.terrainVersion += 1;
   burst(world.particles, "ember", cell.x + 0.5, cell.y + 0.5, 0.45, 7, {
@@ -294,7 +294,10 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
   });
 
   if (tile.hp > 0) {
-    announce(world, `Barricade HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    if (!quiet) {
+      announce(world, `Barricade HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    }
+
     return;
   }
 
@@ -307,7 +310,9 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
     size: 0.06,
     life: 1.2,
   });
-  announce(world, "The barricade is torn down!");
+  if (!quiet) {
+    announce(world, "The barricade is torn down!");
+  }
 }
 
 /**
@@ -318,7 +323,7 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
  * into an errand. Its own branch rather than the masonry one below, which would have given it stone
  * chips, a wall's debris direction, and the wall-broken announcement.
  */
-function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: number): void {
+function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: number, quiet: boolean): void {
   tile.hp = Math.max(0, tile.hp - damage);
   world.terrainVersion += 1;
   burst(world.particles, "ember", cell.x + 0.5, cell.y + 0.5, 0.5, 8, {
@@ -329,7 +334,10 @@ function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: 
   });
 
   if (tile.hp > 0) {
-    announce(world, `Mortar HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    if (!quiet) {
+      announce(world, `Mortar HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    }
+
     return;
   }
 
@@ -348,10 +356,21 @@ function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: 
     size: 0.07,
     life: 1.1,
   });
-  announce(world, "The mortar is wrecked - it fires no more");
+  if (!quiet) {
+    announce(world, "The mortar is wrecked - it fires no more");
+  }
 }
 
-export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): void {
+/**
+ * Wears down whatever occupies a cell, by whatever hit it.
+ *
+ * `quiet` is for a blast. The announcements below are written for a wall the player is standing in
+ * front of hitting it, and a shell landing across the floor breaks two or three cells at once — so
+ * the banner filled with hit points belonging to walls nobody could see, and drowned out the lines
+ * that were about the player. The debris and the break sound still play; those are local by nature
+ * and say nothing to anyone out of earshot.
+ */
+export function damageWall(world: DemoWorld, cell: DemoCell, damage: number, quiet = false): void {
   const tile = tileAt(world.maze, cell.x, cell.y);
 
   // A trench belongs here rather than below: it has no hit points, so without this it would fall
@@ -361,17 +380,20 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
   }
 
   if (tile.kind === "border") {
-    announce(world, "The boundary brick will not break");
+    if (!quiet) {
+      announce(world, "The boundary brick will not break");
+    }
+
     return;
   }
 
   if (tile.kind === "barricade") {
-    damageBarricade(world, cell, tile, damage);
+    damageBarricade(world, cell, tile, damage, quiet);
     return;
   }
 
   if (tile.kind === "mortar") {
-    damageMortar(world, cell, tile, damage);
+    damageMortar(world, cell, tile, damage, quiet);
     return;
   }
 
@@ -404,7 +426,10 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
       size: 0.15,
       life: 0.8,
     });
-    announce(world, `${wasWood ? "Wood wall" : "Stone wall"} HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    if (!quiet) {
+      announce(world, `${wasWood ? "Wood wall" : "Stone wall"} HP ${tile.hp}/${tile.maxHp}`, 1.1);
+    }
+
     return;
   }
 
@@ -443,7 +468,9 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
     });
   }
 
-  announce(world, wasWood ? "The wood wall splinters!" : "The stone wall shatters!");
+  if (!quiet) {
+    announce(world, wasWood ? "The wood wall splinters!" : "The stone wall shatters!");
+  }
 }
 
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {

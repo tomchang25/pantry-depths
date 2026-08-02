@@ -323,7 +323,7 @@ function resolveLanding(world: DemoWorld, projectile: DemoProjectile, landing: D
   }
 
   if (landing === "detonate") {
-    detonate(world, projectile.x, projectile.y, (cell, damage) => damageWall(world, cell, damage));
+    detonate(world, projectile.x, projectile.y, (cell, damage) => damageWall(world, cell, damage, true));
     return;
   }
 
@@ -676,7 +676,9 @@ function stepHazards(world: DemoWorld, deltaSeconds: number): void {
       hazard.travelled += distance;
 
       if (hazard.travelled >= hazard.range) {
-        shellImpact(world, hazard.x, hazard.y, hazard.damage, hazard.blastRadius, hurtPlayer);
+        shellImpact(world, hazard.x, hazard.y, hazard.damage, hazard.blastRadius, hurtPlayer, (cell, damage) =>
+          damageWall(world, cell, damage, true),
+        );
         world.hazards.splice(world.hazards.indexOf(hazard), 1);
       }
 

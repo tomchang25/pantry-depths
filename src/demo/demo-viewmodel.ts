@@ -261,10 +261,12 @@ function drawArm(
 
   // A swing that connected burns brighter than one that hit air. `impact` is already the demo's
   // measure of that and it decays on its own, so the arc inherits the hitch the camera gets.
-  const strength = (world.swingTarget?.connected ? 1 : 0.7) + world.impact * 0.5;
+  const connected = world.swingTarget?.connected ?? false;
+  const strength = (connected ? 1 : 0.7) + world.impact * 0.5;
   drawMeleeAttack(context, attackOverride ?? MELEE_ATTACKS_BY_ID[world.swingKind], progress, {
     aim: aim ? toStageSpace(aim, placement) : undefined,
     strength,
+    connected,
   });
   context.restore();
 }

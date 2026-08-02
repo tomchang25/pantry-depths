@@ -178,13 +178,20 @@ export function chainLightning(world: DemoWorld, seeds: readonly DemoEnemy[]): v
   }
 }
 
-/** Damages every breakable wall whose cell centre falls inside a blast. */
+/**
+ * Damages every breakable wall whose cell centre falls inside a blast.
+ *
+ * `sparesEmplacements` is for a blast that came out of one. An emplacement that can be wrecked by
+ * another emplacement's shell means a floor full of them quietly dismantles itself while the player
+ * is somewhere else, and smashing one is supposed to be a thing the player goes and does.
+ */
 function shatterWalls(
   world: DemoWorld,
   x: number,
   y: number,
   radius: number,
   damageWall: (cell: { x: number; y: number }, damage: number) => void,
+  sparesEmplacements = false,
 ): void {
   const minX = Math.floor(x - radius);
   const maxX = Math.floor(x + radius);
@@ -195,13 +202,16 @@ function shatterWalls(
     for (let cellX = minX; cellX <= maxX; cellX += 1) {
       const tile = world.maze.tiles[tileIndex(world.maze, cellX, cellY)];
 
-      // Barricades and mortars included: a blast that flattens a stone wall but leaves the iron
-      // spikes in front of it standing would read as the spikes being scenery, and the same goes for
-      // an emplacement that shrugs off a bomb dropped at its feet.
-      if (
-        !tile ||
-        (tile.kind !== "wood" && tile.kind !== "stone" && tile.kind !== "barricade" && tile.kind !== "mortar")
-      ) {
+      // Barricades included: a blast that flattens a stone wall but leaves the iron spikes in front
+      // of it standing would read as the spikes being scenery. An emplacement is the same argument
+      // and takes it too, unless the blast is one of its own.
+      const breakable =
+        tile?.kind === "wood" ||
+        tile?.kind === "stone" ||
+        tile?.kind === "barricade" ||
+        (tile?.kind === "mortar" && !sparesEmplacements);
+
+      if (!breakable) {
         continue;
       }
 
@@ -250,6 +260,11 @@ export const SHELL_PUSH = 7;
  * Anything it kills counts as the player's kill, because it goes out through the same exit every
  * other death does. Lining a crowd up under a mark is a way of playing this, not a way around it.
  *
+ * It takes the floor down with it, too. A shot that kills a crowd but leaves the wall they were
+ * standing against untouched makes the emplacement a thing that only ever produces corpses, and the
+ * point of a hazard that ranges over the whole floor is that standing in the open near a wall is a
+ * position with a cost. What it will not break is another emplacement — see `shatterWalls`.
+ *
  * The player's half of that arrives as a parameter rather than an import, for the same reason the
  * blast takes its wall damage that way: enemy behaviour owns what a hit does to the player and this
  * module owns what a radius does to a crowd, and having each reach into the other makes a cycle the
@@ -262,6 +277,7 @@ export function shellImpact(
   damage: number,
   radius: number,
   hurtPlayer: (world: DemoWorld, amount: number, fromX: number, fromY: number) => void,
+  damageWall: (cell: { x: number; y: number }, damage: number) => void,
 ): void {
   playSfx("shellLand", { x, y });
   addVfx(world, { kind: "blast", x, y, radius, age: 0, life: 0.36 });
@@ -283,6 +299,8 @@ export function shellImpact(
   if (Math.hypot(world.player.x - x, world.player.y - y) <= radius) {
     hurtPlayer(world, damage, x, y);
   }
+
+  shatterWalls(world, x, y, radius, damageWall, true);
 }
 
 /** A rock landing: everyone in a small radius takes a swing's worth and gets scattered. */

@@ -76,6 +76,14 @@ export type MeleeDrawOptions = Readonly<{
   aim?: MeleeViewPoint | undefined;
   /** How bright the effects burn. Below one for a swing that connected with nothing. */
   strength: number;
+  /**
+   * Whether the cut met anything.
+   *
+   * The sparks *are* the contact, so a miss draws the arc alone. Brightness was carrying this on its
+   * own and it could not: a dimmer burst still says something was struck, which made every swing at
+   * empty air read as a hit on something offscreen.
+   */
+  connected: boolean;
 }>;
 
 export const MELEE_IDLE_POSE: MeleeViewmodelPose = {
@@ -497,7 +505,7 @@ export function drawMeleeAttack(
 
     drawHand(context, cutting);
 
-    if (active > 0.46) {
+    if (options.connected && active > 0.46) {
       drawImpact(context, contact, phaseProgress(active, 0.46, 1), options.strength);
     }
 

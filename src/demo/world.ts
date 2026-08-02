@@ -627,8 +627,8 @@ export const MORTAR_IDLE_SECONDS = 3;
  */
 export const MORTAR_DEAD_ZONE = 2;
 export const SHELL_DAMAGE = 24;
-/** Two tiles across: the radius is half of that. */
-export const SHELL_BLAST_RADIUS = 1;
+/** Three tiles across: the radius is half of that. */
+export const SHELL_BLAST_RADIUS = 1.5;
 
 /**
  * Finds every emplacement standing on a floor and gives each one a cycle to run.
