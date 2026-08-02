@@ -714,6 +714,10 @@ export function createEnemy(world: DemoWorld, x: number, y: number, archetype = 
  * Stands every room's authored cast where its file says, and answers how many the player's own room
  * stood — which is what the random count below has to be told about, since the cap counts both.
  *
+ * The override replaces every body's kind while leaving every body's cell alone, which is what a
+ * person filming a reel of one creature after another asks for. It is a parameter rather than
+ * anything this module holds: which body is being filmed is not a fact about a floor.
+ *
  * A cast cell is written in the room's own space, where the wall ring is zero and the first interior
  * cell is 1,1 — the same space its authored cells use. The room's minimum corner is that first
  * interior cell on the floor, so the ring is what the subtraction below takes off.
@@ -721,14 +725,19 @@ export function createEnemy(world: DemoWorld, x: number, y: number, archetype = 
  * Nothing here asks whether a cell is walkable. A body on masonry settles out of it on its first
  * frame the way any shoved body does, and a body in water drowns, which is a thing to author.
  */
-export function standCast(world: DemoWorld): number {
+export function standCast(world: DemoWorld, override?: DemoArchetypeId): number {
   const standing = standingRoom(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
   let here = 0;
 
   for (const room of world.maze.rooms) {
     for (const member of room.cast) {
       world.enemies.push(
-        createEnemy(world, room.minX + member.x - 0.5, room.minY + member.y - 0.5, ENEMY_ARCHETYPES[member.kind]),
+        createEnemy(
+          world,
+          room.minX + member.x - 0.5,
+          room.minY + member.y - 0.5,
+          ENEMY_ARCHETYPES[override ?? member.kind],
+        ),
       );
 
       if (room === standing) {

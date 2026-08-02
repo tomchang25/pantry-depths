@@ -25,6 +25,14 @@ body,
   background: #0c0711;
 }
 
+/* A take carries no development furniture. One flag on the surface with a rule per layer, rather than
+   state on each panel: two pieces of state describing one intent drift apart, and the panels stay
+   mounted so nothing is rebuilt when they come back. */
+.demo[data-bare="true"] .demo-hud,
+.demo[data-bare="true"] .demo-dev {
+  display: none;
+}
+
 .demo__canvas {
   display: block;
   width: 100%;

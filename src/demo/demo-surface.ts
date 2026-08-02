@@ -42,6 +42,7 @@ import { POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/demo/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/demo/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
 import { bankedRewards, equippedCore } from "@/demo/sealed";
+import { dressStage, isStage, restageCast, stageChoiceName, stepStageChoice } from "@/demo/stage";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
 import type { DemoPropKind } from "@/demo/throw-weight";
 import {
@@ -578,10 +579,13 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
   }
 
   let world = createDemoWorld(map);
+  dressStage(world);
   let objectiveMaze = world.maze;
   let objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
   let disposed = false;
   let frame = 0;
+  /** Whether the readouts and the instrument panel are off screen, so a take carries no furniture. */
+  let instrumentsHidden = false;
   let lastTime: number | undefined;
   let cardTimer: number | undefined;
   let activeCardToken: string | undefined;
@@ -678,6 +682,9 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
       worldFrozen: world.worldFrozen,
       fps: smoothedFps,
       godMode: world.godMode,
+      // Omitted rather than sent empty off the stage: the row is drawn only where restaging means
+      // something, and an absent choice is a different statement from a choice of nothing.
+      ...(isStage(world) ? { nextCast: stageChoiceName() } : {}),
     });
 
   /**
@@ -707,6 +714,10 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     // useless for exactly the thing it is for: dying repeatedly on purpose.
     const carriedGodMode = world.godMode;
     world = createDemoWorld(map);
+    // On a stage this is what makes R mean "shoot that again": the cast returns to its cells, the
+    // arrival is the arrival, and the bodies are held still whether or not they had been released.
+    // Deliberately not carried the way god mode is — being frozen belongs to the staged scene.
+    dressStage(world);
     objectiveMaze = world.maze;
     objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
     world.godMode = carriedGodMode;
@@ -943,6 +954,32 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
       world.mindsFrozen = !world.mindsFrozen;
       announce(world, world.mindsFrozen ? "Minds frozen (P to resume)" : "Enemies thinking again", 2.5);
       refreshDev();
+      return;
+    }
+
+    // The three the stage adds. Choosing does not touch what is already standing — it decides what the
+    // next reset stands up — so a person can step through the list looking for the right body without
+    // destroying the shot they are in.
+    if (key === "q" || key === "e") {
+      event.preventDefault();
+      announce(world, `Next cast: ${stepStageChoice(key === "e" ? 1 : -1)}`, 2);
+      refreshDev();
+      return;
+    }
+
+    if (key === "c") {
+      event.preventDefault();
+      const stood = restageCast(world);
+      announce(world, stood > 0 ? `Cast restaged (${stood})` : "This room stands nobody", 2);
+      return;
+    }
+
+    // Everything the game says about itself, off screen at once. A take carries no development
+    // furniture, and the state survives because the panels are hidden rather than unmounted.
+    if (key === "h") {
+      event.preventDefault();
+      instrumentsHidden = !instrumentsHidden;
+      surface.dataset.bare = String(instrumentsHidden);
       return;
     }
 

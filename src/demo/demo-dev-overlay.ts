@@ -20,6 +20,13 @@ export type DemoDevOverlayModel = Readonly<{
   worldFrozen: boolean;
   fps: number;
   godMode: boolean;
+  /**
+   * What the next restaging would stand up, on a floor that has a cast to restage.
+   *
+   * Absent means this floor is not a stage and the row is not drawn at all — a row naming a choice
+   * that decides nothing is a control the panel is claiming to have.
+   */
+  nextCast?: string;
 }>;
 
 /**
@@ -57,6 +64,7 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
   const godModeButton = document.createElement("button");
   const minds = document.createElement("span");
   const world = document.createElement("span");
+  const cast = document.createElement("span");
   element.className = "demo-dev";
   fps.className = "demo-dev__fps";
   // One chip shape for every row, so the panel reads as a column of states and commands rather than
@@ -65,6 +73,7 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
   godModeButton.type = "button";
   minds.className = "demo-dev__chip";
   world.className = "demo-dev__chip";
+  cast.className = "demo-dev__chip";
 
   /**
    * A momentary command, as distinct from a switch.
@@ -97,6 +106,7 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
     godModeButton,
     minds,
     world,
+    cast,
     command("Test arena · T", actions.testArena),
     command("Kill all · K", actions.killAll),
     command("Fill crowd · N", actions.fillCrowd),
@@ -122,6 +132,10 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
     minds.dataset.active = String(model.mindsFrozen);
     world.textContent = `World freeze · ${model.worldFrozen ? "on" : "off"} · O`;
     world.dataset.active = String(model.worldFrozen);
+    // Named rather than switched: what it holds is a choice among eight, and the two keys that step it
+    // are on the row so the pair reads as one control.
+    cast.hidden = model.nextCast === undefined;
+    cast.textContent = `Next cast · ${model.nextCast ?? ""} · Q E · restage C`;
   };
 
   // The command buttons' listeners go with the nodes they are on, which are removed with the panel.

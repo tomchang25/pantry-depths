@@ -116,20 +116,3 @@ The three later specs were written in one batch ahead of their landing order and
 12. One key returns the cast to where it was painted without moving the player, and two more step a shown selection through "as authored" and the seven body kinds in both directions, wrapping — with the selection deciding which body that key stands up, and nothing changing what the room file declares.
 13. Stepping the selection changes nothing already standing on the floor.
 14. No test file is added, and the aggregate verification gate passes.
-
-## Execution
-
-Perishable: this records the codebase on 2026-08-02. Re-check every coordinate against live code before acting on it.
-
-Two constraints govern all four children. Nothing under `test/` may import `@/demo/` or `@/presentation/` — `test/unit/repository/demo-half-is-untested.test.ts` fails the suite over it, and its exempt list does not grow. And `src/content/` may reach only `src/content/` and `src/core/`, which is why child 02 declares a vocabulary rather than importing one.
-
-### 04 — The stage, its dressing, and the clear screen
-
-- New content files: `src/content/rooms/stage.room.json` (id `stage`, 7 by 7, `structure: { "generated": "open" }`, no crowd, no scatter) and `src/content/maps/stage.map.json` (name `stage`, 7 by 7, `fixed` holding the main slot, empty pool, draw 0). Both libraries glob their directories — `src/content/maps/room-library.ts:17` and `map-library.ts:16` — so no registration edit exists. The file name must equal the declared name; both libraries refuse a mismatch.
-- New module for the dressing, in the demo half, holding the stage's name as a constant beside a short comment saying why it is named rather than inferred — `src/demo/maps.ts:17` is the existing precedent for that shape.
-- The dressing rebuilds the maze record rather than mutating it: `DemoMaze` is a `Readonly` type (`src/demo/maze.ts:184`), so spread it and overwrite `entrance`, `exit`, and `altar`, then set `world.player.x/y/angle` and `world.altar.x/y` to match. Putting `exit` on a boundary cell is what makes the descent check at `src/demo/simulation.ts:1040` unreachable; `validateDrawnFloor` and `validateDrawnWalk` have already run inside `buildDemoFloor` by then, so moving it afterwards refuses nothing.
-- Call it from both places a world is built in `src/demo/demo-surface.ts`: after `mountDemo`'s construction, and inside `restart` (line 704), so `R` reproduces the same staged shot. `restart` carries god mode across deliberately (lines 701-707); the freeze is not added to that carry.
-- The reset key shares one operation with the placement child 02 adds to `populateFloor`: empty `world.enemies` and place the room's cast again. The selection is session state beside the world, read at placement and applied per body as it is placed. Neither writes anything back to `src/content/`. `MOVEMENT_KEYS` (`src/demo/demo-surface.ts:98`) binds only `wasd` and the arrows, so the stepping keys are free.
-- Clearing standing bodies for a reset empties the list rather than routing through `killEnemy` (`src/demo/world.ts:1167`) — a reset is not a death and should leave no corpse, no drop, and no stain. This is the opposite choice from the existing kill-everything key (`src/demo/demo-surface.ts:729`), whose whole point is that it does go through the ordinary exit.
-- The instrument layer is two mounted elements in `mountDemo`: `hud` (line 552) and `dev` (line 555), appended at line 564. Hiding is a class on the surface element rather than unmounting either, so the state survives and nothing is rebuilt.
-- `import.meta.env.DEV` already gates the published `window.demoWorld` handle at line 618; the stage dressing needs no such gate because a map is data and the debug hub is the only thing that links to it.

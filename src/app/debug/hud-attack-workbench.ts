@@ -419,6 +419,8 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
    * It is a separate module with a separate subject — what the machine is doing — and the only reason
    * it is on this tab at all is that its corner has to be checked against the picture behind it.
    */
+  // No stage behind this preview, so no cast row: the panel draws the row only where restaging means
+  // something, and this tab owns no world to restage.
   let devModel: DemoDevOverlayModel = { mindsFrozen: false, worldFrozen: false, fps: 60, godMode: false };
   const refreshDev = (): void => dev.update(devModel);
 
