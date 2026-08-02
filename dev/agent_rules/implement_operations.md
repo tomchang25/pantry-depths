@@ -4,7 +4,7 @@ This file is the authoritative project-local permission delta for `/implement`. 
 
 ## Two Halves
 
-These supersessions apply to **demo work** — changes whose surface is `src/demo/` or `src/presentation/`. Changes to `src/core/`, `src/content/`, `src/harness/`, `src/app/debug/`, or `dev/tools/` run the foundation workflow unchanged, because that half is the architecture the demo is expected to be archived into later and it keeps its full ceremony.
+These supersessions apply to the light-ceremony half: **demo work** — changes whose surface is `src/demo/` or `src/presentation/` — and **sandbox work** — changes whose surface is `src/sandbox/`, per `dev/standards/sandbox_track.md`. Changes to `src/core/`, `src/content/`, `src/harness/`, `src/app/debug/`, or `dev/tools/` run the foundation workflow unchanged, because that half is the architecture the demo is expected to be archived into later and it keeps its full ceremony. The demo surfaces leave the light half when the demo is archived; the sandbox surface is a permanent member, because disposable work never earns the ceremony back.
 
 ## Phase 1 Is A Design Conversation
 
@@ -24,9 +24,9 @@ For demo work the spec is a short architectural note: what is being built, what 
 1. Name the owning modules and the direction of the change. Do not enumerate every file, signature, or call site — those are discovered during implementation.
 2. State the load-bearing decisions and the ones deliberately left open. Detail that cannot change the agreed shape does not belong in the note.
 3. Lifecycle tracking is one pointer or none. A demo change does not need a plan child, a `TODO.md` entry, and a spec to all agree before work starts.
-4. Verification is `dev/agent_rules/test_operations.md`, which for this half means `npm run verify` and playing it. Do not plan new automated coverage for `src/demo/` or `src/presentation/`.
+4. Verification is `dev/agent_rules/test_operations.md`, which for this half means `npm run verify` and looking at the thing: playing the demo, or opening a sandbox experiment's debug tool. Do not plan new automated coverage for `src/demo/` or `src/presentation/`; sandbox coverage stays inside the budget that file states.
 
-**Why:** the demo reached a playable state in a day; the surface it replaced took days longer and never got there. The difference was not effort, it was how much of each change went into describing the change. Preserving that speed is the point of this delta, and it expires when the demo is archived into the permanent architecture.
+**Why:** the demo reached a playable state in a day; the surface it replaced took days longer and never got there. The difference was not effort, it was how much of each change went into describing the change. Preserving that speed is the point of this delta. Its demo scope expires when the demo is archived into the permanent architecture; its sandbox scope does not.
 
 ## Explicit Second-Confirmation Bypass
 
@@ -57,6 +57,14 @@ This rule supersedes only the two statements above that Phase 1 target confirmat
 Every guard on the bypass above continues to apply unchanged, and clause 5 there is what keeps this honest: stop and ask when modeling exposes an unresolved user-authority decision, contradicts locked behavior, expands the approved scope, or requires a destructive action, an external authorization, or a human asset approval. **An authorization to work through a plan is never an authorization to decide something the plan left open.**
 
 **Why:** the per-target rule was written for `/implement` invoked conversationally against one slice, where the only record of the target is the conversation that produced it — and there, re-confirming is the only way to know the target survived. A plan with an execution half is the opposite case: the target is a reviewed document, so the confirmation buys a second reading of something already read, and the cost is paid once per child.
+
+## A Sandbox Plan's Approval Is Its Authorization
+
+For a plan whose surface is the sandbox track — `src/sandbox/`, per `dev/standards/sandbox_track.md` — approving the plan is itself the authorization for continuous execution of its children, and satisfies precondition 2 of the `/goal` check below. This supersedes, for sandbox plans only, clause 2 of the standing authorization above: no second sentence naming continuous execution is required.
+
+Everything else stands unchanged. The plan still carries its `Execution` half and the `Goal-Executable: yes` declaration — the sandbox default per `dev/standards/work_lifecycle.addendum.md` — and every guard and stop condition on this page applies at full strength. A stop still ends the run and sends the remaining children back for their own authorization.
+
+**Why:** the sandbox track exists for work that is cheap to run and cheap to throw away, so the second sentence after an approval was pure latency — the reviewer had already read a document whose declared default is continuous execution, and could have withheld approval instead. The formal track keeps the two-sentence rule because its plans change things that are expected to survive.
 
 ## Executing A Goal-Executable Plan End To End
 

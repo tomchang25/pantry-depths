@@ -61,6 +61,31 @@ module.exports = {
     },
 
     {
+      name: "sandbox-imports-only-itself-content-core",
+      severity: "error",
+      comment:
+        "A sandbox experiment (dev/standards/sandbox_track.md) is self-contained: it drives core and content and never reaches application composition, the demo, or another layer. Needing more is evidence the work is not sandbox-shaped.",
+      from: { path: "^src/sandbox/" },
+      to: { path: "^src/", pathNot: "^src/(sandbox|content|core)/" },
+    },
+    {
+      name: "sandbox-experiments-do-not-cross-import",
+      severity: "error",
+      comment:
+        "One experiment is one folder. A module two experiments want is a graduation candidate, not a sandbox commons.",
+      from: { path: "^src/sandbox/([^/]+)/" },
+      to: { path: "^src/sandbox/", pathNot: "^src/sandbox/$1/" },
+    },
+    {
+      name: "only-the-debug-hub-imports-sandbox",
+      severity: "error",
+      comment:
+        "Sandbox experiments are development-only and enter the application through one deferred debug catalog entry, so production exclusion is inherited from the debug route boundary. Graduation is a move out of the tree, never an import into it.",
+      from: { path: "^src/", pathNot: "^src/(sandbox|app/debug)/" },
+      to: { path: "^src/sandbox/" },
+    },
+
+    {
       name: "game-layer-does-not-import-tooling",
       severity: "error",
       comment:

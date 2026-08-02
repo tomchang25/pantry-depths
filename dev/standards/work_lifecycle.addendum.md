@@ -62,6 +62,8 @@ A plan may make the claim only when all three of these hold, and whoever writes 
 
 Nothing else about the plan changes. Both halves keep their contracts, the child overview table is unchanged, and the `Execution` half stays perishable, forward-only, and subordinate to the conceptual half.
 
+**Sandbox-track plans declare it by default.** A plan whose surface is `src/sandbox/` (`dev/standards/sandbox_track.md`) is written to satisfy the three conditions and carries `Goal-Executable: yes` from its first draft; a sandbox plan that cannot satisfy them is evidence the work is not sandbox-shaped and belongs on the formal track. What the declaration buys on that track is owned by `dev/agent_rules/implement_operations.md`: approval of a sandbox plan is itself the continuous-execution authorization.
+
 ## The Brief
 
 A brief is a format-free document whose only job is to start a conversation somewhere else. It is not a lifecycle artifact: it authorizes nothing, it is never cited as a reason, and it is spent the moment the plan, sketch, or spec it seeded exists.
@@ -79,16 +81,17 @@ It fills a real gap. The probe is narrowed above to genuinely undirected observa
 
 ## Practical Routing
 
-| Situation                                                                                | Artifact                              |
-| ---------------------------------------------------------------------------------------- | ------------------------------------- |
-| A problem or tension is worth recording, but no direction is chosen                      | Probe                                 |
-| The material is ready to be worked on, but the working belongs in its own session        | Brief                                 |
-| The slice belongs to an existing plan whose `Execution` half already answers its shape   | Implementation spec, via `/implement` |
-| The direction is chosen and the slice belongs to an existing plan, shape still open      | Sketch as that plan's child           |
-| The direction is chosen and no plan owns the area yet                                    | Standalone sketch                     |
-| The direction is chosen and the work needs its own requirements, non-goals, and children | Plan                                  |
-| The slice is ready to execute                                                            | Implementation spec, via `/implement` |
-| The change is a chore, copy edit, or configuration tweak                                 | Compact implementation note           |
+| Situation                                                                                | Artifact                                                                                                                                          |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A problem or tension is worth recording, but no direction is chosen                      | Probe                                                                                                                                             |
+| The material is ready to be worked on, but the working belongs in its own session        | Brief                                                                                                                                             |
+| The slice belongs to an existing plan whose `Execution` half already answers its shape   | Implementation spec, via `/implement`                                                                                                             |
+| The direction is chosen and the slice belongs to an existing plan, shape still open      | Sketch as that plan's child                                                                                                                       |
+| The direction is chosen and no plan owns the area yet                                    | Standalone sketch                                                                                                                                 |
+| The direction is chosen and the work needs its own requirements, non-goals, and children | Plan                                                                                                                                              |
+| The slice is ready to execute                                                            | Implementation spec, via `/implement`                                                                                                             |
+| The change is a chore, copy edit, or configuration tweak                                 | Compact implementation note                                                                                                                       |
+| The work is a sandbox experiment under `src/sandbox/`                                    | Short note via `/implement`; a plan only when it has real children, then `Goal-Executable: yes` by default — see `dev/standards/sandbox_track.md` |
 
 A sketch whose direction later turns out to be wrong is rewritten or deleted, not converted back into a probe.
 

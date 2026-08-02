@@ -37,6 +37,15 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 
 A scaffolded empty directory is not a claim that the layer is earned. It carries a `.gitkeep` and nothing else; the first real module in it is still the change that has to justify the placement.
 
+## The Sandbox Tree
+
+`src/sandbox/` is the sandbox track's source tree — see `dev/standards/sandbox_track.md` for what belongs on that track. It is declared here because the platform layer vocabulary does not name it. One experiment is one directory, `src/sandbox/<experiment>/`, and files never sit directly under `src/sandbox/`.
+
+- **Development-only, entered through the debug hub.** A sandbox experiment gets one catalog entry in `src/app/debug/` whose deferred loader crosses into the experiment's folder, exactly as any other debug tool loads. It thereby inherits the debug namespace's production exclusion; nothing under `src/sandbox/` is production-reachable.
+- **Import directions, machine-checked by the boundary rules:** an experiment imports its own folder, `src/core/`, and `src/content/`, and nothing else in `src/`. Nothing imports `src/sandbox/` except `src/app/debug/`. Experiments never import each other — a module two experiments want is evidence the code wants to graduate, not grounds for a sandbox commons.
+- **Graduation is a move, never an in-place promotion.** An experiment that earns permanence moves into the layer that owns the behavior, arriving as formal-track work under the full ceremony; its sandbox folder is deleted in the same change. The other normal ending is deleting the folder outright. What never happens is the import boundary opening so the rest of `src/` can reach into the sandbox.
+- `src/app/debug/three-block/` and `src/app/debug/three-preview/` predate this tree and stay where they are as legacy debug tools; new experiments do not join them there.
+
 `src/app/debug/` follows the shared development-tool route surface without a routing deviation. Pantry's ordinary policy currently renders the game placeholder for every non-debug development path and every production path, including the `/debug` namespace. Debug navigation uses native full-document anchors.
 
 ## Feature Placement Detail

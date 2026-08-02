@@ -29,6 +29,17 @@ CONTRACTS: dict[str, list[str]] = {
         "test_operations.md",
         "implement_operations.md",
         "frozen_reference_directories.md",
+        "sandbox_track.md",
+    ],
+    # The sandbox track's definition routes to four rule owners; a renamed heading or moved owner
+    # would strand the track with no discoverable rules while every individual document still reads
+    # as internally consistent.
+    "dev/standards/sandbox_track.md": [
+        "# Sandbox Track",
+        "project_structure.addendum.md",
+        "test_operations.md",
+        "implement_operations.md",
+        "work_lifecycle.addendum.md",
     ],
     "dev/agent_rules/implement_operations.md": [
         "commands/implement.md",

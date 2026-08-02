@@ -34,6 +34,7 @@ This file describes how to operate the repository. It deliberately says nothing 
 | Run `/implement`                                                                   | `dev/agent_rules/implement_operations.md` plus the canonical `/implement` workflow        |
 | Choose a probe, sketch, plan, or spec for new forward work                         | `dev/standards/work_lifecycle.addendum.md` after the foundation work lifecycle            |
 | Add or move a source file, create a layer, change an import direction              | `dev/standards/project_structure.addendum.md` and the platform project-structure standard |
+| Start, grow, graduate, or delete a sandbox experiment under `src/sandbox/`         | `dev/standards/sandbox_track.md`, then the owners it routes to                            |
 | Add or change a branch chain over a discriminated union, literal union, or enum    | `dev/standards/code_style.addendum.md` after the platform code style standard             |
 | Read or cite anything under `dev/docs/design/` or `dev/docs/reports/`              | `dev/standards/frozen_reference_directories.md` — the short answer is do not              |
 | Add or replace a game sound, or touch the audio library at `E:/Code/audio-library` | `dev/skills/sfx_sourcing.md`                                                              |

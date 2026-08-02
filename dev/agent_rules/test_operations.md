@@ -10,18 +10,21 @@ It runs, in order and stopping on first failure: `format:check` → `typecheck` 
 
 Run `npm run check:governance` as well whenever a governance, startup, or planning document changes. It is outside `verify` and passes when it prints both `governance: OK` and `foundation: OK`.
 
-## Two Halves, Two Disciplines
+## Three Surfaces, Three Disciplines
 
 The repository is not uniform, and the contract should not pretend otherwise.
 
-| Half                                                                              | Discipline                                                                                        |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| **The demo** — `src/demo/`, `src/presentation/`                                   | Verified by playing it. No automated tests, ever.                                                 |
-| **Everything else** — `src/core/`, `src/content/`, `src/app/debug/`, `dev/tools/` | Keeps the coverage it already has. Growing that coverage needs permission — see the next section. |
+| Surface                                                                                                 | Discipline                                                                                                            |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **The demo** — `src/demo/`, `src/presentation/`                                                         | Verified by playing it. No automated tests, ever.                                                                     |
+| **The sandbox track** — `src/sandbox/` (`dev/standards/sandbox_track.md`)                               | Verified by opening its debug tool. Browser tests machine-banned; unit tests budgeted — see the growth section below. |
+| **The formal track** — `src/core/`, `src/content/`, `src/app/debug/`, `dev/tools/`, and everything else | Keeps the coverage it already has. Growing that coverage passes through a gate — see the growth section below.        |
 
-Every test in `test/` today covers the second half. That is deliberate, not an omission: the demo is a real-time surface whose value is how it feels, and the cheapest honest check on it is a person playing it. Do not add tests to `src/demo/` or `src/presentation/` to satisfy a coverage instinct.
+The demo has no tests deliberately, not as an omission: it is a real-time surface whose value is how it feels, and the cheapest honest check on it is a person playing it. Do not add tests to `src/demo/` or `src/presentation/` to satisfy a coverage instinct.
 
 That paragraph was prose for as long as it was ignored. It is now enforced by `test/unit/repository/demo-half-is-untested.test.ts`, which fails the unit stage — and therefore `verify` — when any test file imports `@/demo/` or `@/presentation/`. The guard holds one frozen exemption, the presentation asset loader, and it does not grow. Do not add yourself to it, and do not move a banned test somewhere the guard cannot see it; the check is on what a test imports, not where it sits.
+
+The sandbox track has its own guard beside that one, `test/unit/repository/sandbox-test-budget.test.ts`, enforcing the budget stated in the growth section: no browser spec touches the sandbox tree, and each experiment holds at most one unit spec of at most three cases. The same terms apply — do not edit it, exempt yourself from it, or relocate a test out of its sight.
 
 What the ban costs is worth naming, because the temptation returns every time: the presentation suite that prompted the guard asserted that a skeleton facing world `+Y`, seen from a camera looking east, renders its direction row 2. That was true of the code and wrong in the game — the direction wheel was mirrored — so the test had taken a rendering bug and written it down as the specification. A test against the demo does not catch that class of error; it preserves it.
 
@@ -37,13 +40,21 @@ Two facts about it are easy to trip over. It never uses port 5273: it asks the o
 
 There is a second instrument beside it, `npm run capture:page`, and the same line governs it: one address in, one picture out, no verdict. It photographs anything the dev server serves — a named map, a workbench — starts a server of its own on a free port like the harness does, and writes to `capture-output/adhoc/` so that a casual picture can never be mistaken for a scene or destroyed by the harness rotating `latest/` into `previous/`. It presses no keys, which is what keeps it clear of the authoring endpoint's save operation; a curated scene does press keys, so the prohibition below reaches whoever writes one, and `dev/tools/capture/scenes.mjs` states it where they will read it. Its `--port` switch attaches to a server somebody else started, and then it photographs whatever that server is serving from whichever working tree it was started in.
 
-## No New Test Without Being Asked For One
+## Growing Coverage Is Gated, Per Track
 
-Adding a test is forbidden by default. A new test file, or a new case inside an existing one, requires the user to ask for it explicitly and in as many words, for that change. Nothing else grants it: not a rule elsewhere in this document that reads as though some layer ought to be covered, not a boundary that has no other observer, not the cheapness of the test, not the risk of the change. Absent the sentence, the answer is no — say what is untested and move on.
+A test is never a reflex. Nothing in this document that reads as though some layer ought to be covered grants one; neither does a boundary with no other observer, the cheapness of the test, nor the risk of the change. Which gate a new test passes through depends on the track:
+
+**Formal track, unit tests.** Keep them few. A new unit test file or case exists only when the implementation spec named it before implementation began — the Phase 2 preview is where the user sees and approves it, so a test named there was seen before it existed. Outside an `/implement` flow, a new unit test still requires the user to ask for it explicitly, in as many words, for that change. Either way, a test that does not defend a boundary the change created is left unwritten; saying what is untested and moving on remains the correct move.
+
+**Formal track, browser tests.** Forbidden during implementation, without exception: an e2e spec is never written in an `/implement` flow and never named in a spec. When a delivered change genuinely needs browser coverage, propose it after delivery — what it would assert, what it would cost — and the user's explicit approval is what adds it. The addition updates Browser Acceptance Scope below in the same change, so that section stays a true inventory.
+
+**Sandbox track.** Browser tests are banned outright and the ban is machine-enforced. Unit tests are budgeted: per experiment, at most one spec file importing from `@/sandbox/<experiment>/`, holding at most three test cases. The budget is a ceiling, not a quota — most experiments should spend none of it. `test/unit/repository/sandbox-test-budget.test.ts` fails `verify` when either bound breaks.
+
+**The demo.** No tests, ever, per the section above. No gate opens this; there is nothing to propose.
 
 Updating or deleting a test whose subject a change moved is not adding one and needs no permission. That is the section below.
 
-This section exists because the opposite reading produced three browser specs for the workbenches, each written from a line here that said `src/app/debug/` had no cheaper observing layer. They are deleted. A workbench is verified by opening it, which is the only way its actual subject — whether the thing on screen looks right — can be judged at all.
+The history that shaped these gates: an earlier blanket rule required an explicit user request for every new test, because its opposite had produced three browser specs for the workbenches, each written from a line here that said `src/app/debug/` had no cheaper observing layer. They are deleted. A workbench is verified by opening it, which is the only way its actual subject — whether the thing on screen looks right — can be judged at all. The unit gate has since moved into the spec preview because that is where the user already reads what a change will do; the browser gate stayed a spoken sentence, and moved to after delivery, because a browser spec is the coverage instinct's favorite disguise.
 
 ## When A Test Breaks
 
@@ -88,6 +99,8 @@ One spec, `test/e2e/debug-route.spec.ts`: the debug hub boots and opens a lazily
 `npm run test:e2e` runs it, outside `verify`. A browser-launch failure is an environment problem, not an application failure, and must be reported as such.
 
 Nothing else in `src/app/debug/` is a browser-test subject. A workbench is verified by opening it and looking, for the same reason the demo is: what it is for is whether the picture is right, and an assertion about a picture records whatever the renderer happened to be doing that day.
+
+Sandbox experiments are never browser-test subjects either, and unlike the workbenches this is machine-enforced: `test/unit/repository/sandbox-test-budget.test.ts` fails when anything under `test/e2e/` references the sandbox tree.
 
 Should a spec ever be asked for, it may not press **Save Canonical JSON** or otherwise invoke the authoring endpoint's `save` operation: it overwrites authored content in the working tree.
 
