@@ -23,7 +23,6 @@ Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line 
 A brief lives here too and is the one kind of line `/implement` cannot take: it is format-free material handed to a later session, it authorizes nothing, and it is spent once it has seeded a real artifact. `dev/standards/work_lifecycle.addendum.md` owns its rules.
 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
-- [sfx_workbench] a sound-review workbench and the library feedback loop, in three children across this repository and audio-library - [ref plans/sfx_workbench.plan.md]
 
 ---
 
@@ -149,7 +148,7 @@ Not scheduled. What would force it is the next tile kind, or the next silent wro
 
 ### What Remains Of The Core Design
 
-The direction document `dev/docs/design/pantry_demo_core.design.md` is frozen with the rest of its directory, but the work it pointed at is nearly done, and the tail is recorded here so it is a list rather than a memory. Three pieces remain: fleshing out the blessing catalogue; the boss fight, whose current concept is a firing altar the player cannot reach directly — ringed by an impassable moat — and breaks by turning pickups earned from the crowd against it; and sound effects, whose engine, trimmed coverage, and real samples have all shipped — what remains of them is owned by `dev/docs/plans/sfx_workbench.plan.md`. All three are supervised manual work by nature: the boss is a mechanic decision, blessings are content taste, and audio cannot be judged without ears.
+The direction document `dev/docs/design/pantry_demo_core.design.md` is frozen with the rest of its directory, but the work it pointed at is nearly done, and the tail is recorded here so it is a list rather than a memory. Three pieces remain: fleshing out the blessing catalogue; the boss fight, whose current concept is a firing altar the player cannot reach directly — ringed by an impassable moat — and breaks by turning pickups earned from the crowd against it; and sound effects, which are done: the engine, the trimmed coverage, the real samples, and the review workbench have all shipped, and what is left of them is the listening recorded below. All three are supervised manual work by nature: the boss is a mechanic decision, blessings are content taste, and audio cannot be judged without ears.
 
 This is the next supervised block, not autonomous work, and it lands before the two entries above — the migration and the enemy record — become safe to start.
 
@@ -172,6 +171,6 @@ The report at `dev/docs/reports/pantry_depths_architecture.html` is hand-written
 
 ### Sounds Worth A Better Take
 
-The cue table is trimmed to twenty-two sample-backed cues and every synthesised recipe is gone, so the old placeholder inventory is spent. What survives it is a short list of takes chosen by tags rather than ears, recorded here until the workbench plan gives fit verdicts a real home. The two wall-break cues are generic crash takes from the bangs pack — the first candidates auditioned from it, not the best of it. The shared explosive take behind the detonation and the shell landing still carries a long tail, and the bangs pack remains the likeliest source of a short report. The UI select sound is the old card chime serving every interface moment, which may wear thin.
+Six of the twenty-one cues were chosen by tags rather than by ear, and the review record carries them as `trial` rather than `shipped`: the two wall breaks, the interface voice, the throw release, and the two thrown-weapon landings. The wall breaks are generic crash takes from the bangs pack — the first candidates auditioned from it, not the best of it. The shared explosive take behind the detonation and the shell landing still runs a long tail, and that same pack remains the likeliest source of a short report. The interface voice is the old card chime serving every moment now, which may wear thin.
 
-Not scheduled. What would force it is an ear objecting in play — and the verdicts belong in the review record once `dev/docs/plans/sfx_workbench.plan.md` lands its second child.
+Not scheduled, and not really tracker work any more: the verdicts belong in `src/content/sfx/sfx-review.json`, judged on the SFX workbench and exported to the library with `npm run sfx:export`. `dev/skills/sfx_sourcing.md` owns the loop. This entry stays only so the six unheard takes are a list rather than a memory.
