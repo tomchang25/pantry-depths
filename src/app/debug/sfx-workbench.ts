@@ -35,7 +35,6 @@ function numberCell(value: number, step: number, onChange: (next: number) => voi
   input.type = "number";
   input.step = String(step);
   input.value = String(value);
-  input.style.width = "5em";
   input.addEventListener("change", () => {
     const next = Number(input.value);
 
@@ -47,13 +46,18 @@ function numberCell(value: number, step: number, onChange: (next: number) => voi
   return cell;
 }
 
-function textCell(value: string, placeholder: string, onChange: (next: string) => void): HTMLTableCellElement {
+function textCell(
+  value: string,
+  className: string,
+  placeholder: string,
+  onChange: (next: string) => void,
+): HTMLTableCellElement {
   const cell = document.createElement("td");
   const input = document.createElement("input");
+  cell.className = className;
   input.type = "text";
   input.value = value;
   input.placeholder = placeholder;
-  input.style.width = "14em";
   input.addEventListener("change", () => onChange(input.value));
   cell.append(input);
   return cell;
@@ -66,19 +70,20 @@ export function renderSfxWorkbench(mount: HTMLElement): void {
   );
   const status = document.createElement("p");
   const actions = document.createElement("div");
-  const saveCuesButton = document.createElement("button");
-  const saveReviewButton = document.createElement("button");
+  const saveButton = document.createElement("button");
   const reloadButton = document.createElement("button");
+  const scroller = document.createElement("div");
   const table = document.createElement("table");
   status.className = "entity-workbench-status";
   status.setAttribute("role", "status");
   actions.className = "debug-button-row workbench-actions";
-  saveCuesButton.type = "button";
-  saveCuesButton.textContent = "Save cue table";
-  saveReviewButton.type = "button";
-  saveReviewButton.textContent = "Save review record";
+  saveButton.type = "button";
+  saveButton.className = "debug-button--primary";
+  saveButton.textContent = "Save cue table + review";
   reloadButton.type = "button";
-  reloadButton.textContent = "Reload both from disk";
+  reloadButton.textContent = "Reload from disk";
+  scroller.className = "debug-scroller";
+  table.className = "sfx-workbench-table";
 
   function markUnsaved(which: string): void {
     status.textContent = `Unsaved ${which} changes.`;
@@ -87,22 +92,25 @@ export function renderSfxWorkbench(mount: HTMLElement): void {
 
   function rebuildTable(): void {
     table.replaceChildren();
-    const head = document.createElement("tr");
+    const head = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    const body = document.createElement("tbody");
 
     for (const title of ["", "Cue", "When it fires", "dB", "Pitch min", "Pitch max", "Fit", "Note", "Tags", "Source"]) {
       const cell = document.createElement("th");
       cell.textContent = title;
-      cell.style.textAlign = "left";
-      head.append(cell);
+      headRow.append(cell);
     }
 
-    table.append(head);
+    head.append(headRow);
+    table.append(head, body);
 
     for (const cue of cues) {
       const entry = review.find((candidate) => candidate.id === cue.id);
       const row = document.createElement("tr");
       const playCell = document.createElement("td");
       const playButton = document.createElement("button");
+      playCell.className = "sfx-col-play";
       playButton.type = "button";
       playButton.textContent = "▶";
       playButton.title = `Play ${cue.id} at its authored settings`;
@@ -114,9 +122,11 @@ export function renderSfxWorkbench(mount: HTMLElement): void {
       playCell.append(playButton);
 
       const idCell = document.createElement("td");
+      idCell.className = "sfx-col-id";
       idCell.textContent = cue.id;
 
       const triggerCell = document.createElement("td");
+      triggerCell.className = "sfx-col-trigger";
       triggerCell.textContent = entry?.trigger ?? "";
 
       const replaceCue = (patch: Partial<SfxCue>): void => {
@@ -140,12 +150,16 @@ export function renderSfxWorkbench(mount: HTMLElement): void {
         fitSelect.append(option);
       }
 
-      fitSelect.addEventListener("change", () => replaceEntry({ fit: fitSelect.value as SfxFit }));
+      fitSelect.dataset.fit = entry?.fit ?? "trial";
+      fitSelect.addEventListener("change", () => {
+        fitSelect.dataset.fit = fitSelect.value;
+        replaceEntry({ fit: fitSelect.value as SfxFit });
+      });
       fitCell.append(fitSelect);
 
       const sourceCell = document.createElement("td");
+      sourceCell.className = "sfx-col-source";
       sourceCell.textContent = entry?.catalogPath ?? "";
-      sourceCell.style.opacity = "0.7";
 
       row.append(
         playCell,
@@ -155,8 +169,10 @@ export function renderSfxWorkbench(mount: HTMLElement): void {
         numberCell(cue.pitchMin, 0.01, (next) => replaceCue({ pitchMin: next })),
         numberCell(cue.pitchMax, 0.01, (next) => replaceCue({ pitchMax: next })),
         fitCell,
-        textCell(entry?.note ?? "", "what is wrong or right about this take", (next) => replaceEntry({ note: next })),
-        textCell(entry?.tags.join(", ") ?? "", "comma-separated", (next) =>
+        textCell(entry?.note ?? "", "sfx-col-note", "what is wrong or right about this take", (next) =>
+          replaceEntry({ note: next }),
+        ),
+        textCell(entry?.tags.join(", ") ?? "", "sfx-col-tags", "comma-separated", (next) =>
           replaceEntry({
             tags: next
               .split(",")
@@ -166,37 +182,25 @@ export function renderSfxWorkbench(mount: HTMLElement): void {
         ),
         sourceCell,
       );
-      table.append(row);
+      body.append(row);
     }
   }
 
-  saveCuesButton.addEventListener("click", () => {
-    saveCuesButton.disabled = true;
-    status.textContent = "Validating and saving the cue table…";
-    void saveCanonical("sfx", cues)
-      .then((message) => {
-        status.textContent = message;
+  // One button for both files: a judgement session touches loudness and verdicts in the same pass,
+  // and two saves was two chances to walk away with one of them unwritten. Each file still goes
+  // through its own validator; a failure names which one refused.
+  saveButton.addEventListener("click", () => {
+    saveButton.disabled = true;
+    status.textContent = "Validating and saving both files…";
+    void Promise.all([saveCanonical("sfx", cues), saveCanonical("sfxReview", review)])
+      .then(() => {
+        status.textContent = "Saved the cue table and the review record.";
       })
       .catch((error: unknown) => {
         status.textContent = error instanceof Error ? error.message : String(error);
       })
       .finally(() => {
-        saveCuesButton.disabled = false;
-      });
-  });
-
-  saveReviewButton.addEventListener("click", () => {
-    saveReviewButton.disabled = true;
-    status.textContent = "Validating and saving the review record…";
-    void saveCanonical("sfxReview", review)
-      .then((message) => {
-        status.textContent = message;
-      })
-      .catch((error: unknown) => {
-        status.textContent = error instanceof Error ? error.message : String(error);
-      })
-      .finally(() => {
-        saveReviewButton.disabled = false;
+        saveButton.disabled = false;
       });
   });
 
@@ -223,7 +227,8 @@ export function renderSfxWorkbench(mount: HTMLElement): void {
 
   setSfxCueOverrides(cues);
   rebuildTable();
-  actions.append(saveCuesButton, saveReviewButton, reloadButton);
-  controls.body.append(table, actions, status);
+  scroller.append(table);
+  actions.append(saveButton, reloadButton);
+  controls.body.append(scroller, actions, status);
   mount.append(controls.panel);
 }

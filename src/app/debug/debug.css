@@ -1169,3 +1169,72 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* SFX workbench: one wide judged table. Numbers stay compact, prose columns get room to wrap, and the
+   fit verdict wears its own colour so the unsettled rows are findable at a glance. */
+.sfx-workbench-table :where(th, td) {
+  vertical-align: middle;
+}
+
+.sfx-col-play {
+  width: 2.9rem;
+}
+
+.debug-page .sfx-col-play button {
+  min-width: 2.5rem;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.55rem;
+}
+
+.sfx-col-id {
+  color: var(--debug-accent-strong);
+  font-weight: 750;
+}
+
+.sfx-col-trigger {
+  min-width: 16rem;
+  color: var(--debug-text-muted);
+  white-space: normal;
+}
+
+.sfx-col-source {
+  min-width: 11rem;
+  color: var(--debug-text-muted);
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.debug-page .sfx-workbench-table :where(input, select) {
+  min-height: 2.25rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.debug-page .sfx-workbench-table input[type="number"] {
+  width: 4.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.debug-page .sfx-col-note input {
+  min-width: 13rem;
+}
+
+.debug-page .sfx-col-tags input {
+  min-width: 9rem;
+}
+
+.debug-page .sfx-workbench-table select[data-fit="shipped"] {
+  border-color: rgb(116 213 162 / 45%);
+  color: var(--debug-success);
+}
+
+.debug-page .sfx-workbench-table select[data-fit="trial"] {
+  border-color: rgb(255 195 107 / 45%);
+  color: var(--debug-warning);
+}
+
+.debug-page .sfx-workbench-table select[data-fit="misfit"] {
+  border-color: rgb(255 125 145 / 45%);
+  color: var(--debug-danger);
+}
