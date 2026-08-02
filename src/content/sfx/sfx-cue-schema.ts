@@ -1,70 +1,39 @@
 /**
- * What every sound in the game is made of, as authored numbers rather than audio files.
+ * What every sound in the game is made of, as an authored table beside its recordings.
  *
- * The whole point of this table is that a sound costs nothing to add. There is no asset to license, no
- * bake step, and no bundle growth — a cue is a handful of numbers, and the engine turns them into a
- * buffer at startup. That is what makes covering fifty moments affordable, and covering fifty moments
- * is worth far more here than making any one of them good.
+ * The table is deliberately short. It used to cover fifty moments; most of those sounds fired so often
+ * they were wallpaper, or marked moments nobody needed marked. What is left is the set worth hearing:
+ * the player's own strikes and what they land on, the deaths the environment hands out, the two blasts,
+ * and one voice for the interface. A moment not on this list is meant to be silent.
  *
  * The id list lives here rather than beside the code that raises each sound, because `src/content/` may
- * only import content and core — a validator in this layer cannot reach into the demo for the particle
- * kinds and death causes it is covering. Keeping one list and demanding a row per id is the only
- * arrangement where a cue somebody raises cannot be missing its recipe and play silence instead.
+ * only import content and core — a validator in this layer cannot reach into the demo for the death
+ * causes it is covering. Keeping one list and demanding a row per id is the only arrangement where a
+ * cue somebody raises cannot be missing its recipe and play silence instead.
  */
 
 export const SFX_CUE_IDS = [
-  "particleBlood",
-  "particleStoneChip",
-  "particleWoodChip",
-  "particleDust",
-  "particleEmber",
-  "particleSplash",
-  "particleBone",
-  "deathSlain",
-  "deathCleaved",
-  "deathDrowned",
-  "deathSplattered",
-  "deathBlasted",
-  "deathImpaled",
-  "uiMessage",
-  "vfxBlast",
-  "vfxArc",
+  "uiSelect",
   "meleeSwing",
   "meleeHitFlesh",
   "meleeHitBone",
-  "meleeHitWall",
+  "meleeHitWallStone",
+  "meleeHitWallWood",
   "meleeHitAltar",
-  "throwLight",
-  "throwMedium",
-  "throwHeavy",
-  "throwEnemy",
-  "shootBolt",
-  "propPickup",
-  "propDrop",
-  "enemyWindupBlade",
-  "enemyWindupShot",
-  "enemyWindupCharge",
-  "enemyChargeLaunch",
-  "enemyChargeSlam",
-  "enemyShotFire",
-  "playerHurt",
-  "playerDeath",
-  "waterEntry",
+  "wallBreakStone",
+  "wallBreakWood",
+  "throw",
+  "pinLand",
+  "strikeLand",
   "rockLand",
   "bodyBarge",
   "bodyLand",
+  "waterEntry",
   "detonation",
-  "shellFire",
   "shellLand",
-  "chainHop",
-  "blessGain",
-  "sealedReward",
-  "extractionDone",
-  "descend",
-  "uiPause",
-  "uiResume",
-  "uiCard",
-  "uiRestart",
+  "rewardGain",
+  "playerHurt",
+  "playerDeath",
 ] as const;
 
 export type SfxCueId = (typeof SFX_CUE_IDS)[number];
@@ -109,26 +78,39 @@ export type SfxRecipe = Readonly<{
   filter?: SfxFilter;
 }>;
 
-export type SfxCue = Readonly<{
-  id: SfxCueId;
-  recipe: SfxRecipe;
-  /**
-   * Authored loudness in decibels, negative being quieter than reference.
-   *
-   * Held in decibels rather than as a linear gain because that is the unit the ear and the person
-   * tuning the table both think in — halving perceived loudness is a step of about ten, not a
-   * multiplication by a half. {@link fromDb} converts at the point of use; see the note there for why
-   * the conversion must not happen in the parser.
-   */
-  volumeDb: number;
-  /** Cues sharing a key share one rate-limit window, which is how a pile-up is collapsed. */
-  limiterKey: string;
-  maxPerWindow: number;
-  windowSeconds: number;
-  /** Playback rate is drawn between these each play, so a repeat never sounds like a copy. */
-  pitchMin: number;
-  pitchMax: number;
-}>;
+export const SFX_SOURCES = ["recipe", "sample"] as const;
+
+export type SfxSource = (typeof SFX_SOURCES)[number];
+
+/**
+ * What a cue is made of, and the two ways that answer can go.
+ *
+ * A recipe is synthesised at startup; a sample is a recording shipped beside this table. The two are
+ * a closed enumeration rather than an optional field on one shape, so a third kind of source later
+ * cannot be added without every branch that consumes a cue failing to compile until it is handled.
+ */
+type SfxCueSource = Readonly<{ source: "recipe"; recipe: SfxRecipe }> | Readonly<{ source: "sample"; sample: string }>;
+
+export type SfxCue = SfxCueSource &
+  Readonly<{
+    id: SfxCueId;
+    /**
+     * Authored loudness in decibels, negative being quieter than reference.
+     *
+     * Held in decibels rather than as a linear gain because that is the unit the ear and the person
+     * tuning the table both think in — halving perceived loudness is a step of about ten, not a
+     * multiplication by a half. {@link fromDb} converts at the point of use; see the note there for why
+     * the conversion must not happen in the parser.
+     */
+    volumeDb: number;
+    /** Cues sharing a key share one rate-limit window, which is how a pile-up is collapsed. */
+    limiterKey: string;
+    maxPerWindow: number;
+    windowSeconds: number;
+    /** Playback rate is drawn between these each play, so a repeat never sounds like a copy. */
+    pitchMin: number;
+    pitchMax: number;
+  }>;
 
 /**
  * Converts an authored decibel offset to a linear gain multiplier.
@@ -222,6 +204,51 @@ function parseRecipe(value: unknown, label: string): SfxRecipe {
 }
 
 /**
+ * Which of the two things a cue is made of, and the fields that go with it.
+ *
+ * The exclusivity is checked rather than assumed: a row carrying both a recipe and a sample has two
+ * answers to one question, and picking one silently is how a table starts describing a sound nobody
+ * can find. The chain ends in the compiler-proved exception branch, so adding a third source kind
+ * fails to build here rather than falling through to whichever branch happened to be last.
+ */
+function parseSource(source: Record<string, unknown>, label: string): SfxCueSource {
+  const kind = source.source;
+
+  if (typeof kind !== "string" || !SFX_SOURCES.includes(kind as SfxSource)) {
+    throw new TypeError(`${label}.source must be one of: ${SFX_SOURCES.join(", ")}.`);
+  }
+
+  // Narrowed once here so the chain below dispatches over the union rather than over `string`, which
+  // is what lets the closing never-check actually prove the chain complete.
+  const declared: SfxSource = kind as SfxSource;
+
+  if (declared === "recipe") {
+    if (source.sample !== undefined) {
+      throw new TypeError(`${label} is a recipe cue, so it must not also carry a sample.`);
+    }
+
+    return { source: "recipe", recipe: parseRecipe(source.recipe, `${label}.recipe`) };
+  }
+
+  if (declared === "sample") {
+    if (source.recipe !== undefined) {
+      throw new TypeError(`${label} is a sample cue, so it must not also carry a recipe.`);
+    }
+
+    const sample = source.sample;
+
+    if (typeof sample !== "string" || !/^[\w-]+\.wav$/.test(sample)) {
+      throw new TypeError(`${label}.sample must name a WAV file shipped beside this table.`);
+    }
+
+    return { source: "sample", sample };
+  }
+
+  declared satisfies never;
+  throw new Error("unknown SFX cue source");
+}
+
+/**
  * Validates an authored cue table and answers it in the shape the file holds.
  *
  * **The list, not a lookup, and that is load-bearing.** The authoring endpoint writes whatever this
@@ -273,7 +300,7 @@ export function parseSfxCues(value: unknown): readonly SfxCue[] {
 
     parsed.set(id as SfxCueId, {
       id: id as SfxCueId,
-      recipe: parseRecipe(source.recipe, `${label}.recipe`),
+      ...parseSource(source, label),
       volumeDb: finiteNumber(source.volumeDb, `${label}.volumeDb`),
       limiterKey,
       maxPerWindow,

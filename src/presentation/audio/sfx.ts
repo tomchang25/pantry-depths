@@ -10,7 +10,15 @@
  * particle funnel that raises most of these cues has coordinates but no world to ask.
  */
 
-import { fromDb, SFX_CUE_IDS, sfxCue, SFX_CUES, type SfxCueId } from "@/content/sfx/sfx-cue-definitions";
+import {
+  fromDb,
+  SFX_CUE_IDS,
+  sfxCue,
+  SFX_CUES,
+  sfxSampleUrl,
+  type SfxCue,
+  type SfxCueId,
+} from "@/content/sfx/sfx-cue-definitions";
 import { AudioMixer } from "@/presentation/audio/audio-mixer";
 import { bakeRecipe } from "@/presentation/audio/sfx-baker";
 
@@ -35,10 +43,37 @@ function isCueId(value: string): value is SfxCueId {
 }
 
 /**
- * Renders every recipe once.
+ * Fills one cue's buffer, from whichever of the two sources it declares.
  *
- * A cue whose bake fails is left out of the map rather than retried or substituted: it plays silence,
- * and the rest of the table is unaffected by one bad recipe.
+ * This is the whole of what a recording costs the audio layer. Everything past the buffer — the voice
+ * cap, the rate limiting, the pitch jitter, the buses, the distance falloff — cannot tell the two
+ * apart, which is exactly what the mixer's buffer-only contract was for.
+ */
+async function loadCue(cue: SfxCue, context: AudioContext): Promise<AudioBuffer | undefined> {
+  if (cue.source === "recipe") {
+    return bakeRecipe(cue.recipe, context.sampleRate);
+  }
+
+  if (cue.source === "sample") {
+    const url = sfxSampleUrl(cue.id);
+
+    if (!url) {
+      return undefined;
+    }
+
+    const response = await fetch(url);
+    return context.decodeAudioData(await response.arrayBuffer());
+  }
+
+  cue satisfies never;
+  throw new Error("unknown SFX cue source");
+}
+
+/**
+ * Fills every cue's buffer once.
+ *
+ * A cue that fails is left out of the map rather than retried or substituted: it plays silence, and
+ * the rest of the table is unaffected by one bad recipe or one unreachable file.
  */
 async function bakeAll(): Promise<void> {
   const context = mixer.audioContext;
@@ -48,18 +83,17 @@ async function bakeAll(): Promise<void> {
   }
 
   baking = true;
-  const sampleRate = context.sampleRate;
 
   await Promise.all(
     SFX_CUES.map(async (cue) => {
       try {
-        const buffer = await bakeRecipe(cue.recipe, sampleRate);
+        const buffer = await loadCue(cue, context);
 
         if (buffer) {
           buffers.set(cue.id, buffer);
         }
       } catch {
-        // One unrenderable recipe is one silent cue, never a failed startup.
+        // One unloadable cue is one silent cue, never a failed startup.
       }
     }),
   );

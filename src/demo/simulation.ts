@@ -6,6 +6,7 @@
  */
 
 import { MELEE_CUT_START } from "@/content/viewmodel/melee-viewmodel";
+import type { SfxCueId } from "@/content/sfx/sfx-cue-definitions";
 import {
   damageWall,
   heldWeight,
@@ -14,6 +15,7 @@ import {
   thrownImpactDamage,
   thrownWallDamage,
 } from "@/demo/actions";
+import { isBoned } from "@/demo/enemy-archetypes";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
 import { stepExtraction } from "@/demo/extraction";
 import {
@@ -288,6 +290,8 @@ function strikeWithProp(world: DemoWorld, projectile: DemoProjectile): void {
     return;
   }
 
+  // The same material voice a swing gets: a thrown hit is still a hit on that body.
+  playSfx(isBoned(struck.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: struck.x, y: struck.y });
   knockBack(
     struck,
     projectile.x - projectile.directionX * 0.6,
@@ -333,6 +337,21 @@ function resolveLanding(world: DemoWorld, projectile: DemoProjectile, landing: D
 }
 
 /**
+ * What meeting masonry sounds like, per landing kind.
+ *
+ * A total map so a landing added later cannot compile without an answer. `burst` and `detonate`
+ * already report at their own sites, so their answer here is silence; everything else was a silent
+ * thunk — a javelin nailing into a wall made no sound at all, which read as the throw not landing.
+ */
+const WALL_STOP_CUES: Readonly<Record<DemoPropLanding, SfxCueId | undefined>> = {
+  pin: "pinLand",
+  strike: "strikeLand",
+  spend: "strikeLand",
+  burst: undefined,
+  detonate: undefined,
+};
+
+/**
  * Resolves where a throw stopped: what it did there, and whether it still exists afterwards.
  *
  * A thrown body is the one throw with no prop row, because what happens to it is decided by whose
@@ -345,6 +364,12 @@ function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall:
   }
 
   const behaviour = propBehaviour(projectile.kind);
+  const wallCue = hitWall ? WALL_STOP_CUES[behaviour.landing] : undefined;
+
+  if (wallCue !== undefined) {
+    playSfx(wallCue, { x: projectile.x, y: projectile.y });
+  }
+
   resolveLanding(world, projectile, behaviour.landing);
 
   if (behaviour.leaves) {
@@ -384,6 +409,7 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
     projectile.struck.add(enemy.id);
     world.enemies.splice(world.enemies.indexOf(enemy), 1);
     projectile.skewered.push(enemy);
+    playSfx(isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
     announce(world, "Skewered!", 1.2);
 
     if (projectile.skewered.length >= throwCapacity(projectile.kind)) {
@@ -897,7 +923,6 @@ function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
  * out of a floor whose business is finished.
  */
 export function descend(world: DemoWorld): void {
-  playSfx("descend");
   world.depth += 1;
   // A swing in mid-air when the stairs are taken has nothing left to land on: the floor it was aimed
   // at no longer exists. Dropping it stops the blade arriving on the next floor and cleaving whatever

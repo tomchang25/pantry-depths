@@ -697,7 +697,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
   };
 
   const restart = (): void => {
-    playSfx("uiRestart");
+    playSfx("uiSelect");
     // A cheat is a property of the session, not of the run. Losing god mode on every R would make it
     // useless for exactly the thing it is for: dying repeatedly on purpose.
     const carriedGodMode = world.godMode;
@@ -833,7 +833,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     const aim = target ? renderer.project(scene, target) : undefined;
     drawDemoViewmodel(sceneContext, images, world, aim ? { x: aim.screenX, y: aim.screenY } : undefined);
     if (world.pendingCard !== undefined) {
-      playSfx("uiCard");
+      playSfx("uiSelect");
       showCard(world.pendingCard);
       world.pendingCard = undefined;
     }
@@ -867,7 +867,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
 
       if (locked() && world.status === "playing") {
         paused = !paused;
-        playSfx(paused ? "uiPause" : "uiResume");
+        playSfx("uiSelect");
         refreshHud();
       }
 

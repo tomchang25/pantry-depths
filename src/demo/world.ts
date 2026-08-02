@@ -36,7 +36,6 @@ import {
   type DemoMaze,
 } from "@/demo/maze";
 import type { ResolvedMap } from "@/content/maps/map-resolver";
-import type { SfxCueId } from "@/content/sfx/sfx-cue-definitions";
 import { playSfx } from "@/presentation/audio/sfx";
 import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/demo/particles";
 import type { DemoPropKind, DemoThrowKind } from "@/demo/throw-weight";
@@ -908,7 +907,7 @@ export function awardBless(world: DemoWorld): void {
   world.player.maxHp += healthGain;
   world.player.hp = Math.min(world.player.maxHp, world.player.hp + healthGain);
   world.pendingCard = granted.id;
-  playSfx("blessGain");
+  playSfx("rewardGain");
   announce(world, `Blessing gained: ${granted.name}`, 3);
 }
 
@@ -937,8 +936,8 @@ export function runClockSeconds(world: DemoWorld): number {
 export function announce(world: DemoWorld, message: string, seconds = 2.2): void {
   world.message = message;
   world.messageSeconds = seconds;
-  // Flat rather than positional: the message line is the interface talking, not something in the room.
-  playSfx("uiMessage");
+  // Deliberately silent. The line changes constantly — a sound on it was the most frequent noise in
+  // the game, and it marked nothing the text was not already saying.
 }
 
 /** Ceiling on how dark one cell can get, so a long fight does not end in a solid red floor. */
@@ -963,25 +962,10 @@ export function stainFloor(world: DemoWorld, x: number, y: number, amount: numbe
   world.stainsVersion += 1;
 }
 
-/** Where a world effect is heard from, and what it sounds like. An arc is heard at the end it left. */
-function vfxSound(effect: DemoVfxSpec): Readonly<{ id: SfxCueId; x: number; y: number }> {
-  if (effect.kind === "blast") {
-    return { id: "vfxBlast", x: effect.x, y: effect.y };
-  }
-
-  if (effect.kind === "arc") {
-    return { id: "vfxArc", x: effect.fromX, y: effect.fromY };
-  }
-
-  effect satisfies never;
-  throw new Error("unknown world effect kind");
-}
-
 export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
+  // Silent on purpose: the blast that matters already announces itself at its own site, and an arc is
+  // one hop in a cascade — a sound per hop turned one lightning strike into a drum roll.
   world.vfx.push({ ...effect, id: nextId(world, "vfx") });
-
-  const sound = vfxSound(effect);
-  playSfx(sound.id, { x: sound.x, y: sound.y });
 }
 
 /** Records where a hit came from, so the frame can point at it until it fades. */
@@ -1180,22 +1164,6 @@ function deathViolence(cause: DemoDeathCause): number {
   throw new Error("unknown skeleton death cause");
 }
 
-/**
- * What each ending sounds like.
- *
- * A total map rather than a branch chain, so a death cause added later cannot compile without a sound.
- * The causes already describe six different things happening to a body, which is most of the work done —
- * a drowning and a detonation have no business sharing a noise.
- */
-const DEATH_CUES: Readonly<Record<DemoDeathCause, SfxCueId>> = {
-  slain: "deathSlain",
-  cleaved: "deathCleaved",
-  drowned: "deathDrowned",
-  splattered: "deathSplattered",
-  blasted: "deathBlasted",
-  impaled: "deathImpaled",
-};
-
 export function killEnemy(
   world: DemoWorld,
   enemy: DemoEnemy,
@@ -1221,9 +1189,10 @@ export function killEnemy(
     facingAngle: enemy.facingAngle,
   });
   world.kills += 1;
-  // Raised here rather than from each cause, for the same reason the bones are: every route out of the
-  // world makes a sound, and none of them can be the one that forgot to.
-  playSfx(DEATH_CUES[cause], { x: enemy.x, y: enemy.y });
+  // The body's material rather than the cause: a skeleton comes apart in bone whatever took it apart,
+  // and per-cause death voices are a decision deferred until somebody wants to author them. Raised
+  // here rather than from each cause, so no route out of the world can be the one that forgot to.
+  playSfx(isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
 
   if (isBoned(enemy.archetype)) {
     // Called here rather than from each cause, so every route out of the world scatters the same

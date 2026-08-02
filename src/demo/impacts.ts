@@ -169,7 +169,6 @@ export function chainLightning(world: DemoWorld, seeds: readonly DemoEnemy[]): v
           age: 0,
           life: 0.3,
         });
-        playSfx("chainHop", { x: target.x, y: target.y });
         damageEnemy(world, target, CHAIN_DAMAGE);
         next.push(target);
       }

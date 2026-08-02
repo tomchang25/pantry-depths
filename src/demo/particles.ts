@@ -7,28 +7,7 @@
  * gets busy.
  */
 
-import type { SfxCueId } from "@/content/sfx/sfx-cue-definitions";
-import { playSfx } from "@/presentation/audio/sfx";
-
 export type DemoParticleKind = "blood" | "stoneChip" | "woodChip" | "dust" | "ember" | "splash" | "bone";
-
-/**
- * What each spray sounds like.
- *
- * A total map rather than a branch chain, so a particle kind added later cannot compile without an
- * answer here. This is the coverage floor: every kind of spray already marks a moment worth hearing, so
- * hanging a sound on the funnel means nothing that throws particles is silent, even before anything is
- * hooked at the place it actually happened.
- */
-const PARTICLE_CUES: Readonly<Record<DemoParticleKind, SfxCueId>> = {
-  blood: "particleBlood",
-  stoneChip: "particleStoneChip",
-  woodChip: "particleWoodChip",
-  dust: "particleDust",
-  ember: "particleEmber",
-  splash: "particleSplash",
-  bone: "particleBone",
-};
 
 export type DemoParticle = {
   kind: DemoParticleKind;
@@ -104,9 +83,8 @@ export function burst(
   const focus = options.focus ?? 0;
   const facing = Math.atan2(options.directionY ?? 0, options.directionX ?? 1);
 
-  // One sound per burst, not per particle: the spray is one event however many pieces it throws.
-  playSfx(PARTICLE_CUES[kind], { x, y });
-
+  // Deliberately silent. A spray fires far too often to carry a sound; the moment it marks is heard
+  // through whatever raised it, or not at all.
   for (let index = 0; index < count; index += 1) {
     // With `focus` at one every particle leaves along the given direction; at zero the spray is
     // even in every direction. Wall chips want the former, a corpse the latter.

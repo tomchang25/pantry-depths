@@ -39,7 +39,7 @@ let lastResolved: readonly ResolvedReward[] = [];
 export function takeSealed(world: DemoWorld, source: "clean" | "cursed"): void {
   world.carried.push({ source });
   world.pendingCard = `${SEALED_CARD_PREFIX}${source}`;
-  playSfx("sealedReward");
+  playSfx("rewardGain");
   announce(world, `Sealed and ${source === "cursed" ? "cursed" : "clean"} - carry it out or lose it`, 3);
 }
 
@@ -59,7 +59,6 @@ function extract(world: DemoWorld): void {
   lastResolved = resolved;
   world.carried = [];
   endRun(world, "extracted");
-  playSfx("extractionDone");
   announce(world, "Out, with everything you were carrying", 6);
 }
 

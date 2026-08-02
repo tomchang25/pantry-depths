@@ -300,6 +300,7 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
 
   tile.kind = "open";
   tile.maxHp = 0;
+  playSfx("wallBreakStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
   burst(world.particles, "stoneChip", cell.x + 0.5, cell.y + 0.5, 0.5, 18, {
     speed: 3,
     spreadZ: 2.6,
@@ -334,6 +335,7 @@ function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: 
 
   tile.kind = "open";
   tile.maxHp = 0;
+  playSfx("wallBreakStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
   burst(world.particles, "stoneChip", cell.x + 0.5, cell.y + 0.5, 0.55, 20, {
     speed: 3.2,
     spreadZ: 2.8,
@@ -407,6 +409,7 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
   }
 
   // The wall coming down: the whole cell's worth of material, not a face's worth.
+  playSfx(wasWood ? "wallBreakWood" : "wallBreakStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
   burst(world.particles, wasWood ? "woodChip" : "stoneChip", cell.x + 0.5, cell.y + 0.5, 0.6, 26, {
     speed: 3.4,
     spreadZ: 3,
@@ -443,21 +446,6 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number): vo
   announce(world, wasWood ? "The wood wall splinters!" : "The stone wall shatters!");
 }
 
-/**
- * Which release a throw sounds like, from how fast the thing leaves the hand.
- *
- * Derived from the weight rather than authored a fourth time: speed is already the number that
- * separates a flicked bolt from a heaved body, so a new throwable gets a sound without anyone
- * remembering to give it one. The two brackets are a first guess, to be settled by ear.
- */
-function releaseCue(speed: number): "throwLight" | "throwMedium" | "throwHeavy" {
-  if (speed >= 18) {
-    return "throwLight";
-  }
-
-  return speed >= 13 ? "throwMedium" : "throwHeavy";
-}
-
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
   const direction = facing(world);
   const weight = throwWeight(kind, payload?.archetype.weight);
@@ -492,10 +480,10 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
 
   // What it cost to get rid of: a shove backwards along the throw and a jolt of the view. Nothing
   // else in the demo moves the player without an enemy doing it, which is exactly why heaving a
-  // body registers.
-  // A bolt is a trigger, not an open hand, and says so in its own cue below.
+  // body registers. One release sound for every throw — the arm moving is the same arm the swing
+  // uses — and a bolt is a trigger rather than an open hand, so it stays silent here.
   if (kind !== "crossbowBolt") {
-    playSfx(payload ? "throwEnemy" : releaseCue(weight.speed));
+    playSfx("throw");
   }
 
   world.player.pushX -= direction.x * weight.recoil * RECOIL_SHOVE;
@@ -551,7 +539,6 @@ function shootHeld(world: DemoWorld): void {
         ? { kind: "prop", prop: behaviour.spends, count: 1 }
         : undefined;
   spawnProjectile(world, "crossbowBolt", undefined);
-  playSfx("shootBolt");
   burst(world.particles, "ember", world.player.x, world.player.y, 0.5, 4, {
     speed: 2.2,
     spreadZ: 1.2,
@@ -599,6 +586,7 @@ function strikeAltar(world: DemoWorld): boolean {
 
   // The last blow: the whole structure's worth of stone rather than a face's worth, and the light
   // leaving it all at once.
+  playSfx("wallBreakStone", { x: world.altar.x, y: world.altar.y });
   burst(world.particles, "stoneChip", world.altar.x, world.altar.y, 0.6, 26, {
     speed: 3.4,
     spreadZ: 3,
@@ -686,7 +674,10 @@ function melee(world: DemoWorld): void {
   const cell = wallAhead(world, reach);
 
   if (cell) {
-    playSfx("meleeHitWall", { x: cell.x + 0.5, y: cell.y + 0.5 });
+    // Timber and stone answer a blade differently, and the barricade is timber by construction.
+    const kind = tileAt(world.maze, cell.x, cell.y)?.kind;
+    const wooden = kind === "wood" || kind === "barricade";
+    playSfx(wooden ? "meleeHitWallWood" : "meleeHitWallStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
     world.swingTarget = { x: cell.x + 0.5, y: cell.y + 0.5, z: 0.55, connected: true };
     world.impact = 1;
     damageWall(world, cell, MELEE_WALL_DAMAGE);
@@ -785,7 +776,6 @@ function dropHeld(world: DemoWorld): void {
   // Whatever is left of the stack goes back on the floor as one pickup, so putting something down
   // and taking it again is never a way to lose or gain uses.
   world.props.push({ id: nextId(world, "prop"), kind: held.prop, count: held.count, x, y });
-  playSfx("propDrop");
   announce(world, `Dropped ${PROP_LABELS[held.prop]} x${held.count}`);
 }
 
@@ -805,7 +795,6 @@ export function grabAction(world: DemoWorld): void {
   if (enemy) {
     world.enemies.splice(world.enemies.indexOf(enemy), 1);
     world.held = { kind: "enemy", enemy };
-    playSfx("propPickup");
     announce(world, "Grabbed an enemy!");
     return;
   }
@@ -815,7 +804,6 @@ export function grabAction(world: DemoWorld): void {
   if (prop) {
     world.props.splice(world.props.indexOf(prop), 1);
     world.held = { kind: "prop", prop: prop.kind, count: prop.count };
-    playSfx("propPickup");
     announce(world, `Picked up ${PROP_LABELS[prop.kind]} x${prop.count}`);
     return;
   }

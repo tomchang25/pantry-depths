@@ -51,7 +51,6 @@ import { hasBless } from "@/demo/bless";
 import { checkHazards } from "@/demo/impacts";
 import { breadthFirstStep, randomReachableCell, type DemoCell } from "@/demo/maze";
 import { burst } from "@/demo/particles";
-import type { SfxCueId } from "@/content/sfx/sfx-cue-definitions";
 import { playSfx } from "@/presentation/audio/sfx";
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import {
@@ -261,22 +260,8 @@ function walk(
  * landing circle are both statements about a spot on the floor — and keeping two representations of
  * one lock is how they come apart.
  */
-/**
- * What each telegraph announces itself with.
- *
- * A total map over the three things a body can commit to, so a fourth intent cannot compile without a
- * warning sound. This is the cue that has to carry furthest: the mark on the floor is only useful to a
- * player already looking that way, and a wind-up starting behind you is exactly the one worth hearing.
- */
-const WINDUP_CUES: Readonly<Record<DemoWindupIntent, SfxCueId>> = {
-  melee: "enemyWindupBlade",
-  shoot: "enemyWindupShot",
-  charge: "enemyWindupCharge",
-};
-
 function beginWindup(world: DemoWorld, enemy: DemoEnemy, intent: DemoWindupIntent): void {
   enemy.intent = intent;
-  playSfx(WINDUP_CUES[intent], { x: enemy.x, y: enemy.y });
   enemy.windupSeconds = attackWindup(enemy.archetype);
   enemy.windupTotal = attackWindup(enemy.archetype);
   enemy.aimX = world.player.x;
@@ -315,7 +300,6 @@ function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
     plunge: 1,
     blastRadius: 0,
   });
-  playSfx("enemyShotFire", { x: enemy.x, y: enemy.y });
   enemy.attackPoseSeconds = STRIKE_SECONDS;
   enemy.attackCooldown = attackCooldown(enemy.archetype);
 }
@@ -328,7 +312,6 @@ function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
  * beyond the player, facing the wrong way, when it misses.
  */
 function launchCharge(enemy: DemoEnemy): void {
-  playSfx("enemyChargeLaunch", { x: enemy.x, y: enemy.y });
   const dx = enemy.aimX - enemy.x;
   const dy = enemy.aimY - enemy.y;
   const length = Math.max(0.0001, Math.hypot(dx, dy));
@@ -457,7 +440,6 @@ function stepCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
       x: Math.floor(enemy.x + enemy.chargeX * (ENEMY_RADIUS + 0.3)),
       y: Math.floor(enemy.y + enemy.chargeY * (ENEMY_RADIUS + 0.3)),
     };
-    playSfx("enemyChargeSlam", { x: enemy.x, y: enemy.y });
     damageWall(world, cell, CHARGE_WALL_DAMAGE);
     burst(world.particles, "dust", enemy.x, enemy.y, 0.4, 10, {
       speed: 2.6,
