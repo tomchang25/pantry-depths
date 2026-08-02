@@ -32,7 +32,7 @@ def require_blender() -> str:
 def main() -> int:
     repository_root = Path(__file__).resolve().parents[2]
     source = repository_root / "assets" / "enemies" / "skeleton-swordsman" / "skeleton-swordsman-authoring.blend"
-    target = repository_root / "src" / "app" / "debug" / "three-preview" / "assets" / "skeleton-swordsman-authored.glb"
+    target = repository_root / "src" / "sandbox" / "three-preview" / "assets" / "skeleton-swordsman-authored.glb"
     implementation = repository_root / "dev" / "tools" / "skeletons" / "export_glb.py"
 
     if not source.is_file():

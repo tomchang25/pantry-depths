@@ -1,5 +1,3 @@
-import { createDebugPage } from "@/app/debug/debug-shell";
-
 import {
   PREVIEW_SCENE_IDS,
   type PreviewLightMode,
@@ -108,16 +106,19 @@ function createToggle(labelText: string): Readonly<{ input: HTMLInputElement; la
   return { input, label };
 }
 
-export function renderThreePreview(mount: HTMLElement): void {
+/** The debug surface owns the page chrome; this experiment fills its content region. */
+export const THREE_PREVIEW_EXPERIMENT = {
+  title: "Standalone Three.js Preview",
+  description:
+    "A development-only proof of concept for skeletal posing, pose-preserving destruction, procedural props, and ballistic effects.",
+  pageClass: "three-preview",
+  width: "wide",
+  mount: mountThreePreview,
+} as const;
+
+function mountThreePreview(content: HTMLElement): void {
   const abortController = new AbortController();
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const { page, content } = createDebugPage({
-    title: "Standalone Three.js Preview",
-    description:
-      "A development-only proof of concept for skeletal posing, pose-preserving destruction, procedural props, and ballistic effects.",
-    width: "wide",
-  });
-  page.classList.add("three-preview");
 
   const layout = document.createElement("div");
   const stage = document.createElement("section");
@@ -229,7 +230,6 @@ export function renderThreePreview(mount: HTMLElement): void {
   stage.append(stageHeader, viewport);
   layout.append(stage, sidebar);
   content.append(layout);
-  mount.replaceChildren(page);
 
   let runtime: PreviewRuntime;
   try {

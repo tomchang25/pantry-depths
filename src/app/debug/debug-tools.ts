@@ -1,3 +1,5 @@
+import { mountSandboxExperiment } from "@/app/debug/sandbox-tool";
+
 export type DebugToolRenderer = {
   render(mount: HTMLElement): void;
 };
@@ -19,8 +21,8 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
     description:
       "Judge a blocky enemy at sprite size: eight headings, the bake's own camera, and clips driven by numeric tables.",
     load: () =>
-      import("@/app/debug/three-block/three-block").then(({ renderThreeBlock }) => ({
-        render: renderThreeBlock,
+      import("@/sandbox/three-block/three-block").then(({ THREE_BLOCK_EXPERIMENT }) => ({
+        render: mountSandboxExperiment(THREE_BLOCK_EXPERIMENT),
       })),
   },
   {
@@ -30,8 +32,8 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
     description:
       "Preview skeletal posing, destructive animation, procedural models, and ballistic effects in isolation.",
     load: () =>
-      import("@/app/debug/three-preview/three-preview").then(({ renderThreePreview }) => ({
-        render: renderThreePreview,
+      import("@/sandbox/three-preview/three-preview").then(({ THREE_PREVIEW_EXPERIMENT }) => ({
+        render: mountSandboxExperiment(THREE_PREVIEW_EXPERIMENT),
       })),
   },
   {

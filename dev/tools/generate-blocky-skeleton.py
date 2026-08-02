@@ -42,7 +42,7 @@ def main() -> int:
     repository_root = Path(__file__).resolve().parents[2]
     implementation = repository_root / "dev" / "tools" / "skeletons" / "blocky_build.py"
     blend = repository_root / "assets" / "enemies" / "skeleton-blocky" / "skeleton-blocky.blend"
-    glb = repository_root / "src" / "app" / "debug" / "three-block" / "assets" / "skeleton-blocky.glb"
+    glb = repository_root / "src" / "sandbox" / "three-block" / "assets" / "skeleton-blocky.glb"
 
     if args.export_only and not blend.is_file():
         raise RuntimeError(f"nothing to export: {blend} does not exist")

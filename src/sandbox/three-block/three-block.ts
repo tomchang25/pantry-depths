@@ -1,5 +1,3 @@
-import { createDebugPage } from "@/app/debug/debug-shell";
-
 import {
   BLOCK_CELL_SIZES,
   BLOCK_WEAPONS,
@@ -68,15 +66,18 @@ function createToggle(
   return { input, label };
 }
 
-export function renderThreeBlock(mount: HTMLElement): void {
+/** The debug surface owns the page chrome; this experiment fills its content region. */
+export const THREE_BLOCK_EXPERIMENT = {
+  title: "Block Skeleton",
+  description:
+    "A blocky enemy whose clips are numeric tables in the Blender build script. The strip below draws all eight headings at the size the game composites them, which is where this experiment is judged — the large view is for finding out why, not whether.",
+  pageClass: "three-block",
+  width: "wide",
+  mount: mountThreeBlock,
+} as const;
+
+function mountThreeBlock(content: HTMLElement): void {
   const abortController = new AbortController();
-  const { page, content } = createDebugPage({
-    title: "Block Skeleton",
-    description:
-      "A blocky enemy whose clips are numeric tables in the Blender build script. The strip below draws all eight headings at the size the game composites them, which is where this experiment is judged — the large view is for finding out why, not whether.",
-    width: "wide",
-  });
-  page.classList.add("three-block");
 
   const layout = document.createElement("div");
   const stage = document.createElement("section");
@@ -189,7 +190,6 @@ export function renderThreeBlock(mount: HTMLElement): void {
   stage.append(viewport, stripPanel);
   layout.append(stage, sidebar);
   content.append(layout);
-  mount.replaceChildren(page);
 
   let runtime: BlockRuntime;
   try {
