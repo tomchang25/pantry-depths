@@ -79,7 +79,7 @@ One key hides the whole instrument layer — the readouts and the panel together
 
 | #   | Focus                                                               | Handoff                                                                  |
 | --- | ------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| 01  | Two kinds of freeze, and the harness scene that wants the other one | `filming_stage_01_two_kinds_of_freeze.implementation_spec.md`            |
+| 01  | Two kinds of freeze, and the harness scene that wants the other one | Shipped — `filming_stage_01_two_kinds_of_freeze.implementation_spec.md`  |
 | 02  | A cast a room can declare, and the floor that honours it            | `filming_stage_02_a_cast_a_room_declares.implementation_spec.md` (draft) |
 | 03  | Painting a cast on the room surface                                 | `filming_stage_03_painting_the_cast.implementation_spec.md` (draft)      |
 | 04  | The stage, its dressing, and the clear screen                       | `filming_stage_04_the_stage.implementation_spec.md` (draft)              |
@@ -122,17 +122,6 @@ The three later specs were written in one batch ahead of their landing order and
 Perishable: this records the codebase on 2026-08-02. Re-check every coordinate against live code before acting on it.
 
 Two constraints govern all four children. Nothing under `test/` may import `@/demo/` or `@/presentation/` — `test/unit/repository/demo-half-is-untested.test.ts` fails the suite over it, and its exempt list does not grow. And `src/content/` may reach only `src/content/` and `src/core/`, which is why child 02 declares a vocabulary rather than importing one.
-
-### 01 — Two kinds of freeze
-
-- `world.enemiesPaused` (`src/demo/world.ts:419`, initialised line 812) is the single switch. It becomes two fields; keep one of the names honest rather than reusing the old one for the new meaning.
-- The root cause of the white body: `decayTimers` (`src/demo/enemy-ai.ts:72`) is called from `stepEnemies` (`src/demo/enemy-ai.ts:537`), and `stepEnemies` is skipped wholesale by the pause check at `src/demo/simulation.ts:1003`. `hurtSeconds` is set to 0.28 at `src/demo/world.ts:1277` and read by the scene at `src/demo/demo-scene.ts:671`, `:684`, `:970`, and `:1233`. The same skip strands `stunSeconds`, `attackPoseSeconds`, `attackCooldown`, and `repathSeconds`.
-- Under mind freeze, `stepEnemies` still runs its head — `enemy.moving = false`, `decayTimers`, `applyPush`, the `unstick` settle — and returns before `stepCharge` (line 548), `stepWindup` (line 564), and `stepMind` (line 575). Reinforcement arrival (`simulation.ts:1005` onward) and `stepMortars` also stop.
-- Under world freeze, the block guarded at `simulation.ts:1003` is skipped exactly as today.
-- `src/demo/demo-dev-overlay.ts` carries one chip per row; `enemiesPaused` is rendered at line 114. It gains a second row, and `DemoDevOverlayModel` (line 18) a second field.
-- `src/app/debug/hud-attack-workbench.ts:422` builds a literal `DemoDevOverlayModel` and line 520 lists its rows for the panel; both need the new field or typecheck fails.
-- Keys are handled in `src/demo/demo-surface.ts`; `p` is at line 935. Free single keys today: `c`, `f`, `h`, `i`, `j`, `o`, `u`, `v`, `x`, `y`, `z` and the digits. `w`, `a`, `s`, `d`, `r`, `m`, `t`, `k`, `n`, `b`, `l`, `p`, `g`, `[`, `]`, Tab and Escape are taken.
-- `dev/tools/capture/scenes.mjs`, scene `crowd-frozen`, presses `p` for a stable frame; it moves to whichever key ends up meaning world freeze. Its note text says "enemies paused" and should say what it now means.
 
 ### 02 — A cast a room can declare
 

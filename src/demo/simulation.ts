@@ -997,11 +997,18 @@ export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: 
   stepRunLevel(world);
   stepPlayer(world, input, step);
 
-  // The debug pause freezes thinking, movement, reinforcement, and the floor's artillery together.
-  // The emplacements are terrain rather than enemies and could defensibly keep running, but a pause
-  // held to look at something is not much use if a shell lands on you halfway through it.
-  if (!world.enemiesPaused) {
+  // The world freeze is the still frame and stops the enemy pass outright, per-body timers included.
+  // The mind freeze is inside that pass: bodies stop deciding while their timers keep running, which
+  // is what lets a held body flinch and its hit flash fade.
+  if (!world.worldFrozen) {
     stepEnemies(world, step);
+  }
+
+  // The emplacements are terrain rather than enemies and could defensibly keep running, but a freeze
+  // held to look at something is not much use if a shell lands on you halfway through it. The
+  // reinforcement clock stops under either switch for the same reason a staged floor exists at all:
+  // nothing arrives that was not asked for.
+  if (!world.worldFrozen && !world.mindsFrozen) {
     stepMortars(world, step);
     world.spawnSeconds -= step;
 

@@ -419,7 +419,7 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
    * It is a separate module with a separate subject — what the machine is doing — and the only reason
    * it is on this tab at all is that its corner has to be checked against the picture behind it.
    */
-  let devModel: DemoDevOverlayModel = { enemiesPaused: false, fps: 60, godMode: false };
+  let devModel: DemoDevOverlayModel = { mindsFrozen: false, worldFrozen: false, fps: 60, godMode: false };
   const refreshDev = (): void => dev.update(devModel);
 
   for (const [label, key] of [
@@ -517,7 +517,8 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
 
   for (const [label, key] of [
     ["God mode", "godMode"],
-    ["Enemy pause", "enemiesPaused"],
+    ["Mind freeze", "mindsFrozen"],
+    ["World freeze", "worldFrozen"],
   ] as const) {
     const input = document.createElement("input");
     input.type = "checkbox";

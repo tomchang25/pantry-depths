@@ -673,7 +673,12 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
   const refreshHud = (): void =>
     hud.update(createHudModel(world, activeCardToken, overlayModel(), objectiveSeconds > 0));
   const refreshDev = (): void =>
-    dev.update({ enemiesPaused: world.enemiesPaused, fps: smoothedFps, godMode: world.godMode });
+    dev.update({
+      mindsFrozen: world.mindsFrozen,
+      worldFrozen: world.worldFrozen,
+      fps: smoothedFps,
+      godMode: world.godMode,
+    });
 
   /**
    * Shows the award card for a few seconds.
@@ -931,11 +936,22 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
       return;
     }
 
-    // Freezes the enemies to split a frame-rate dip into its enemy and non-enemy halves.
+    // Holds the bodies without holding the clock: they stop deciding, and everything the player does
+    // to one still reads — it flinches, it is shoved, its hit flash fades, it dies properly.
     if (key === "p") {
       event.preventDefault();
-      world.enemiesPaused = !world.enemiesPaused;
-      announce(world, world.enemiesPaused ? "Enemies frozen (P to resume)" : "Enemies moving again", 2.5);
+      world.mindsFrozen = !world.mindsFrozen;
+      announce(world, world.mindsFrozen ? "Minds frozen (P to resume)" : "Enemies thinking again", 2.5);
+      refreshDev();
+      return;
+    }
+
+    // Stops the clock as well, which is the one to press for a still frame to compare against
+    // another: a body struck just before it went on stays lit, because its flash is a timer.
+    if (key === "o") {
+      event.preventDefault();
+      world.worldFrozen = !world.worldFrozen;
+      announce(world, world.worldFrozen ? "World frozen (O to resume)" : "World moving again", 2.5);
       refreshDev();
       return;
     }

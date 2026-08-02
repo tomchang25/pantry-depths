@@ -16,7 +16,8 @@
 import "@/demo/demo-dev-overlay.css";
 
 export type DemoDevOverlayModel = Readonly<{
-  enemiesPaused: boolean;
+  mindsFrozen: boolean;
+  worldFrozen: boolean;
   fps: number;
   godMode: boolean;
 }>;
@@ -54,14 +55,16 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
   const element = document.createElement("div");
   const fps = document.createElement("span");
   const godModeButton = document.createElement("button");
-  const frozen = document.createElement("span");
+  const minds = document.createElement("span");
+  const world = document.createElement("span");
   element.className = "demo-dev";
   fps.className = "demo-dev__fps";
   // One chip shape for every row, so the panel reads as a column of states and commands rather than
   // as a mixture of buttons and captions. Only the ones that take a click say so.
   godModeButton.className = "demo-dev__chip demo-dev__toggle";
   godModeButton.type = "button";
-  frozen.className = "demo-dev__chip";
+  minds.className = "demo-dev__chip";
+  world.className = "demo-dev__chip";
 
   /**
    * A momentary command, as distinct from a switch.
@@ -92,7 +95,8 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
   element.append(
     fps,
     godModeButton,
-    frozen,
+    minds,
+    world,
     command("Test arena · T", actions.testArena),
     command("Kill all · K", actions.killAll),
     command("Fill crowd · N", actions.fillCrowd),
@@ -111,8 +115,13 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
     // Named after the switch, not after the world it produces. `frozen` against `moving` described
     // the enemies and left the reader to work out which way the switch was thrown; on and off against
     // the switch's own name cannot be read the wrong way round.
-    frozen.textContent = `Enemy pause · ${model.enemiesPaused ? "on" : "off"} · P`;
-    frozen.dataset.active = String(model.enemiesPaused);
+    //
+    // Two rows rather than one, and named as a pair, because the difference between them is the
+    // whole reason there are two: one holds the bodies and one holds the clock.
+    minds.textContent = `Mind freeze · ${model.mindsFrozen ? "on" : "off"} · P`;
+    minds.dataset.active = String(model.mindsFrozen);
+    world.textContent = `World freeze · ${model.worldFrozen ? "on" : "off"} · O`;
+    world.dataset.active = String(model.worldFrozen);
   };
 
   // The command buttons' listeners go with the nodes they are on, which are removed with the panel.

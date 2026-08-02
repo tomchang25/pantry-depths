@@ -415,8 +415,23 @@ export type DemoWorld = {
    */
   terrainVersion: number;
   held: DemoHeld;
-  /** Debug: freezes enemy thinking, movement, and reinforcement while true. Toggled by the P key. */
-  enemiesPaused: boolean;
+  /**
+   * Debug: stops what a body decided — where to go, moving, turning, a wind-up or charge it committed
+   * to — along with reinforcements arriving and the floor's artillery. Toggled by the P key.
+   *
+   * What it deliberately does not stop is everything that is a consequence of what the player did:
+   * the per-body timers keep counting down, knockback still carries, and a killed body plays its
+   * death through. A body that will not flinch when struck is what made the one switch this replaces
+   * useless for looking at a body while hitting it.
+   */
+  mindsFrozen: boolean;
+  /**
+   * Debug: stops the whole enemy pass, timers included. Toggled by the O key.
+   *
+   * The still frame, as distinct from the held body above. A hit flash stuck lit under this one is
+   * correct rather than a defect — time is stopped, and a flash is a timer.
+   */
+  worldFrozen: boolean;
   /**
    * Debug: the player still takes every hit and shows it, and simply does not lose the points.
    *
@@ -809,7 +824,8 @@ export function createDemoWorld(map: ResolvedMap): DemoWorld {
     deaths: [],
     terrainVersion: 0,
     held: undefined,
-    enemiesPaused: false,
+    mindsFrozen: false,
+    worldFrozen: false,
     godMode: false,
     status: "playing",
     elapsedSeconds: 0,

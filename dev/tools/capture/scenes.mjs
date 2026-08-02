@@ -47,7 +47,10 @@ export const SCENES = [
   },
   {
     name: "crowd-frozen",
-    note: "Same swarm with enemies paused: a stable frame for comparing bodies, markers, and lighting.",
+    note: "Same swarm under the world freeze: a stable frame for comparing bodies, markers, and lighting.",
+    // The world freeze rather than the mind freeze, which is the one that stops the clock as well.
+    // Under the mind freeze the bodies hold still but their timers keep running, so a flash fading
+    // between two captures would show up as a difference nobody made.
     async setup({ faceNearestEnemy, press, settle, wait }) {
       await press("t");
       await settle(5);
@@ -55,7 +58,7 @@ export const SCENES = [
       await wait(1200);
       await faceNearestEnemy();
       await settle(30);
-      await press("p");
+      await press("o");
       await settle(5);
     },
   },

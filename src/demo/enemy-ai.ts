@@ -531,7 +531,20 @@ export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fro
   }
 }
 
+/**
+ * One pass over every body, in two halves the mind freeze cuts between.
+ *
+ * The head is what happened *to* the body: its timers count down, whatever shoved it carries it, and
+ * it settles out of any geometry it ended up inside. The tail is what the body decided — a committed
+ * charge, a committed wind-up, and everything downstream of choosing where to go.
+ *
+ * The freeze returns between the two rather than skipping the pass, and that is the whole point of
+ * there being two switches. Skipping it wholesale is what the world freeze does, and it leaves a
+ * struck body lit white forever, because the hit flash is a timer in the head of this loop.
+ */
 export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
+  const frozen = world.mindsFrozen;
+
   for (const enemy of world.enemies) {
     enemy.moving = false;
     decayTimers(enemy, deltaSeconds);
@@ -544,6 +557,10 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
     const settled = unstick(world.maze, { x: enemy.x, y: enemy.y }, ENEMY_RADIUS, FLUNG);
     enemy.x = settled.x;
     enemy.y = settled.y;
+
+    if (frozen) {
+      continue;
+    }
 
     if (enemy.chargeSeconds > 0) {
       stepCharge(world, enemy, deltaSeconds);
