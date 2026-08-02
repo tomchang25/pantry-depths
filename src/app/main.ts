@@ -40,7 +40,15 @@ function renderOrdinaryPlay(): void {
   // Which map to play is a query parameter, read here rather than by the route resolver: that
   // function answers which surface a pathname wants, and a second question in it is a second reason
   // for it to change.
-  const mapName = new URLSearchParams(window.location.search).get("map") ?? undefined;
+  //
+  // Development only, and that is the point rather than a precaution. Every map beside the one a run
+  // opens on is a development subject — an arena, a sandbox, a stage to film in — reachable by typing
+  // a name into the address bar, and until now a production build honoured that address too. A
+  // shipped build plays the map the game is, and the rest live where the rest of the development
+  // surface lives.
+  const mapName = import.meta.env.DEV
+    ? (new URLSearchParams(window.location.search).get("map") ?? undefined)
+    : undefined;
 
   void import("@/demo/demo-surface")
     .then(async ({ mountDemo }) => {
