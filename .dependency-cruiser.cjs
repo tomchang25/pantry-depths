@@ -86,6 +86,23 @@ module.exports = {
     },
 
     {
+      name: "demo-imports-only-demo-presentation-content-core",
+      severity: "error",
+      comment:
+        "The demo tree is being dismantled into the formal layers (dev/docs/plans/demo_migration.plan.md and the demo tree section of dev/standards/project_structure.addendum.md). Until that closes it may reach the projection stack and the two data layers, and nothing else; each migration child tightens this rule rather than opening a new door.",
+      from: { path: "^src/demo/" },
+      to: { path: "^src/", pathNot: "^src/(demo|presentation|content|core)/" },
+    },
+    {
+      name: "only-the-app-imports-demo",
+      severity: "error",
+      comment:
+        "The demo is mounted by the bootstrap and inspected by the debug workbenches; no other layer may grow a dependency on a tree scheduled to disappear.",
+      from: { path: "^src/", pathNot: "^src/(demo|app)/" },
+      to: { path: "^src/demo/" },
+    },
+
+    {
       name: "game-layer-does-not-import-tooling",
       severity: "error",
       comment:

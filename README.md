@@ -10,11 +10,11 @@ Every action — stepping, turning, attacking, opening a door — lets each enem
 
 Red keys open the way. Blue keys buy attack. Yellow keys buy defense. You spend HP to reach a key, and the stat it unlocks makes the rest of the route cheaper. Attack decides whether you can hurt something at all; defense decides how much it costs.
 
-Rules live in `src/core/` and numbers in `src/content/`; those are the authority. The design documents under `dev/docs/design/` are frozen records of what the plans were derived from and are not read for current truth — see [`dev/standards/design_document_freeze.md`](dev/standards/design_document_freeze.md).
+Rules live in `src/core/` and numbers in `src/content/`; those are the authority. The design documents under `dev/docs/design/` are frozen records of what the plans were derived from and are not read for current truth — see [`dev/standards/frozen_reference_directories.md`](dev/standards/frozen_reference_directories.md).
 
 ## Status
 
-Repository scaffold only. The game layers are not implemented yet — see [`TODO.md`](TODO.md) for the build order and [`port-ref/`](port-ref/) for the original single-file browser prototype the renderer is ported from.
+The playable demo is the game. It currently lives in `src/demo/` and is being migrated into the formal layers — see [`TODO.md`](TODO.md) for forward work and `dev/docs/plans/demo_migration.plan.md` for the migration.
 
 ## Running
 
@@ -53,7 +53,6 @@ dev/
   foundation/     Shared governance, pinned submodule
   docs/design/    Game design document
   standards/      Project addenda
-port-ref/         Original prototype, reference only, never imported
 ```
 
 Layer boundaries are machine-checked. `core/` imports nothing outside `core/` and never touches a DOM global — that is what keeps combat deterministic and testable without a browser.

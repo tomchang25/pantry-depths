@@ -5,7 +5,7 @@
     "suspicious": "warn",
     "perf": "warn"
   },
-  "ignorePatterns": ["dist/**", "node_modules/**", "dev/foundation/**", "port-ref/**"],
+  "ignorePatterns": ["dist/**", "node_modules/**", "dev/foundation/**"],
   "rules": {
     "no-console": "off",
     "eqeqeq": "error",

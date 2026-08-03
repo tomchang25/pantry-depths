@@ -1,6 +1,6 @@
 # Project Structure Addendum
 
-Addendum to `dev/foundation/platforms/web-react/standards/project_structure_standard.md`. That standard remains the canonical owner of root vocabulary, source layer vocabulary, and import boundaries. This file records only the trees it does not name and the one declared deviation.
+Addendum to `dev/foundation/platforms/web-react/standards/project_structure_standard.md`. That standard remains the canonical owner of root vocabulary, source layer vocabulary, and import boundaries. This file records only the trees it does not name and the declared deviations.
 
 ## Declared Deviation: No React
 
@@ -8,34 +8,45 @@ Pantry Depths selects the `web-react` platform because it is the only Web platfo
 
 Consequences:
 
-- `src/ui/` is omitted. The development demo's plain-DOM HUD lives beside its simulation in `src/demo/`; that whole real-time surface remains a manual-play boundary rather than a reusable application UI layer.
+- `src/ui/` is omitted. The development demo's plain-DOM HUD lives beside its simulation in `src/demo/`; that whole real-time surface remains a manual-play boundary rather than a reusable application UI layer. **Scheduled for revision:** the demo migration (`dev/docs/plans/demo_migration.plan.md`) earns `src/ui/` as a plain-DOM layer when its interface child lands, and this bullet is rewritten in that change — the deviation was about React, not about owning an interface layer.
 - The following platform triggers never fire in this repository and reading them is not required: `react_component_standard.md`, `react_strict_mode_effects.md`, `browser_persistence_standard.md`, `indexeddb_upgrade_transactions.md`, `service_worker_cache_versioning.md`, and the service-worker and installability portions of `web_platform_standard.md`.
 - V1 has no save system, no IndexedDB, no service worker, and no PWA manifest, so `public/` is omitted entirely.
 
 Reintroducing React, persistence, or a service worker retires the corresponding part of this deviation and restores the trigger.
 
-## Project-Owned Root Trees
+## Declared Deviation: A Random Real-Time Core
 
-| Tree        | Ownership                                                                                                                                                                                                                                                                                      |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `port-ref/` | The original single-file browser prototype (`game.js`, `index.html`, `style.css`). Reference material for the presentation port. Outside the game layer vocabulary, outside the runtime module graph, excluded from typecheck, lint, format, and the boundary check. Never imported by `src/`. |
+The platform standard expects `src/core/` to own deterministic gameplay state. The rules this project is moving into core — per `dev/docs/plans/demo_migration.plan.md` — are the demo's: a real-time, mutating tick that draws on global randomness and guarantees no replay. They arrive as they are, because making the tick injectable-random is a behaviour-affecting redesign the migration deliberately ships none of. The screenshot harness seeds global randomness for reproducible captures, and that continues to work unchanged.
 
-`port-ref/` is read-only source material. Code moves out of it into the layer that owns the behavior; it is never edited in place to keep a running copy alive.
+Making the tick deterministic later retires this deviation.
 
 ## Layer Status
 
-The standard names `presentation/` and `shared/` as earned layers that are created only when the owning work exists. Both are absent from the tree until then, as is `platform/`, which V1 is not expected to need at all. The remaining layers carry a scaffolded empty directory so that the layer vocabulary is visible in the tree and a file lands in the right place on the first try.
+The standard names `presentation/` and `shared/` as earned layers that are created only when the owning work exists. This table is the current truth of which layers exist and what each holds; the demo migration plan is what moves the two pre-declared rows from absent to earned.
 
-| Layer               | Directory | Status                                                                                                 |
-| ------------------- | --------- | ------------------------------------------------------------------------------------------------------ |
-| `src/app/`          | Present   | Ordinary/debug route boundary and development tools; ordinary runtime is still a placeholder.          |
-| `src/core/`         | Present   | Empty. Will own grid state, turn resolution, and the attack-minus-defense formula.                     |
-| `src/content/`      | Present   | Empty. Will own the enemy table, door effects, and the five baked floors.                              |
-| `src/presentation/` | Absent    | Earned layer. Created by the renderer port; will own the raycaster, textures, sprites, VFX, and audio. |
-| `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                |
-| `src/shared/`       | Absent    | Earned layer. Create only on demonstrated cross-feature ownership.                                     |
+| Layer               | Directory | Status                                                                                                                                                                     |
+| ------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/`          | Present   | Route boundary, bootstrap, and the debug tool surface. The ordinary route mounts the demo surface.                                                                         |
+| `src/core/`         | Present   | Holds the turn-based remnant (grid vocabulary, combat projection), scheduled for removal by the migration; becomes the home of the real-time rules as the migration lands. |
+| `src/content/`      | Present   | Authored data by feature: maps, rooms, enemies, combat tables, sfx, presentation assets, viewmodel definitions.                                                            |
+| `src/presentation/` | Present   | Earned by the renderer port: the Canvas 2D raycaster, procedural textures, the image loader, and the audio stack.                                                          |
+| `src/runtime/`      | Absent    | Earned layer, pre-declared: created by the migration's runtime child to own the frame loop, input, mounting, and session dressing.                                         |
+| `src/ui/`           | Absent    | Earned layer, pre-declared: created by the migration's interface child to own the plain-DOM HUD — see the No React deviation above.                                        |
+| `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                                                                                    |
+| `src/shared/`       | Absent    | Earned layer. Create only on demonstrated cross-feature ownership.                                                                                                         |
 
 A scaffolded empty directory is not a claim that the layer is earned. It carries a `.gitkeep` and nothing else; the first real module in it is still the change that has to justify the placement.
+
+## The Demo Tree
+
+`src/demo/` is the playable game as it won the direction gate: rules, tables, runtime, interface, and projection in one tree, outside the platform layer vocabulary. It is declared here because the vocabulary does not name it, and because it is being dismantled: `dev/docs/plans/demo_migration.plan.md` moves its modules into the formal layers, and what remains at the end is the projection half — scene building, sprite loading, the viewmodel, particles — held in place until the 3D runtime decision replaces it.
+
+Import directions, machine-checked by the boundary rules:
+
+- `src/demo/` imports itself, `src/presentation/`, `src/content/`, and `src/core/`, and nothing else in `src/`.
+- Nothing imports `src/demo/` except `src/app/` — the bootstrap that mounts it and the debug workbenches that inspect it.
+
+Each migration child tightens these rules rather than opening a new door; the declaration and the rules retire together when the migration closes.
 
 ## The Sandbox Tree
 
@@ -51,7 +62,7 @@ The tree's first two residents, `three-block` and `three-preview`, moved here fr
 
 ## Feature Placement Detail
 
-- The five floor maps are authored data, not code. They live in `src/content/floors/` as JSON and are the only source of map geometry. No generator ships in `src/`; the offline bake script belongs in `dev/tools/`.
+- Maps and rooms are authored data, not code. They live in `src/content/maps/` and `src/content/rooms/` as JSON and are the only source of map geometry. No generator ships in `src/`; offline authoring algorithms belong in `dev/tools/`.
 - Numeric records the design document owns — player base stats, the four door effects, the enemy table, sprite `scale` and `anchorY` — live in `src/content/`. They must not be duplicated as literals inside `src/core/` or `src/presentation/`.
 - Image assets exist in two trees with different lifetimes. The baked 512×512 runtime PNGs live under `src/content/**/assets/`, are imported through source so the bundler fingerprints them, and are version-controlled — they are the only copy the game or the repository depends on. The editable sources that bake them live in `/assets/` at the repository root, are never imported at runtime, and are **deliberately outside version control** (`/assets/` is ignored): they are a local re-baking convenience, so a working copy without them is correct and must not be treated as missing files to restore. A change to runtime artwork therefore ships the baked PNG; the source is the author's to keep.
 - Environment surfaces — walls, floor, ceiling — stay procedurally drawn and ship no image file. Enemies, world sprites, and stand-in placeholders are the exceptions that use images.

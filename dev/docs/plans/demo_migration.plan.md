@@ -51,16 +51,16 @@ The ban on testing the demo half exists because a test written against a moving 
 
 ### Child overview
 
-| #   | Child                       | Focus                                                                                         | Form            |
-| --- | --------------------------- | --------------------------------------------------------------------------------------------- | --------------- |
-| 1   | Governance baseline         | Structure addendum corrections; boundary rules describing the demo tree as it is              | Execution below |
-| 2   | Retire the turn-based model | Delete the old combat model and its tables; keep the vocabulary the live render path uses     | Execution below |
-| 3   | Tables into content         | The pure-data halves of the enemy, throwing, blessing, modifier, and sealed catalogues        | Execution below |
-| 4   | The sound seam              | Rules emit semantic cues; the surface plays them                                              | Execution below |
-| 5   | The map contract            | Core owns the floor vocabulary and contracts; content produces values against them            | Execution below |
-| 6   | Rules into core             | The eleven rules modules move; boundary rules tighten to match                                | Execution below |
-| 7   | Runtime and interface       | The surface becomes the runtime layer; the HUD becomes the ui layer; workbench imports follow | Execution below |
-| 8   | Institutional closeout      | Guard deletion; both contract rewrites; checker sync; root entry points; tracker and history  | Execution below |
+| #   | Child                       | Focus                                                                                         | Form                                                                                |
+| --- | --------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 1   | Governance baseline         | Structure addendum corrections; boundary rules describing the demo tree as it is              | Shipped — `demo_migration_01_governance_baseline.implementation_spec.md` (archived) |
+| 2   | Retire the turn-based model | Delete the old combat model and its tables; keep the vocabulary the live render path uses     | Execution below                                                                     |
+| 3   | Tables into content         | The pure-data halves of the enemy, throwing, blessing, modifier, and sealed catalogues        | Execution below                                                                     |
+| 4   | The sound seam              | Rules emit semantic cues; the surface plays them                                              | Execution below                                                                     |
+| 5   | The map contract            | Core owns the floor vocabulary and contracts; content produces values against them            | Execution below                                                                     |
+| 6   | Rules into core             | The eleven rules modules move; boundary rules tighten to match                                | Execution below                                                                     |
+| 7   | Runtime and interface       | The surface becomes the runtime layer; the HUD becomes the ui layer; workbench imports follow | Execution below                                                                     |
+| 8   | Institutional closeout      | Guard deletion; both contract rewrites; checker sync; root entry points; tracker and history  | Execution below                                                                     |
 
 Landing order is the table order. Children 2 and 3 could swap; nothing else can. Children 4 and 5 exist so that child 6 is a move rather than a move entangled with two redesigns.
 
@@ -87,19 +87,6 @@ Landing order is the table order. Children 2 and 3 could swap; nothing else can.
 ## Execution
 
 Perishable coordinates, recorded 2026-08-03 against `26210bd` (pre-closeout survey; re-verify against live code per child). Conflicts resolve in favour of the conceptual half.
-
-### Child 1 — Governance baseline
-
-- `dev/standards/project_structure.addendum.md` corrections:
-  - `port-ref/` is declared as a project-owned root tree but **the directory no longer exists**. Cut the section or mark it historical.
-  - Layer Status table omits `src/demo/` entirely; add it as the interim projection tree, and pre-declare `src/runtime/` and `src/ui/` as earned-by-plan.
-  - The "no React" deviation's claim that `src/ui/` is omitted and "the demo's plain-DOM HUD lives beside its simulation in `src/demo/`" gets rewritten by child 7; flag it here.
-  - Record the declared deviation: core's tick is real-time and random, not deterministic (see Design).
-- `.dependency-cruiser.cjs` gains baseline rules for `^src/demo/`:
-  - demo imports only `src/(demo|presentation|content|core)/` — true today (verified: demo imports content ×10 files, presentation ×12 sites, no core).
-  - only `src/app/` (main + debug) imports `src/demo/` — true today (importers: `src/app/main.ts` plus 8 workbenches: `carried-workbench`, `entity-workbench`, `floor-preview`, `hud-attack-workbench`, `map-workbench`, `prop-workbench`, `render-panel`, `room-workbench`).
-- `src/app/main.ts` header comment references `src/harness/`, which does not exist; correct in passing.
-- Verification: `npm run verify` + `npm run check:governance`. No playtest (no live module moves).
 
 ### Child 2 — Retire the turn-based model
 
