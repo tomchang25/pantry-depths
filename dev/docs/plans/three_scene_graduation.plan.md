@@ -34,7 +34,9 @@ Two of them need a value the experiment does not compute and the runtime will: h
 
 The seam child changes what the player sees, and the two children before it change nothing. That ordering is deliberate: by the time the seam is swapped, the runtime is expected to be at or above the shipped picture. It starts there — the spike closed every gap its porting survey found before the verdict was given, precisely so the verdict was not given against a picture nobody plays.
 
-Two things are knowingly below the shipped picture on the day the seam swaps, and both are named children rather than surprises. Corpses are one settling shape for all six ways of dying; that is closed here. Soft bodies are a plain shape where the shipped renderer deforms them through squash, shatter and drowning; that is **not** closed here, because the spike rejected the programmatic blob outright and authored models are the modelling plan's subject. Until that plan lands, the soft bodies are the one place this plan ships a knowing regression, and it is recorded as one.
+Two things are knowingly below the shipped picture on the day the seam swaps, and **neither is closed here**. Corpses are one settling shape for all six ways of dying, because the block rig ships no death clip to play and posing one by hand would be guessing at work the body plans are about to author properly. Soft bodies are a plain shape where the ray-marched renderer deformed them through squash, shatter and drowning, because the spike rejected the programmatic blob outright.
+
+This plan originally intended to close the first of those and discovered, when it came to, that there was nothing to port — the shipped death treatments are baked sprite atlases and the rig that replaced them has no terminal clip. So both are regressions this plan ships knowingly and neither is its to repair. `humanoid_block_bodies.plan.md` owns the first and `slime_bodies.plan.md` the second.
 
 ### What the survey recorded and this plan does not close
 
@@ -47,11 +49,11 @@ The porting survey separated absent from reduced. Everything absent is the spike
 | 1   | The move                       | The experiment folder becomes a presentation-layer module; the armature becomes content; boundary rules follow it     | `three_scene_graduation_01_the_move.implementation_spec.md`                  |
 | 2   | The runtime stops owning play  | Frame loop, input and world ownership leave the runtime; it becomes something handed a world and a step               | `three_scene_graduation_02_runtime_stops_owning_play.implementation_spec.md` |
 | 3   | The seam                       | The four drawing calls swap; the surface's own halves are rewired to the new renderer                                 | `three_scene_graduation_03_the_seam.implementation_spec.md`                  |
-| 4   | The ways of dying              | Six death causes get their own treatment again; the soft-body regression is recorded                                  | Execution below                                                              |
+| 4   | Who owns the bodies            | The body work is scoped into its own plans and handed over; nothing about a body is built here                        | Shipped 2026-08-04 — the two plans it produced                               |
 | 5   | The workbenches and demolition | Six development surfaces migrate or retire; the interim projection and the ray-marched renderer are deleted           | Execution below                                                              |
 | 6   | The fidelity tail              | Structure detail, hold-driven room lights, swing aim, the waterline cut, and the wall materials the baked floors need | Execution below                                                              |
 
-Landing order is the table order and only two swaps are safe: 4 may precede 3, and 6 may precede 5. Nothing else moves. Child 2 must precede 3 because the seam has nothing to call otherwise; 5 must follow 3 because it deletes the path the game would otherwise fall back to; and 5 must follow 4 because deleting the old renderer while the corpses are still a single lump throws away the reference the corpse work is judged against.
+Landing order is the table order, and 6 may precede 5. Child 2 must precede 3 because the seam has nothing to call otherwise, and 5 must follow 3 because it deletes the path the game would otherwise fall back to.
 
 This plan does not declare itself goal-executable. Child 3 changes the whole picture and child 5 deletes eight thousand lines; both are decisions a person should see land before the next one starts, and child 5 additionally holds a question — what becomes of the scene vocabulary the baked-floor tools read — that its own execution has to answer in conversation rather than from this document.
 
@@ -122,12 +124,15 @@ The renderer — `SceneRuntime` in `scene-runtime.ts` when this was written, `Sc
 - The capture flag `?capture` at `:77` and the harness's key-driving must still work; the experiment's `window.__sceneRuntime.stand(...)` is a second, incompatible arrangement and should not survive as one.
 - Playtest closes this child, and it is the largest one in the plan: a whole floor, sound on, taking damage, dying, restarting, descending.
 
-### Child 4 — The ways of dying
+### Child 4 — Who owns the bodies
 
-- Shipped source: `skeletonDeathAnimation` at `demo-scene.ts:769` reading `src/content/enemies/skeleton-death-definitions.ts` (112), `skeletonDeathSprite` at `:801`, and for soft bodies `deathBlobs` at `:1320`, `shatteredBlobs` at `:1288`, `drownedCorpseStage` at `:429`, plus `RenderBlobSplit` in `render-scene.ts:188`.
-- Present state: `syncCorpses`/`createCorpse` at `world-bodies.ts:522-556` — one icosahedron for every appearance and every cause, scaled flat by `death.progress`. Its own comment records that this is deliberate spike scope.
-- The six causes are `"slain" | "cleaved" | "drowned" | "splattered" | "blasted" | "impaled"` (`src/core/world.ts:286`). `splattered` already has its wall mark, built in the experiment before the verdict — do not rebuild it.
-- The soft-body half is **not** built. Record the regression against `dev/docs/plans/enemy_structure_models.plan.md`, whose first open question was answered on 2026-08-03 when the programmatic blob was rejected.
+Shipped 2026-08-04. What it found, kept here because children 5 and 6 read it:
+
+- The block rig's clips are `idle`, `walk`, `windup`, `strike`, `recovery`, `crossbowAim`, `crossbowReload` — **no death**. The shipped deaths this plan meant to port are five baked eight-direction sprite atlases selected by cause, and `blasted` selects none of them: the ray-marched game draws no corpse for a body that was blown apart and lets the scattered bone say it.
+- The rig-first pipeline the body work needs already exists under `dev/tools/skeletons/` and `dev/tools/blender-kit/`, about 3,500 lines of it. It builds a seven-bone rig, hangs boxes off it bound one-bone-per-box at full weight — rigid parts wearing the armature system's clothes — keys clips from tables of angles, and exports the model the browser reads. One command, re-runnable.
+- What that pipeline lacks is not architecture: proportions are module constants so it can only ever build one body, every weapon is built onto the socket at once and hidden at draw time, parts are tagged but nothing detaches them, and the clip table has no terminal row.
+- `src/content/enemies/assets/` holds 81 MB of skeleton sprite atlases still shipping because the raycaster still reads them. They die in child 5, not in a body plan.
+- Corpses stay one settling shape until `humanoid_block_bodies.plan.md` lands. The tracker carries a chore for the cheap half of that — handing a dying body's own armature to its corpse so a dead skeleton is at least that skeleton — which throws nothing away when the real clips arrive.
 
 ### Child 5 — The workbenches and demolition
 

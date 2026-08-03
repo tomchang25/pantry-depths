@@ -24,7 +24,8 @@ A brief lives here too and is the one kind of line `/implement` cannot take: it 
 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
 - [three_scene_graduation] Make the Three.js runtime the game's renderer and delete both the interim projection and the ray-marched one - [ref plans/three_scene_graduation.plan.md]
-- [enemy_structure_models] Draft plan for authored block models across enemies and structures, to be completed after the three-scene verdict - [ref plans/enemy_structure_models.plan.md]
+- [humanoid_block_bodies] Draft plan for one rig, one clip set and one part vocabulary across every humanoid, with death clips first - [ref plans/humanoid_block_bodies.plan.md]
+- [slime_bodies] Draft plan for what a slime is made of, blocked on choosing between a fluid body and a hopping block one - [ref plans/slime_bodies.plan.md]
 
 ---
 
@@ -32,7 +33,7 @@ A brief lives here too and is the one kind of line `/implement` cannot take: it 
 
 One line, no rationale, no backing document.
 
-> No open chores.
+- [scene_3d] Hand a dying body its own armature instead of spawning a shapeless lump, so a dead skeleton is at least that skeleton until real death clips exist
 
 ---
 
@@ -89,6 +90,18 @@ Thrown damage is not a value of its own — it is defined as melee damage, so ev
 What makes it a decision is what a thrown weapon should scale with at all. A hammer that spends itself on masonry and a javelin that runs three bodies through are not doing what a sword does, and the modifier catalogue currently has one axis for both. Giving thrown its own axis is easy; deciding whether a build should be able to specialise into throwing — and therefore whether the props stop being consumables — is not.
 
 Not scheduled. What would force it is wanting a run that throws rather than swings.
+
+### Structures Are Renderer Code
+
+Seven fittings stand on a floor — the cursed altar, the blessing dais, the hot spring, the extraction beacon, the stairs, the barricade iron and the emplacement — and every one of them is a function in the renderer that returns a list of boxes, beside a handful of hardcoded colours. Changing what an altar looks like means editing the thing that draws altars.
+
+Half of the question they used to belong to is closed. The body plan they were once filed under asked whether each should become an authored model, and the three-scene verdict answered it in the negative: all seven shipped as procedural assemblies, all seven passed the judgement, and the default is to leave them that way until one is judged wanting. That is a decision not to model them, and it stands.
+
+What it does not answer is the other half — that a structure should be changeable without editing a renderer. A record per fitting would be the obvious shape, and the obvious objection is just as strong: seven structures that change once a year may not be worth an authoring surface, and a schema nobody edits is a second place for the truth to live. Nothing forces the choice today.
+
+They also have no judging surface. The entity workbench shows bodies and the prop workbench shows pickups; a fitting is only ever seen by walking up to one in the floor preview or in play, which is enough while they are code and would not be if they became content.
+
+Not scheduled. What would force it is an eighth fitting, or the first time somebody wants to tune an altar's silhouette without opening a renderer.
 
 ### What A Fight Writes On The Floor
 
