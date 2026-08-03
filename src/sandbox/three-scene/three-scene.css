@@ -31,6 +31,39 @@
   cursor: crosshair;
 }
 
+/**
+ * The authored arm, drawn on a 2D canvas laid over the rendered image.
+ *
+ * Stacked rather than composited into the frame, which is the whole of what the last checklist row
+ * asks about: whether the arm the game already has can simply stay where it is.
+ */
+.three-scene__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/**
+ * A stand-in for the game's own HUD, present only to prove plain DOM still stacks over WebGL the way
+ * it stacks over a 2D canvas. It carries no readout on purpose — a real HUD here would be a second
+ * copy of one, and this experiment is not where that is judged.
+ */
+.three-scene__hud {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0.9rem;
+  background: linear-gradient(to top, rgb(10 7 16 / 78%), transparent);
+  color: #e9dfe9;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
 .three-scene__hint {
   margin: 0;
   color: #a99fae;

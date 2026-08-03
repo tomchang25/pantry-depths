@@ -2,6 +2,7 @@ import { MAPS } from "@/content/maps/map-library";
 import type { ResolvedMap } from "@/core/map-contract";
 
 import { SceneRuntime } from "./scene-runtime";
+import type { ViewmodelKind } from "./viewmodel";
 import "./three-scene.css";
 
 /**
@@ -100,6 +101,11 @@ function mountThreeScene(content: HTMLElement): void {
     MAPS.map((map) => ({ label: map.name, value: map.name })),
   );
   mapField.select.value = defaultMap().name;
+  const handsField = createSelectRow("Hands", [
+    { label: "Block arm (mesh)", value: "mesh" },
+    { label: "Authored arm (2D over)", value: "authored" },
+    { label: "None", value: "none" },
+  ]);
   const torch = createToggle("Torch", true);
   const fog = createToggle("Distance fog", true);
   const restartButton = createButton("Restart");
@@ -127,8 +133,17 @@ function mountThreeScene(content: HTMLElement): void {
   }
 
   buttons.append(restartButton, killButton, fillButton, arenaButton);
-  controls.append(controlsTitle, mapField.row, torch.label, fog.label, buttons);
+  controls.append(controlsTitle, mapField.row, handsField.row, torch.label, fog.label, buttons);
   statusPanel.append(statusTitle, metrics);
+  const hud = document.createElement("div");
+  const hudLeft = document.createElement("span");
+  const hudRight = document.createElement("span");
+  hud.className = "three-scene__hud";
+  hudLeft.textContent = "HUD stands here";
+  hudRight.textContent = "plain DOM over WebGL";
+  hud.append(hudLeft, hudRight);
+  viewport.append(hud);
+
   stage.append(viewport, hint);
   sidebar.append(controls, statusPanel);
   layout.append(stage, sidebar);
@@ -172,6 +187,9 @@ function mountThreeScene(content: HTMLElement): void {
     },
     { signal: abortController.signal },
   );
+  handsField.select.addEventListener("change", () => runtime.setViewmodel(handsField.select.value as ViewmodelKind), {
+    signal: abortController.signal,
+  });
   torch.input.addEventListener("change", () => runtime.setTorchEnabled(torch.input.checked), {
     signal: abortController.signal,
   });

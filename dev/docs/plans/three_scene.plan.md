@@ -41,11 +41,19 @@ Audio is untouched and out of scope; it does not know what draws the game.
 
 ### Children
 
-Three children, ordered so the likeliest failure is met first. The plan was written to be judged between children; the author instead authorized all three in one run on 2026-08-03, which moves the whole checklist to a single judging session at the end rather than splitting it three ways.
+Three children, ordered so the likeliest failure was met first: the static floor, the live world, and the close layer. The plan was written to be judged between them; the author instead authorized all three in one run on 2026-08-03, which moved the whole checklist to a single judging session at the end rather than splitting it three ways.
 
-| #   | Focus                                                                                   | Form                            |
-| --- | --------------------------------------------------------------------------------------- | ------------------------------- |
-| 3   | Close layer: viewmodel, swing feedback, through-wall marker, camera kicks, HUD stacking | Execution subsection, no sketch |
+All three shipped on 2026-08-03 and their rows are cut. **The plan is not closeable**: two of its acceptance criteria are verdicts only the author can give, and until that sitting happens the experiment is built but unjudged.
+
+### What building it turned up
+
+Three things came out of the work that the judging session should look at directly, because each is a place where the port does not simply reproduce what exists.
+
+A torch carried at the eye blows out any wall the player stands against, because a real point light falls off with the square of distance and the Canvas renderer clamps its light accumulation per pixel. Tone mapping is the equivalent curve and is now applied; whether the floor still reads as the same floor under it is a question about every other row at once.
+
+Soft bodies are the weakest row. At their authored dimensions a slime is wider than it is tall, which the Canvas renderer draws as a screen-facing ellipse that reads as a ball; the same numbers as a real ellipsoid, seen from standing height, read as a puddle on the floor. Either the drawn shape stops being the authored one or the authored one changes, and both are decisions rather than fixes.
+
+Bodies are expensive. Each skeleton arrives as its own cloned armature of a dozen meshes, so a full crowd costs a couple of hundred draw calls where the floor itself costs six. Nothing about that is fundamental — instancing and merging both apply — but it is the first real cost the approach carries and it should be seen before it is dismissed.
 
 ### What the verdict decides
 
@@ -67,7 +75,7 @@ A full yes makes the follow-up a formal-track plan: graduate the approach into t
 
 ## Execution
 
-Perishable notes, recorded 2026-08-03. Whoever executes a child re-checks these against the live code first. Cut each child's subsection when it ships.
+Perishable notes, recorded 2026-08-03. Every child's own subsection is cut; what remains is the shared half, kept because the follow-up work it points at has not happened yet.
 
 ### Shared facts
 
@@ -77,7 +85,5 @@ Perishable notes, recorded 2026-08-03. Whoever executes a child re-checks these 
 - The scene vocabulary the current renderer consumes is enumerated in `src/presentation/render-scene.ts`; the projection that feeds it is `src/demo/demo-scene.ts`, whose builder functions (`surfaces`, `boxes`, `altarBoxes`, `stairBoxes`, `floorDecals`, `lights`, `emitters`, `NIGHT_SKY`, `EXIT_XRAY`) are the authoritative list of what each checklist row means concretely.
 - The seam the follow-up plan will eventually swap: `src/runtime/surface.ts:33-35` (`createDemoScene`, `createDemoEffects`, `loadDemoImages`, `drawDemoViewmodel`) plus six debug importers of `@/demo/*`: `entity-workbench`, `prop-workbench`, `hud-attack-workbench`, `carried-workbench`, `floor-preview`, `render-panel`. Not touched by this plan; listed so nobody re-derives it.
 - Dev server: `http://localhost:5273`. Gate: `npm run verify`. Three.js is already a dependency (used by both existing experiments).
-
-### Child 3 — close layer
-
-Viewmodel as a camera-attached mesh first; if it reads worse than the current 2D overlay, mount the existing overlay canvas above the WebGL canvas and judge that instead (`drawDemoViewmodel` stays untouched either way — copy what its look requires). Exit marker via a second render pass with depth test off. Blast/weight kick as camera offsets sourced from the same world fields `demo-scene.ts` reads. HUD: mount the experiment under the debug page chrome with the DOM HUD absent — stacking is proven with a placeholder DOM strip over the canvas.
+- What the experiment copied rather than imported, and would stop copying on graduation: the procedural texture generators, the blocky skeleton asset, and its clip and weapon names. The authored arm and the entity display table are imported from `src/content/` and need no such change.
+- `window.__sceneRuntime` is a development-only handle exposing the world and a `stand` call, so a session can pose the camera and take a picture from the same place twice. It follows the arrangement `src/sandbox/three-preview/` and the play surface both already use.

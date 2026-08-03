@@ -33,6 +33,7 @@ import { createSceneTextures, type SceneTextureSet } from "./scene-textures";
 import { createWorldBodies, type WorldBodies } from "./world-bodies";
 import { createWorldEffects, type WorldEffects } from "./world-effects";
 import { createWorldStructures, type WorldStructures } from "./world-structures";
+import { createViewmodel, type Viewmodel, type ViewmodelKind } from "./viewmodel";
 
 /**
  * Vertical field of view, derived rather than chosen.
@@ -68,6 +69,9 @@ const FITTING_LIGHTS = 4;
 
 const MOUSE_SENSITIVITY = 0.0026;
 const MAX_PITCH = 1.45;
+
+/** The colour the way down is picked out in once it opens, seen through whatever stands in front. */
+const EXIT_MARKER_COLOR = 0x8affbe;
 
 const MOVEMENT_KEYS: Readonly<Record<string, "forward" | "backward" | "strafeLeft" | "strafeRight">> = {
   w: "forward",
@@ -109,9 +113,11 @@ export class SceneRuntime {
   private readonly sky: Sky;
   private readonly structures: WorldStructures;
   private readonly textures: SceneTextureSet;
+  private readonly exitMarker: THREE.Mesh;
   private terrainVersion = -1;
   private readonly torch: THREE.PointLight;
   private torchEnabled = true;
+  private readonly viewmodel: Viewmodel;
   private world: World;
 
   constructor(
@@ -164,6 +170,17 @@ export class SceneRuntime {
     this.structures = createWorldStructures();
     this.effects = createWorldEffects();
     this.scene.add(this.bodies.root, this.structures.root, this.effects.root);
+
+    this.viewmodel = createViewmodel();
+    // The camera joins the scene graph so anything parented to it is drawn; a camera outside the
+    // graph still renders the world and silently drops its own children.
+    this.camera.add(this.viewmodel.meshRoot);
+    this.scene.add(this.camera);
+    this.viewport.append(this.viewmodel.overlay);
+    this.viewmodel.setKind("mesh");
+
+    this.exitMarker = createExitMarker();
+    this.scene.add(this.exitMarker);
     this.faceOpenGround();
 
     // Development-only handle, the same arrangement the block preview and the play surface both use:
@@ -201,6 +218,9 @@ export class SceneRuntime {
     this.bodies.dispose();
     this.structures.dispose();
     this.effects.dispose();
+    this.viewmodel.dispose();
+    this.exitMarker.geometry.dispose();
+    (this.exitMarker.material as THREE.Material).dispose();
     this.floor.dispose();
     this.sky.dispose();
     this.renderer.dispose();
@@ -222,6 +242,11 @@ export class SceneRuntime {
   setPaused(paused: boolean): void {
     this.paused = paused;
     this.releaseKeys();
+  }
+
+  /** Which pair of hands is on screen, or neither. */
+  setViewmodel(kind: ViewmodelKind): void {
+    this.viewmodel.setKind(kind);
   }
 
   setTorchEnabled(enabled: boolean): void {
@@ -398,8 +423,12 @@ export class SceneRuntime {
 
     const player = this.world.player;
     const elapsed = this.world.elapsedSeconds;
+    // Every camera hitch the rules raise, in the same terms the Canvas scene builder reads them: a
+    // detonation nearby, the weight of something thrown or landed, and the tap of a connected swing.
+    // Applied as a real pitch here rather than as the horizon shear a column raycaster is limited to.
+    const kick = blastKick(this.world) + weightKick(this.world) + meleeImpactPitch(this.world.impact);
     this.camera.position.set(player.x, EYE_HEIGHT, player.y);
-    this.camera.rotation.set(player.pitch, -player.angle - Math.PI / 2, 0);
+    this.camera.rotation.set(player.pitch + kick, -player.angle - Math.PI / 2, 0);
 
     // The same two-term flicker the scene builder gives the torch: one fast, one slow, so it never
     // settles into a readable pulse.
@@ -411,7 +440,13 @@ export class SceneRuntime {
     this.bodies.sync(this.world, elapsed, this.paused ? 0 : delta);
     this.structures.sync(this.world);
     this.effects.sync(this.world);
+    this.viewmodel.sync(this.world);
     this.aimFittingLights(elapsed);
+
+    // The one thing on a floor still drawn through a wall, and only once the descent is unlocked.
+    this.exitMarker.visible = this.world.maze.progress.main.met;
+    this.exitMarker.position.set(this.world.maze.exit.x + 0.5, 1.2, this.world.maze.exit.y + 0.5);
+    this.exitMarker.rotation.y = elapsed * 0.9;
 
     this.renderer.render(this.scene, this.camera);
 
@@ -441,5 +476,69 @@ export class SceneRuntime {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.viewmodel.resize(width, height);
   }
+}
+
+/**
+ * The way down, picked out through whatever stands in front of it.
+ *
+ * Depth testing off and drawn last, which is the whole trick: the Canvas renderer has an x-ray list
+ * its column pass consults, and this is the equivalent a depth-buffered renderer already has for
+ * free. Kept small and unlit so it reads as a mark on the screen rather than as an object in a room.
+ */
+function createExitMarker(): THREE.Mesh {
+  const geometry = new THREE.OctahedronGeometry(0.22);
+  const material = new THREE.MeshBasicMaterial({
+    color: EXIT_MARKER_COLOR,
+    depthTest: false,
+    depthWrite: false,
+    fog: false,
+    transparent: true,
+    opacity: 0.95,
+  });
+  const marker = new THREE.Mesh(geometry, material);
+  marker.renderOrder = 20;
+  marker.visible = false;
+  return marker;
+}
+
+/**
+ * A shake for every detonation still burning, loudest close by.
+ *
+ * Summed rather than taken from the nearest, because two going off at once is twice the event.
+ */
+function blastKick(world: World): number {
+  let kick = 0;
+
+  for (const effect of world.vfx) {
+    if (effect.kind !== "blast") {
+      continue;
+    }
+
+    const life = Math.min(1, effect.age / effect.life);
+    const distance = Math.max(1, Math.hypot(effect.x - world.player.x, effect.y - world.player.y));
+    kick += (Math.sin(effect.age * 46) * 0.035 * (1 - life) ** 2) / distance;
+  }
+
+  return kick;
+}
+
+/**
+ * The same kick, for weight rather than for explosions: heaving a body out of your hands, and a body
+ * coming down near you. Kept to a tap, because this fires on every throw and every landing.
+ */
+function weightKick(world: World): number {
+  return Math.sin(world.elapsedSeconds * 52) * world.shake * 0.014;
+}
+
+/**
+ * A short downward hitch while a melee impact decays.
+ *
+ * Small on purpose: this fires on every connected swing, which in a room worth clearing is most of
+ * the seconds the player is alive for.
+ */
+function meleeImpactPitch(impact: number): number {
+  const strength = Math.max(0, Math.min(1, impact));
+  return -Math.sin((1 - strength) * Math.PI) * strength * 0.011;
 }
