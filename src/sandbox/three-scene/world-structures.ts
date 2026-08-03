@@ -17,6 +17,8 @@ import * as THREE from "three";
 import { isBarricadeCell, tileIndex, type Room } from "@/core/maze";
 import type { World } from "@/core/world";
 
+import type { SceneLighting } from "./scene-lighting";
+
 type Box = Readonly<{
   x: number;
   y: number;
@@ -215,7 +217,7 @@ export type WorldStructures = Readonly<{
   dispose(): void;
 }>;
 
-export function createWorldStructures(): WorldStructures {
+export function createWorldStructures(lighting: SceneLighting): WorldStructures {
   const root = new THREE.Group();
   let signature = "";
   let owned: { dispose(): void }[] = [];
@@ -285,7 +287,7 @@ export function createWorldStructures(): WorldStructures {
         geometry.dispose();
       }
 
-      const material = new THREE.MeshLambertMaterial({ color });
+      const material = lighting.box(color);
       const mesh = new THREE.Mesh(merged, material);
       root.add(mesh);
       owned.push(merged, material);

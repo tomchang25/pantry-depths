@@ -53,11 +53,7 @@ If child 4 still fails that judgement, the recorded fallback is the **live-sprit
 
 Three children shipped on 2026-08-03 — the static floor, the live world, and the close layer — and their rows are cut. The first judging session then found the result unacceptable as built and ordered a fourth child rather than a verdict.
 
-| #   | Focus                                                                                                                  | Form                            |
-| --- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| 4   | Faithful pass: replicate the shipped renderer's light formulas, port the missing effect channels, return the 2D layers | Execution subsection, no sketch |
-
-**The plan is not closeable**: two of its acceptance criteria are verdicts only the author can give, and that sitting waits until child 4 ships.
+All four children have shipped and no row remains. **The plan is not closeable**: two of its acceptance criteria are verdicts only the author can give, and that sitting has not happened for the corrected build.
 
 ### What building it turned up
 
@@ -100,32 +96,3 @@ Perishable notes, recorded 2026-08-03. Every child's own subsection is cut; what
 - What the experiment copied rather than imported, and would stop copying on graduation: the procedural texture generators, the blocky skeleton asset, and its clip and weapon names. The authored arm and the entity display table are imported from `src/content/` and need no such change.
 - `window.__sceneRuntime` is a development-only handle exposing the world and a `stand` call, so a session can pose the camera and take a picture from the same place twice. It follows the arrangement `src/sandbox/three-preview/` and the play surface both already use.
 - The reference recording is `D:\Videos\Export\maze-first.mp4` (~40s of the shipped renderer). Frames extract with `ffmpeg -i <video> -vf "fps=10" out-%04d.png` for the side-by-side; the harness already proved headless capture of the experiment works via `__sceneRuntime.stand(...)` plus a Playwright screenshot.
-
-### Child 4 — faithful pass
-
-The finding this child exists on: the shipped renderer's look is not a physical model plus taste — it is three short analytic formulas, and the first build approximated them instead of running them. Every subsection below either runs the real formula, ports a channel the first build skipped, or returns a layer the author ruled must stay 2D.
-
-**1. Replace the lighting stack with the shipped formulas.** Delete the `AmbientLight`, the torch `PointLight`, the four fitting `PointLight`s, the `FogExp2`, and the ACES tone mapping in `scene-runtime.ts` (`toneMapping`/`toneMappingExposure` lines and the light construction around `scene-runtime.ts:131-162`). Replace `MeshLambertMaterial` throughout the experiment with a custom `ShaderMaterial` family (or `onBeforeCompile` on `MeshBasicMaterial`) implementing, per surface class, the formulas read from `src/presentation/canvas-gameplay-renderer.ts` on 2026-08-03 — re-check them against the live file first:
-
-- Shared inputs as uniforms: camera world position, elapsed seconds, and the scene's light list (position, radius, intensity, rgb) as a fixed-size uniform array — one shader for any light count, no per-light recompile. Torch flicker is `0.96 + sin(elapsed * 7.1) * 0.025` (renderer line ~1214). `MAX_DEPTH = 18` (line 32). Depth is view distance to the fragment.
-- **Walls** (line ~1916-1924 and `#tintedWallTexture` ~615-662): `fog = clamp(depth/18, 0, 0.88)`; the texel is mixed toward `rgb(13, 5, 24)` by `fog`; then `torch = clamp(1.15 - depth/7.5, 0, 1) * flicker` overlays `rgb(255, 112, 35)` at `torch * 0.16` alpha. Add the per-face shade the renderer folds in as `(1 - shade) * 0.15` extra fog — north/south vs east/west faces differ; take the constants from `RayHit.shade`'s producer.
-- **Floor and trench planes** (line ~1306-1311, 1487-1489): `fog = clamp(1 - depth/18, 0.12, 1)`; `torch = clamp(1.2 - depth/8, 0, 1) * flicker`; `out = texel * fog + (18, 11, 28) * (1 - fog) + (31, 12, -3) * torch` (the flat-plane fog tint; the ceiling variant does not apply — there is no ceiling).
-- **Bodies, structures, pickups, particles** (line ~2623-2666): `fade = 1 - clamp(depth/18, 0, 0.82)`; `warmth = clamp(1 - depth/7, 0, 0.42)` raised to `clamp(1 - distance/radius, 0, 1) * intensity` of whichever scene light reaches highest, taking that light's colour as `warmColor`; `out = albedo * fade + warmColor * warmth * 0.3`, clamped. The hit flash then lerps the result toward white, which replaces the current emissive trick in `world-bodies.ts`.
-- The light list is rebuilt per frame from `world-structures.ts`'s `lights()` — all of them, not the nearest four; `aimFittingLights` and the `fittings` array go away.
-- The sky dome and stars stay unlit and unfogged, exactly as now.
-
-**2. Port the missing effect channels.** The authoritative producers are in `src/demo/demo-scene.ts` (unimportable — read for numbers, reimplement in the experiment): `particles(world)` (~line 2362), `emitters(world)` (~3122), `warnMarkerSprite` (~365), `beams(world)`/`beadLine` (~2257/2471), `landingBeacons` (~2415), `sightLines` (~2550). Concretely:
-
-- **Particles as soft billboards, at shipped sizes.** The current `THREE.Points` at size 0.09 is the single largest atmosphere gap — the reference frames are full of large soft discs. Replace with camera-facing quads (instanced) using a radial-gradient texture, sized from each particle's own `size` field in world cells, colour by kind as `demo-scene`'s particle table has it, alpha fading with `age/life`. The world's particle field is already read; only the drawing is wrong.
-- **Emitters**: `RenderEmitter` (kind `embers | steam`, density, optional colour — `render-scene.ts:339`) drawn as rising, fading soft discs seeded per emitter id. Torches, springs and the altar breathe through this channel.
-- **Wind-up markers**: the shape over a committed enemy. Copy the three marker drawings (`warnMelee`, `warnShoot`, `warnCharge`) from `src/demo/demo-sprites.ts` into the experiment's own sprite module (they are small canvas drawings, not files), then billboard the right one over each enemy with `windupSeconds > 0`, scaled and offset by the authored display table already imported in `world-bodies.ts`.
-- **Projectile bead trails**: the flights currently draw only a rod; the shipped look is a chain of glowing beads along `projectile.trail`. Add instanced soft discs along the trail with the bead spacing and colours from `beadLine`.
-- **Ground glow and drop shadows**: flat quads under pickups and under placed lights, from the `groundGlow`/`dropShadow` drawings in `demo-sprites.ts`, which is most of why the shipped fittings appear to pool light on the floor.
-
-**3. Return the 2D layers the author ruled on.** Pickups: replace the instanced boxes in `world-effects.ts` with camera-facing quads drawing the real artwork — copy the prop drawings (stick, rock, bomb, hammer, piles) from `demo-sprites.ts`; the skeleton pickup PNGs import directly from `@/content/enemies/skeleton-pickup-definitions` (`SKELETON_PICKUP_URLS`). Sized by the authored prop display table (`@/content/presentation/prop-display*`), shaded by the body formula. Viewmodel: delete the mesh arm from `viewmodel.ts` entirely, make the authored 2D overlay the default and only arm, keep the `none` option for clean captures.
-
-**4. Pixel grain.** The shipped image is coarse — the demo halves plane resolution both ways. Render the WebGL frame at a reduced backing scale (start at 0.5× the CSS size) with `image-rendering: pixelated` upscale, as a sidebar control defaulting on, so the comparison is not clean-renderer-versus-grainy-renderer.
-
-**5. The comparison surface.** Add a headless capture script under the scratchpad pattern already used (Playwright, `__sceneRuntime`), or extend the sidebar: what matters is that the judging session can put an experiment frame beside a reference frame at the same place and heading. No new test of any kind; the sandbox unit-test budget stays unspent.
-
-Out of scope for this child, restated: the slime body (modelling plan), any raycaster change, any graduation step. The structure colours in `world-structures.ts` stay flat colours — under the body formula they inherit distance fade and torch warmth, which is what the shipped box channel does to them.

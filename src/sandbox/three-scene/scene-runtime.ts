@@ -1,10 +1,11 @@
 /**
  * The floor, drawn and played.
  *
- * Everything atmospheric in this experiment is decided here: the field of view, the fog, the torch,
- * and the night the two of them are read against. The numbers come from the Canvas scene builder
- * rather than from taste, because the question this experiment answers is whether the same floor
- * under the same light reads the same way through a different renderer.
+ * Everything atmospheric is decided here and in `scene-lighting.ts`: the field of view, the light
+ * list, the pixel grain, and the camera's own reactions. What this file no longer holds is a
+ * lighting model — the first build had an ambient term, a point light and a tone curve, the judging
+ * session found the result too dark and too cold, and the answer turned out to be that the shipped
+ * renderer has no physical model to approximate. It has analytic formulas, and they are shaders now.
  *
  * The world is the game's own. It is created and stepped exactly as the play surface steps it, and
  * nothing here writes to it except the player's input — so what is on screen is the real simulation
@@ -33,6 +34,7 @@ import { createSceneTextures, type SceneTextureSet } from "./scene-textures";
 import { createWorldBodies, type WorldBodies } from "./world-bodies";
 import { createWorldEffects, type WorldEffects } from "./world-effects";
 import { createWorldStructures, type WorldStructures } from "./world-structures";
+import { SceneLighting, type SceneLight } from "./scene-lighting";
 import { createViewmodel, type Viewmodel, type ViewmodelKind } from "./viewmodel";
 
 /**
@@ -47,25 +49,25 @@ const VERTICAL_FOV_DEGREES = (2 * Math.atan(0.5) * 180) / Math.PI;
 /** Where the eye sits, in cells off the ground. Half a cell, as the scene builder has it. */
 const EYE_HEIGHT = 0.5;
 
-/** Just enough ambient that an unlit corridor is a silhouette rather than a black rectangle. */
-const AMBIENT: readonly [number, number, number] = [0.16, 0.14, 0.24];
-
-/** The torch the player carries, as an actual light in the world. */
+/**
+ * The torch the player carries, as an entry in the light list rather than as a renderer light.
+ *
+ * The distinction is most of this child. A real point light falls off with the square of distance
+ * and blows out whatever is close; the list is read by the shipped renderer's own formula, which is
+ * a gentle linear reach ending flat at its radius.
+ */
 const TORCH_RADIUS = 8.5;
-const TORCH_COLOR = 0xffb068;
+const TORCH_COLOR: readonly [number, number, number] = [255, 176, 104];
 const TORCH_INTENSITY = 1.35;
 
-/** How thick the dark is. The one number here with no counterpart in the Canvas renderer. */
-const FOG_DENSITY = 0.055;
-
 /**
- * How many of a floor's fittings get a real light at once.
+ * How coarse the picture is, as a fraction of the CSS size.
  *
- * The Canvas renderer accumulates every light per pixel and pays only arithmetic for it; a forward
- * WebGL renderer recompiles its shaders per light count and pays for each one on every fragment. So
- * the nearest few win and the rest go dark, which is a limitation worth seeing rather than hiding.
+ * The shipped renderer halves its plane resolution on both axes, so the game's image carries a
+ * visible grain a clean WebGL frame does not. Comparing a crisp render against a grainy one judges
+ * the wrong thing, so the frame is drawn small and blown up with nearest-neighbour.
  */
-const FITTING_LIGHTS = 4;
+const GRAIN_SCALE = 0.5;
 
 const MOUSE_SENSITIVITY = 0.0026;
 const MAX_PITCH = 1.45;
@@ -95,13 +97,12 @@ type RuntimeCallbacks = Readonly<{
 
 export class SceneRuntime {
   private animationFrame = 0;
-  private readonly ambient: THREE.AmbientLight;
   private readonly bodies: WorldBodies;
   private readonly camera: THREE.PerspectiveCamera;
   private disposed = false;
   private readonly effects: WorldEffects;
-  private readonly fittings: THREE.PointLight[] = [];
   private floor: FloorMeshes;
+  private grain = true;
   private frameCount = 0;
   private readonly input = { forward: false, backward: false, strafeLeft: false, strafeRight: false };
   private lastFrameTime = performance.now();
@@ -110,12 +111,13 @@ export class SceneRuntime {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly resizeObserver: ResizeObserver;
   private readonly scene = new THREE.Scene();
+  private readonly lighting = new SceneLighting();
+  private readonly lights: SceneLight[] = [];
   private readonly sky: Sky;
   private readonly structures: WorldStructures;
   private readonly textures: SceneTextureSet;
   private readonly exitMarker: THREE.Mesh;
   private terrainVersion = -1;
-  private readonly torch: THREE.PointLight;
   private torchEnabled = true;
   private readonly viewmodel: Viewmodel;
   private world: World;
@@ -127,14 +129,8 @@ export class SceneRuntime {
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // Tone mapped, and this is not a stylistic choice. A point light falls off with the square of
-    // distance, so a torch carried at the eye puts an enormous value on any wall the player stands
-    // against — and without a curve to roll it off, walking up to masonry turns the screen white.
-    // The Canvas renderer never had the problem because it clamps its light accumulation per pixel;
-    // this is the equivalent, and it is the difference between a floor that can be approached and one
-    // that can only be looked at from the middle of a room.
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    // No tone mapping, and its absence is deliberate: the shipped formulas clamp where they mean to,
+    // and a curve laid over them would be a second opinion about the same pixels.
     this.renderer.domElement.className = "three-scene__canvas";
     this.viewport.append(this.renderer.domElement);
 
@@ -144,40 +140,22 @@ export class SceneRuntime {
     this.textures = createSceneTextures();
     this.sky = buildSky();
     this.scene.add(this.sky.root);
-    // Exponential rather than linear: the Canvas renderer's distance falloff comes from a point
-    // light, which dies off with the square of distance, and a linear ramp against that reads as a
-    // grey curtain hung at a fixed range.
-    this.scene.fog = new THREE.FogExp2(this.sky.horizonColor.getHex(), FOG_DENSITY);
-
-    this.ambient = new THREE.AmbientLight(new THREE.Color(AMBIENT[0], AMBIENT[1], AMBIENT[2]).getHex(), Math.PI);
-    this.scene.add(this.ambient);
-
-    this.torch = new THREE.PointLight(TORCH_COLOR, TORCH_INTENSITY, TORCH_RADIUS, 1.6);
-    this.scene.add(this.torch);
-
-    for (let index = 0; index < FITTING_LIGHTS; index += 1) {
-      const light = new THREE.PointLight(0xffffff, 0, 1, 1.6);
-      this.scene.add(light);
-      this.fittings.push(light);
-    }
+    // No scene fog either. Distance darkening lives inside each formula and is tinted per surface
+    // class, so a fog laid over the top would darken the sky and the fittings along with the walls.
 
     this.world = createWorld(map, GAME_CATALOG);
-    this.floor = buildFloorMeshes(this.world.maze, this.textures);
+    this.floor = buildFloorMeshes(this.world.maze, this.textures, this.lighting);
     this.terrainVersion = this.world.terrainVersion;
     this.scene.add(this.floor.root);
 
-    this.bodies = createWorldBodies();
-    this.structures = createWorldStructures();
-    this.effects = createWorldEffects();
+    this.bodies = createWorldBodies(this.lighting);
+    this.structures = createWorldStructures(this.lighting);
+    this.effects = createWorldEffects(this.lighting);
     this.scene.add(this.bodies.root, this.structures.root, this.effects.root);
 
     this.viewmodel = createViewmodel();
-    // The camera joins the scene graph so anything parented to it is drawn; a camera outside the
-    // graph still renders the world and silently drops its own children.
-    this.camera.add(this.viewmodel.meshRoot);
-    this.scene.add(this.camera);
     this.viewport.append(this.viewmodel.overlay);
-    this.viewmodel.setKind("mesh");
+    this.viewmodel.setKind("authored");
 
     this.exitMarker = createExitMarker();
     this.scene.add(this.exitMarker);
@@ -251,16 +229,13 @@ export class SceneRuntime {
 
   setTorchEnabled(enabled: boolean): void {
     this.torchEnabled = enabled;
-    this.torch.visible = enabled;
   }
 
-  setFogEnabled(enabled: boolean): void {
-    this.scene.fog = enabled ? new THREE.FogExp2(this.sky.horizonColor.getHex(), FOG_DENSITY) : null;
-    this.scene.traverse((object) => {
-      if (object instanceof THREE.Mesh && object.material instanceof THREE.Material) {
-        object.material.needsUpdate = true;
-      }
-    });
+  /** Coarse or clean. Coarse is the default, because coarse is what the game looks like. */
+  setGrain(enabled: boolean): void {
+    this.grain = enabled;
+    this.renderer.domElement.style.imageRendering = enabled ? "pixelated" : "auto";
+    this.resize();
   }
 
   /** Empties the floor through the ordinary exit, so every death happens exactly as it does in play. */
@@ -325,7 +300,7 @@ export class SceneRuntime {
   private rebuildFloor(): void {
     this.scene.remove(this.floor.root);
     this.floor.dispose();
-    this.floor = buildFloorMeshes(this.world.maze, this.textures);
+    this.floor = buildFloorMeshes(this.world.maze, this.textures, this.lighting);
     this.terrainVersion = this.world.terrainVersion;
     this.scene.add(this.floor.root);
   }
@@ -372,31 +347,61 @@ export class SceneRuntime {
     player.pitch = 0;
   }
 
-  /** Hands the nearest fittings the few real lights the frame can afford. */
-  private aimFittingLights(elapsedSeconds: number): void {
+  /**
+   * This frame's light list: the torch first, then everything the floor's fittings are throwing.
+   *
+   * All of them, every frame. The first build could afford four because each was a real renderer
+   * light costing a shader recompile and a pass over every fragment; these are four floats in a
+   * uniform array read by a loop, so the limit is gone and with it the bodies that went dark as the
+   * player walked away from a lamp.
+   */
+  private collectLights(elapsedSeconds: number): readonly SceneLight[] {
+    this.lights.length = 0;
     const player = this.world.player;
-    const wanted = this.structures
-      .lights(this.world, elapsedSeconds)
-      .map((light) => ({ light, distance: Math.hypot(light.x - player.x, light.y - player.y) }))
-      // Sorted in place, which the linter warns about and is right to in general: here the array was
-      // created by the `map` on the line above and nothing else can see it. `toSorted` is not
-      // available at this project's compile target.
-      .sort((left, right) => left.distance - right.distance)
-      .slice(0, this.fittings.length);
 
-    this.fittings.forEach((light, index) => {
-      const chosen = wanted[index];
+    if (this.torchEnabled) {
+      // The torch's own tremor: one fast term and one slow, so it never settles into a readable pulse.
+      const flicker = 0.9 + Math.sin(elapsedSeconds * 11.3) * 0.06 + Math.sin(elapsedSeconds * 4.1) * 0.04;
+      this.lights.push({
+        x: player.x,
+        y: player.y,
+        radius: TORCH_RADIUS,
+        intensity: TORCH_INTENSITY * flicker,
+        color: TORCH_COLOR,
+      });
+    }
 
-      if (!chosen) {
-        light.intensity = 0;
-        return;
+    for (const light of this.structures.lights(this.world, elapsedSeconds)) {
+      this.lights.push({
+        x: light.x,
+        y: light.y,
+        radius: light.radius,
+        intensity: light.intensity,
+        color: [(light.color >> 16) & 255, (light.color >> 8) & 255, light.color & 255],
+      });
+    }
+
+    // What is currently dangerous also lights the room: a shell in the air, and an emplacement's
+    // muzzle coming up to heat. Both are cues a player learns to read from the light alone.
+    for (const hazard of this.world.hazards) {
+      this.lights.push({ x: hazard.x, y: hazard.y, radius: 2.6, intensity: 0.8, color: [255, 96, 72] });
+    }
+
+    for (const mortar of this.world.mortars) {
+      if (mortar.phase !== "locked") {
+        continue;
       }
 
-      light.position.set(chosen.light.x, 0.7, chosen.light.y);
-      light.color.setHex(chosen.light.color);
-      light.distance = chosen.light.radius;
-      light.intensity = chosen.light.intensity * Math.PI;
-    });
+      this.lights.push({
+        x: mortar.cellX + 0.5,
+        y: mortar.cellY + 0.5,
+        radius: 2.4,
+        intensity: 0.9,
+        color: [255, 138, 74],
+      });
+    }
+
+    return this.lights;
   }
 
   private readonly frame = (time: number): void => {
@@ -430,18 +435,13 @@ export class SceneRuntime {
     this.camera.position.set(player.x, EYE_HEIGHT, player.y);
     this.camera.rotation.set(player.pitch + kick, -player.angle - Math.PI / 2, 0);
 
-    // The same two-term flicker the scene builder gives the torch: one fast, one slow, so it never
-    // settles into a readable pulse.
-    const flicker = 0.9 + Math.sin(elapsed * 11.3) * 0.06 + Math.sin(elapsed * 4.1) * 0.04;
-    this.torch.position.set(player.x, EYE_HEIGHT, player.y);
-    this.torch.intensity = this.torchEnabled ? TORCH_INTENSITY * flicker * Math.PI : 0;
     this.sky.root.position.set(player.x, 0, player.y);
+    this.lighting.update(elapsed, this.collectLights(elapsed));
 
     this.bodies.sync(this.world, elapsed, this.paused ? 0 : delta);
     this.structures.sync(this.world);
     this.effects.sync(this.world);
     this.viewmodel.sync(this.world);
-    this.aimFittingLights(elapsed);
 
     // The one thing on a floor still drawn through a wall, and only once the descent is unlocked.
     this.exitMarker.visible = this.world.maze.progress.main.met;
@@ -472,10 +472,18 @@ export class SceneRuntime {
   private resize(): void {
     const width = Math.max(1, this.viewport.clientWidth);
     const height = Math.max(1, this.viewport.clientHeight);
-    this.renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
-    this.renderer.setSize(width, height, false);
+    // The backing store is the small one; the element keeps its full CSS size and the browser
+    // blows the pixels up. That is what makes the grain honest — the pixels really are that big.
+    const scale = this.grain ? GRAIN_SCALE : 1;
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(Math.round(width * scale), Math.round(height * scale), false);
+    const element = this.renderer.domElement;
+    element.style.width = "100%";
+    element.style.height = "100%";
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    // The arm is drawn at full size whatever the frame behind it is: it is a 2D layer over the
+    // picture rather than part of it, exactly as the shipped one is.
     this.viewmodel.resize(width, height);
   }
 }

@@ -20,6 +20,9 @@ import { entityDisplaysByAppearance, parseEntityDisplays } from "@/content/enemi
 import { attackCooldown, isBoned, STRIKE_SECONDS, type EnemyAppearanceId } from "@/core/enemy-contract";
 import { bodyFootprint, type Death, type Enemy, type World } from "@/core/world";
 
+import type { SceneLighting } from "./scene-lighting";
+import { createSceneSprites, WARN_BLADE_STEPS, type SceneSpriteId } from "./scene-sprites";
+
 import blockUrl from "./assets/skeleton-blocky.glb?url";
 import { HOLDING_CLIPS, type BlockClip, type BlockWeapon } from "./block-clips";
 
@@ -125,11 +128,11 @@ type BonedBody = {
   clip: BlockClip | undefined;
   weapon: BlockWeapon;
   weaponParts: Map<string, THREE.Object3D[]>;
-  materials: THREE.MeshStandardMaterial[];
+  materials: THREE.ShaderMaterial[];
 };
 
 type SoftBody = {
-  mesh: THREE.Mesh<THREE.IcosahedronGeometry, THREE.MeshLambertMaterial>;
+  mesh: THREE.Mesh<THREE.IcosahedronGeometry, THREE.ShaderMaterial>;
   appearance: EnemyAppearanceId;
 };
 
@@ -141,13 +144,37 @@ export type WorldBodies = Readonly<{
   dispose(): void;
 }>;
 
-export function createWorldBodies(): WorldBodies {
+/** How many stars orbit a stunned head, how far out, and how big each one is. */
+const STUN_STARS = 3;
+const STUN_ORBIT_RADIUS = 0.32;
+const STUN_STAR_SCALE = 0.3;
+
+export function createWorldBodies(lighting: SceneLighting): WorldBodies {
   const root = new THREE.Group();
   const boned = new Map<string, BonedBody>();
   const soft = new Map<string, SoftBody>();
   const corpses = new Map<string, THREE.Object3D>();
   const clips = new Map<string, THREE.AnimationClip>();
   const disposables: { dispose(): void }[] = [];
+  const sprites = createSceneSprites();
+  const markerTextures = new Map<SceneSpriteId, THREE.Texture>();
+  const markers = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>>();
+  const markerQuad = new THREE.PlaneGeometry(1, 1);
+  disposables.push(markerQuad);
+
+  const markerTexture = (id: SceneSpriteId): THREE.Texture => {
+    const existing = markerTextures.get(id);
+
+    if (existing) {
+      return existing;
+    }
+
+    const texture = new THREE.CanvasTexture(sprites[id]);
+    texture.colorSpace = THREE.NoColorSpace;
+    markerTextures.set(id, texture);
+    disposables.push(texture);
+    return texture;
+  };
   let template: THREE.Object3D | undefined;
   /** The armature's own height, measured rather than assumed, so the authored scale lands right. */
   let templateHeight = 1;
@@ -176,7 +203,7 @@ export function createWorldBodies(): WorldBodies {
     const instance = cloneSkinned(template);
     const weapon = APPEARANCE_WEAPONS[enemy.appearance] ?? "sword";
     const weaponParts = new Map<string, THREE.Object3D[]>();
-    const materials: THREE.MeshStandardMaterial[] = [];
+    const materials: THREE.ShaderMaterial[] = [];
     instance.traverse((object) => {
       const carried = /^Weapon_([a-z]+)_/.exec(object.name)?.[1];
 
@@ -186,9 +213,18 @@ export function createWorldBodies(): WorldBodies {
         weaponParts.set(carried, parts);
       }
 
-      if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshStandardMaterial) {
-        // Cloned per body so a hit can whiten one skeleton without whitening the whole floor.
-        const own = object.material.clone();
+      if (object instanceof THREE.Mesh) {
+        // The armature's own colours, run through the shipped body formula: the glTF's material is
+        // read once for its base colour and then replaced, because what shades a body here is
+        // distance and the light list rather than anything the file was exported with.
+        const source = object.material;
+        const authored = Array.isArray(source) ? source[0] : source;
+        const base =
+          authored instanceof THREE.MeshStandardMaterial || authored instanceof THREE.MeshBasicMaterial
+            ? authored.color.getHex()
+            : 0xd9c9a8;
+        // One material per mesh per body, so a hit whitens one skeleton rather than the whole floor.
+        const own = lighting.body(base);
         object.material = own;
         materials.push(own);
         disposables.push(own);
@@ -221,7 +257,7 @@ export function createWorldBodies(): WorldBodies {
     // Two subdivisions: enough to read as a body rather than a die, few enough to stay low-poly,
     // which is the look this whole experiment is testing.
     const geometry = new THREE.IcosahedronGeometry(0.5, 2);
-    const material = new THREE.MeshLambertMaterial({ color: profile.color });
+    const material = lighting.body(profile.color, false);
     const mesh = new THREE.Mesh(geometry, material);
     disposables.push(geometry, material);
     root.add(mesh);
@@ -311,7 +347,7 @@ export function createWorldBodies(): WorldBodies {
           const flash = enemy.hurtSeconds > 0 ? Math.min(1, enemy.hurtSeconds / 0.16) : 0;
 
           for (const material of body.materials) {
-            material.emissive.setRGB(flash, flash, flash);
+            material.uniforms.uFlash!.value = flash;
           }
 
           continue;
@@ -349,7 +385,7 @@ export function createWorldBodies(): WorldBodies {
         blob.mesh.position.set(enemy.x, height / 2 - sink * (height + 0.1), enemy.y);
         blob.mesh.scale.set(footprint * 2, height, footprint * 2);
         const flash = enemy.hurtSeconds > 0 ? Math.min(1, enemy.hurtSeconds / 0.16) : 0;
-        blob.mesh.material.emissive.setRGB(flash * 0.9, flash * 0.9, flash * 0.9);
+        blob.mesh.material.uniforms.uFlash!.value = flash;
       }
 
       for (const [id, body] of boned) {
@@ -372,6 +408,7 @@ export function createWorldBodies(): WorldBodies {
       }
 
       syncCorpses(world);
+      syncMarkers(world, elapsedSeconds);
     },
 
     dispose() {
@@ -383,12 +420,94 @@ export function createWorldBodies(): WorldBodies {
         disposable.dispose();
       }
 
+      for (const marker of markers.values()) {
+        marker.material.dispose();
+      }
+
       boned.clear();
       soft.clear();
       corpses.clear();
+      markers.clear();
       root.clear();
     },
   };
+
+  /**
+   * The mark over a committed body, and the stars over a clubbed one.
+   *
+   * Both float at the body's own crown, which is the authored height rather than a constant: a green
+   * slime and a skeleton wear their marks in very different places, and one number could only ever be
+   * right for whichever was authored first. The sword marker fills as it charges by choosing a cell
+   * of its strip; the other two swell, which is the same statement made with size.
+   */
+  function syncMarkers(world: World, elapsedSeconds: number): void {
+    const present = new Set<string>();
+
+    for (const enemy of world.enemies) {
+      const display = DISPLAYS[enemy.appearance];
+      const crown = isBoned(enemy.archetype) ? (display?.bodyScale ?? 0.755) : slimeProfile(enemy.appearance).height;
+
+      if (enemy.stunSeconds > 0) {
+        for (let index = 0; index < STUN_STARS; index += 1) {
+          const id = `${enemy.id}-stun-${index}`;
+          present.add(id);
+          const angle = elapsedSeconds * 3.4 + (index / STUN_STARS) * Math.PI * 2;
+          const star = markerAt(id, "stunStar");
+          star.position.set(
+            enemy.x + Math.cos(angle) * STUN_ORBIT_RADIUS,
+            crown + 0.12,
+            enemy.y + Math.sin(angle) * STUN_ORBIT_RADIUS,
+          );
+          star.scale.setScalar(STUN_STAR_SCALE);
+        }
+      }
+
+      if (enemy.windupSeconds <= 0 || enemy.intent === "none") {
+        continue;
+      }
+
+      const id = `${enemy.id}-warn`;
+      present.add(id);
+      const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+      const scale = (display?.markerScale ?? 0.2) + progress * (display?.markerSwell ?? 0.065);
+      const shape: SceneSpriteId =
+        enemy.intent === "shoot" ? "warnShoot" : enemy.intent === "charge" ? "warnCharge" : "warnMelee";
+      const marker = markerAt(id, shape);
+      marker.position.set(enemy.x, crown + (display?.markerOffset ?? 0) + scale / 2, enemy.y);
+      marker.scale.setScalar(scale);
+
+      if (shape === "warnMelee") {
+        const column = Math.min(WARN_BLADE_STEPS - 1, Math.floor(progress * WARN_BLADE_STEPS));
+        marker.material.uniforms.uUvRect!.value.set(column / WARN_BLADE_STEPS, 0, 1 / WARN_BLADE_STEPS, 1);
+      }
+    }
+
+    for (const [id, mesh] of markers) {
+      if (present.has(id)) {
+        continue;
+      }
+
+      root.remove(mesh);
+      mesh.material.dispose();
+      markers.delete(id);
+    }
+  }
+
+  /** The billboard for one marker, made on first sight and kept while its body is committed. */
+  function markerAt(id: string, shape: SceneSpriteId): THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> {
+    const existing = markers.get(id);
+
+    if (existing) {
+      return existing;
+    }
+
+    const material = lighting.sprite(markerTexture(shape), { billboard: true });
+    const mesh = new THREE.Mesh(markerQuad, material);
+    mesh.frustumCulled = false;
+    markers.set(id, mesh);
+    root.add(mesh);
+    return mesh;
+  }
 
   /**
    * What is left where a body fell.
@@ -428,7 +547,7 @@ export function createWorldBodies(): WorldBodies {
   function createCorpse(death: Death): THREE.Object3D {
     const geometry = new THREE.IcosahedronGeometry(0.32, 1);
     const profile = slimeProfile(death.appearance);
-    const material = new THREE.MeshLambertMaterial({ color: profile.color });
+    const material = lighting.body(profile.color, false);
     disposables.push(geometry, material);
     return new THREE.Mesh(geometry, material);
   }

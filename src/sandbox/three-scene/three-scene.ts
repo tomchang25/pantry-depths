@@ -61,7 +61,7 @@ function createButton(labelText: string): HTMLButtonElement {
 export const THREE_SCENE_EXPERIMENT = {
   title: "Three.js Floor",
   description:
-    "The real floor and the real simulation, drawn with Three.js: masonry, ground, the open night sky, fog, the torch, block skeletons, low-poly slimes, the fittings, and everything they leave behind. Click the view to take the mouse, then play it — this is where the atmosphere is judged.",
+    "The real floor and the real simulation, drawn with Three.js under the shipped renderer's own light formulas: masonry, ground, the open night sky, the torch, block skeletons, the fittings, the dust, and the arm the game already had. Click the view to take the mouse, then play it — this is where the atmosphere is judged, frame against frame with a recording of the real thing.",
   pageClass: "three-scene",
   width: "wide",
   mount: mountThreeScene,
@@ -102,12 +102,11 @@ function mountThreeScene(content: HTMLElement): void {
   );
   mapField.select.value = defaultMap().name;
   const handsField = createSelectRow("Hands", [
-    { label: "Block arm (mesh)", value: "mesh" },
-    { label: "Authored arm (2D over)", value: "authored" },
+    { label: "Authored arm", value: "authored" },
     { label: "None", value: "none" },
   ]);
   const torch = createToggle("Torch", true);
-  const fog = createToggle("Distance fog", true);
+  const grain = createToggle("Pixel grain", true);
   const restartButton = createButton("Restart");
   const killButton = createButton("Kill all");
   const fillButton = createButton("Fill crowd");
@@ -133,7 +132,7 @@ function mountThreeScene(content: HTMLElement): void {
   }
 
   buttons.append(restartButton, killButton, fillButton, arenaButton);
-  controls.append(controlsTitle, mapField.row, handsField.row, torch.label, fog.label, buttons);
+  controls.append(controlsTitle, mapField.row, handsField.row, torch.label, grain.label, buttons);
   statusPanel.append(statusTitle, metrics);
   const hud = document.createElement("div");
   const hudLeft = document.createElement("span");
@@ -193,7 +192,7 @@ function mountThreeScene(content: HTMLElement): void {
   torch.input.addEventListener("change", () => runtime.setTorchEnabled(torch.input.checked), {
     signal: abortController.signal,
   });
-  fog.input.addEventListener("change", () => runtime.setFogEnabled(fog.input.checked), {
+  grain.input.addEventListener("change", () => runtime.setGrain(grain.input.checked), {
     signal: abortController.signal,
   });
   restartButton.addEventListener("click", () => runtime.restart(), { signal: abortController.signal });

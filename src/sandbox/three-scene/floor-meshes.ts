@@ -12,6 +12,8 @@
 import * as THREE from "three";
 
 import { tileIndex, type Maze, type Tile } from "@/core/maze";
+
+import type { SceneLighting } from "./scene-lighting";
 import type { SceneFloorMaterial, SceneTextureSet, SceneWallMaterial } from "./scene-textures";
 
 /** Cells the interior masonry stands, in cells. Taken from the wall height the scene builder sets. */
@@ -133,7 +135,7 @@ function textureFrom(source: HTMLCanvasElement): THREE.CanvasTexture {
   // got. Mipmapped minification stays, because a floor receding to the horizon aliases without it.
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.colorSpace = THREE.NoColorSpace;
   texture.anisotropy = 4;
   return texture;
 }
@@ -149,7 +151,7 @@ export type FloorMeshes = Readonly<{
  * Static: the geometry is built once and never rebuilt, because nothing in this child breaks a wall
  * or fills a pool. A child that does will rebuild the affected material rather than the floor.
  */
-export function buildFloorMeshes(maze: Maze, textures: SceneTextureSet): FloorMeshes {
+export function buildFloorMeshes(maze: Maze, textures: SceneTextureSet, lighting: SceneLighting): FloorMeshes {
   const wallBuilders = new Map<SceneWallMaterial, Mesher>();
   const floorBuilders = new Map<SceneFloorMaterial, Mesher>();
   const disposables: { dispose(): void }[] = [];
@@ -351,7 +353,7 @@ export function buildFloorMeshes(maze: Maze, textures: SceneTextureSet): FloorMe
   for (const [name, built] of wallBuilders) {
     const geometry = geometryFrom(built);
     const texture = textureFrom(textures.walls[name]);
-    const material = new THREE.MeshLambertMaterial({ map: texture });
+    const material = lighting.wall(texture);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `wall:${name}`;
     root.add(mesh);
@@ -361,7 +363,7 @@ export function buildFloorMeshes(maze: Maze, textures: SceneTextureSet): FloorMe
   for (const [name, built] of floorBuilders) {
     const geometry = geometryFrom(built);
     const texture = textureFrom(textures.floors[name]);
-    const material = new THREE.MeshLambertMaterial({ map: texture });
+    const material = lighting.plane(texture);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `floor:${name}`;
     root.add(mesh);
