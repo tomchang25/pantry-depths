@@ -12,7 +12,7 @@ This tracker is the forward-work authority.
 
 ## Active
 
-- `[filming_stage]` Build a stage to film enemy deaths in: two kinds of freeze, a cast a room can declare, a cast painter, and the stage itself - `dev/docs/plans/filming_stage.plan.md`
+Nothing currently in progress.
 
 ---
 
