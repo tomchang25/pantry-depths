@@ -1,6 +1,11 @@
 /**
- * Everything transient: what lies on the floor, what flies over it, what it is stained with, and —
- * most of all — the dust.
+ * Everything transient: what lies on the floor, what flies over it, and — most of all — the dust.
+ *
+ * What it no longer holds is the blood. That was a sheet of flat red laid over the ground here, and
+ * being a sheet is what was wrong with it: it covered the marks painted into the floor, took the fog
+ * and the torch a second time on top of what the floor had already taken, and had one value per cell
+ * with no pooling in it. Blood is part of the ground now and lives with the ground; see
+ * `floor-stains.ts`.
  *
  * The dust is why this module was rewritten. The first build drew the particle field as a point
  * cloud at a fixed tiny size, and the judging session found the atmosphere gone: in the shipped game
@@ -26,12 +31,6 @@ import { projectileHeight, type Enemy, type World } from "@/core/world";
 import { WALL_HEIGHT } from "./floor-meshes";
 import { SceneLighting } from "./scene-lighting";
 import { createSceneSprites, WARN_BLADE_STEPS, type SceneSpriteId, type SceneSprites } from "./scene-sprites";
-
-/** Cap the rules stain a cell to. Anything at or above this is as bloody as ground gets. */
-const MAX_STAIN = 0.72;
-
-/** Texels per cell in the stain overlay. Coarse on purpose — it is a stain, not a decal sheet. */
-const STAIN_RESOLUTION = 8;
 
 /** How many dots a frame can hold, per blend mode. A bomb in a crowd stays under this. */
 const PARTICLE_CAPACITY = 900;
@@ -316,12 +315,6 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
   disposables.push(orbGeometry, orbMaterial, orbs);
 
   /** Plumes: the drifting motes a fitting gives off, drawn through the plain dot sheet. */
-  let stainMesh: THREE.Mesh | undefined;
-  let stainCanvas: HTMLCanvasElement | undefined;
-  let stainTexture: THREE.CanvasTexture | undefined;
-  let stainMaterial: THREE.ShaderMaterial | undefined;
-  let stainVersion = -1;
-  let stainExtent = "";
 
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
@@ -354,7 +347,6 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
       syncProps(world);
       syncFlights(world);
       syncWallMarks(world);
-      syncStains(world);
     },
 
     dispose() {
@@ -382,8 +374,6 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
         pool.clear();
       }
 
-      stainTexture?.dispose();
-      stainMaterial?.dispose();
       root.clear();
     },
   };
@@ -867,7 +857,7 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
       const material = lighting.sprite(textureFor(sprite));
       mesh = new THREE.Mesh(flatQuad, material);
       mesh.frustumCulled = false;
-      // Above the stain sheet, which is itself just above the flagstones.
+      // Just above the ground and drawn after it, so a mark never fights the floor for depth.
       mesh.renderOrder = 2;
       pool.set(id, mesh);
       root.add(mesh);
@@ -1052,71 +1042,6 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
     mesh.scale.setScalar(size);
     // Turned in the plane of the picture, since a billboard has no other axis to turn about.
     mesh.rotation.z = spin;
-  }
-
-  /**
-   * The floor's staining, as one texture over the whole grid.
-   *
-   * Redrawn only when the rules bump their own version, which is what makes a per-texel overlay
-   * affordable: a floor is stained a few times a fight and read every frame.
-   */
-  function syncStains(world: World): void {
-    const extent = `${world.maze.width}x${world.maze.height}`;
-
-    if (extent !== stainExtent) {
-      stainExtent = extent;
-      stainVersion = -1;
-
-      if (stainMesh) {
-        root.remove(stainMesh);
-        stainMesh.geometry.dispose();
-      }
-
-      stainTexture?.dispose();
-      stainMaterial?.dispose();
-      stainCanvas = document.createElement("canvas");
-      stainCanvas.width = world.maze.width * STAIN_RESOLUTION;
-      stainCanvas.height = world.maze.height * STAIN_RESOLUTION;
-      stainTexture = new THREE.CanvasTexture(stainCanvas);
-      stainTexture.colorSpace = THREE.SRGBColorSpace;
-      const geometry = new THREE.PlaneGeometry(world.maze.width, world.maze.height);
-      geometry.rotateX(-Math.PI / 2);
-      geometry.translate(world.maze.width / 2, 0.006, world.maze.height / 2);
-      stainMaterial = lighting.sprite(stainTexture);
-      stainMesh = new THREE.Mesh(geometry, stainMaterial);
-      // Just above the ground and drawn after it, which keeps a stain out of the depth fight it
-      // would otherwise have with the flagstones it is lying on.
-      stainMesh.renderOrder = 1;
-      root.add(stainMesh);
-    }
-
-    if (!stainCanvas || !stainTexture || world.stainsVersion === stainVersion) {
-      return;
-    }
-
-    stainVersion = world.stainsVersion;
-    const context = stainCanvas.getContext("2d");
-
-    if (!context) {
-      return;
-    }
-
-    context.clearRect(0, 0, stainCanvas.width, stainCanvas.height);
-
-    for (let y = 0; y < world.maze.height; y += 1) {
-      for (let x = 0; x < world.maze.width; x += 1) {
-        const amount = world.stains[y * world.maze.width + x] ?? 0;
-
-        if (amount <= 0) {
-          continue;
-        }
-
-        context.fillStyle = `rgba(96, 12, 18, ${Math.min(1, amount / MAX_STAIN) * 0.85})`;
-        context.fillRect(x * STAIN_RESOLUTION, y * STAIN_RESOLUTION, STAIN_RESOLUTION, STAIN_RESOLUTION);
-      }
-    }
-
-    stainTexture.needsUpdate = true;
   }
 }
 

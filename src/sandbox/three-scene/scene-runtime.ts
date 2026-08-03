@@ -31,6 +31,7 @@ import type { ResolvedMap } from "@/core/map-contract";
 import { createFinishingPass, type FinishingPass } from "./finishing-pass";
 import { collectFloorDecals } from "./floor-decals";
 import { buildFloorMeshes, triangleCount, type FloorMeshes } from "./floor-meshes";
+import { createFloorStains, type FloorStains } from "./floor-stains";
 import { buildSky, type Sky } from "./sky";
 import { createSceneTextures, type SceneTextureSet } from "./scene-textures";
 import { createWorldBodies, type WorldBodies } from "./world-bodies";
@@ -115,6 +116,7 @@ export class SceneRuntime {
   private disposed = false;
   private readonly effects: WorldEffects;
   private floor: FloorMeshes;
+  private readonly floorStains: FloorStains;
   private grain = true;
   private frameCount = 0;
   private readonly input = { forward: false, backward: false, strafeLeft: false, strafeRight: false };
@@ -155,12 +157,16 @@ export class SceneRuntime {
     this.camera.rotation.order = "YXZ";
 
     this.textures = createSceneTextures();
+    this.floorStains = createFloorStains(this.textures.blood);
     this.sky = buildSky();
     this.scene.add(this.sky.root);
     // No scene fog either. Distance darkening lives inside each formula and is tinted per surface
     // class, so a fog laid over the top would darken the sky and the fittings along with the walls.
 
     this.world = createWorld(map, GAME_CATALOG);
+    // Before the floor is built, because every floor material is handed the blood grid when it is
+    // created and a material pointed at an empty one would keep reading the empty one.
+    this.syncStains();
     this.floor = buildFloorMeshes(this.world.maze, this.textures, this.lighting);
     this.terrainVersion = this.world.terrainVersion;
     this.scene.add(this.floor.root);
@@ -223,6 +229,7 @@ export class SceneRuntime {
     this.exitMarker.geometry.dispose();
     (this.exitMarker.material as THREE.Material).dispose();
     this.floor.dispose();
+    this.floorStains.dispose();
     this.sky.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -326,9 +333,27 @@ export class SceneRuntime {
   private rebuildFloor(): void {
     this.scene.remove(this.floor.root);
     this.floor.dispose();
+    this.syncStains();
     this.floor = buildFloorMeshes(this.world.maze, this.textures, this.lighting);
     this.terrainVersion = this.world.terrainVersion;
     this.scene.add(this.floor.root);
+  }
+
+  /**
+   * Brings the blood grid up to date, and re-points the floor at it when a new one was allocated.
+   *
+   * The re-pointing is the part that is easy to miss: descending builds a differently sized grid, and
+   * a floor still holding the old texture would draw the previous floor's carnage on this one.
+   */
+  private syncStains(): void {
+    if (this.floorStains.sync(this.world)) {
+      this.lighting.setStainGrid(
+        this.floorStains.texture,
+        this.floorStains.blood,
+        this.world.maze.width,
+        this.world.maze.height,
+      );
+    }
   }
 
   /**
@@ -545,6 +570,7 @@ export class SceneRuntime {
     this.sky.root.position.set(player.x, 0, player.y);
     this.lighting.update(elapsed, this.collectLights(elapsed));
     this.lighting.updateDecals(collectFloorDecals(this.world));
+    this.syncStains();
 
     this.bodies.sync(this.world, elapsed, this.paused ? 0 : delta);
     this.structures.sync(this.world);

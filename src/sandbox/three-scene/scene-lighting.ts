@@ -47,6 +47,12 @@ const DECAL_RADIAL = 0;
 const DECAL_LANE = 1;
 const DECAL_SECTOR = 2;
 
+/**
+ * The floor also carries how bloodied each of its cells is. The depth is quantised and the grid is
+ * built beside the rules, in `floor-stains.ts`; what belongs here is only that the mix happens in the
+ * texel — before the mark is stamped over it and before any of it is lit.
+ */
+
 /** The ink every surface class fades toward with distance. */
 const FOG_INK = "vec3(13.0, 5.0, 24.0) / 255.0";
 
@@ -325,14 +331,28 @@ vec4 decalAt(vec2 ground) {
 const PLANE_FRAGMENT = fragmentFor(
   `
   vec4 texel = texture2D(uMap, vUv);
+  vec3 ground = texel.rgb;
+
+  // Blood first, and it is a mix rather than a cover: a stained cell is the ground it was plus some
+  // of the blood surface, sampled at the same texel the stone is, so the two share their grain.
+  float soaked = texture2D(uStainMap, vWorldPos.xz / uStainExtent).r;
+
+  if (soaked > 0.0) {
+    ground = mix(ground, texture2D(uBlood, vUv).rgb, soaked);
+  }
+
+  // Then the mark, which overwrites rather than mixes — so a warning circle is the same colour over
+  // ground a fight has soaked as over clean stone, which is the entire point of drawing one.
   vec4 mark = decalAt(vWorldPos.xz);
-  vec3 ground = mix(texel.rgb, mark.rgb, mark.a);
+  ground = mix(ground, mark.rgb, mark.a);
+
+  // And only then the light, once, over whatever the ground turned out to be.
   float fog = clamp(1.0 - vDepth / ${MAX_DEPTH}.0, 0.12, 1.0);
   float torch = clamp(1.2 - vDepth / 8.0, 0.0, 1.0) * torchFlicker();
   vec3 color = ground * fog + ${PLANE_FOG_FLAT} * (1.0 - fog) + ${PLANE_TORCH_GAIN} * torch;
   gl_FragColor = vec4(max(color, vec3(0.0)), 1.0);
 `,
-  `uniform sampler2D uMap;\n${DECAL_GLSL}`,
+  `uniform sampler2D uMap;\nuniform sampler2D uBlood;\nuniform sampler2D uStainMap;\nuniform vec2 uStainExtent;\n${DECAL_GLSL}`,
 );
 
 /**
@@ -629,10 +649,36 @@ export class SceneLighting {
     uDecalTint: { value: Array.from({ length: MAX_DECALS }, () => new THREE.Vector4()) },
   };
 
-  /** Ground: one material per floor texture. */
+  /**
+   * How bloodied each cell is, one texel per cell.
+   *
+   * A texture rather than geometry, because the alternative is rebuilding the floor's buffers every
+   * time something bleeds — which is a dozen times a fight, against an upload of a few kilobytes.
+   * The grid is nearest-sampled, so a cell's edge is exactly the cell's edge.
+   */
+  private readonly stains = {
+    uBlood: { value: null as THREE.Texture | null },
+    uStainMap: { value: null as THREE.Texture | null },
+    uStainExtent: { value: new THREE.Vector2(1, 1) },
+  };
+
+  /**
+   * Points every floor material at the grid a fight is writing into, and at what blood looks like.
+   *
+   * Handed in rather than built here: this module owns formulas and knows nothing about mazes, and
+   * the grid's own upkeep — when it is rebuilt, when it is reuploaded — belongs beside the thing
+   * that reads the rules.
+   */
+  setStainGrid(map: THREE.Texture, blood: THREE.Texture, width: number, height: number): void {
+    this.stains.uStainMap.value = map;
+    this.stains.uBlood.value = blood;
+    this.stains.uStainExtent.value.set(Math.max(1, width), Math.max(1, height));
+  }
+
+  /** Ground: one material per floor texture, all of them reading one blood grid. */
   plane(map: THREE.Texture): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
-      uniforms: { ...this.shared, ...this.decals, uMap: { value: map } },
+      uniforms: { ...this.shared, ...this.decals, ...this.stains, uMap: { value: map } },
       vertexShader: VERTEX_GLSL,
       fragmentShader: PLANE_FRAGMENT,
     });

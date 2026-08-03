@@ -25,6 +25,13 @@ export type SceneFloorMaterial = "flagstone" | "water" | "waterFouled" | "waterC
 export type SceneTextureSet = Readonly<{
   walls: Readonly<Record<SceneWallMaterial, HTMLCanvasElement>>;
   floors: Readonly<Record<SceneFloorMaterial, HTMLCanvasElement>>;
+  /**
+   * What a bloodied cell is mixed towards, at whatever depth it has taken.
+   *
+   * Not a floor material, because it never replaces the ground it is on — every stained cell is the
+   * ground it was plus some of this, and how much is what a fight writes into the grid.
+   */
+  blood: HTMLCanvasElement;
 }>;
 
 const TEXTURE_SIZE = 64;
@@ -354,6 +361,24 @@ function carrion(): HTMLCanvasElement {
 }
 
 /** Builds every texture an assembled floor can ask for, once. */
+/**
+ * Blood, as a tiling surface rather than a colour.
+ *
+ * The flat red the experiment used before this was most of what made a bloodied floor read as brown:
+ * one value per cell has no pooling and no dried edge, so a stained cell is a coloured square and a
+ * row of them is a coloured stripe. Two octaves give the pooling; the narrow band where the coarse
+ * one sits between 0.62 and 0.72 is the darker rim a pool dries to, and it is the detail that sells
+ * the whole thing as fluid.
+ */
+function bloodstain(): HTMLCanvasElement {
+  return paint((x, y) => {
+    const pool = smoothNoise(x, y, 7, 83) * 0.7 + smoothNoise(x, y, 2.5, 89) * 0.3;
+    const depth = 0.5 + pool * 0.8;
+    const rim = pool > 0.62 && pool < 0.72 ? 0.68 : 1;
+    return [72 * depth * rim, 12 * depth * rim, 16 * depth * rim];
+  });
+}
+
 export function createSceneTextures(): SceneTextureSet {
   return {
     walls: {
@@ -374,5 +399,6 @@ export function createSceneTextures(): SceneTextureSet {
       trench: trench(),
       carrion: carrion(),
     },
+    blood: bloodstain(),
   };
 }
