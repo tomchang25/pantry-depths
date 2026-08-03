@@ -42,14 +42,14 @@ The porting survey separated absent from reduced. Everything absent is the spike
 
 ### Children
 
-| #   | Child                          | Focus                                                                                                                 | Form                                                        |
-| --- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 1   | The move                       | The experiment folder becomes a presentation-layer module; the armature becomes content; boundary rules follow it     | `three_scene_graduation_01_the_move.implementation_spec.md` |
-| 2   | The runtime stops owning play  | Frame loop, input and world ownership leave the runtime; it becomes something handed a world and a step               | Execution below                                             |
-| 3   | The seam                       | The four drawing calls swap; the surface's own halves are rewired to the new runtime                                  | Execution below                                             |
-| 4   | The ways of dying              | Six death causes get their own treatment again; the soft-body regression is recorded                                  | Execution below                                             |
-| 5   | The workbenches and demolition | Six development surfaces migrate or retire; the interim projection and the ray-marched renderer are deleted           | Execution below                                             |
-| 6   | The fidelity tail              | Structure detail, hold-driven room lights, swing aim, the waterline cut, and the wall materials the baked floors need | Execution below                                             |
+| #   | Child                          | Focus                                                                                                                 | Form                                                                         |
+| --- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 1   | The move                       | The experiment folder becomes a presentation-layer module; the armature becomes content; boundary rules follow it     | `three_scene_graduation_01_the_move.implementation_spec.md`                  |
+| 2   | The runtime stops owning play  | Frame loop, input and world ownership leave the runtime; it becomes something handed a world and a step               | `three_scene_graduation_02_runtime_stops_owning_play.implementation_spec.md` |
+| 3   | The seam                       | The four drawing calls swap; the surface's own halves are rewired to the new runtime                                  | Execution below                                                              |
+| 4   | The ways of dying              | Six death causes get their own treatment again; the soft-body regression is recorded                                  | Execution below                                                              |
+| 5   | The workbenches and demolition | Six development surfaces migrate or retire; the interim projection and the ray-marched renderer are deleted           | Execution below                                                              |
+| 6   | The fidelity tail              | Structure detail, hold-driven room lights, swing aim, the waterline cut, and the wall materials the baked floors need | Execution below                                                              |
 
 Landing order is the table order and only two swaps are safe: 4 may precede 3, and 6 may precede 5. Nothing else moves. Child 2 must precede 3 because the seam has nothing to call otherwise; 5 must follow 3 because it deletes the path the game would otherwise fall back to; and 5 must follow 4 because deleting the old renderer while the corpses are still a single lump throws away the reference the corpse work is judged against.
 
@@ -103,7 +103,7 @@ Perishable coordinates, first recorded 2026-08-03 against `57dd494` and left as 
 
 ### Child 2 — The runtime stops owning play
 
-`SceneRuntime` in `scene-runtime.ts` (552 lines) currently owns three things it must give up:
+The renderer — `SceneRuntime` in `scene-runtime.ts` when this was written, `SceneRenderer` in `scene-renderer.ts` after the child renamed it — owned three things it had to give up:
 
 - **The frame loop.** `frame` at `:407` calls `stepWorld`, drains `world.sfxCues` (`:421`, currently discarded), computes the delta, and re-arms `requestAnimationFrame` at `:469`. All of that belongs to the caller. What remains is: sync the sub-systems, place the camera, render.
 - **Input.** `holdKey`/`releaseKeys`/`look`/`strike`/`grab` at `:268-298` and `MOUSE_SENSITIVITY`/`MAX_PITCH` at `:72-73`. The surface has its own copies with different limits — `MAX_PITCH_UP = 1.5`, `MAX_PITCH_DOWN = 0.48` at `surface.ts:89-90`, asymmetric because the Canvas pitch is a shear. A real perspective camera has no such asymmetry, so the child decides which limits survive; that is a feel decision and belongs in the playtest, not in this note.
@@ -114,10 +114,10 @@ Perishable coordinates, first recorded 2026-08-03 against `57dd494` and left as 
 
 ### Child 3 — The seam
 
-- Swap the four calls in `surface.ts` and delete `sceneContext`/`canvas.getContext("2d")` at `:572` if the first-person layer moves onto its own element, which is how the experiment does it (`viewmodel.ts` builds an overlay canvas, `scene-runtime.ts:157` appends it).
-- Sound: `world.sfxCues` must reach `playSfx`. The surface already does this at `:857-861`; the experiment's discard at `scene-runtime.ts:421` goes away with the frame loop in child 2, so this is a matter of not reintroducing it.
-- The pixel grain (`GRAIN_SCALE = 0.5` at `scene-runtime.ts:70`) reproduces `renderer.halvePlaneRows`/`halvePlaneColumns` at `surface.ts:570-571`. Keep it, and keep it toggleable from the debug tool rather than from the game.
-- `renderer.resize(clientWidth, clientHeight, devicePixelRatio)` at `:870` becomes the new runtime's resize; the experiment currently drives its own through a `ResizeObserver` (`scene-runtime.ts:169`).
+- Swap the four calls in `surface.ts` and delete `sceneContext`/`canvas.getContext("2d")` at `:572` if the first-person layer moves onto its own element, which is how the renderer does it (`viewmodel.ts` builds an overlay canvas, `scene-renderer.ts` appends it, and the finishing pass stacks a second one under it).
+- Sound: `world.sfxCues` must reach `playSfx`. The surface already does this at `:857-861`; the discard went away with the frame loop in child 2 and the debug tool now drains them, so this is a matter of the surface keeping its own drain rather than the renderer growing one.
+- The pixel grain (`GRAIN_SCALE` in `scene-renderer.ts`) reproduces `renderer.halvePlaneRows`/`halvePlaneColumns` at `surface.ts:570-571`. Keep it, and keep it toggleable from the debug tool rather than from the game.
+- `renderer.resize(clientWidth, clientHeight, devicePixelRatio)` at `:870` has an answer already: `scene-renderer.ts` drives its own sizing through a `ResizeObserver` on the element it was given, which serves either caller.
 - `window.demoWorld` and `window.demoRenderer` (`:626-631`) are read by `dev/tools/capture-scenes.mjs` for `stats.json` — per `dev/agent_rules/test_operations.md:36` they are a handle, not an import, so a rename fails silently. Keep both names.
 - The capture flag `?capture` at `:77` and the harness's key-driving must still work; the experiment's `window.__sceneRuntime.stand(...)` is a second, incompatible arrangement and should not survive as one.
 - Playtest closes this child, and it is the largest one in the plan: a whole floor, sound on, taking damage, dying, restarting, descending.

@@ -1,10 +1,36 @@
 import { createDebugPage } from "@/app/debug/debug-shell";
+import { GAME_CATALOG } from "@/content/catalog";
 import { MAPS } from "@/content/maps/map-library";
+import { grabAction, primaryAction } from "@/core/actions";
 import type { ResolvedMap } from "@/core/map-contract";
-import { SceneRuntime } from "@/presentation/scene-3d/scene-runtime";
+import { stepWorld } from "@/core/simulation";
+import { createWorld, crowdHere, flattenFloorForTesting, killEnemy, spawnReinforcement } from "@/core/world";
+import { SceneRenderer } from "@/presentation/scene-3d/scene-renderer";
 import type { ViewmodelKind } from "@/presentation/scene-3d/viewmodel";
 
 import "@/app/debug/three-scene.css";
+
+/** How the hands drive the eye. The runtime has no opinion about either any more. */
+const MOUSE_SENSITIVITY = 0.0026;
+const MAX_PITCH = 1.45;
+
+const MOVEMENT_KEYS: Readonly<Record<string, "forward" | "backward" | "strafeLeft" | "strafeRight">> = {
+  w: "forward",
+  s: "backward",
+  a: "strafeLeft",
+  d: "strafeRight",
+};
+
+/**
+ * Mouse counts per second that read as a full-speed turn, for the comfort vignette.
+ *
+ * Smoothed rising fast and falling slowly, so the frame does not breathe every time the mouse pauses
+ * mid-sweep. All three are the play surface's; the effect is slight by design and tuning it here
+ * would be tuning it against a different pair of hands.
+ */
+const FULL_TURN_RATE = 2600;
+const TURN_RISE = 0.4;
+const TURN_FALL = 0.06;
 
 /**
  * What a run opens on when nothing else is named.
@@ -163,18 +189,9 @@ function mountThreeScene(content: HTMLElement): void {
   layout.append(stage, sidebar);
   content.append(layout);
 
-  let runtime: SceneRuntime;
+  let renderer: SceneRenderer;
   try {
-    runtime = new SceneRuntime(viewport, defaultMap(), {
-      onStatus(status) {
-        metricOutputs.get("cell")!.textContent = status.cell;
-        metricOutputs.get("hp")!.textContent = status.hp;
-        metricOutputs.get("bodies")!.textContent = String(status.bodies);
-        metricOutputs.get("fps")!.textContent = String(status.fps);
-        metricOutputs.get("draw-calls")!.textContent = String(status.drawCalls);
-        metricOutputs.get("triangles")!.textContent = status.triangles.toLocaleString();
-      },
-    });
+    renderer = new SceneRenderer(viewport);
   } catch (error) {
     const fallback = document.createElement("div");
     const title = document.createElement("strong");
@@ -188,71 +205,237 @@ function mountThreeScene(content: HTMLElement): void {
     return;
   }
 
-  const locked = (): boolean => document.pointerLockElement === runtime.canvas;
+  // Everything below is the driver: the world, the loop, and the hands. It lives here rather than in
+  // the runtime because the runtime is on its way to being called by the play surface, which owns all
+  // three already — a renderer that also ran a game would have to be talked out of it first.
+  let map = defaultMap();
+  let world = createWorld(map, GAME_CATALOG);
+  let paused = true;
+  let lastFrameTime = performance.now();
+  let metricsElapsed = 0;
+  let smoothedFps = 60;
+  let turnInput = 0;
+  let turnRate = 0;
+  let animationFrame = 0;
+  const input = { forward: false, backward: false, strafeLeft: false, strafeRight: false };
+
+  const locked = (): boolean => document.pointerLockElement === renderer.canvas;
+
+  const releaseKeys = (): void => {
+    input.forward = false;
+    input.backward = false;
+    input.strafeLeft = false;
+    input.strafeRight = false;
+  };
+
+  const killEverything = (): void => {
+    for (const enemy of world.enemies.slice()) {
+      killEnemy(world, enemy);
+    }
+  };
+
+  const fillCrowd = (): void => {
+    while (world.enemies.length < crowdHere(world).cap) {
+      if (!spawnReinforcement(world)) {
+        break;
+      }
+    }
+  };
+
+  /**
+   * Turns the arrival to face whichever way sees furthest.
+   *
+   * The position is the game's own — the rules put the player on the entrance. The heading is not,
+   * because the game has no opening heading and an arbitrary one lands against masonry about as often
+   * as not: a tool whose first frame is a wall face at arm's length reads as a broken renderer for
+   * the second it takes to turn around, and this one is opened to be looked at.
+   */
+  const faceOpenGround = (): void => {
+    const maze = world.maze;
+    const player = world.player;
+    let bestAngle = player.angle;
+    let bestRun = -1;
+
+    for (let step = 0; step < 32; step += 1) {
+      const angle = (step / 32) * Math.PI * 2;
+      const stepX = Math.cos(angle);
+      const stepY = Math.sin(angle);
+      let run = 0;
+
+      while (run < 24) {
+        const cellX = Math.floor(player.x + stepX * (run + 0.5));
+        const cellY = Math.floor(player.y + stepY * (run + 0.5));
+        const tile = maze.tiles[cellY * maze.width + cellX];
+
+        if (!tile || (tile.kind !== "open" && tile.kind !== "filled")) {
+          break;
+        }
+
+        run += 0.5;
+      }
+
+      if (run > bestRun) {
+        bestRun = run;
+        bestAngle = angle;
+      }
+    }
+
+    player.angle = bestAngle;
+    player.pitch = 0;
+  };
+
+  /**
+   * The development handle, the same arrangement the block preview and the play surface both use: a
+   * picture taken from wherever the mouse happened to be left is not comparable with the last one,
+   * and judging a floor means standing in the same spot twice.
+   *
+   * It moved here with the world it inspects, and is republished on every restart so a session
+   * holding it never poses a floor that has since been replaced.
+   */
+  const publish = (): void => {
+    (window as unknown as Record<string, unknown>).__sceneRuntime = {
+      canvas: renderer.canvas,
+      fillCrowd,
+      flatten: () => flattenFloorForTesting(world),
+      inspected: world,
+      killEverything,
+      setPaused(next: boolean) {
+        paused = next;
+        releaseKeys();
+      },
+      stand(x: number, y: number, angle: number, pitch = 0) {
+        world.player.x = x;
+        world.player.y = y;
+        world.player.angle = angle;
+        world.player.pitch = pitch;
+      },
+    };
+  };
+
+  const restart = (next: ResolvedMap = map): void => {
+    map = next;
+    world = createWorld(map, GAME_CATALOG);
+    faceOpenGround();
+    publish();
+  };
+
+  const tick = (time: number): void => {
+    const delta = Math.min((time - lastFrameTime) / 1000, 0.05);
+    lastFrameTime = time;
+
+    if (!paused) {
+      stepWorld(world, input, delta);
+    }
+
+    // Cues are drained rather than played: this tool carries no audio, and leaving them to accumulate
+    // would grow an array nobody empties for as long as the tab is open.
+    world.sfxCues.length = 0;
+
+    if (delta > 0.0005) {
+      smoothedFps += (1 / delta - smoothedFps) * 0.08;
+      // Rises quickly and falls slowly, so the frame does not breathe every time the mouse pauses.
+      const instant = Math.min(1, turnInput / delta / FULL_TURN_RATE);
+      turnRate += (instant - turnRate) * (instant > turnRate ? TURN_RISE : TURN_FALL);
+    }
+
+    turnInput = 0;
+    renderer.render(world, { deltaSeconds: paused ? 0 : delta, turnRate });
+    metricsElapsed += delta;
+
+    if (metricsElapsed >= 0.4) {
+      const player = world.player;
+      const metrics = renderer.metrics;
+      metricOutputs.get("cell")!.textContent = `${Math.floor(player.x)}, ${Math.floor(player.y)}`;
+      metricOutputs.get("hp")!.textContent = `${Math.max(0, Math.round(player.hp))} / ${player.maxHp}`;
+      metricOutputs.get("bodies")!.textContent = String(world.enemies.length);
+      metricOutputs.get("fps")!.textContent = String(Math.round(smoothedFps));
+      metricOutputs.get("draw-calls")!.textContent = String(metrics.drawCalls);
+      metricOutputs.get("triangles")!.textContent = metrics.triangles.toLocaleString();
+      metricsElapsed = 0;
+    }
+
+    animationFrame = requestAnimationFrame(tick);
+  };
 
   mapField.select.addEventListener(
     "change",
     () => {
-      const chosen = MAPS.find((map) => map.name === mapField.select.value);
+      const chosen = MAPS.find((entry) => entry.name === mapField.select.value);
 
       if (chosen) {
-        runtime.restart(chosen);
+        restart(chosen);
       }
     },
     { signal: abortController.signal },
   );
-  handsField.select.addEventListener("change", () => runtime.setViewmodel(handsField.select.value as ViewmodelKind), {
+  handsField.select.addEventListener("change", () => renderer.setViewmodel(handsField.select.value as ViewmodelKind), {
     signal: abortController.signal,
   });
-  torch.input.addEventListener("change", () => runtime.setTorchEnabled(torch.input.checked), {
+  torch.input.addEventListener("change", () => renderer.setTorchEnabled(torch.input.checked), {
     signal: abortController.signal,
   });
-  grain.input.addEventListener("change", () => runtime.setGrain(grain.input.checked), {
+  grain.input.addEventListener("change", () => renderer.setGrain(grain.input.checked), {
     signal: abortController.signal,
   });
-  restartButton.addEventListener("click", () => runtime.restart(), { signal: abortController.signal });
-  killButton.addEventListener("click", () => runtime.killEverything(), { signal: abortController.signal });
-  fillButton.addEventListener("click", () => runtime.fillCrowd(), { signal: abortController.signal });
-  arenaButton.addEventListener("click", () => runtime.flatten(), { signal: abortController.signal });
+  restartButton.addEventListener("click", () => restart(), { signal: abortController.signal });
+  killButton.addEventListener("click", killEverything, { signal: abortController.signal });
+  fillButton.addEventListener("click", fillCrowd, { signal: abortController.signal });
+  arenaButton.addEventListener("click", () => flattenFloorForTesting(world), { signal: abortController.signal });
 
-  runtime.canvas.addEventListener(
+  renderer.canvas.addEventListener(
     "mousedown",
     (event) => {
       if (!locked()) {
-        void runtime.canvas.requestPointerLock();
+        void renderer.canvas.requestPointerLock();
         return;
       }
 
       event.preventDefault();
 
       if (event.button === 0) {
-        runtime.strike();
+        primaryAction(world);
         return;
       }
 
       if (event.button === 2) {
-        runtime.grab();
+        grabAction(world);
       }
     },
     { signal: abortController.signal },
   );
-  runtime.canvas.addEventListener("contextmenu", (event) => event.preventDefault(), {
+  renderer.canvas.addEventListener("contextmenu", (event) => event.preventDefault(), {
     signal: abortController.signal,
   });
 
   // The world holds still whenever nobody has the mouse, which is what makes the picture safe to
   // walk away from: bodies stop deciding, timers stop running, and the floor is where it was left.
-  document.addEventListener("pointerlockchange", () => runtime.setPaused(!locked()), {
-    signal: abortController.signal,
-  });
-  runtime.setPaused(true);
+  document.addEventListener(
+    "pointerlockchange",
+    () => {
+      paused = !locked();
+      releaseKeys();
+    },
+    { signal: abortController.signal },
+  );
 
   document.addEventListener(
     "mousemove",
     (event) => {
-      if (locked()) {
-        runtime.look(event.movementX, event.movementY);
+      if (!locked()) {
+        return;
       }
+
+      const player = world.player;
+      const turned = player.angle + event.movementX * MOUSE_SENSITIVITY;
+      player.angle = turned - Math.PI * 2 * Math.floor(turned / (Math.PI * 2));
+      // Raw device counts, drained by the frame. Vertical counts half: looking up and down is a
+      // smaller part of what makes a fast turn uncomfortable than sweeping the view across a room.
+      turnInput += Math.abs(event.movementX) + Math.abs(event.movementY) * 0.5;
+      // Clamped symmetrically, because a perspective camera has none of the one-sided smearing the
+      // raycaster's pitch shear has. The play surface clamps its own look asymmetrically for exactly
+      // that reason; which of the two survives is that surface's question, asked when it starts
+      // driving this renderer.
+      player.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, player.pitch - event.movementY * MOUSE_SENSITIVITY));
     },
     { signal: abortController.signal },
   );
@@ -264,28 +447,41 @@ function mountThreeScene(content: HTMLElement): void {
         return;
       }
 
-      const key = event.key.toLowerCase();
+      const binding = MOVEMENT_KEYS[event.key.toLowerCase()];
 
       // Only the keys the walk reads are swallowed; everything else still reaches the page, so the
       // debug shell's own navigation keeps working while the pointer is held.
-      if (["w", "a", "s", "d"].includes(key)) {
+      if (binding) {
         event.preventDefault();
-        runtime.holdKey(key, true);
+        input[binding] = true;
       }
     },
     { signal: abortController.signal },
   );
 
-  window.addEventListener("keyup", (event) => runtime.holdKey(event.key.toLowerCase(), false), {
-    signal: abortController.signal,
-  });
-  window.addEventListener("blur", () => runtime.releaseKeys(), { signal: abortController.signal });
+  window.addEventListener(
+    "keyup",
+    (event) => {
+      const binding = MOVEMENT_KEYS[event.key.toLowerCase()];
+
+      if (binding) {
+        input[binding] = false;
+      }
+    },
+    { signal: abortController.signal },
+  );
+  window.addEventListener("blur", releaseKeys, { signal: abortController.signal });
+
+  faceOpenGround();
+  publish();
+  animationFrame = requestAnimationFrame(tick);
 
   window.addEventListener(
     "pagehide",
     () => {
       abortController.abort();
-      runtime.dispose();
+      cancelAnimationFrame(animationFrame);
+      renderer.dispose();
     },
     { once: true },
   );

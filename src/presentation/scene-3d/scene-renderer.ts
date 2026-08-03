@@ -1,5 +1,5 @@
 /**
- * The floor, drawn and played.
+ * The floor, drawn.
  *
  * Everything atmospheric is decided here and in `scene-lighting.ts`: the field of view, the light
  * list, the pixel grain, and the camera's own reactions. What this file no longer holds is a
@@ -7,26 +7,16 @@
  * session found the result too dark and too cold, and the answer turned out to be that the shipped
  * renderer has no physical model to approximate. It has analytic formulas, and they are shaders now.
  *
- * The world is the game's own. It is created and stepped exactly as the play surface steps it, and
- * nothing here writes to it except the player's input — so what is on screen is the real simulation
- * with a different pair of eyes on it, which is the only arrangement in which the comparison means
- * anything.
+ * What it also no longer holds is the game. It once created a world, stepped it, read the keyboard
+ * and drove itself off the frame clock, because a debug tool has nobody to hand those to. It is
+ * handed a world and a time step now and draws them, which is the shape the play surface already
+ * knows how to talk to — and it keeps no reference to that world between calls, because a second
+ * authority over the same state is a bug that only shows up on the frame the two disagree.
  */
 
 import * as THREE from "three";
 
-import { GAME_CATALOG } from "@/content/catalog";
-import { grabAction, primaryAction } from "@/core/actions";
-import {
-  createWorld,
-  crowdHere,
-  flattenFloorForTesting,
-  killEnemy,
-  spawnReinforcement,
-  type World,
-} from "@/core/world";
-import { stepWorld } from "@/core/simulation";
-import type { ResolvedMap } from "@/core/map-contract";
+import type { World } from "@/core/world";
 
 import { createFinishingPass, type FinishingPass } from "./finishing-pass";
 import { collectFloorDecals } from "./floor-decals";
@@ -72,57 +62,39 @@ const TORCH_INTENSITY = 1.35;
  */
 const GRAIN_SCALE = 0.5;
 
-const MOUSE_SENSITIVITY = 0.0026;
-const MAX_PITCH = 1.45;
-
-/**
- * Mouse counts per second that read as a full-speed turn, for the comfort vignette.
- *
- * Smoothed rising fast and falling slowly, so the frame does not breathe every time the mouse pauses
- * mid-sweep. Both numbers are the play surface's; the effect is slight by design and tuning it here
- * would be tuning it against a different pair of hands.
- */
-const FULL_TURN_RATE = 2600;
-const TURN_RISE = 0.4;
-const TURN_FALL = 0.06;
+/** Scratch for the screen projection, so asking where a point landed allocates nothing. */
+const PROJECTED = new THREE.Vector3();
 
 /** The colour the way down is picked out in once it opens, seen through whatever stands in front. */
 const EXIT_MARKER_COLOR = 0x8affbe;
 
-const MOVEMENT_KEYS: Readonly<Record<string, "forward" | "backward" | "strafeLeft" | "strafeRight">> = {
-  w: "forward",
-  s: "backward",
-  a: "strafeLeft",
-  d: "strafeRight",
-};
-
-export type SceneStatus = Readonly<{
-  cell: string;
-  fps: number;
-  triangles: number;
-  drawCalls: number;
-  bodies: number;
-  hp: string;
+/**
+ * What a frame needs that cannot be read off the world.
+ *
+ * Both are the caller's because both are properties of how the picture is being driven rather than of
+ * what is being drawn: how much time this frame covers, and how hard the hands are turning the view.
+ */
+export type SceneFrame = Readonly<{
+  /** Seconds to advance animation that runs on its own clock. Zero holds every such animation still. */
+  deltaSeconds: number;
+  /** How hard the view is turning, from nothing to a full-speed sweep, for the comfort vignette. */
+  turnRate: number;
 }>;
 
-type RuntimeCallbacks = Readonly<{
-  onStatus(status: SceneStatus): void;
-}>;
+/** What the renderer cost to draw the last frame, for whoever is showing a diagnostic readout. */
+export type SceneMetrics = Readonly<{ drawCalls: number; triangles: number }>;
 
-export class SceneRuntime {
-  private animationFrame = 0;
+/** Where a world point landed on screen, in the canvas's own pixels. */
+export type ScenePoint = Readonly<{ screenX: number; screenY: number }>;
+
+export class SceneRenderer {
   private readonly bodies: WorldBodies;
   private readonly camera: THREE.PerspectiveCamera;
   private disposed = false;
   private readonly effects: WorldEffects;
-  private floor: FloorMeshes;
+  private floor: FloorMeshes | undefined;
   private readonly floorStains: FloorStains;
   private grain = true;
-  private frameCount = 0;
-  private readonly input = { forward: false, backward: false, strafeLeft: false, strafeRight: false };
-  private lastFrameTime = performance.now();
-  private metricsElapsed = 0;
-  private paused = false;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly resizeObserver: ResizeObserver;
   private readonly scene = new THREE.Scene();
@@ -133,19 +105,13 @@ export class SceneRuntime {
   private readonly textures: SceneTextureSet;
   private readonly exitMarker: THREE.Mesh;
   private readonly finishing: FinishingPass;
+  /** What the floor's geometry was built from, so it is rebuilt when the rules change either. */
   private terrainVersion = -1;
+  private floorExtent = "";
   private torchEnabled = true;
-  /** Mouse counts since the last frame, and the smoothed rate the comfort vignette reads. */
-  private turnInput = 0;
-  private turnRate = 0;
   private readonly viewmodel: Viewmodel;
-  private world: World;
 
-  constructor(
-    private readonly viewport: HTMLElement,
-    private map: ResolvedMap,
-    private readonly callbacks: RuntimeCallbacks,
-  ) {
+  constructor(private readonly viewport: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     // No tone mapping, and its absence is deliberate: the shipped formulas clamp where they mean to,
@@ -163,14 +129,6 @@ export class SceneRuntime {
     // No scene fog either. Distance darkening lives inside each formula and is tinted per surface
     // class, so a fog laid over the top would darken the sky and the fittings along with the walls.
 
-    this.world = createWorld(map, GAME_CATALOG);
-    // Before the floor is built, because every floor material is handed the blood grid when it is
-    // created and a material pointed at an empty one would keep reading the empty one.
-    this.syncStains();
-    this.floor = buildFloorMeshes(this.world.maze, this.textures, this.lighting);
-    this.terrainVersion = this.world.terrainVersion;
-    this.scene.add(this.floor.root);
-
     this.bodies = createWorldBodies(this.lighting);
     this.structures = createWorldStructures(this.lighting);
     this.effects = createWorldEffects(this.lighting);
@@ -187,30 +145,12 @@ export class SceneRuntime {
 
     this.exitMarker = createExitMarker();
     this.scene.add(this.exitMarker);
-    this.faceOpenGround();
 
-    // Development-only handle, the same arrangement the block preview and the play surface both use:
-    // a picture taken from wherever the mouse happened to be left is not comparable with the last
-    // one, and judging a floor means standing in the same spot twice.
-    (window as unknown as Record<string, unknown>).__sceneRuntime = this;
-
+    // Nothing here reads a world, and nothing may: this is built before any world exists. The floor
+    // arrives on the first render, keyed on what that world's own counters say it should be.
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.viewport);
     this.resize();
-    this.animationFrame = requestAnimationFrame(this.frame);
-  }
-
-  /** The world the floor is running, so a development session can pose it and look at the result. */
-  get inspected(): World {
-    return this.world;
-  }
-
-  /** Stands the eye somewhere and points it, for a picture taken from a chosen place. */
-  stand(x: number, y: number, angle: number, pitch = 0): void {
-    this.world.player.x = x;
-    this.world.player.y = y;
-    this.world.player.angle = angle;
-    this.world.player.pitch = pitch;
   }
 
   dispose(): void {
@@ -219,7 +159,6 @@ export class SceneRuntime {
     }
 
     this.disposed = true;
-    cancelAnimationFrame(this.animationFrame);
     this.resizeObserver.disconnect();
     this.bodies.dispose();
     this.structures.dispose();
@@ -228,7 +167,7 @@ export class SceneRuntime {
     this.viewmodel.dispose();
     this.exitMarker.geometry.dispose();
     (this.exitMarker.material as THREE.Material).dispose();
-    this.floor.dispose();
+    this.floor?.dispose();
     this.floorStains.dispose();
     this.sky.dispose();
     this.renderer.dispose();
@@ -239,17 +178,8 @@ export class SceneRuntime {
     return this.renderer.domElement;
   }
 
-  /** Starts the map again from its arrival, which is also how another map is opened. */
-  restart(map: ResolvedMap = this.map): void {
-    this.map = map;
-    this.world = createWorld(map, GAME_CATALOG);
-    this.rebuildFloor();
-    this.faceOpenGround();
-  }
-
-  setPaused(paused: boolean): void {
-    this.paused = paused;
-    this.releaseKeys();
+  get metrics(): SceneMetrics {
+    return { drawCalls: this.renderer.info.render.calls, triangles: this.floor ? triangleCount(this.floor) : 0 };
   }
 
   /** Which pair of hands is on screen, or neither. */
@@ -268,74 +198,93 @@ export class SceneRuntime {
     this.resize();
   }
 
-  /** Empties the floor through the ordinary exit, so every death happens exactly as it does in play. */
-  killEverything(): void {
-    for (const enemy of this.world.enemies.slice()) {
-      killEnemy(this.world, enemy);
+  /**
+   * Where a point in the world lands on screen, or nothing when it is behind the eye.
+   *
+   * Answered from the camera the last frame left in place, so a caller asks after rendering rather
+   * than before. The one thing that wants this is the first-person layer, which aims the arc of a
+   * swing at the point the swing actually reached.
+   */
+  project(point: Readonly<{ x: number; y: number; z: number }>): ScenePoint | undefined {
+    PROJECTED.set(point.x, point.z, point.y).project(this.camera);
+
+    if (PROJECTED.z > 1) {
+      return undefined;
     }
+
+    return {
+      screenX: (PROJECTED.x * 0.5 + 0.5) * this.renderer.domElement.width,
+      screenY: (-PROJECTED.y * 0.5 + 0.5) * this.renderer.domElement.height,
+    };
   }
 
   /**
-   * Takes the masonry down, which is the game's own arena key.
+   * Draws one frame of a world somebody else owns and somebody else stepped.
    *
-   * The frame-rate worst case and the body-judging case at once: nothing occludes anything, so a
-   * crowd is all visible at the distance a fight happens at rather than one body at a time round a
-   * corner.
+   * Nothing here writes to the world. Everything derived from it — the floor's geometry, the blood
+   * grid, the light list, the marks on the ground — is read fresh or rebuilt against the world's own
+   * version counters, so handing over a different world than last frame is answered correctly rather
+   * than quietly.
    */
-  flatten(): void {
-    flattenFloorForTesting(this.world);
-  }
-
-  /** Refills the floor to the cap it fills itself to, without waiting out the reinforcement timer. */
-  fillCrowd(): void {
-    while (this.world.enemies.length < crowdHere(this.world).cap) {
-      if (!spawnReinforcement(this.world)) {
-        break;
-      }
+  render(world: World, frame: SceneFrame): void {
+    if (this.disposed) {
+      return;
     }
-  }
 
-  holdKey(key: string, held: boolean): void {
-    const binding = MOVEMENT_KEYS[key];
+    this.syncStains(world);
 
-    if (binding) {
-      this.input[binding] = held;
+    const extent = `${world.maze.width}x${world.maze.height}`;
+
+    if (!this.floor || world.terrainVersion !== this.terrainVersion || extent !== this.floorExtent) {
+      // A wall came down, a pool closed over, or this is a different floor entirely. Rebuilt whole,
+      // because it takes about a millisecond and happens a dozen times a floor.
+      this.rebuildFloor(world);
     }
+
+    const player = world.player;
+    const elapsed = world.elapsedSeconds;
+    // Every camera hitch the rules raise, in the same terms the Canvas scene builder reads them: a
+    // detonation nearby, the weight of something thrown or landed, and the tap of a connected swing.
+    // Applied as a real pitch here rather than as the horizon shear a column raycaster is limited to.
+    const kick = blastKick(world) + weightKick(world) + meleeImpactPitch(world.impact);
+    this.camera.position.set(player.x, EYE_HEIGHT, player.y);
+    this.camera.rotation.set(player.pitch + kick, -player.angle - Math.PI / 2, 0);
+
+    this.sky.root.position.set(player.x, 0, player.y);
+    this.lighting.update(elapsed, this.collectLights(world, elapsed));
+    this.lighting.updateDecals(collectFloorDecals(world));
+
+    this.bodies.sync(world, elapsed, frame.deltaSeconds);
+    this.structures.sync(world);
+    this.effects.sync(world);
+    this.viewmodel.sync(world);
+
+    this.finishing.draw({
+      cameraAngle: player.angle,
+      cameraX: player.x,
+      cameraY: player.y,
+      elapsedSeconds: elapsed,
+      hitFlash: world.hitFlash,
+      turnRate: frame.turnRate,
+    });
+
+    // The one thing on a floor still drawn through a wall, and only once the descent is unlocked.
+    this.exitMarker.visible = world.maze.progress.main.met;
+    this.exitMarker.position.set(world.maze.exit.x + 0.5, 1.2, world.maze.exit.y + 0.5);
+    this.exitMarker.rotation.y = elapsed * 0.9;
+
+    this.renderer.render(this.scene, this.camera);
   }
 
-  releaseKeys(): void {
-    this.input.forward = false;
-    this.input.backward = false;
-    this.input.strafeLeft = false;
-    this.input.strafeRight = false;
-  }
+  private rebuildFloor(world: World): void {
+    if (this.floor) {
+      this.scene.remove(this.floor.root);
+      this.floor.dispose();
+    }
 
-  look(movementX: number, movementY: number): void {
-    const player = this.world.player;
-    const turned = player.angle + movementX * MOUSE_SENSITIVITY;
-    player.angle = turned - Math.PI * 2 * Math.floor(turned / (Math.PI * 2));
-    // Raw device counts, drained by the frame. Vertical counts half: looking up and down is a smaller
-    // part of what makes a fast turn uncomfortable than sweeping the view across a room.
-    this.turnInput += Math.abs(movementX) + Math.abs(movementY) * 0.5;
-    // A real camera pitch rather than the raycaster's screen shear, which is the one thing a
-    // perspective projection gets for free and the column renderer can never have.
-    player.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, player.pitch - movementY * MOUSE_SENSITIVITY));
-  }
-
-  strike(): void {
-    primaryAction(this.world);
-  }
-
-  grab(): void {
-    grabAction(this.world);
-  }
-
-  private rebuildFloor(): void {
-    this.scene.remove(this.floor.root);
-    this.floor.dispose();
-    this.syncStains();
-    this.floor = buildFloorMeshes(this.world.maze, this.textures, this.lighting);
-    this.terrainVersion = this.world.terrainVersion;
+    this.floor = buildFloorMeshes(world.maze, this.textures, this.lighting);
+    this.terrainVersion = world.terrainVersion;
+    this.floorExtent = `${world.maze.width}x${world.maze.height}`;
     this.scene.add(this.floor.root);
   }
 
@@ -345,57 +294,10 @@ export class SceneRuntime {
    * The re-pointing is the part that is easy to miss: descending builds a differently sized grid, and
    * a floor still holding the old texture would draw the previous floor's carnage on this one.
    */
-  private syncStains(): void {
-    if (this.floorStains.sync(this.world)) {
-      this.lighting.setStainGrid(
-        this.floorStains.texture,
-        this.floorStains.blood,
-        this.world.maze.width,
-        this.world.maze.height,
-      );
+  private syncStains(world: World): void {
+    if (this.floorStains.sync(world)) {
+      this.lighting.setStainGrid(this.floorStains.texture, this.floorStains.blood, world.maze.width, world.maze.height);
     }
-  }
-
-  /**
-   * Turns the arrival to face whichever way sees furthest.
-   *
-   * The position is the game's own — the rules put the player on the entrance. The heading is not,
-   * because the game has no opening heading and an arbitrary one lands against masonry about as often
-   * as not: an experiment whose first frame is a wall face at arm's length reads as a broken renderer
-   * for the second it takes to turn around, and this one is opened to be looked at.
-   */
-  private faceOpenGround(): void {
-    const maze = this.world.maze;
-    const player = this.world.player;
-    let bestAngle = player.angle;
-    let bestRun = -1;
-
-    for (let step = 0; step < 32; step += 1) {
-      const angle = (step / 32) * Math.PI * 2;
-      const stepX = Math.cos(angle);
-      const stepY = Math.sin(angle);
-      let run = 0;
-
-      while (run < 24) {
-        const cellX = Math.floor(player.x + stepX * (run + 0.5));
-        const cellY = Math.floor(player.y + stepY * (run + 0.5));
-        const tile = maze.tiles[cellY * maze.width + cellX];
-
-        if (!tile || (tile.kind !== "open" && tile.kind !== "filled")) {
-          break;
-        }
-
-        run += 0.5;
-      }
-
-      if (run > bestRun) {
-        bestRun = run;
-        bestAngle = angle;
-      }
-    }
-
-    player.angle = bestAngle;
-    player.pitch = 0;
   }
 
   /**
@@ -406,9 +308,9 @@ export class SceneRuntime {
    * uniform array read by a loop, so the limit is gone and with it the bodies that went dark as the
    * player walked away from a lamp.
    */
-  private collectLights(elapsedSeconds: number): readonly SceneLight[] {
+  private collectLights(world: World, elapsedSeconds: number): readonly SceneLight[] {
     this.lights.length = 0;
-    const player = this.world.player;
+    const player = world.player;
 
     if (this.torchEnabled) {
       // The torch's own tremor: one fast term and one slow, so it never settles into a readable pulse.
@@ -422,7 +324,7 @@ export class SceneRuntime {
       });
     }
 
-    for (const light of this.structures.lights(this.world, elapsedSeconds)) {
+    for (const light of this.structures.lights(world, elapsedSeconds)) {
       this.lights.push({
         x: light.x,
         y: light.y,
@@ -434,11 +336,11 @@ export class SceneRuntime {
 
     // What is currently dangerous also lights the room: a shell in the air, and an emplacement's
     // muzzle coming up to heat. Both are cues a player learns to read from the light alone.
-    for (const hazard of this.world.hazards) {
+    for (const hazard of world.hazards) {
       this.lights.push({ x: hazard.x, y: hazard.y, radius: 2.6, intensity: 0.8, color: [255, 96, 72] });
     }
 
-    for (const mortar of this.world.mortars) {
+    for (const mortar of world.mortars) {
       if (mortar.phase !== "locked") {
         continue;
       }
@@ -452,8 +354,8 @@ export class SceneRuntime {
       });
     }
 
-    this.collectWindupLights(elapsedSeconds);
-    this.collectVfxLights();
+    this.collectWindupLights(world, elapsedSeconds);
+    this.collectVfxLights(world);
     return this.lights;
   }
 
@@ -468,8 +370,8 @@ export class SceneRuntime {
    * holds still for three seconds, which is long enough to miss entirely, so it lights the walls and a
    * charge being stoked behind you becomes something the room tells you about.
    */
-  private collectWindupLights(elapsedSeconds: number): void {
-    for (const enemy of this.world.enemies) {
+  private collectWindupLights(world: World, elapsedSeconds: number): void {
+    for (const enemy of world.enemies) {
       if (enemy.windupSeconds <= 0) {
         continue;
       }
@@ -511,8 +413,8 @@ export class SceneRuntime {
   }
 
   /** What a detonation and a lightning arc throw onto everything around them while they last. */
-  private collectVfxLights(): void {
-    for (const effect of this.world.vfx) {
+  private collectVfxLights(world: World): void {
+    for (const effect of world.vfx) {
       const life = Math.min(1, effect.age / effect.life);
 
       if (effect.kind === "blast") {
@@ -535,89 +437,6 @@ export class SceneRuntime {
       });
     }
   }
-
-  private readonly frame = (time: number): void => {
-    if (this.disposed) {
-      return;
-    }
-
-    const delta = Math.min((time - this.lastFrameTime) / 1000, 0.05);
-    this.lastFrameTime = time;
-
-    if (!this.paused) {
-      stepWorld(this.world, this.input, delta);
-    }
-
-    // Cues are drained rather than played: this experiment carries no audio, and leaving them to
-    // accumulate would grow an array nobody empties for as long as the tab is open.
-    this.world.sfxCues.length = 0;
-
-    if (this.world.terrainVersion !== this.terrainVersion) {
-      // A wall came down or a pool closed over, and the floor's geometry is stale. Rebuilt whole,
-      // because it takes about a millisecond and happens a dozen times a floor.
-      this.rebuildFloor();
-    }
-
-    const player = this.world.player;
-    const elapsed = this.world.elapsedSeconds;
-    // Every camera hitch the rules raise, in the same terms the Canvas scene builder reads them: a
-    // detonation nearby, the weight of something thrown or landed, and the tap of a connected swing.
-    // Applied as a real pitch here rather than as the horizon shear a column raycaster is limited to.
-    const kick = blastKick(this.world) + weightKick(this.world) + meleeImpactPitch(this.world.impact);
-    this.camera.position.set(player.x, EYE_HEIGHT, player.y);
-    this.camera.rotation.set(player.pitch + kick, -player.angle - Math.PI / 2, 0);
-
-    this.sky.root.position.set(player.x, 0, player.y);
-    this.lighting.update(elapsed, this.collectLights(elapsed));
-    this.lighting.updateDecals(collectFloorDecals(this.world));
-    this.syncStains();
-
-    this.bodies.sync(this.world, elapsed, this.paused ? 0 : delta);
-    this.structures.sync(this.world);
-    this.effects.sync(this.world);
-    this.viewmodel.sync(this.world);
-
-    if (delta > 0.0005) {
-      // Rises quickly and falls slowly, so the frame does not breathe every time the mouse pauses.
-      const instant = Math.min(1, this.turnInput / delta / FULL_TURN_RATE);
-      this.turnRate += (instant - this.turnRate) * (instant > this.turnRate ? TURN_RISE : TURN_FALL);
-    }
-
-    this.turnInput = 0;
-    this.finishing.draw({
-      cameraAngle: player.angle,
-      cameraX: player.x,
-      cameraY: player.y,
-      elapsedSeconds: elapsed,
-      hitFlash: this.world.hitFlash,
-      turnRate: this.turnRate,
-    });
-
-    // The one thing on a floor still drawn through a wall, and only once the descent is unlocked.
-    this.exitMarker.visible = this.world.maze.progress.main.met;
-    this.exitMarker.position.set(this.world.maze.exit.x + 0.5, 1.2, this.world.maze.exit.y + 0.5);
-    this.exitMarker.rotation.y = elapsed * 0.9;
-
-    this.renderer.render(this.scene, this.camera);
-
-    this.frameCount += 1;
-    this.metricsElapsed += delta;
-
-    if (this.metricsElapsed >= 0.4) {
-      this.callbacks.onStatus({
-        bodies: this.world.enemies.length,
-        cell: `${Math.floor(player.x)}, ${Math.floor(player.y)}`,
-        drawCalls: this.renderer.info.render.calls,
-        fps: Math.round(this.frameCount / this.metricsElapsed),
-        hp: `${Math.max(0, Math.round(player.hp))} / ${player.maxHp}`,
-        triangles: triangleCount(this.floor),
-      });
-      this.metricsElapsed = 0;
-      this.frameCount = 0;
-    }
-
-    this.animationFrame = requestAnimationFrame(this.frame);
-  };
 
   private resize(): void {
     const width = Math.max(1, this.viewport.clientWidth);
