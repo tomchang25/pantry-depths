@@ -23,7 +23,7 @@ import { bodyFootprint, projectileHeight, type Death, type Enemy, type World } f
 import type { SceneLighting } from "./scene-lighting";
 import { createSceneSprites, WARN_BLADE_STEPS, type SceneSpriteId } from "./scene-sprites";
 
-import blockUrl from "./assets/skeleton-blocky.glb?url";
+import blockUrl from "@/content/enemies/assets/skeleton-blocky.glb?url";
 import { HOLDING_CLIPS, type BlockClip, type BlockWeapon } from "./block-clips";
 
 /** Which weapon each skeleton carries, and therefore which mesh is left visible in its hand. */

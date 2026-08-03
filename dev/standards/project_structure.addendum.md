@@ -30,7 +30,7 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 | `src/app/`          | Present   | Route boundary, bootstrap, and the debug tool surface. The ordinary route mounts the demo surface.                                                                                                     |
 | `src/core/`         | Present   | The rules: contracts and vocabulary, floor assembly, the world and its tick, the minds, actions, impacts, extraction, progression state. Reads authored tables only through the injected game catalog. |
 | `src/content/`      | Present   | Authored data by feature: maps, rooms, enemies, combat tables, sfx, presentation assets, viewmodel definitions.                                                                                        |
-| `src/presentation/` | Present   | Earned by the renderer port: the Canvas 2D raycaster, procedural textures, the image loader, and the audio stack.                                                                                      |
+| `src/presentation/` | Present   | Earned by the renderer port: the Canvas 2D raycaster, procedural textures, the image loader, the audio stack, and the Three.js runtime in `scene-3d/` that is replacing the raycaster.                 |
 | `src/runtime/`      | Present   | The frame loop, input, mounting, the cue drain, the stage dressing, and the address-bar map question.                                                                                                  |
 | `src/ui/`           | Present   | The plain-DOM HUD, its icons, and its stylesheet — see the No React deviation above.                                                                                                                   |
 | `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                                                                                                                |
@@ -47,7 +47,13 @@ Import directions, machine-checked by the boundary rules:
 - `src/demo/` imports itself, `src/presentation/`, `src/content/`, and `src/core/`, and nothing else in `src/`.
 - Nothing imports `src/demo/` except `src/runtime/`, which draws through it, and `src/app/`'s debug workbenches, which inspect it.
 
-The declaration and the rules retire with the tree itself, when the 3D runtime decision replaces the projection half.
+The declaration and the rules retire with the tree itself. That is now scheduled rather than hypothetical: the 3D runtime decision came back viable on 2026-08-03, and the graduation plan deletes this tree once the surface draws through the new runtime and the workbenches that inspect this one have moved.
+
+## Two Renderers, Briefly
+
+`src/presentation/` holds two renderers at once while the graduation runs: the Canvas 2D raycaster the game still draws through, and the Three.js runtime in `src/presentation/scene-3d/` that will replace it. Each brings its own procedural surfaces and its own artwork, and both sets stay until the renderer that reads them is deleted — retiring either earlier would change the picture of whichever renderer lost its textures, which the graduation is not allowed to do between children.
+
+This is a declared temporary duplication with a scheduled end, not a commons. Neither renderer imports the other, and no third module may reach for whichever texture generator is nearer: the pairing of a renderer with the surfaces it was tuned against is the thing being kept intact.
 
 ## The Sandbox Tree
 

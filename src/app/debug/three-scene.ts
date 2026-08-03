@@ -1,13 +1,16 @@
+import { createDebugPage } from "@/app/debug/debug-shell";
 import { MAPS } from "@/content/maps/map-library";
 import type { ResolvedMap } from "@/core/map-contract";
+import { SceneRuntime } from "@/presentation/scene-3d/scene-runtime";
+import type { ViewmodelKind } from "@/presentation/scene-3d/viewmodel";
 
-import { SceneRuntime } from "./scene-runtime";
-import type { ViewmodelKind } from "./viewmodel";
-import "./three-scene.css";
+import "@/app/debug/three-scene.css";
 
 /**
- * What a run opens on when nothing else is named. Held as a literal because the runtime module that
- * owns this question belongs to a layer a sandbox experiment may not import.
+ * What a run opens on when nothing else is named.
+ *
+ * Still a literal, though the reason has changed: the runtime module that owns this question lives
+ * in `src/runtime/`, which the debug layer has no business reaching into for one default.
  */
 const DEFAULT_MAP_NAME = "pantry-depths";
 
@@ -58,14 +61,26 @@ function createButton(labelText: string): HTMLButtonElement {
   return button;
 }
 
-export const THREE_SCENE_EXPERIMENT = {
-  title: "Three.js Floor",
-  description:
-    "The real floor and the real simulation, drawn with Three.js under the shipped renderer's own light formulas: masonry, ground, the open night sky, the torch, block skeletons, the fittings, the dust, and the arm the game already had. Click the view to take the mouse, then play it — this is where the atmosphere is judged, frame against frame with a recording of the real thing.",
-  pageClass: "three-scene",
-  width: "wide",
-  mount: mountThreeScene,
-} as const;
+/**
+ * The page this tool draws itself.
+ *
+ * It went through the sandbox adapter while the runtime lived in `src/sandbox/`, because an
+ * experiment there may not reach the debug shell and had to describe the page it wanted instead.
+ * The runtime is a presentation module now and this file is an ordinary debug tool, so it asks for
+ * the shell directly like every workbench beside it.
+ */
+export function renderThreeScene(mount: HTMLElement): void {
+  const { page, content } = createDebugPage({
+    title: "Three.js Floor",
+    description:
+      "The real floor and the real simulation, drawn with Three.js under the shipped renderer's own light formulas: masonry, ground, the open night sky, the torch, block skeletons, the fittings, the dust, and the arm the game already had. Click the view to take the mouse, then play it — this is where the atmosphere is judged, frame against frame with a recording of the real thing.",
+    width: "wide",
+  });
+
+  page.classList.add("three-scene");
+  mountThreeScene(content);
+  mount.replaceChildren(page);
+}
 
 function mountThreeScene(content: HTMLElement): void {
   const abortController = new AbortController();

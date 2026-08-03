@@ -11,7 +11,7 @@ Make the Three.js runtime the way the game is drawn, and delete the two things i
 1. The shipped game draws through the new runtime and nothing else. Not two renderers behind a preference — a switch means every future change to the picture is made twice and judged never, which is the cost the spike was run to avoid paying permanently.
 2. Nothing a player does changes: the same keys, the same mouse handling, the same pause, the same run flow, the same sounds, the same readouts. This is a change of what draws, not of what plays.
 3. Sound, readouts, pointer handling, the run's own screens, the development instruments, and the filming stage keep their present owner. The runtime learns none of them — the experiment lacks all of them because it is a debug tool, and answering that by teaching the renderer would make the renderer the surface.
-4. Every copy the experiment made of a shipped module is retired in the same change that moves it: the procedural texture generators, the block skeleton asset and its clip and weapon names, and the sprite set. A graduation that keeps its copies leaves two owners for one picture, which is how the two drift apart.
+4. Every copy the experiment made of a shipped module is retired before the plan ends: the procedural texture generators, the block skeleton asset and its clip and weapon names, and the sprite set. A graduation that keeps its copies leaves two owners for one picture, which is how the two drift apart. **Corrected 2026-08-03**: this originally said "in the same change that moves it", which the first child proved impossible — two of the three copies are read by the renderer this plan has not deleted yet, so retiring them early would change what that renderer draws and break the criterion that the game plays identically after every child. Each copy is retired in the child that deletes its last reader; the block armature, which has no such reader, moved with the code.
 5. The interim projection layer and the ray-marched renderer are deleted rather than left dormant. Dormant code that once drew the game is the most convincing wrong answer a later reader can find.
 6. Every development surface that inspects the interim projection either works against the new runtime afterwards or is retired with its reason recorded. There are six of them and they are the only reason the deletion is not a single change.
 7. The game stays judged by playing. No new tests of any kind, and no pixel comparison promoted into a gate.
@@ -42,14 +42,14 @@ The porting survey separated absent from reduced. Everything absent is the spike
 
 ### Children
 
-| #   | Child                          | Focus                                                                                                                 | Form            |
-| --- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------- |
-| 1   | The move                       | The experiment folder becomes a presentation-layer module; every copy is retired; boundary rules follow it            | Execution below |
-| 2   | The runtime stops owning play  | Frame loop, input and world ownership leave the runtime; it becomes something handed a world and a step               | Execution below |
-| 3   | The seam                       | The four drawing calls swap; the surface's own halves are rewired to the new runtime                                  | Execution below |
-| 4   | The ways of dying              | Six death causes get their own treatment again; the soft-body regression is recorded                                  | Execution below |
-| 5   | The workbenches and demolition | Six development surfaces migrate or retire; the interim projection and the ray-marched renderer are deleted           | Execution below |
-| 6   | The fidelity tail              | Structure detail, hold-driven room lights, swing aim, the waterline cut, and the wall materials the baked floors need | Execution below |
+| #   | Child                          | Focus                                                                                                                 | Form                                                        |
+| --- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 1   | The move                       | The experiment folder becomes a presentation-layer module; the armature becomes content; boundary rules follow it     | `three_scene_graduation_01_the_move.implementation_spec.md` |
+| 2   | The runtime stops owning play  | Frame loop, input and world ownership leave the runtime; it becomes something handed a world and a step               | Execution below                                             |
+| 3   | The seam                       | The four drawing calls swap; the surface's own halves are rewired to the new runtime                                  | Execution below                                             |
+| 4   | The ways of dying              | Six death causes get their own treatment again; the soft-body regression is recorded                                  | Execution below                                             |
+| 5   | The workbenches and demolition | Six development surfaces migrate or retire; the interim projection and the ray-marched renderer are deleted           | Execution below                                             |
+| 6   | The fidelity tail              | Structure detail, hold-driven room lights, swing aim, the waterline cut, and the wall materials the baked floors need | Execution below                                             |
 
 Landing order is the table order and only two swaps are safe: 4 may precede 3, and 6 may precede 5. Nothing else moves. Child 2 must precede 3 because the seam has nothing to call otherwise; 5 must follow 3 because it deletes the path the game would otherwise fall back to; and 5 must follow 4 because deleting the old renderer while the corpses are still a single lump throws away the reference the corpse work is judged against.
 

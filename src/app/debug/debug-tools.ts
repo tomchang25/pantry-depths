@@ -20,10 +20,7 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
     title: "Three.js Floor",
     description:
       "Walk a real authored floor drawn with Three.js, and judge whether the masonry, the night sky, the fog and the torch survive the move off the raycaster.",
-    load: () =>
-      import("@/sandbox/three-scene/three-scene").then(({ THREE_SCENE_EXPERIMENT }) => ({
-        render: mountSandboxExperiment(THREE_SCENE_EXPERIMENT),
-      })),
+    load: () => import("@/app/debug/three-scene").then(({ renderThreeScene }) => ({ render: renderThreeScene })),
   },
   {
     id: "three-block",
