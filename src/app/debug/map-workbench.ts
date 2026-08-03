@@ -25,7 +25,8 @@ import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
 import { createFloorPreview } from "@/app/debug/floor-preview";
 import { createRoomSurface } from "@/app/debug/room-workbench";
 import { resolveMap } from "@/content/maps/map-resolver";
-import { MAP_SLOTS, parseMapSource, type MapSlot, type MapSource } from "@/content/maps/map-schema";
+import { parseMapSource, type MapSource } from "@/content/maps/map-schema";
+import { MAP_SLOTS, type MapSlot } from "@/core/map-contract";
 import { ROOM_LIBRARY } from "@/content/maps/room-library";
 import { createDemoWorld, type DemoWorld } from "@/demo/world";
 

@@ -11,30 +11,12 @@
  * reader holding either of those would be guessing about a room it cannot see.
  */
 
-import type { MapSlot, MapSource } from "./map-schema";
-import { SIDE_SLOTS } from "./map-schema";
-import type { MapRoom } from "./room-schema";
+import { SIDE_SLOTS, type MapSlot, type ResolvedMap } from "@/core/map-contract";
+import type { MapRoom } from "@/core/room-contract";
+import type { MapSource } from "./map-schema";
 
 /** Every room a map may name, by the identity it names it with. */
 export type MapRoomLibrary = ReadonlyMap<string, MapRoom>;
-
-export type ResolvedPlacement = Readonly<{ slot: MapSlot; room: MapRoom }>;
-
-/**
- * A map with its rooms present, which is what assembles a floor.
- *
- * Structurally what a map has always been handed over as. The rooms arrive from the library rather than
- * from the file, and nothing downstream of here can tell the difference — deliberately, because the
- * whole of this change should be invisible to the floor builder.
- */
-export type ResolvedMap = Readonly<{
-  name: string;
-  width: number;
-  height: number;
-  fixed: readonly ResolvedPlacement[];
-  pool: readonly MapRoom[];
-  draw: number;
-}>;
 
 /**
  * Checks a side room against the region it hangs off.

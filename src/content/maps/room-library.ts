@@ -10,7 +10,8 @@
  * holds what it holds.
  */
 
-import { parseRoomSource, type MapRoom } from "./room-schema";
+import type { MapRoom } from "@/core/room-contract";
+import { parseRoomSource } from "./room-schema";
 
 const ROOM_SUFFIX = ".room.json";
 

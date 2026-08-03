@@ -9,7 +9,7 @@
  */
 
 import { createRenderPanel, type RenderPanel } from "@/app/debug/render-panel";
-import type { MapCastKind, MapTileKind } from "@/content/maps/room-schema";
+import type { MapCastKind, MapTileKind } from "@/core/room-contract";
 import { createDemoScene } from "@/demo/demo-scene";
 import { blocksVision } from "@/demo/maze";
 import type { DemoWorld } from "@/demo/world";

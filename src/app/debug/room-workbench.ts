@@ -25,18 +25,17 @@ import { CAST_COLOURS, createFloorPreview, TILE_COLOURS } from "@/app/debug/floo
 import { resolveMap } from "@/content/maps/map-resolver";
 import { parseMapSource } from "@/content/maps/map-schema";
 import { ROOM_LIBRARY } from "@/content/maps/room-library";
+import { parseRoomSource, unfillableEnclosesRegion } from "@/content/maps/room-schema";
 import {
   MAP_CAST_KINDS,
   MAP_ROOM_ROLES,
   MAP_TILE_KINDS,
-  parseRoomSource,
-  unfillableEnclosesRegion,
   type MapCastKind,
   type MapQuantity,
   type MapRoom,
   type MapTileKind,
-} from "@/content/maps/room-schema";
-import { PROP_KINDS, type PropKind } from "@/content/presentation/prop-display-schema";
+} from "@/core/room-contract";
+import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
 import { createDemoWorld, type DemoWorld } from "@/demo/world";
 
 /** The name the throwaway preview map wears. It is never written, and no file is ever called this. */

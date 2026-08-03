@@ -23,7 +23,7 @@
  */
 
 import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
-import type { MapCastKind } from "@/content/maps/room-schema";
+import type { MapCastKind } from "@/core/room-contract";
 import { DEFAULT_BODY_WEIGHT, type DemoThrowWeight } from "@/content/props/prop-definitions";
 
 /**

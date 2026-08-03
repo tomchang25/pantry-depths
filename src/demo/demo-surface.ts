@@ -8,7 +8,7 @@
 
 import "@/demo/demo-surface.css";
 
-import { PROP_KINDS } from "@/content/presentation/prop-display-schema";
+import { PROP_KINDS } from "@/core/prop-kinds";
 import { grabAction, primaryAction, PROP_LABELS } from "@/demo/actions";
 import {
   BLESS_CATALOG,

@@ -35,7 +35,7 @@ import {
   type DemoCrowd,
   type DemoMaze,
 } from "@/demo/maze";
-import type { ResolvedMap } from "@/content/maps/map-resolver";
+import type { ResolvedMap } from "@/core/map-contract";
 import type { SfxCueId } from "@/content/sfx/sfx-cue-definitions";
 import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/demo/particles";
 import type { DemoPropKind, DemoThrowKind } from "@/content/props/prop-definitions";

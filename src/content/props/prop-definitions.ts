@@ -26,7 +26,7 @@
  * each one is drawn validates against the same list. One list, two readers; a kind added there fails
  * to compile here until every behaviour table below covers it.
  */
-import type { PropKind } from "@/content/presentation/prop-display-schema";
+import type { PropKind } from "@/core/prop-kinds";
 
 export type DemoPropKind = PropKind;
 export type DemoThrowKind = DemoPropKind | "enemy";

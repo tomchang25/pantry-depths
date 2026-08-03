@@ -1,10 +1,8 @@
 /**
- * What kinds of loose object exist, and how each one is drawn where it lies.
+ * How each kind of loose object is drawn where it lies.
  *
- * The kind list lives here rather than beside the behaviour tables that consume it, because
- * `src/content/` may only import content and core — a validator in this layer cannot reach into the
- * demo for the union it is checking against. Keeping one list and having the demo alias it is the only
- * arrangement where a kind added later cannot be missing a display row and compile anyway.
+ * The kind list itself is core vocabulary (`@/core/prop-kinds`); this table validates against it, so a
+ * kind added there cannot be missing a display row and compile anyway.
  *
  * The numbers cover two of the three contexts a prop is drawn in: where it lies on the floor, and how it
  * sits in the hand. Each arrived with its own preview — the pickup on the prop workbench's tab, the hand
@@ -13,23 +11,7 @@
  * blind alongside two contexts that can be seen.
  */
 
-export const PROP_KINDS = [
-  "stick",
-  "rock",
-  "bomb",
-  "hammer",
-  "skeletonSword",
-  "skeletonSkull",
-  "skeletonFemur",
-  "skeletonFemurCracked",
-  "skeletonJavelin",
-  "skeletonJavelinCracked",
-  "crossbow",
-  "crossbowSpent",
-  "crossbowBolt",
-] as const;
-
-export type PropKind = (typeof PROP_KINDS)[number];
+import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
 
 export type PropDisplay = Readonly<{
   kind: PropKind;

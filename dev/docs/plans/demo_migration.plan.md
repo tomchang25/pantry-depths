@@ -59,7 +59,7 @@ The ban on testing the demo half exists because a test written against a moving 
 | 2   | Retire the turn-based model | Delete the old combat model and its tables; keep the vocabulary the live render path uses     | Shipped — `demo_migration_02_retire_turn_based.implementation_spec.md` (archived)   |
 | 3   | Tables into content         | The pure-data halves of the enemy, throwing, blessing, modifier, and sealed catalogues        | Shipped — `demo_migration_03_tables_into_content.implementation_spec.md` (archived) |
 | 4   | The sound seam              | Rules emit semantic cues; the surface plays them                                              | Shipped — `demo_migration_04_sound_seam.implementation_spec.md` (archived)          |
-| 5   | The map contract            | Core owns the floor vocabulary and contracts; content produces values against them            | Execution below                                                                     |
+| 5   | The map contract            | Core owns the floor vocabulary and contracts; content produces values against them            | Shipped — `demo_migration_05_map_contract.implementation_spec.md` (archived)        |
 | 6   | Rules into core             | The eleven rules modules move; boundary rules tighten to match                                | Execution below                                                                     |
 | 7   | Runtime and interface       | The surface becomes the runtime layer; the HUD becomes the ui layer; workbench imports follow | Execution below                                                                     |
 | 8   | The rename pass             | Every surviving `Demo`-prefixed symbol loses its prefix in one typecheck-verified change      | Execution below                                                                     |
@@ -90,13 +90,6 @@ Landing order is the table order. Children 2 and 3 could swap; nothing else can.
 ## Execution
 
 Perishable coordinates, recorded 2026-08-03 against `26210bd` (pre-closeout survey; re-verify against live code per child). Conflicts resolve in favour of the conceptual half.
-
-### Child 5 — The map contract
-
-- Today `src/demo/maze.ts` imports from `@/content/maps/map-resolver` (`ResolvedMap`), `@/content/maps/map-schema` (`validateDrawnFloor`, `validateDrawnWalk`, `strandedGround`, tile/room/cast types), `@/content/maps/room-schema`.
-- Inversion: tile-kind, room-role, cast, crowd vocabulary and the resolved-map contract move under `src/core/`; `src/content/maps/` keeps JSON discovery (`map-library.ts`, `room-library.ts`), parsing, and validation, producing core-typed values. `src/demo/maps.ts` (default map + fallback) moves runtime-side in child 7; interim it may stay demo-side.
-- Watch: the authoring endpoint and workbenches read these schemas (`dev/tools/authoring`, map/room workbenches); `dev/tools/` may import core and content, so the split must keep their imports legal.
-- Verification: verify + a capture run or playtest on the shipped map plus one authored map.
 
 ### Child 6 — Rules into core
 
