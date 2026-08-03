@@ -91,6 +91,18 @@ What makes it a decision is what a thrown weapon should scale with at all. A ham
 
 Not scheduled. What would force it is wanting a run that throws rather than swings.
 
+### What A Fight Writes On The Floor
+
+Blood reaches the floor through exactly two of the paths that hurt a body — the player's swing and the spikes. A thrown rock, a hammer, a bomb's blast, a chain of lightning: every one of them runs through the one damage funnel in `src/core/world.ts`, and the funnel raises nothing — the spray is hung on individual call sites, and nearly all of them never hung one. So a body hurt at range shows its flash and no blood, and pays the whole debt only on the kill. The kill path already learned this lesson: its bones, its dust and its sound are raised centrally so that no route out of the world can be the one that forgot, and the hurt path wants the same shape — spray raised beside the damage, scaled by it, with the call sites out of the decision.
+
+What sprays is the second half, and today it is a hardcoded material test: the boned check decides bone and dust against red. The right owner is per-body authored content — what a body sprays when hurt, and what it leaves on the ground when it dies — in the direction the entity display table and the one-enemy-one-record entry already point, so that a third answer is a row rather than a new branch.
+
+The boned half of the roster also writes nothing durable at all: once the corpses settle, a corner where twenty skeletons came apart is indistinguishable from one nobody fought in. That is the second stain kind — bone ash, pale where blood is dark, accumulating in its own material exactly as blood does — and with it the stain grid records what soaked a cell as well as how much.
+
+And stains part ways with the floor decals for good. The two share nothing but the ground: a decal is a transient warning, rebuilt every frame inside a small capped slot budget that a mortar's circle must never be crowded out of; a stain is the floor's permanent record, accumulating for the life of the floor. The sub-cell half of that record — a mark where each spray actually lands, from hits as well as deaths, laid over the per-cell depth the ground already carries — therefore belongs to the stain channel, never the warning one. It also needs a fact the rules currently throw away: landing positions die in the same tick that computes them, so the rules would keep the recent ones.
+
+All of it is rules work that changes the shipped picture as well as the experiment's, so none of it moves before the three-scene verdict lands — a judged frame should not have two moving causes. What would force it afterwards: the graduation plan's fidelity tail, or the enemy record landing on the same branch.
+
 ### Three Kinds Of Side Room For Three Slots
 
 A floor hangs four rooms off its main region: the cursed altar, the blessing altar, the hot spring, and the extraction room. There are exactly as many kinds as there are slots, so nothing is actually drawn — the only thing chosen per floor is which side each room lands on. The floor loop recorded that plainly rather than dressing it up, because with the old blessing source retired a draw of three from three is not a draw.
