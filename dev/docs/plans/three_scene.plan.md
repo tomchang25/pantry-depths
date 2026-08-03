@@ -41,11 +41,10 @@ Audio is untouched and out of scope; it does not know what draws the game.
 
 ### Children
 
-Three children, ordered so the likeliest failure is met first. Each is judged before the next begins — a failed atmosphere verdict in the first child stops the plan.
+Three children, ordered so the likeliest failure is met first. The plan was written to be judged between children; the author instead authorized all three in one run on 2026-08-03, which moves the whole checklist to a single judging session at the end rather than splitting it three ways.
 
 | #   | Focus                                                                                                   | Form                            |
 | --- | ------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| 1   | Static floor: real map, walls, floor, sky, fog, torch light, free-walk camera                           | Execution subsection, no sketch |
 | 2   | Live world: read-only simulation tick, block enemies and structures, deaths, props, decals, projectiles | Execution subsection, no sketch |
 | 3   | Close layer: viewmodel, swing feedback, through-wall marker, camera kicks, HUD stacking                 | Execution subsection, no sketch |
 
@@ -79,10 +78,6 @@ Perishable notes, recorded 2026-08-03. Whoever executes a child re-checks these 
 - The scene vocabulary the current renderer consumes is enumerated in `src/presentation/render-scene.ts`; the projection that feeds it is `src/demo/demo-scene.ts`, whose builder functions (`surfaces`, `boxes`, `altarBoxes`, `stairBoxes`, `floorDecals`, `lights`, `emitters`, `NIGHT_SKY`, `EXIT_XRAY`) are the authoritative list of what each checklist row means concretely.
 - The seam the follow-up plan will eventually swap: `src/runtime/surface.ts:33-35` (`createDemoScene`, `createDemoEffects`, `loadDemoImages`, `drawDemoViewmodel`) plus six debug importers of `@/demo/*`: `entity-workbench`, `prop-workbench`, `hud-attack-workbench`, `carried-workbench`, `floor-preview`, `render-panel`. Not touched by this plan; listed so nobody re-derives it.
 - Dev server: `http://localhost:5273`. Gate: `npm run verify`. Three.js is already a dependency (used by both existing experiments).
-
-### Child 1 — static floor
-
-Assemble a real floor through `src/core/` floor assembly from `src/content/maps/` + `src/content/rooms/`, no simulation. Build wall meshes per cell from `RenderSurface`-equivalent data, floor plane with patch cells, sky background, fog, and a camera-attached point light. Free-walk camera (WASD + mouse), collision optional. Copy the needed slices of `procedural-textures.ts` and feed them into `THREE.CanvasTexture` with nearest-neighbour filtering to keep the pixel look.
 
 ### Child 2 — live world
 

@@ -15,6 +15,17 @@ export type DebugTool = {
 /** The single registry for future development tools. */
 export const DEBUG_TOOLS: readonly DebugTool[] = [
   {
+    id: "three-scene",
+    path: "/debug/three-scene",
+    title: "Three.js Floor",
+    description:
+      "Walk a real authored floor drawn with Three.js, and judge whether the masonry, the night sky, the fog and the torch survive the move off the raycaster.",
+    load: () =>
+      import("@/sandbox/three-scene/three-scene").then(({ THREE_SCENE_EXPERIMENT }) => ({
+        render: mountSandboxExperiment(THREE_SCENE_EXPERIMENT),
+      })),
+  },
+  {
     id: "three-block",
     path: "/debug/three-block",
     title: "Block Skeleton",

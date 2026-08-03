@@ -1,0 +1,133 @@
+.three-scene__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: 1.1rem;
+  align-items: start;
+}
+
+.three-scene__stage {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+/**
+ * Tall on purpose. The atmosphere is judged on how far the torch reaches and where the fog closes,
+ * and both of those are read off the vertical extent of a corridor rather than its width.
+ */
+.three-scene__viewport {
+  position: relative;
+  min-height: 34rem;
+  border: 1px solid #372f42;
+  border-radius: 0.75rem;
+  background: #08070f;
+  overflow: hidden;
+}
+
+.three-scene__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.three-scene__hint {
+  margin: 0;
+  color: #a99fae;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.three-scene__sidebar {
+  display: grid;
+  gap: 0.9rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.three-scene__panel {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid #372f42;
+  border-radius: 0.75rem;
+  background: #171320;
+}
+
+.three-scene__panel h2 {
+  margin: 0 0 0.15rem;
+  color: #ece3ef;
+  font-size: 0.9rem;
+}
+
+.three-scene__field {
+  display: grid;
+  gap: 0.25rem;
+  color: #b0a6b7;
+  font-size: 0.74rem;
+}
+
+.three-scene__field select {
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid #3f3549;
+  border-radius: 0.35rem;
+  background: #221c2b;
+  color: #ece3ef;
+  font: inherit;
+}
+
+.three-scene__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #b0a6b7;
+  font-size: 0.74rem;
+}
+
+.three-scene__metrics {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.3rem 0.8rem;
+  margin: 0;
+  color: #bdb2c2;
+  font-size: 0.74rem;
+}
+
+.three-scene__metrics dt,
+.three-scene__metrics dd {
+  margin: 0;
+}
+
+.three-scene__metrics dd {
+  color: #ece3ef;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.three-scene__fallback {
+  position: absolute;
+  inset: 1rem;
+  display: grid;
+  place-content: center;
+  padding: 2rem;
+  color: #e9dfe9;
+  text-align: center;
+}
+
+@media (max-width: 60rem) {
+  .three-scene__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .three-scene__sidebar {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 38rem) {
+  .three-scene__sidebar {
+    grid-template-columns: 1fr;
+  }
+}
