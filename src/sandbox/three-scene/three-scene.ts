@@ -50,10 +50,17 @@ function createToggle(
   return { input, label };
 }
 
+function createButton(labelText: string): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = labelText;
+  return button;
+}
+
 export const THREE_SCENE_EXPERIMENT = {
   title: "Three.js Floor",
   description:
-    "A real authored floor, assembled by the game's own rules and drawn with Three.js: masonry, ground, the open night sky, distance fog, and the torch. Click the view to take the mouse, then walk it — this is where the atmosphere is judged, and nothing stands on the floor yet on purpose.",
+    "The real floor and the real simulation, drawn with Three.js: masonry, ground, the open night sky, fog, the torch, block skeletons, low-poly slimes, the fittings, and everything they leave behind. Click the view to take the mouse, then play it — this is where the atmosphere is judged.",
   pageClass: "three-scene",
   width: "wide",
   mount: mountThreeScene,
@@ -69,6 +76,7 @@ function mountThreeScene(content: HTMLElement): void {
   const sidebar = document.createElement("aside");
   const controls = document.createElement("section");
   const controlsTitle = document.createElement("h2");
+  const buttons = document.createElement("div");
   const statusPanel = document.createElement("section");
   const statusTitle = document.createElement("h2");
   const metrics = document.createElement("dl");
@@ -77,10 +85,12 @@ function mountThreeScene(content: HTMLElement): void {
   stage.className = "three-scene__stage";
   viewport.className = "three-scene__viewport";
   hint.className = "three-scene__hint";
-  hint.textContent = "Click to take the mouse · WASD to walk · Shift to run · Esc to give it back";
+  hint.textContent =
+    "Click to take the mouse · WASD to walk · left button strikes · right button grabs and drops · Esc to give it back";
   sidebar.className = "three-scene__sidebar";
   controls.className = "three-scene__panel";
   controlsTitle.textContent = "Floor";
+  buttons.className = "three-scene__buttons";
   statusPanel.className = "three-scene__panel";
   statusTitle.textContent = "Live diagnostics";
   metrics.className = "three-scene__metrics";
@@ -92,13 +102,19 @@ function mountThreeScene(content: HTMLElement): void {
   mapField.select.value = defaultMap().name;
   const torch = createToggle("Torch", true);
   const fog = createToggle("Distance fog", true);
+  const restartButton = createButton("Restart");
+  const killButton = createButton("Kill all");
+  const fillButton = createButton("Fill crowd");
+  const arenaButton = createButton("Flatten");
 
   const metricOutputs = new Map<string, HTMLOutputElement>();
   for (const [label, key] of [
     ["Cell", "cell"],
+    ["Health", "hp"],
+    ["Bodies", "bodies"],
     ["FPS", "fps"],
     ["Draw calls", "draw-calls"],
-    ["Triangles", "triangles"],
+    ["Floor triangles", "triangles"],
   ] as const) {
     const term = document.createElement("dt");
     const value = document.createElement("dd");
@@ -110,7 +126,8 @@ function mountThreeScene(content: HTMLElement): void {
     metricOutputs.set(key, output);
   }
 
-  controls.append(controlsTitle, mapField.row, torch.label, fog.label);
+  buttons.append(restartButton, killButton, fillButton, arenaButton);
+  controls.append(controlsTitle, mapField.row, torch.label, fog.label, buttons);
   statusPanel.append(statusTitle, metrics);
   stage.append(viewport, hint);
   sidebar.append(controls, statusPanel);
@@ -122,6 +139,8 @@ function mountThreeScene(content: HTMLElement): void {
     runtime = new SceneRuntime(viewport, defaultMap(), {
       onStatus(status) {
         metricOutputs.get("cell")!.textContent = status.cell;
+        metricOutputs.get("hp")!.textContent = status.hp;
+        metricOutputs.get("bodies")!.textContent = String(status.bodies);
         metricOutputs.get("fps")!.textContent = String(status.fps);
         metricOutputs.get("draw-calls")!.textContent = String(status.drawCalls);
         metricOutputs.get("triangles")!.textContent = status.triangles.toLocaleString();
@@ -148,7 +167,7 @@ function mountThreeScene(content: HTMLElement): void {
       const chosen = MAPS.find((map) => map.name === mapField.select.value);
 
       if (chosen) {
-        runtime.openMap(chosen);
+        runtime.restart(chosen);
       }
     },
     { signal: abortController.signal },
@@ -159,26 +178,42 @@ function mountThreeScene(content: HTMLElement): void {
   fog.input.addEventListener("change", () => runtime.setFogEnabled(fog.input.checked), {
     signal: abortController.signal,
   });
+  restartButton.addEventListener("click", () => runtime.restart(), { signal: abortController.signal });
+  killButton.addEventListener("click", () => runtime.killEverything(), { signal: abortController.signal });
+  fillButton.addEventListener("click", () => runtime.fillCrowd(), { signal: abortController.signal });
+  arenaButton.addEventListener("click", () => runtime.flatten(), { signal: abortController.signal });
 
   runtime.canvas.addEventListener(
-    "click",
-    () => {
+    "mousedown",
+    (event) => {
       if (!locked()) {
         void runtime.canvas.requestPointerLock();
+        return;
       }
-    },
-    { signal: abortController.signal },
-  );
 
-  document.addEventListener(
-    "pointerlockchange",
-    () => {
-      if (!locked()) {
-        runtime.releaseKeys();
+      event.preventDefault();
+
+      if (event.button === 0) {
+        runtime.strike();
+        return;
+      }
+
+      if (event.button === 2) {
+        runtime.grab();
       }
     },
     { signal: abortController.signal },
   );
+  runtime.canvas.addEventListener("contextmenu", (event) => event.preventDefault(), {
+    signal: abortController.signal,
+  });
+
+  // The world holds still whenever nobody has the mouse, which is what makes the picture safe to
+  // walk away from: bodies stop deciding, timers stop running, and the floor is where it was left.
+  document.addEventListener("pointerlockchange", () => runtime.setPaused(!locked()), {
+    signal: abortController.signal,
+  });
+  runtime.setPaused(true);
 
   document.addEventListener(
     "mousemove",
@@ -201,7 +236,7 @@ function mountThreeScene(content: HTMLElement): void {
 
       // Only the keys the walk reads are swallowed; everything else still reaches the page, so the
       // debug shell's own navigation keeps working while the pointer is held.
-      if (["w", "a", "s", "d", "shift"].includes(key)) {
+      if (["w", "a", "s", "d"].includes(key)) {
         event.preventDefault();
         runtime.holdKey(key, true);
       }

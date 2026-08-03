@@ -1,20 +1,38 @@
 /**
- * The floor, drawn and walked.
+ * The floor, drawn and played.
  *
  * Everything atmospheric in this experiment is decided here: the field of view, the fog, the torch,
  * and the night the two of them are read against. The numbers come from the Canvas scene builder
- * rather than from taste, because the question this child answers is whether the same floor under the
- * same light reads the same way through a different renderer.
+ * rather than from taste, because the question this experiment answers is whether the same floor
+ * under the same light reads the same way through a different renderer.
+ *
+ * The world is the game's own. It is created and stepped exactly as the play surface steps it, and
+ * nothing here writes to it except the player's input — so what is on screen is the real simulation
+ * with a different pair of eyes on it, which is the only arrangement in which the comparison means
+ * anything.
  */
 
 import * as THREE from "three";
 
-import { blocksWalk, buildFloor, type Maze } from "@/core/maze";
+import { GAME_CATALOG } from "@/content/catalog";
+import { grabAction, primaryAction } from "@/core/actions";
+import {
+  createWorld,
+  crowdHere,
+  flattenFloorForTesting,
+  killEnemy,
+  spawnReinforcement,
+  type World,
+} from "@/core/world";
+import { stepWorld } from "@/core/simulation";
 import type { ResolvedMap } from "@/core/map-contract";
 
 import { buildFloorMeshes, triangleCount, type FloorMeshes } from "./floor-meshes";
 import { buildSky, type Sky } from "./sky";
 import { createSceneTextures, type SceneTextureSet } from "./scene-textures";
+import { createWorldBodies, type WorldBodies } from "./world-bodies";
+import { createWorldEffects, type WorldEffects } from "./world-effects";
+import { createWorldStructures, type WorldStructures } from "./world-structures";
 
 /**
  * Vertical field of view, derived rather than chosen.
@@ -39,17 +57,32 @@ const TORCH_INTENSITY = 1.35;
 /** How thick the dark is. The one number here with no counterpart in the Canvas renderer. */
 const FOG_DENSITY = 0.055;
 
-const WALK_SPEED = 3.4;
+/**
+ * How many of a floor's fittings get a real light at once.
+ *
+ * The Canvas renderer accumulates every light per pixel and pays only arithmetic for it; a forward
+ * WebGL renderer recompiles its shaders per light count and pays for each one on every fragment. So
+ * the nearest few win and the rest go dark, which is a limitation worth seeing rather than hiding.
+ */
+const FITTING_LIGHTS = 4;
+
 const MOUSE_SENSITIVITY = 0.0026;
 const MAX_PITCH = 1.45;
-/** How close the walk is allowed to bring the eye to masonry, so a face is never clipped through. */
-const BODY_RADIUS = 0.22;
+
+const MOVEMENT_KEYS: Readonly<Record<string, "forward" | "backward" | "strafeLeft" | "strafeRight">> = {
+  w: "forward",
+  s: "backward",
+  a: "strafeLeft",
+  d: "strafeRight",
+};
 
 export type SceneStatus = Readonly<{
   cell: string;
   fps: number;
   triangles: number;
   drawCalls: number;
+  bodies: number;
+  hp: string;
 }>;
 
 type RuntimeCallbacks = Readonly<{
@@ -59,36 +92,43 @@ type RuntimeCallbacks = Readonly<{
 export class SceneRuntime {
   private animationFrame = 0;
   private readonly ambient: THREE.AmbientLight;
+  private readonly bodies: WorldBodies;
   private readonly camera: THREE.PerspectiveCamera;
   private disposed = false;
-  private elapsed = 0;
+  private readonly effects: WorldEffects;
+  private readonly fittings: THREE.PointLight[] = [];
   private floor: FloorMeshes;
   private frameCount = 0;
-  private readonly held = new Set<string>();
+  private readonly input = { forward: false, backward: false, strafeLeft: false, strafeRight: false };
   private lastFrameTime = performance.now();
-  private maze: Maze;
   private metricsElapsed = 0;
-  private pitch = 0;
+  private paused = false;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly resizeObserver: ResizeObserver;
   private readonly scene = new THREE.Scene();
   private readonly sky: Sky;
+  private readonly structures: WorldStructures;
   private readonly textures: SceneTextureSet;
+  private terrainVersion = -1;
   private readonly torch: THREE.PointLight;
   private torchEnabled = true;
-  private x = 0;
-  private y = 0;
-  private yaw = 0;
-  /** The world-space heading, kept in the game's own convention so the two can be compared. */
-  private angle = 0;
+  private world: World;
 
   constructor(
     private readonly viewport: HTMLElement,
-    map: ResolvedMap,
+    private map: ResolvedMap,
     private readonly callbacks: RuntimeCallbacks,
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Tone mapped, and this is not a stylistic choice. A point light falls off with the square of
+    // distance, so a torch carried at the eye puts an enormous value on any wall the player stands
+    // against — and without a curve to roll it off, walking up to masonry turns the screen white.
+    // The Canvas renderer never had the problem because it clamps its light accumulation per pixel;
+    // this is the equivalent, and it is the difference between a floor that can be approached and one
+    // that can only be looked at from the middle of a room.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
     this.renderer.domElement.className = "three-scene__canvas";
     this.viewport.append(this.renderer.domElement);
 
@@ -109,15 +149,45 @@ export class SceneRuntime {
     this.torch = new THREE.PointLight(TORCH_COLOR, TORCH_INTENSITY, TORCH_RADIUS, 1.6);
     this.scene.add(this.torch);
 
-    this.maze = buildFloor(map);
-    this.floor = buildFloorMeshes(this.maze, this.textures);
+    for (let index = 0; index < FITTING_LIGHTS; index += 1) {
+      const light = new THREE.PointLight(0xffffff, 0, 1, 1.6);
+      this.scene.add(light);
+      this.fittings.push(light);
+    }
+
+    this.world = createWorld(map, GAME_CATALOG);
+    this.floor = buildFloorMeshes(this.world.maze, this.textures);
+    this.terrainVersion = this.world.terrainVersion;
     this.scene.add(this.floor.root);
-    this.standAtEntrance();
+
+    this.bodies = createWorldBodies();
+    this.structures = createWorldStructures();
+    this.effects = createWorldEffects();
+    this.scene.add(this.bodies.root, this.structures.root, this.effects.root);
+    this.faceOpenGround();
+
+    // Development-only handle, the same arrangement the block preview and the play surface both use:
+    // a picture taken from wherever the mouse happened to be left is not comparable with the last
+    // one, and judging a floor means standing in the same spot twice.
+    (window as unknown as Record<string, unknown>).__sceneRuntime = this;
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.viewport);
     this.resize();
     this.animationFrame = requestAnimationFrame(this.frame);
+  }
+
+  /** The world the floor is running, so a development session can pose it and look at the result. */
+  get inspected(): World {
+    return this.world;
+  }
+
+  /** Stands the eye somewhere and points it, for a picture taken from a chosen place. */
+  stand(x: number, y: number, angle: number, pitch = 0): void {
+    this.world.player.x = x;
+    this.world.player.y = y;
+    this.world.player.angle = angle;
+    this.world.player.pitch = pitch;
   }
 
   dispose(): void {
@@ -128,6 +198,9 @@ export class SceneRuntime {
     this.disposed = true;
     cancelAnimationFrame(this.animationFrame);
     this.resizeObserver.disconnect();
+    this.bodies.dispose();
+    this.structures.dispose();
+    this.effects.dispose();
     this.floor.dispose();
     this.sky.dispose();
     this.renderer.dispose();
@@ -138,14 +211,17 @@ export class SceneRuntime {
     return this.renderer.domElement;
   }
 
-  /** Swaps the floor for another map's, keeping the textures — they are the same for every floor. */
-  openMap(map: ResolvedMap): void {
-    this.scene.remove(this.floor.root);
-    this.floor.dispose();
-    this.maze = buildFloor(map);
-    this.floor = buildFloorMeshes(this.maze, this.textures);
-    this.scene.add(this.floor.root);
-    this.standAtEntrance();
+  /** Starts the map again from its arrival, which is also how another map is opened. */
+  restart(map: ResolvedMap = this.map): void {
+    this.map = map;
+    this.world = createWorld(map, GAME_CATALOG);
+    this.rebuildFloor();
+    this.faceOpenGround();
+  }
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+    this.releaseKeys();
   }
 
   setTorchEnabled(enabled: boolean): void {
@@ -155,47 +231,92 @@ export class SceneRuntime {
 
   setFogEnabled(enabled: boolean): void {
     this.scene.fog = enabled ? new THREE.FogExp2(this.sky.horizonColor.getHex(), FOG_DENSITY) : null;
+    this.scene.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.material instanceof THREE.Material) {
+        object.material.needsUpdate = true;
+      }
+    });
+  }
 
-    for (const child of this.floor.root.children) {
-      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshLambertMaterial) {
-        child.material.needsUpdate = true;
+  /** Empties the floor through the ordinary exit, so every death happens exactly as it does in play. */
+  killEverything(): void {
+    for (const enemy of this.world.enemies.slice()) {
+      killEnemy(this.world, enemy);
+    }
+  }
+
+  /**
+   * Takes the masonry down, which is the game's own arena key.
+   *
+   * The frame-rate worst case and the body-judging case at once: nothing occludes anything, so a
+   * crowd is all visible at the distance a fight happens at rather than one body at a time round a
+   * corner.
+   */
+  flatten(): void {
+    flattenFloorForTesting(this.world);
+  }
+
+  /** Refills the floor to the cap it fills itself to, without waiting out the reinforcement timer. */
+  fillCrowd(): void {
+    while (this.world.enemies.length < crowdHere(this.world).cap) {
+      if (!spawnReinforcement(this.world)) {
+        break;
       }
     }
   }
 
   holdKey(key: string, held: boolean): void {
-    if (held) {
-      this.held.add(key);
-      return;
-    }
+    const binding = MOVEMENT_KEYS[key];
 
-    this.held.delete(key);
+    if (binding) {
+      this.input[binding] = held;
+    }
   }
 
   releaseKeys(): void {
-    this.held.clear();
+    this.input.forward = false;
+    this.input.backward = false;
+    this.input.strafeLeft = false;
+    this.input.strafeRight = false;
   }
 
   look(movementX: number, movementY: number): void {
-    const turned = this.angle + movementX * MOUSE_SENSITIVITY;
-    this.angle = turned - Math.PI * 2 * Math.floor(turned / (Math.PI * 2));
-    this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch - movementY * MOUSE_SENSITIVITY));
+    const player = this.world.player;
+    const turned = player.angle + movementX * MOUSE_SENSITIVITY;
+    player.angle = turned - Math.PI * 2 * Math.floor(turned / (Math.PI * 2));
+    // A real camera pitch rather than the raycaster's screen shear, which is the one thing a
+    // perspective projection gets for free and the column renderer can never have.
+    player.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, player.pitch - movementY * MOUSE_SENSITIVITY));
+  }
+
+  strike(): void {
+    primaryAction(this.world);
+  }
+
+  grab(): void {
+    grabAction(this.world);
+  }
+
+  private rebuildFloor(): void {
+    this.scene.remove(this.floor.root);
+    this.floor.dispose();
+    this.floor = buildFloorMeshes(this.world.maze, this.textures);
+    this.terrainVersion = this.world.terrainVersion;
+    this.scene.add(this.floor.root);
   }
 
   /**
-   * Puts the walker where a run would arrive, facing whichever way sees furthest.
+   * Turns the arrival to face whichever way sees furthest.
    *
-   * The position is the game's own — the middle of the entrance cell. The heading is not, because the
-   * game has no opening heading and an arbitrary one lands against masonry about as often as not: an
-   * experiment whose first frame is a wall face at arm's length reads as a broken renderer for the
-   * second it takes to turn around, and this one is opened to be looked at.
+   * The position is the game's own — the rules put the player on the entrance. The heading is not,
+   * because the game has no opening heading and an arbitrary one lands against masonry about as often
+   * as not: an experiment whose first frame is a wall face at arm's length reads as a broken renderer
+   * for the second it takes to turn around, and this one is opened to be looked at.
    */
-  private standAtEntrance(): void {
-    this.x = this.maze.entrance.x + 0.5;
-    this.y = this.maze.entrance.y + 0.5;
-    this.pitch = 0;
-
-    let bestAngle = 0;
+  private faceOpenGround(): void {
+    const maze = this.world.maze;
+    const player = this.world.player;
+    let bestAngle = player.angle;
     let bestRun = -1;
 
     for (let step = 0; step < 32; step += 1) {
@@ -204,7 +325,15 @@ export class SceneRuntime {
       const stepY = Math.sin(angle);
       let run = 0;
 
-      while (run < 24 && !blocksWalk(this.maze, Math.floor(this.x + stepX * run), Math.floor(this.y + stepY * run))) {
+      while (run < 24) {
+        const cellX = Math.floor(player.x + stepX * (run + 0.5));
+        const cellY = Math.floor(player.y + stepY * (run + 0.5));
+        const tile = maze.tiles[cellY * maze.width + cellX];
+
+        if (!tile || (tile.kind !== "open" && tile.kind !== "filled")) {
+          break;
+        }
+
         run += 0.5;
       }
 
@@ -214,50 +343,35 @@ export class SceneRuntime {
       }
     }
 
-    this.angle = bestAngle;
+    player.angle = bestAngle;
+    player.pitch = 0;
   }
 
-  /** Whether the eye may stand here, given the body it is carried in. */
-  private open(x: number, y: number): boolean {
-    for (const [offsetX, offsetY] of [
-      [-BODY_RADIUS, -BODY_RADIUS],
-      [BODY_RADIUS, -BODY_RADIUS],
-      [-BODY_RADIUS, BODY_RADIUS],
-      [BODY_RADIUS, BODY_RADIUS],
-    ] as const) {
-      if (blocksWalk(this.maze, Math.floor(x + offsetX), Math.floor(y + offsetY))) {
-        return false;
+  /** Hands the nearest fittings the few real lights the frame can afford. */
+  private aimFittingLights(elapsedSeconds: number): void {
+    const player = this.world.player;
+    const wanted = this.structures
+      .lights(this.world, elapsedSeconds)
+      .map((light) => ({ light, distance: Math.hypot(light.x - player.x, light.y - player.y) }))
+      // Sorted in place, which the linter warns about and is right to in general: here the array was
+      // created by the `map` on the line above and nothing else can see it. `toSorted` is not
+      // available at this project's compile target.
+      .sort((left, right) => left.distance - right.distance)
+      .slice(0, this.fittings.length);
+
+    this.fittings.forEach((light, index) => {
+      const chosen = wanted[index];
+
+      if (!chosen) {
+        light.intensity = 0;
+        return;
       }
-    }
 
-    return true;
-  }
-
-  /** Walks, sliding along whichever axis is still open so a corner does not stop the walker dead. */
-  private step(seconds: number): void {
-    const forward = (this.held.has("w") ? 1 : 0) - (this.held.has("s") ? 1 : 0);
-    const strafe = (this.held.has("d") ? 1 : 0) - (this.held.has("a") ? 1 : 0);
-
-    if (forward === 0 && strafe === 0) {
-      return;
-    }
-
-    const cos = Math.cos(this.angle);
-    const sin = Math.sin(this.angle);
-    let moveX = cos * forward - sin * strafe;
-    let moveY = sin * forward + cos * strafe;
-    const length = Math.hypot(moveX, moveY);
-    const pace = WALK_SPEED * seconds * (this.held.has("shift") ? 2.4 : 1);
-    moveX = (moveX / length) * pace;
-    moveY = (moveY / length) * pace;
-
-    if (this.open(this.x + moveX, this.y)) {
-      this.x += moveX;
-    }
-
-    if (this.open(this.x, this.y + moveY)) {
-      this.y += moveY;
-    }
+      light.position.set(chosen.light.x, 0.7, chosen.light.y);
+      light.color.setHex(chosen.light.color);
+      light.distance = chosen.light.radius;
+      light.intensity = chosen.light.intensity * Math.PI;
+    });
   }
 
   private readonly frame = (time: number): void => {
@@ -267,21 +381,37 @@ export class SceneRuntime {
 
     const delta = Math.min((time - this.lastFrameTime) / 1000, 0.05);
     this.lastFrameTime = time;
-    this.elapsed += delta;
-    this.step(delta);
 
-    // The camera carries the world heading rather than the other way round, so the walk and the look
-    // stay in the game's coordinates and only the last step converts into the scene's.
-    this.yaw = -this.angle - Math.PI / 2;
-    this.camera.position.set(this.x, EYE_HEIGHT, this.y);
-    this.camera.rotation.set(this.pitch, this.yaw, 0);
+    if (!this.paused) {
+      stepWorld(this.world, this.input, delta);
+    }
+
+    // Cues are drained rather than played: this experiment carries no audio, and leaving them to
+    // accumulate would grow an array nobody empties for as long as the tab is open.
+    this.world.sfxCues.length = 0;
+
+    if (this.world.terrainVersion !== this.terrainVersion) {
+      // A wall came down or a pool closed over, and the floor's geometry is stale. Rebuilt whole,
+      // because it takes about a millisecond and happens a dozen times a floor.
+      this.rebuildFloor();
+    }
+
+    const player = this.world.player;
+    const elapsed = this.world.elapsedSeconds;
+    this.camera.position.set(player.x, EYE_HEIGHT, player.y);
+    this.camera.rotation.set(player.pitch, -player.angle - Math.PI / 2, 0);
 
     // The same two-term flicker the scene builder gives the torch: one fast, one slow, so it never
     // settles into a readable pulse.
-    const flicker = 0.9 + Math.sin(this.elapsed * 11.3) * 0.06 + Math.sin(this.elapsed * 4.1) * 0.04;
-    this.torch.position.set(this.x, EYE_HEIGHT, this.y);
+    const flicker = 0.9 + Math.sin(elapsed * 11.3) * 0.06 + Math.sin(elapsed * 4.1) * 0.04;
+    this.torch.position.set(player.x, EYE_HEIGHT, player.y);
     this.torch.intensity = this.torchEnabled ? TORCH_INTENSITY * flicker * Math.PI : 0;
-    this.sky.root.position.set(this.x, 0, this.y);
+    this.sky.root.position.set(player.x, 0, player.y);
+
+    this.bodies.sync(this.world, elapsed, this.paused ? 0 : delta);
+    this.structures.sync(this.world);
+    this.effects.sync(this.world);
+    this.aimFittingLights(elapsed);
 
     this.renderer.render(this.scene, this.camera);
 
@@ -290,9 +420,11 @@ export class SceneRuntime {
 
     if (this.metricsElapsed >= 0.4) {
       this.callbacks.onStatus({
-        cell: `${Math.floor(this.x)}, ${Math.floor(this.y)}`,
+        bodies: this.world.enemies.length,
+        cell: `${Math.floor(player.x)}, ${Math.floor(player.y)}`,
         drawCalls: this.renderer.info.render.calls,
         fps: Math.round(this.frameCount / this.metricsElapsed),
+        hp: `${Math.max(0, Math.round(player.hp))} / ${player.maxHp}`,
         triangles: triangleCount(this.floor),
       });
       this.metricsElapsed = 0;

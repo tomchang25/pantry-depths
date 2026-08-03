@@ -43,10 +43,9 @@ Audio is untouched and out of scope; it does not know what draws the game.
 
 Three children, ordered so the likeliest failure is met first. The plan was written to be judged between children; the author instead authorized all three in one run on 2026-08-03, which moves the whole checklist to a single judging session at the end rather than splitting it three ways.
 
-| #   | Focus                                                                                                   | Form                            |
-| --- | ------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| 2   | Live world: read-only simulation tick, block enemies and structures, deaths, props, decals, projectiles | Execution subsection, no sketch |
-| 3   | Close layer: viewmodel, swing feedback, through-wall marker, camera kicks, HUD stacking                 | Execution subsection, no sketch |
+| #   | Focus                                                                                   | Form                            |
+| --- | --------------------------------------------------------------------------------------- | ------------------------------- |
+| 3   | Close layer: viewmodel, swing feedback, through-wall marker, camera kicks, HUD stacking | Execution subsection, no sketch |
 
 ### What the verdict decides
 
@@ -78,10 +77,6 @@ Perishable notes, recorded 2026-08-03. Whoever executes a child re-checks these 
 - The scene vocabulary the current renderer consumes is enumerated in `src/presentation/render-scene.ts`; the projection that feeds it is `src/demo/demo-scene.ts`, whose builder functions (`surfaces`, `boxes`, `altarBoxes`, `stairBoxes`, `floorDecals`, `lights`, `emitters`, `NIGHT_SKY`, `EXIT_XRAY`) are the authoritative list of what each checklist row means concretely.
 - The seam the follow-up plan will eventually swap: `src/runtime/surface.ts:33-35` (`createDemoScene`, `createDemoEffects`, `loadDemoImages`, `drawDemoViewmodel`) plus six debug importers of `@/demo/*`: `entity-workbench`, `prop-workbench`, `hud-attack-workbench`, `carried-workbench`, `floor-preview`, `render-panel`. Not touched by this plan; listed so nobody re-derives it.
 - Dev server: `http://localhost:5273`. Gate: `npm run verify`. Three.js is already a dependency (used by both existing experiments).
-
-### Child 2 — live world
-
-Attach the world tick read-only (the same way the play surface steps it, without input-driven actions or with a minimal action bridge — executor's choice, it is disposable). Load the copied blocky skeleton for boned enemies, map the simulation's clip decisions onto the mixer as `block-runtime.ts` does. Slimes as vertex-deformed low-poly spheres. Structures as `BoxGeometry` assemblies mirroring the box builders in `demo-scene.ts`. Decal quads for ground marks; rods and particles for projectiles.
 
 ### Child 3 — close layer
 
