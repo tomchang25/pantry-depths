@@ -28,6 +28,7 @@ import {
 import { stepWorld } from "@/core/simulation";
 import type { ResolvedMap } from "@/core/map-contract";
 
+import { createFinishingPass, type FinishingPass } from "./finishing-pass";
 import { collectFloorDecals } from "./floor-decals";
 import { buildFloorMeshes, triangleCount, type FloorMeshes } from "./floor-meshes";
 import { buildSky, type Sky } from "./sky";
@@ -72,6 +73,17 @@ const GRAIN_SCALE = 0.5;
 
 const MOUSE_SENSITIVITY = 0.0026;
 const MAX_PITCH = 1.45;
+
+/**
+ * Mouse counts per second that read as a full-speed turn, for the comfort vignette.
+ *
+ * Smoothed rising fast and falling slowly, so the frame does not breathe every time the mouse pauses
+ * mid-sweep. Both numbers are the play surface's; the effect is slight by design and tuning it here
+ * would be tuning it against a different pair of hands.
+ */
+const FULL_TURN_RATE = 2600;
+const TURN_RISE = 0.4;
+const TURN_FALL = 0.06;
 
 /** The colour the way down is picked out in once it opens, seen through whatever stands in front. */
 const EXIT_MARKER_COLOR = 0x8affbe;
@@ -118,8 +130,12 @@ export class SceneRuntime {
   private readonly structures: WorldStructures;
   private readonly textures: SceneTextureSet;
   private readonly exitMarker: THREE.Mesh;
+  private readonly finishing: FinishingPass;
   private terrainVersion = -1;
   private torchEnabled = true;
+  /** Mouse counts since the last frame, and the smoothed rate the comfort vignette reads. */
+  private turnInput = 0;
+  private turnRate = 0;
   private readonly viewmodel: Viewmodel;
   private world: World;
 
@@ -153,6 +169,11 @@ export class SceneRuntime {
     this.structures = createWorldStructures(this.lighting);
     this.effects = createWorldEffects(this.lighting);
     this.scene.add(this.bodies.root, this.structures.root, this.effects.root);
+
+    // Before the arm, so the arm is drawn over the grade and over the red a hit leaves — which is the
+    // shipped stacking, where both happen inside the renderer and the viewmodel lands after it.
+    this.finishing = createFinishingPass();
+    this.viewport.append(this.finishing.overlay);
 
     this.viewmodel = createViewmodel();
     this.viewport.append(this.viewmodel.overlay);
@@ -197,6 +218,7 @@ export class SceneRuntime {
     this.bodies.dispose();
     this.structures.dispose();
     this.effects.dispose();
+    this.finishing.dispose();
     this.viewmodel.dispose();
     this.exitMarker.geometry.dispose();
     (this.exitMarker.material as THREE.Material).dispose();
@@ -285,6 +307,9 @@ export class SceneRuntime {
     const player = this.world.player;
     const turned = player.angle + movementX * MOUSE_SENSITIVITY;
     player.angle = turned - Math.PI * 2 * Math.floor(turned / (Math.PI * 2));
+    // Raw device counts, drained by the frame. Vertical counts half: looking up and down is a smaller
+    // part of what makes a fast turn uncomfortable than sweeping the view across a room.
+    this.turnInput += Math.abs(movementX) + Math.abs(movementY) * 0.5;
     // A real camera pitch rather than the raycaster's screen shear, which is the one thing a
     // perspective projection gets for free and the column renderer can never have.
     player.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, player.pitch - movementY * MOUSE_SENSITIVITY));
@@ -526,6 +551,22 @@ export class SceneRuntime {
     this.effects.sync(this.world);
     this.viewmodel.sync(this.world);
 
+    if (delta > 0.0005) {
+      // Rises quickly and falls slowly, so the frame does not breathe every time the mouse pauses.
+      const instant = Math.min(1, this.turnInput / delta / FULL_TURN_RATE);
+      this.turnRate += (instant - this.turnRate) * (instant > this.turnRate ? TURN_RISE : TURN_FALL);
+    }
+
+    this.turnInput = 0;
+    this.finishing.draw({
+      cameraAngle: player.angle,
+      cameraX: player.x,
+      cameraY: player.y,
+      elapsedSeconds: elapsed,
+      hitFlash: this.world.hitFlash,
+      turnRate: this.turnRate,
+    });
+
     // The one thing on a floor still drawn through a wall, and only once the descent is unlocked.
     this.exitMarker.visible = this.world.maze.progress.main.met;
     this.exitMarker.position.set(this.world.maze.exit.x + 0.5, 1.2, this.world.maze.exit.y + 0.5);
@@ -565,8 +606,9 @@ export class SceneRuntime {
     element.style.height = "100%";
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    // The arm is drawn at full size whatever the frame behind it is: it is a 2D layer over the
-    // picture rather than part of it, exactly as the shipped one is.
+    // The arm and the finishing pass are both drawn at full size whatever the frame behind them is:
+    // they are 2D layers over the picture rather than part of it, exactly as the shipped ones are.
+    this.finishing.resize(width, height);
     this.viewmodel.resize(width, height);
   }
 }
