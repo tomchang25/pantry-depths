@@ -8,7 +8,8 @@ Pantry Depths selects the `web-react` platform because it is the only Web platfo
 
 Consequences:
 
-- `src/ui/` is omitted. The development demo's plain-DOM HUD lives beside its simulation in `src/demo/`; that whole real-time surface remains a manual-play boundary rather than a reusable application UI layer. **Scheduled for revision:** the demo migration (`dev/docs/plans/demo_migration.plan.md`) earns `src/ui/` as a plain-DOM layer when its interface child lands, and this bullet is rewritten in that change — the deviation was about React, not about owning an interface layer.
+- `src/ui/` is a plain-DOM layer: the HUD, its icon builder, and its stylesheet, rendering view models they are handed. No React arrives with it — the deviation was about the framework, not about owning an interface layer.
+- With no reactive binding layer, the runtime pushes view models into the DOM interface directly, so `src/runtime/` imports `src/ui/` — a declared deviation from the platform rule that runtime never imports ui, machine-checked as such. Reintroducing React retires this bullet with the rest.
 - The following platform triggers never fire in this repository and reading them is not required: `react_component_standard.md`, `react_strict_mode_effects.md`, `browser_persistence_standard.md`, `indexeddb_upgrade_transactions.md`, `service_worker_cache_versioning.md`, and the service-worker and installability portions of `web_platform_standard.md`.
 - V1 has no save system, no IndexedDB, no service worker, and no PWA manifest, so `public/` is omitted entirely.
 
@@ -22,7 +23,7 @@ Making the tick deterministic later retires this deviation.
 
 ## Layer Status
 
-The standard names `presentation/` and `shared/` as earned layers that are created only when the owning work exists. This table is the current truth of which layers exist and what each holds; the demo migration plan is what moves the two pre-declared rows from absent to earned.
+The standard names `presentation/` and `shared/` as earned layers that are created only when the owning work exists. This table is the current truth of which layers exist and what each holds.
 
 | Layer               | Directory | Status                                                                                                                                                                                                 |
 | ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -30,8 +31,8 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 | `src/core/`         | Present   | The rules: contracts and vocabulary, floor assembly, the world and its tick, the minds, actions, impacts, extraction, progression state. Reads authored tables only through the injected game catalog. |
 | `src/content/`      | Present   | Authored data by feature: maps, rooms, enemies, combat tables, sfx, presentation assets, viewmodel definitions.                                                                                        |
 | `src/presentation/` | Present   | Earned by the renderer port: the Canvas 2D raycaster, procedural textures, the image loader, and the audio stack.                                                                                      |
-| `src/runtime/`      | Absent    | Earned layer, pre-declared: created by the migration's runtime child to own the frame loop, input, mounting, and session dressing.                                                                     |
-| `src/ui/`           | Absent    | Earned layer, pre-declared: created by the migration's interface child to own the plain-DOM HUD — see the No React deviation above.                                                                    |
+| `src/runtime/`      | Present   | The frame loop, input, mounting, the cue drain, the stage dressing, and the address-bar map question.                                                                                                  |
+| `src/ui/`           | Present   | The plain-DOM HUD, its icons, and its stylesheet — see the No React deviation above.                                                                                                                   |
 | `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                                                                                                                |
 | `src/shared/`       | Absent    | Earned layer. Create only on demonstrated cross-feature ownership.                                                                                                                                     |
 
@@ -39,12 +40,12 @@ A scaffolded empty directory is not a claim that the layer is earned. It carries
 
 ## The Demo Tree
 
-`src/demo/` holds what the migration has not yet re-homed: the surface (frame loop, input, mounting), the stage dressing, the HUD, and the projection half — scene building, sprite loading, the viewmodel. It is declared here because the vocabulary does not name it, and because it is being dismantled: `dev/docs/plans/demo_migration.plan.md` moves its modules into the formal layers, and what remains at the end is the projection half — scene building, sprite loading, the viewmodel — held in place until the 3D runtime decision replaces it.
+`src/demo/` is down to the interim projection half: scene building, sprite loading, and the viewmodel. It is declared here because the vocabulary does not name it, and because it is being dismantled: `dev/docs/plans/demo_migration.plan.md` moves its modules into the formal layers, and what remains at the end is the projection half — scene building, sprite loading, the viewmodel — held in place until the 3D runtime decision replaces it.
 
 Import directions, machine-checked by the boundary rules:
 
 - `src/demo/` imports itself, `src/presentation/`, `src/content/`, and `src/core/`, and nothing else in `src/`.
-- Nothing imports `src/demo/` except `src/app/` — the bootstrap that mounts it and the debug workbenches that inspect it.
+- Nothing imports `src/demo/` except `src/runtime/`, which draws through it, and `src/app/`'s debug workbenches, which inspect it.
 
 Each migration child tightens these rules rather than opening a new door; the declaration and the rules retire together when the migration closes.
 

@@ -13,7 +13,7 @@
  * most of the time — so the key is the real control and the chip is where you find out what it is.
  */
 
-import "@/demo/demo-dev-overlay.css";
+import "@/runtime/demo-dev-overlay.css";
 
 export type DemoDevOverlayModel = Readonly<{
   mindsFrozen: boolean;

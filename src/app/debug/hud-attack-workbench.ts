@@ -10,8 +10,8 @@ import {
 } from "@/content/viewmodel/melee-viewmodel";
 import { MELEE_CUT_START, MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/melee-contract";
 import { MELEE_HALF_ANGLE } from "@/core/actions";
-import { mountDemoDevOverlay, type DemoDevOverlayModel } from "@/demo/demo-dev-overlay";
-import { mountDemoHud, type DemoHudModel, type DemoHudOverlayRosterEntry } from "@/demo/demo-hud";
+import { mountDemoDevOverlay, type DemoDevOverlayModel } from "@/runtime/demo-dev-overlay";
+import { mountDemoHud, type DemoHudModel, type DemoHudOverlayRosterEntry } from "@/ui/demo-hud";
 import { demoMeleeImpactPitch } from "@/demo/demo-scene";
 import { drawDemoViewmodel, type DemoViewmodelModel } from "@/demo/demo-viewmodel";
 import type { CameraPose, RenderBeam, RenderBox, RenderScene, RenderSurface } from "@/presentation/render-scene";

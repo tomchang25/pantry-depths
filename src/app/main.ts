@@ -1,12 +1,12 @@
 /**
  * Application bootstrap.
  *
- * This entry stays minimal and accumulates no gameplay or presentation logic. It wires
- * the runtime, presentation, and HUD layers together once they are earned.
+ * This entry stays minimal and accumulates no gameplay or presentation logic: it resolves the
+ * route and defers to the runtime surface or the debug router.
  */
 
 import { resolveAppRoute } from "@/app/app-route";
-import type { MountedDemo } from "@/demo/demo-surface";
+import type { MountedDemo } from "@/runtime/demo-surface";
 
 const mount = document.querySelector<HTMLDivElement>("#app");
 
@@ -49,7 +49,7 @@ function renderOrdinaryPlay(): void {
     ? (new URLSearchParams(window.location.search).get("map") ?? undefined)
     : undefined;
 
-  void import("@/demo/demo-surface")
+  void import("@/runtime/demo-surface")
     .then(async ({ mountDemo }) => {
       if (moduleDisposed) {
         return;

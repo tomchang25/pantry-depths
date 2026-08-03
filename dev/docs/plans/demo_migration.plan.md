@@ -91,13 +91,6 @@ Landing order is the table order. Children 2 and 3 could swap; nothing else can.
 
 Perishable coordinates, recorded 2026-08-03 against `26210bd` (pre-closeout survey; re-verify against live code per child). Conflicts resolve in favour of the conceptual half.
 
-### Child 7 — Runtime and interface
-
-- `src/runtime/` earned: `demo-surface.ts` (1197) split into frame loop, input, and mount/dispose; `stage.ts` (142) moves beside it with its `map.name === "stage"` comparison intact (harness is not an option: only app may import harness, and the surface calls `dressStage` at mount and restart); `maps.ts` default-map choice lands here.
-- `src/ui/` earned: `demo-hud.ts` (598) + `demo.css` (1508) + `hud-icons.ts` (143). `demo-dev-overlay.ts` (151) is a development instrument mounted by the surface — spec decides runtime-side dev-guarded vs app/debug.
-- `src/app/main.ts` wiring and all 8 workbench imports updated; structure addendum's ui/runtime rows and the no-React deviation text rewritten here (flagged in child 1).
-- Verification: verify + playtest (input feel, HUD, dev overlay, stage keys, restart).
-
 ### Child 8 — The rename pass
 
 - Every `Demo`-prefixed symbol that survived the moves loses the prefix in one mechanical, typecheck-verified change — the content-side vocabulary from child 3 (`DemoThrowWeight`, `DemoPropBehaviour`, `DemoEnemyArchetype`, and the rest), and the run-side types the later children moved (`DemoWorld`, `DemoCell`, `DemoInput`, the HUD model types). Redundant aliases dissolve into their sources (`DemoPropKind` → `PropKind`, `DemoArchetypeId` → `MapCastKind` or a rename of that source; decided at spec time). Renaming waits for this child so every symbol is renamed exactly once, in its final home.

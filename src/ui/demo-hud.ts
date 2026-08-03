@@ -1,6 +1,6 @@
-import { createHudIcon, type HudIconId } from "@/demo/hud-icons";
+import { createHudIcon, type HudIconId } from "@/ui/hud-icons";
 
-import "@/demo/demo.css";
+import "@/ui/demo.css";
 
 /**
  * One mark in the play-time bar: only what the run is actually carrying.

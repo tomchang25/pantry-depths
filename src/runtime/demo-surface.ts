@@ -6,14 +6,14 @@
  * never has to learn what a mouse-look is.
  */
 
-import "@/demo/demo-surface.css";
+import "@/runtime/demo-surface.css";
 
 import { PROP_KINDS } from "@/core/prop-kinds";
 import { grabAction, primaryAction, PROP_LABELS } from "@/core/actions";
 import { BLESS_CATALOG, BLESS_STACKING_CATALOG } from "@/content/progression/bless-definitions";
 import { findBless, findModifier, type BlessDefinition, type ModifierAxis } from "@/core/progression-contract";
 import { blessBonus, blessStackCount, hasBless } from "@/core/bless";
-import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
+import { mountDemoDevOverlay } from "@/runtime/demo-dev-overlay";
 import { GAME_CATALOG } from "@/content/catalog";
 import { EXTRACTION_HOLD_SECONDS, extractionShare, lastExtractedRewards, SEALED_CARD_PREFIX } from "@/core/extraction";
 import {
@@ -28,17 +28,17 @@ import {
   type DemoHudOverlayRosterEntry,
   type DemoHudRun,
   type DemoHudTask,
-} from "@/demo/demo-hud";
+} from "@/ui/demo-hud";
 import type { DemoArchetypeId } from "@/core/enemy-contract";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
-import { mapNamed } from "@/demo/maps";
+import { mapNamed } from "@/runtime/maps";
 import { POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/core/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/core/run-level";
 import { bankedRewards, equippedCore, type ResolvedReward } from "@/core/sealed";
-import { dressStage, isStage, restageCast, stageChoiceName, stepStageChoice } from "@/demo/stage";
+import { dressStage, isStage, restageCast, stageChoiceName, stepStageChoice } from "@/runtime/stage";
 import { stepDemoWorld, type DemoInput } from "@/core/simulation";
 import type { DemoPropKind } from "@/core/prop-contract";
 import {

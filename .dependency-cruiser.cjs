@@ -86,19 +86,50 @@ module.exports = {
     },
 
     {
+      name: "runtime-imports-its-declared-set",
+      severity: "error",
+      comment:
+        "src/runtime orchestrates: it runs the tick, drains the cue and picture queues, and mounts the interface. It may reach core, content, presentation, ui (the declared no-React deviation - the frame loop pushes view models into the DOM interface directly), and the interim demo projection tree, whose edge dies with that tree.",
+      from: { path: "^src/runtime/" },
+      to: { path: "^src/", pathNot: "^src/(runtime|core|content|presentation|ui|demo)/" },
+    },
+    {
+      name: "only-the-app-imports-runtime",
+      severity: "error",
+      comment: "The route shell mounts the surface; nothing else drives the frame loop.",
+      from: { path: "^src/", pathNot: "^src/(runtime|app)/" },
+      to: { path: "^src/runtime/" },
+    },
+    {
+      name: "ui-imports-only-ui-content-core",
+      severity: "error",
+      comment:
+        "The plain-DOM interface renders models it is handed; it drives nothing and reaches no browser capability beyond its own DOM.",
+      from: { path: "^src/ui/" },
+      to: { path: "^src/", pathNot: "^src/(ui|content|core)/" },
+    },
+    {
+      name: "only-runtime-and-app-import-ui",
+      severity: "error",
+      comment: "The interface is mounted by the surface (declared deviation) and by the workbenches that preview it.",
+      from: { path: "^src/", pathNot: "^src/(ui|runtime|app)/" },
+      to: { path: "^src/ui/" },
+    },
+
+    {
       name: "demo-imports-only-demo-presentation-content-core",
       severity: "error",
       comment:
-        "The demo tree is being dismantled into the formal layers (dev/docs/plans/demo_migration.plan.md and the demo tree section of dev/standards/project_structure.addendum.md). Until that closes it may reach the projection stack and the two data layers, and nothing else; each migration child tightens this rule rather than opening a new door.",
+        "The demo tree is down to the interim projection half - scene building, sprite loading, the viewmodel - held in place until the 3D runtime decision (dev/docs/plans/demo_migration.plan.md). It may reach the projection stack and the two data layers, and nothing else.",
       from: { path: "^src/demo/" },
       to: { path: "^src/", pathNot: "^src/(demo|presentation|content|core)/" },
     },
     {
-      name: "only-the-app-imports-demo",
+      name: "only-app-and-runtime-import-demo",
       severity: "error",
       comment:
-        "The demo is mounted by the bootstrap and inspected by the debug workbenches; no other layer may grow a dependency on a tree scheduled to disappear.",
-      from: { path: "^src/", pathNot: "^src/(demo|app)/" },
+        "The projection half is driven by the runtime surface and inspected by the debug workbenches; no other layer may grow a dependency on a tree scheduled to disappear.",
+      from: { path: "^src/", pathNot: "^src/(demo|app|runtime)/" },
       to: { path: "^src/demo/" },
     },
 
