@@ -37,7 +37,7 @@ import {
 } from "@/core/room-contract";
 import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
 import { GAME_CATALOG } from "@/content/catalog";
-import { createDemoWorld, type DemoWorld } from "@/core/world";
+import { createWorld, type World } from "@/core/world";
 
 /** The name the throwaway preview map wears. It is never written, and no file is ever called this. */
 const PREVIEW_MAP = "room-preview";
@@ -535,7 +535,7 @@ export function createRoomSurface(): HTMLElement {
   let painter: RoomPainter | undefined;
   /** Something worth saying about a room that is nonetheless legal, so it never blocks a save. */
   let warning: string | undefined;
-  let world: DemoWorld | undefined;
+  let world: World | undefined;
   let failure: string | undefined;
 
   root.className = "room-workbench";
@@ -573,7 +573,7 @@ export function createRoomSurface(): HTMLElement {
       const room: MapRoom = parseRoomSource(draft);
       const library = new Map(ROOM_LIBRARY);
       library.set(room.id, room);
-      world = createDemoWorld(
+      world = createWorld(
         resolveMap(
           parseMapSource({
             name: PREVIEW_MAP,

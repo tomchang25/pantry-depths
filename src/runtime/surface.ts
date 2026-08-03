@@ -6,52 +6,52 @@
  * never has to learn what a mouse-look is.
  */
 
-import "@/runtime/demo-surface.css";
+import "@/runtime/surface.css";
 
 import { PROP_KINDS } from "@/core/prop-kinds";
 import { grabAction, primaryAction, PROP_LABELS } from "@/core/actions";
 import { BLESS_CATALOG, BLESS_STACKING_CATALOG } from "@/content/progression/bless-definitions";
 import { findBless, findModifier, type BlessDefinition, type ModifierAxis } from "@/core/progression-contract";
 import { blessBonus, blessStackCount, hasBless } from "@/core/bless";
-import { mountDemoDevOverlay } from "@/runtime/demo-dev-overlay";
+import { mountDevOverlay } from "@/runtime/dev-overlay";
 import { GAME_CATALOG } from "@/content/catalog";
 import { EXTRACTION_HOLD_SECONDS, extractionShare, lastExtractedRewards, SEALED_CARD_PREFIX } from "@/core/extraction";
 import {
-  mountDemoHud,
-  type DemoHudBlessIcon,
-  type DemoHudOverlay,
-  type DemoHudOverlayReward,
-  type DemoHudCard,
-  type DemoHudChannel,
-  type DemoHudHeld,
-  type DemoHudModel,
-  type DemoHudOverlayRosterEntry,
-  type DemoHudRun,
-  type DemoHudTask,
-} from "@/ui/demo-hud";
-import type { DemoArchetypeId } from "@/core/enemy-contract";
+  mountHud,
+  type HudBlessIcon,
+  type HudOverlay,
+  type HudOverlayReward,
+  type HudCard,
+  type HudChannel,
+  type HudHeld,
+  type HudModel,
+  type HudOverlayRosterEntry,
+  type HudRun,
+  type HudTask,
+} from "@/ui/hud";
+import type { MapCastKind } from "@/core/room-contract";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { mapNamed } from "@/runtime/maps";
-import { POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/core/maze";
+import { POOL_FILL_BODIES, padRoomAt, type TaskKind } from "@/core/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/core/run-level";
 import { bankedRewards, equippedCore, type ResolvedReward } from "@/core/sealed";
 import { dressStage, isStage, restageCast, stageChoiceName, stepStageChoice } from "@/runtime/stage";
-import { stepDemoWorld, type DemoInput } from "@/core/simulation";
-import type { DemoPropKind } from "@/core/prop-contract";
+import { stepWorld, type PlayerInput } from "@/core/simulation";
+import type { PropKind } from "@/core/prop-kinds";
 import {
   announce,
   awardBless,
-  createDemoWorld,
+  createWorld,
   crowdHere,
   dropProp,
   flattenFloorForTesting,
   killEnemy,
   runClockSeconds,
   spawnReinforcement,
-  type DemoWorld,
+  type World,
 } from "@/core/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
 import {
@@ -64,7 +64,7 @@ import {
   unlockSfx,
 } from "@/presentation/audio/sfx";
 
-export type MountedDemo = Readonly<{ dispose: () => void }>;
+export type MountedGame = Readonly<{ dispose: () => void }>;
 
 /**
  * Capture mode: `?capture` on a development build treats the pointer as locked from the first frame.
@@ -92,7 +92,7 @@ const MAX_PITCH_DOWN = 0.48;
 const FULL_TURN_RATE = 2600;
 const FLOOR_OBJECTIVE_SECONDS = 6;
 
-const MOVEMENT_KEYS: Readonly<Record<string, keyof DemoInput>> = {
+const MOVEMENT_KEYS: Readonly<Record<string, keyof PlayerInput>> = {
   w: "forward",
   s: "backward",
   a: "strafeLeft",
@@ -117,7 +117,7 @@ function handleVisibility(): void {
   resumeSfx();
 }
 
-const ENEMY_DOT_COLORS: Readonly<Record<DemoArchetypeId, string>> = {
+const ENEMY_DOT_COLORS: Readonly<Record<MapCastKind, string>> = {
   slimeGreen: "#7fc46a",
   slimeBlue: "#5f92d8",
   slimeRed: "#c9524f",
@@ -158,9 +158,9 @@ const TASK_PRESENTATION = {
     glyph: "≈",
     label: "Fill a pool",
   },
-} satisfies Readonly<Record<DemoTaskKind, Readonly<{ detail: string; glyph: string; label: string }>>>;
+} satisfies Readonly<Record<TaskKind, Readonly<{ detail: string; glyph: string; label: string }>>>;
 
-function cardModel(token: string): DemoHudCard {
+function cardModel(token: string): HudCard {
   // The floor getting hungrier comes through the same channel a blessing does, and has to be told
   // apart from one before the catalogue is asked. It reads as the dungeon changing rather than as the
   // player gaining something, because that is what happened: the number rose off minutes spent and
@@ -216,7 +216,7 @@ function cardModel(token: string): DemoHudCard {
  * Provisional and deliberately local: the moment a prop's authored display record can carry a HUD
  * glyph, the table belongs with it rather than beside the frame loop.
  */
-const PROP_GLYPHS: Readonly<Record<DemoPropKind, string>> = {
+const PROP_GLYPHS: Readonly<Record<PropKind, string>> = {
   stick: "↑",
   rock: "●",
   bomb: "✸",
@@ -233,7 +233,7 @@ const PROP_GLYPHS: Readonly<Record<DemoPropKind, string>> = {
 };
 
 /** Ammunition by what it is made of, explosives apart, so a stack reads before it is named. */
-const PROP_COLORS: Readonly<Record<DemoPropKind, string>> = {
+const PROP_COLORS: Readonly<Record<PropKind, string>> = {
   stick: "#e6d3a6",
   rock: "#c9c2b4",
   bomb: "#e2585f",
@@ -259,12 +259,12 @@ const KIT_RADIUS = 1.3;
  * times one taken off a body does. A kit that was more generous than the floor would be answering a
  * different question than the one being debugged.
  */
-const KIT_COUNTS: Readonly<Partial<Record<DemoPropKind, number>>> = {
+const KIT_COUNTS: Readonly<Partial<Record<PropKind, number>>> = {
   bomb: 3,
   crossbow: 3,
 };
 
-function heldModel(world: DemoWorld): DemoHudHeld | undefined {
+function heldModel(world: World): HudHeld | undefined {
   const held = world.held;
 
   if (!held) {
@@ -301,7 +301,7 @@ function clockText(seconds: number): string {
  * clock exists to inform. The core is here because a curse that can roll worse than clean is only a
  * curse if the player can see which way this one went.
  */
-function runModel(world: DemoWorld, rising: boolean): DemoHudRun {
+function runModel(world: World, rising: boolean): HudRun {
   const equipped = equippedCore();
   // The run's clock, not the world's. They part company the moment the run ends: the world keeps
   // ticking so the picture behind the end screen still breathes, and the readout must not.
@@ -325,7 +325,7 @@ function runModel(world: DemoWorld, rising: boolean): DemoHudRun {
 }
 
 /** The floor's four demands, main first. Every counter behind them is one the floor already keeps. */
-function taskModels(world: DemoWorld): DemoHudTask[] {
+function taskModels(world: World): HudTask[] {
   const progress = world.maze.progress;
   return [progress.main, ...progress.secondary].map((task, index) => {
     const presentation = TASK_PRESENTATION[task.kind];
@@ -350,7 +350,7 @@ function taskModels(world: DemoWorld): DemoHudTask[] {
  * question about the player's feet and the three answers share one element. The constants come from
  * the modules that enforce them, so the bar cannot count down to a moment the simulation disagrees with.
  */
-function channelModel(world: DemoWorld): DemoHudChannel | undefined {
+function channelModel(world: World): HudChannel | undefined {
   const room = padRoomAt(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
   const progress = world.maze.progress;
 
@@ -421,7 +421,7 @@ const BLESS_AXIS_UNITS: Readonly<Record<ModifierAxis, string>> = {
  * The order is the two catalogues back to back, which is the only thing telling the two tiers apart:
  * a heading between them would be a row where the eye is expecting a blessing.
  */
-function blessRoster(world: DemoWorld): readonly DemoHudOverlayRosterEntry[] {
+function blessRoster(world: World): readonly HudOverlayRosterEntry[] {
   const distinct = BLESS_CATALOG.filter((definition) => hasBless(world.bless, definition.id)).map((definition) => ({
     color: definition.color,
     detail: definition.detail,
@@ -449,15 +449,15 @@ function blessRoster(world: DemoWorld): readonly DemoHudOverlayRosterEntry[] {
 }
 
 function createHudModel(
-  world: DemoWorld,
+  world: World,
   cardToken: string | undefined,
-  overlay: DemoHudModel["overlay"],
+  overlay: HudModel["overlay"],
   showObjective: boolean,
-): DemoHudModel {
+): HudModel {
   // Only what is held. The unheld ones used to sit here as empty slots; they are now listed in full
   // on the pause screen, and a row of placeholders in the corner of a fight was saying "there is more"
   // to somebody who cannot go and get it until the room is clear.
-  const blessIcons: DemoHudBlessIcon[] = BLESS_CATALOG.filter((definition) => hasBless(world.bless, definition.id)).map(
+  const blessIcons: HudBlessIcon[] = BLESS_CATALOG.filter((definition) => hasBless(world.bless, definition.id)).map(
     (definition) => ({
       color: definition.color,
       detail: definition.detail,
@@ -542,14 +542,14 @@ function createHudModel(
  * route function: which surface a pathname wants and which map a run plays are two questions, and the
  * route function keeps answering only the first.
  */
-export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<MountedDemo> {
+export async function mountGame(mount: HTMLElement, mapName?: string): Promise<MountedGame> {
   const map = mapNamed(mapName);
   const surface = document.createElement("main");
   const canvas = document.createElement("canvas");
-  const hud = mountDemoHud();
+  const hud = mountHud();
   // After the HUD, never before it: the pause overlay is a full-surface button, and anything
   // painted under it has its clicks taken by the thing that re-locks the pointer.
-  const dev = mountDemoDevOverlay({
+  const dev = mountDevOverlay({
     toggleGodMode: () => toggleGodMode(),
     testArena: () => testArena(),
     killAll: () => killAll(),
@@ -575,7 +575,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     throw new Error("demo: scene canvas is unavailable");
   }
 
-  let world = createDemoWorld(map, GAME_CATALOG);
+  let world = createWorld(map, GAME_CATALOG);
   dressStage(world);
   let objectiveMaze = world.maze;
   let objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
@@ -625,7 +625,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
   /** Development-only handle so a run can be poked at from the console or a browser test. */
   const publish = (): void => {
     if (import.meta.env.DEV) {
-      (window as unknown as { demoWorld?: DemoWorld }).demoWorld = world;
+      (window as unknown as { demoWorld?: World }).demoWorld = world;
       (window as unknown as { demoRenderer?: CanvasGameplayRenderer }).demoRenderer = renderer;
     }
   };
@@ -639,7 +639,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
 
   const locked = (): boolean => captureMode || document.pointerLockElement === canvas;
 
-  const overlayModel = (): DemoHudModel["overlay"] => {
+  const overlayModel = (): HudModel["overlay"] => {
     if (world.status !== "playing") {
       return runEndOverlay(world);
     }
@@ -718,7 +718,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     // A cheat is a property of the session, not of the run. Losing god mode on every R would make it
     // useless for exactly the thing it is for: dying repeatedly on purpose.
     const carriedGodMode = world.godMode;
-    world = createDemoWorld(map, GAME_CATALOG);
+    world = createWorld(map, GAME_CATALOG);
     // On a stage this is what makes R mean "shoot that again": the cast returns to its cells, the
     // arrival is the arrival, and the bodies are held still whether or not they had been released.
     // Deliberately not carried the way god mode is — being frozen belongs to the staged scene.
@@ -845,7 +845,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     // enemies, timers, projectiles and particles all hold still behind the overlay until play
     // resumes. A dead world still steps, so the death's debris settles behind its own overlay.
     if (active || world.status !== "playing") {
-      stepDemoWorld(
+      stepWorld(
         world,
         active ? input : { forward: false, backward: false, strafeLeft: false, strafeRight: false },
         deltaSeconds,
@@ -1201,7 +1201,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
 }
 
 /** One opened reward, as a row on the run-end screen. */
-function rewardRow(reward: ResolvedReward): DemoHudOverlayReward {
+function rewardRow(reward: ResolvedReward): HudOverlayReward {
   const cursed = reward.source === "cursed";
 
   if (reward.kind === "core") {
@@ -1238,7 +1238,7 @@ function clock(seconds: number): string {
  * only how much went down with you — a run that died never learns what it was carrying, which is the
  * whole of why walking out early is a decision.
  */
-export function runEndOverlay(world: DemoWorld): DemoHudOverlay {
+export function runEndOverlay(world: World): HudOverlay {
   const stats = [
     { label: "Floor", value: `B${world.depth}` },
     { label: "Time", value: clock(runClockSeconds(world)) },

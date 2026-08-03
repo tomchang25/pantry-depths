@@ -12,7 +12,7 @@ import { createRenderPanel, type RenderPanel } from "@/app/debug/render-panel";
 import type { MapCastKind, MapTileKind } from "@/core/room-contract";
 import { createDemoScene } from "@/demo/demo-scene";
 import { blocksVision } from "@/core/maze";
-import type { DemoWorld } from "@/core/world";
+import type { World } from "@/core/world";
 
 /**
  * One colour per tile kind, chosen to be told apart at four pixels rather than to look like the game.
@@ -76,7 +76,7 @@ const VIEW_REACH = 24;
  * renderer will also draw as clear. Only the heading is chosen — where the run arrives, and everything
  * drawn from there, stays the assembler's.
  */
-function longestView(world: DemoWorld): number {
+function longestView(world: World): number {
   let best = world.player.angle;
   let bestReach = -1;
 
@@ -110,7 +110,7 @@ function longestView(world: DemoWorld): number {
  * Written rather than borrowed: the authoring map this would have reused answers to a schema that no
  * longer describes anything, and it goes when the tooling around it does.
  */
-function drawDiagram(canvas: HTMLCanvasElement, world: DemoWorld): void {
+function drawDiagram(canvas: HTMLCanvasElement, world: World): void {
   const maze = world.maze;
   const cell = Math.max(2, Math.min(MAX_CELL, Math.floor(DIAGRAM_WIDTH / maze.width)));
   const ratio = window.devicePixelRatio || 1;
@@ -179,14 +179,14 @@ function drawDiagram(canvas: HTMLCanvasElement, world: DemoWorld): void {
 export type FloorPreview = Readonly<{
   element: HTMLElement;
   /** Shows one assembled floor. Calling it again with another world replaces what is on screen. */
-  show: (world: DemoWorld, label: string) => void;
+  show: (world: World, label: string) => void;
 }>;
 
 /** Creates the pair of views, whose only input is the world a caller assembled. */
 export function createFloorPreview(): FloorPreview {
   const element = document.createElement("div");
   const diagram = document.createElement("canvas");
-  let shown: DemoWorld | undefined;
+  let shown: World | undefined;
   let renderer: RenderPanel | undefined;
 
   element.className = "map-workbench-preview";
@@ -211,7 +211,7 @@ export function createFloorPreview(): FloorPreview {
         renderer = createRenderPanel({
           ariaLabel: "The assembled floor, from where the run arrives",
           // Never cleared once set, so this cannot fail after the panel exists.
-          frame: () => ({ scene: createDemoScene(shown as DemoWorld) }),
+          frame: () => ({ scene: createDemoScene(shown as World) }),
         });
         element.append(renderer.element);
       }

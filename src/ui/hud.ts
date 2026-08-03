@@ -1,6 +1,6 @@
 import { createHudIcon, type HudIconId } from "@/ui/hud-icons";
 
-import "@/ui/demo.css";
+import "@/ui/hud.css";
 
 /**
  * One mark in the play-time bar: only what the run is actually carrying.
@@ -9,7 +9,7 @@ import "@/ui/demo.css";
  * now say what is missing — the pause roster in full sentences — and a strip of grey placeholders
  * mid-fight was answering a question nobody asks while something is swinging at them.
  */
-export type DemoHudBlessIcon = Readonly<{
+export type HudBlessIcon = Readonly<{
   color: string;
   detail: string;
   icon: HudIconId;
@@ -23,14 +23,14 @@ export type DemoHudBlessIcon = Readonly<{
  * `demo-viewmodel` paints the carried object down in the corner. What the bar adds is which one it is
  * and the count that decides whether to throw the next one.
  */
-export type DemoHudHeld = Readonly<{
+export type HudHeld = Readonly<{
   color: string;
   count?: number;
   glyph: string;
   name: string;
 }>;
 
-export type DemoHudCard = Readonly<{
+export type HudCard = Readonly<{
   color: string;
   detail: string;
   icon: HudIconId;
@@ -44,7 +44,7 @@ export type DemoHudCard = Readonly<{
  * so a task was something you had heard about, not something you could check. Every counter behind
  * these was already being kept; the only thing missing was somewhere to put it.
  */
-export type DemoHudTask = Readonly<{
+export type HudTask = Readonly<{
   detail: string;
   done: number;
   glyph: string;
@@ -56,7 +56,7 @@ export type DemoHudTask = Readonly<{
   target: number;
 }>;
 
-export type DemoHudObjective = Readonly<{
+export type HudObjective = Readonly<{
   detail: string;
   done: number;
   glyph: string;
@@ -71,7 +71,7 @@ export type DemoHudObjective = Readonly<{
  * Moved out of the canvas pass and into the panel, because the level, the clock and the floor are one
  * readout with the task list underneath and were competing with it for the same corner.
  */
-export type DemoHudRun = Readonly<{
+export type HudRun = Readonly<{
   clock: string;
   core?: Readonly<{ color: string; text: string }>;
   depth: number;
@@ -81,7 +81,7 @@ export type DemoHudRun = Readonly<{
 }>;
 
 /** What walking out right now would be worth. */
-export type DemoHudHaul = Readonly<{
+export type HudHaul = Readonly<{
   banked: number;
   blessings: number;
   kills: number;
@@ -95,7 +95,7 @@ export type DemoHudHaul = Readonly<{
  * seconds overwriting every other thing the floor had to say, and said it as prose — so the countdown
  * was a number you read rather than a bar you watched.
  */
-export type DemoHudChannel = Readonly<{
+export type HudChannel = Readonly<{
   detail: string;
   label: string;
   /** Seconds left, already formatted. Omitted by a pad that pays continuously rather than on a timer. */
@@ -105,7 +105,7 @@ export type DemoHudChannel = Readonly<{
   tone: "bless" | "extract" | "spring";
 }>;
 
-export type DemoHudOverlayReward = Readonly<{
+export type HudOverlayReward = Readonly<{
   color: string;
   detail: string;
   icon: HudIconId;
@@ -115,11 +115,11 @@ export type DemoHudOverlayReward = Readonly<{
 /**
  * One line of the pause screen's roster: a blessing the run is carrying, and what it does.
  *
- * Its own type rather than the bless bar's `DemoHudBlessIcon`, which is a mark in a strip and carries
+ * Its own type rather than the bless bar's `HudBlessIcon`, which is a mark in a strip and carries
  * its description only as a hover title — a thing the run's locked pointer means nobody has ever read.
  * Sharing one row between the two would make the bar carry fields it has no room to draw.
  */
-export type DemoHudOverlayRosterEntry = Readonly<{
+export type HudOverlayRosterEntry = Readonly<{
   color: string;
   /** How many awards the total above is, for a tier that repeats. Omitted by one that does not. */
   count?: string;
@@ -142,7 +142,7 @@ export type DemoHudOverlayRosterEntry = Readonly<{
  * run's numbers and one row per thing the seals opened — and the screen lays them out. A pause now
  * arrives as parts too: `roster` is the blessing list, which is the one readout with nowhere else to be.
  */
-export type DemoHudOverlay = Readonly<{
+export type HudOverlay = Readonly<{
   action?: string;
   /**
    * Which of the three screens this is.
@@ -157,51 +157,51 @@ export type DemoHudOverlay = Readonly<{
   eyebrow?: string;
   footer?: string;
   objective?: string;
-  rewards?: readonly DemoHudOverlayReward[];
+  rewards?: readonly HudOverlayReward[];
   rewardsTitle?: string;
-  roster?: readonly DemoHudOverlayRosterEntry[];
+  roster?: readonly HudOverlayRosterEntry[];
   stats?: readonly Readonly<{ label: string; value: string }>[];
   title: string;
   tone?: "lost" | "out";
 }>;
 
-export type DemoHudMinimapPoint = Readonly<{
+export type HudMinimapPoint = Readonly<{
   color: string;
   radius: number;
   x: number;
   y: number;
 }>;
 
-export type DemoHudMinimap = Readonly<{
+export type HudMinimap = Readonly<{
   facingAngle: number;
   height: number;
-  player: DemoHudMinimapPoint;
-  points: readonly DemoHudMinimapPoint[];
+  player: HudMinimapPoint;
+  points: readonly HudMinimapPoint[];
   tileColors: Readonly<Record<string, string>>;
   tiles: readonly string[];
   width: number;
 }>;
 
-export type DemoHudModel = Readonly<{
-  blessIcons: readonly DemoHudBlessIcon[];
-  card?: DemoHudCard;
-  channel?: DemoHudChannel;
-  haul: DemoHudHaul;
-  held?: DemoHudHeld;
+export type HudModel = Readonly<{
+  blessIcons: readonly HudBlessIcon[];
+  card?: HudCard;
+  channel?: HudChannel;
+  haul: HudHaul;
+  held?: HudHeld;
   hp: number;
   maxHp: number;
   message?: string;
-  minimap: DemoHudMinimap;
-  objective?: DemoHudObjective;
-  overlay?: DemoHudOverlay;
-  run: DemoHudRun;
-  tasks: readonly DemoHudTask[];
+  minimap: HudMinimap;
+  objective?: HudObjective;
+  overlay?: HudOverlay;
+  run: HudRun;
+  tasks: readonly HudTask[];
 }>;
 
 export type MountedDemoHud = Readonly<{
   element: HTMLDivElement;
   overlayButton: HTMLButtonElement;
-  update(model: DemoHudModel): void;
+  update(model: HudModel): void;
 }>;
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -219,7 +219,7 @@ function element<K extends keyof HTMLElementTagNameMap>(
   return created;
 }
 
-function drawMinimap(context: CanvasRenderingContext2D, model: DemoHudMinimap): void {
+function drawMinimap(context: CanvasRenderingContext2D, model: HudMinimap): void {
   const cell = Math.min(context.canvas.width / model.width, context.canvas.height / model.height);
   context.clearRect(0, 0, context.canvas.width, context.canvas.height);
 
@@ -255,7 +255,7 @@ function drawMinimap(context: CanvasRenderingContext2D, model: DemoHudMinimap): 
 }
 
 /** One task line: what it is, how far along, and whether it is done with. */
-function taskRow(task: DemoHudTask): HTMLLIElement {
+function taskRow(task: HudTask): HTMLLIElement {
   const row = element("li", "demo__task");
   const glyph = element("span", "demo__taskglyph", task.met ? "✓" : task.glyph);
   const mark = element("span", "demo__taskmark", task.met ? "✓ Complete" : task.main ? "Required" : "Optional");
@@ -288,7 +288,7 @@ function taskRow(task: DemoHudTask): HTMLLIElement {
  * of the floor is the one part of the lower frame nothing occupies, which is why a full-width bar
  * cannot go there and a narrow cluster can.
  */
-export function mountDemoHud(): MountedDemoHud {
+export function mountHud(): MountedDemoHud {
   const root = element("div", "demo-hud");
   const run = element("section", "demo__run");
   const runHeading = element("div", "demo__runheading");
@@ -423,7 +423,7 @@ export function mountDemoHud(): MountedDemoHud {
   );
   root.append(run, status, minimapFrame, crosshair, channel, message, objective, card, overlayButton);
 
-  const update = (model: DemoHudModel): void => {
+  const update = (model: HudModel): void => {
     const healthShare = model.maxHp > 0 ? Math.max(0, Math.min(1, model.hp / model.maxHp)) : 0;
     const healthTone = healthShare <= 0.25 ? "critical" : healthShare <= 0.5 ? "wounded" : "steady";
     healthFill.style.width = `${healthShare * 100}%`;

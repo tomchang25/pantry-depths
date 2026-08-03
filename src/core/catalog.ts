@@ -7,8 +7,10 @@
  * an author owns reads it from here.
  */
 
-import type { DemoArchetypeId, DemoEnemyArchetype } from "@/core/enemy-contract";
-import type { DemoPropBehaviour, DemoPropKind, DemoThrowWeight } from "@/core/prop-contract";
+import type { EnemyArchetype } from "@/core/enemy-contract";
+import type { MapCastKind } from "@/core/room-contract";
+import type { PropBehaviour, ThrowWeight } from "@/core/prop-contract";
+import type { PropKind } from "@/core/prop-kinds";
 import type {
   BlessDefinition,
   CoreCurse,
@@ -18,11 +20,11 @@ import type {
 } from "@/core/progression-contract";
 
 export type GameCatalog = Readonly<{
-  archetypes: Readonly<Record<DemoArchetypeId, DemoEnemyArchetype>>;
-  propWeights: Readonly<Record<DemoPropKind, DemoThrowWeight>>;
-  propBehaviours: Readonly<Record<DemoPropKind, DemoPropBehaviour>>;
+  archetypes: Readonly<Record<MapCastKind, EnemyArchetype>>;
+  propWeights: Readonly<Record<PropKind, ThrowWeight>>;
+  propBehaviours: Readonly<Record<PropKind, PropBehaviour>>;
   /** A thrown body whose archetype is unknown; the plain slime's weight, because that is the common throw. */
-  defaultBodyWeight: DemoThrowWeight;
+  defaultBodyWeight: ThrowWeight;
   blessCatalog: readonly BlessDefinition[];
   blessStackingCatalog: readonly StackingBlessDefinition[];
   modifierCatalog: readonly ModifierDefinition[];

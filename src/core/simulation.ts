@@ -32,7 +32,7 @@ import {
   blocksProjectile,
   blocksProjectileAt,
   DEMO_WALL_HEIGHT,
-  buildDemoFloor,
+  buildFloor,
   isBarricadeCell,
   roll,
   tileAt,
@@ -47,8 +47,8 @@ import {
   breaksThroughWalls,
   propBehaviour,
   throwCapacity,
-  type DemoPropFlightHit,
-  type DemoPropLanding,
+  type PropFlightHit,
+  type PropLanding,
 } from "@/core/prop-contract";
 import {
   announce,
@@ -70,15 +70,15 @@ import {
   SHELL_DAMAGE,
   spawnReinforcement,
   stainFloor,
-  type DemoCellLike,
-  type DemoEnemy,
-  type DemoMortar,
-  type DemoProjectile,
-  type DemoWorld,
+  type Enemy,
+  type Mortar,
+  type Projectile,
+  type World,
   raiseSfx,
 } from "@/core/world";
+import type { Cell } from "@/core/grid";
 
-export type DemoInput = Readonly<{
+export type PlayerInput = Readonly<{
   forward: boolean;
   backward: boolean;
   strafeLeft: boolean;
@@ -131,7 +131,7 @@ const MIN_CROWD_PACE = 0.25;
  * of that on its own, so standing among a crowd is free. Pushing into one is not, and the deeper in
  * they are the more it costs — which is what makes threading a gap different from barging a line.
  */
-function crowdPace(world: DemoWorld): number {
+function crowdPace(world: World): number {
   let drag = 0;
 
   for (const enemy of world.enemies) {
@@ -154,7 +154,7 @@ function crowdPace(world: DemoWorld): number {
   return Math.max(MIN_CROWD_PACE, 1 - drag);
 }
 
-function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
+function stepPlayer(world: World, input: PlayerInput, deltaSeconds: number): void {
   const forwardX = Math.cos(world.player.angle);
   const forwardY = Math.sin(world.player.angle);
   let moveX = 0;
@@ -230,7 +230,7 @@ function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): v
  * ordinary death path — corpse animation in the right place, drop roll, blessing payout — instead of
  * being a second, quieter way to die.
  */
-function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: boolean): void {
+function landThrownEnemy(world: World, projectile: Projectile, hitWall: boolean): void {
   const enemy = projectile.payload;
 
   if (!enemy) {
@@ -268,8 +268,8 @@ function landThrownEnemy(world: DemoWorld, projectile: DemoProjectile, hitWall: 
  * actually stopped on, hits it harder than a glancing throw for the concentration, and shoves it
  * along the line the throw was travelling rather than away from a point it is standing on top of.
  */
-function strikeWithProp(world: DemoWorld, projectile: DemoProjectile): void {
-  let struck: DemoEnemy | undefined;
+function strikeWithProp(world: World, projectile: Projectile): void {
+  let struck: Enemy | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const enemy of world.enemies) {
@@ -306,7 +306,7 @@ function strikeWithProp(world: DemoWorld, projectile: DemoProjectile): void {
 }
 
 /** What a throw does where it stops, dispatched from the prop's own row rather than its name. */
-function resolveLanding(world: DemoWorld, projectile: DemoProjectile, landing: DemoPropLanding): void {
+function resolveLanding(world: World, projectile: Projectile, landing: PropLanding): void {
   // Nothing happens where it stops, because everything it does it did on the way: the blades spend
   // themselves through the bodies they cut. Whether the weapon itself survives is `leaves`, not this.
   if (landing === "spend") {
@@ -344,7 +344,7 @@ function resolveLanding(world: DemoWorld, projectile: DemoProjectile, landing: D
  * already report at their own sites, so their answer here is silence; everything else was a silent
  * thunk — a javelin nailing into a wall made no sound at all, which read as the throw not landing.
  */
-const WALL_STOP_CUES: Readonly<Record<DemoPropLanding, SfxCueId | undefined>> = {
+const WALL_STOP_CUES: Readonly<Record<PropLanding, SfxCueId | undefined>> = {
   pin: "pinLand",
   strike: "strikeLand",
   spend: "strikeLand",
@@ -358,7 +358,7 @@ const WALL_STOP_CUES: Readonly<Record<DemoPropLanding, SfxCueId | undefined>> = 
  * A thrown body is the one throw with no prop row, because what happens to it is decided by whose
  * body it is and what it landed on. Everything else reads its row.
  */
-function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall: boolean): void {
+function finishProjectile(world: World, projectile: Projectile, hitWall: boolean): void {
   if (projectile.kind === "enemy") {
     landThrownEnemy(world, projectile, hitWall);
     return;
@@ -385,7 +385,7 @@ function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall:
  * resolved against whatever the javelin finally buries itself in — which is the point of the weapon:
  * the wall is what does it, not the throw.
  */
-function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
+function skewerWithJavelin(world: World, projectile: Projectile): void {
   if (projectile.skewered.length >= throwCapacity(world.catalog, projectile.kind)) {
     return;
   }
@@ -425,7 +425,7 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
  * A blade stops on the third one. A reaping throw stops on none of them — it announces each and
  * carries on, because what it is spending is the masonry behind them.
  */
-function cleaveThrough(world: DemoWorld, projectile: DemoProjectile, stopsWhenFull: boolean): boolean {
+function cleaveThrough(world: World, projectile: Projectile, stopsWhenFull: boolean): boolean {
   // Same head-height rule as everything else in flight: too high, and it passes clean over.
   if (projectileHeight(projectile) > 0.6) {
     return false;
@@ -463,7 +463,7 @@ function cleaveThrough(world: DemoWorld, projectile: DemoProjectile, stopsWhenFu
  * the best a standing body could do — and a body driven into masonry at that speed is not standing.
  * What is left of it is a mark on the wall; the scene puts that onto the plane itself.
  */
-function pinToWall(world: DemoWorld, projectile: DemoProjectile): void {
+function pinToWall(world: World, projectile: Projectile): void {
   for (const enemy of projectile.skewered) {
     enemy.x = projectile.x;
     enemy.y = projectile.y;
@@ -477,7 +477,7 @@ function pinToWall(world: DemoWorld, projectile: DemoProjectile): void {
  * A thrown body running down whoever it meets. Nobody stops it: each is hit once, then it carries
  * on to the end of its two tiles.
  */
-function bargeThrough(world: DemoWorld, projectile: DemoProjectile): void {
+function bargeThrough(world: World, projectile: Projectile): void {
   // A body lobbed high overhead runs nobody down on the way; it hits whatever it lands on.
   if (projectileHeight(projectile) > 0.6) {
     return;
@@ -501,7 +501,7 @@ function bargeThrough(world: DemoWorld, projectile: DemoProjectile): void {
 }
 
 /** Whether anything solid enough to stop a throw sits at the projectile's position. */
-function hitsSomeone(world: DemoWorld, projectile: DemoProjectile): boolean {
+function hitsSomeone(world: World, projectile: Projectile): boolean {
   // A lob sailing over someone's head is not a hit: the display arc is fake height, but letting a
   // high bomb detonate on a scalp it visibly cleared reads as a bug, so the arc gates the test.
   if (projectileHeight(projectile) > 0.6) {
@@ -524,7 +524,7 @@ function hitsSomeone(world: DemoWorld, projectile: DemoProjectile): boolean {
  * so all three keep flying after they have done something. Everything else stops on the first thing
  * it touches.
  */
-function stoppedInFlight(world: DemoWorld, projectile: DemoProjectile, flightHit: DemoPropFlightHit): boolean {
+function stoppedInFlight(world: World, projectile: Projectile, flightHit: PropFlightHit): boolean {
   if (flightHit === "skewer") {
     skewerWithJavelin(world, projectile);
     return false;
@@ -553,12 +553,12 @@ function stoppedInFlight(world: DemoWorld, projectile: DemoProjectile, flightHit
  * ends against, and each of them already answers a blow in its own way — the boundary by refusing it
  * out loud.
  */
-function spendsWall(world: DemoWorld, cell: DemoCellLike): boolean {
+function spendsWall(world: World, cell: Cell): boolean {
   const tile = tileAt(world.maze, cell.x, cell.y);
   return tile?.kind === "stone" || tile?.kind === "wood";
 }
 
-function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
+function stepProjectiles(world: World, deltaSeconds: number): void {
   for (const projectile of world.projectiles.slice()) {
     recordTrail(projectile);
     const distance = projectile.speed * deltaSeconds;
@@ -571,7 +571,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
     }
 
     let finished = false;
-    let struckCell: DemoCellLike | undefined;
+    let struckCell: Cell | undefined;
     let stoppedByWall = false;
     const breaksThrough = breaksThroughWalls(world.catalog, projectile.kind);
 
@@ -661,7 +661,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
   }
 }
 
-function stepHazards(world: DemoWorld, deltaSeconds: number): void {
+function stepHazards(world: World, deltaSeconds: number): void {
   for (const hazard of world.hazards.slice()) {
     const distance = hazard.speed * deltaSeconds;
     const steps = Math.max(1, Math.ceil(distance / 0.15));
@@ -723,7 +723,7 @@ function stepHazards(world: DemoWorld, deltaSeconds: number): void {
 /** How many past positions a projectile keeps for its trail. */
 const TRAIL_LENGTH = 9;
 
-function recordTrail(projectile: DemoProjectile): void {
+function recordTrail(projectile: Projectile): void {
   projectile.trail.push({ x: projectile.x, y: projectile.y, z: projectileHeight(projectile) });
 
   if (projectile.trail.length > TRAIL_LENGTH) {
@@ -731,7 +731,7 @@ function recordTrail(projectile: DemoProjectile): void {
   }
 }
 
-function stepVfx(world: DemoWorld, deltaSeconds: number): void {
+function stepVfx(world: World, deltaSeconds: number): void {
   for (const effect of world.vfx.slice()) {
     effect.age += deltaSeconds;
 
@@ -795,8 +795,8 @@ function shellArc(peak: number): number {
  * time thinning them, and being shelled yourself is the uncommon case. It is a hazard to fight beside
  * rather than another thing hunting you.
  */
-function pickMortarTarget(world: DemoWorld, centreX: number, centreY: number): DemoCellLike | undefined {
-  const candidates: DemoCellLike[] = [];
+function pickMortarTarget(world: World, centreX: number, centreY: number): Cell | undefined {
+  const candidates: Cell[] = [];
 
   if (Math.hypot(world.player.x - centreX, world.player.y - centreY) > MORTAR_DEAD_ZONE) {
     candidates.push({ x: world.player.x, y: world.player.y });
@@ -813,7 +813,7 @@ function pickMortarTarget(world: DemoWorld, centreX: number, centreY: number): D
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-function fireShell(world: DemoWorld, mortar: DemoMortar, centreX: number, centreY: number): void {
+function fireShell(world: World, mortar: Mortar, centreX: number, centreY: number): void {
   const dx = mortar.aimX - centreX;
   const dy = mortar.aimY - centreY;
   const range = Math.max(0.0001, Math.hypot(dx, dy));
@@ -853,7 +853,7 @@ function fireShell(world: DemoWorld, mortar: DemoMortar, centreX: number, centre
  * The tiles decide which emplacements exist, so an entry whose cell has been broken open simply
  * leaves. A shell already in the air is not its emplacement's any more and completes regardless.
  */
-function stepMortars(world: DemoWorld, deltaSeconds: number): void {
+function stepMortars(world: World, deltaSeconds: number): void {
   for (const mortar of world.mortars.slice()) {
     if (tileAt(world.maze, mortar.cellX, mortar.cellY)?.kind !== "mortar") {
       world.mortars.splice(world.mortars.indexOf(mortar), 1);
@@ -896,7 +896,7 @@ function stepMortars(world: DemoWorld, deltaSeconds: number): void {
 }
 
 /** Ages the direction marks and drops the ones that have said what they had to say. */
-function stepDamageMarks(world: DemoWorld, deltaSeconds: number): void {
+function stepDamageMarks(world: World, deltaSeconds: number): void {
   for (const mark of world.damageMarks.slice()) {
     mark.age += deltaSeconds;
 
@@ -906,7 +906,7 @@ function stepDamageMarks(world: DemoWorld, deltaSeconds: number): void {
   }
 }
 
-function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
+function stepDeaths(world: World, deltaSeconds: number): void {
   for (const death of world.deaths.slice()) {
     death.progress += deltaSeconds / DEATH_SECONDS;
 
@@ -925,7 +925,7 @@ function stepDeaths(world: DemoWorld, deltaSeconds: number): void {
  * as little of each floor as possible; the floor's own tasks pay now, and the descent is only the way
  * out of a floor whose business is finished.
  */
-export function descend(world: DemoWorld): void {
+export function descend(world: World): void {
   world.depth += 1;
   // A swing in mid-air when the stairs are taken has nothing left to land on: the floor it was aimed
   // at no longer exists. Dropping it stops the blade arriving on the next floor and cleaving whatever
@@ -933,7 +933,7 @@ export function descend(world: DemoWorld): void {
   world.swing = 0;
   world.swingResolved = true;
   world.swingTarget = undefined;
-  world.maze = buildDemoFloor(world.map);
+  world.maze = buildFloor(world.map);
   populateFloor(world);
   announce(world, `Down to floor B${world.depth}`, 3);
 }
@@ -946,7 +946,7 @@ export function descend(world: DemoWorld): void {
  * the player they had been rewarded for the one thing this loop charges them for. What rose is the
  * dungeon's appetite, so that is what the card says.
  */
-function stepRunLevel(world: DemoWorld): void {
+function stepRunLevel(world: World): void {
   const level = runLevel(world);
 
   if (level <= world.announcedLevel) {
@@ -958,7 +958,7 @@ function stepRunLevel(world: DemoWorld): void {
   announce(world, `The depths stir - threat ${level}`, 3);
 }
 
-export function stepDemoWorld(world: DemoWorld, input: DemoInput, deltaSeconds: number): void {
+export function stepWorld(world: World, input: PlayerInput, deltaSeconds: number): void {
   const step = Math.min(deltaSeconds, 0.05);
   world.elapsedSeconds += step;
   world.swing = Math.max(0, world.swing - step);

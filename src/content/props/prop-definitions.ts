@@ -8,7 +8,8 @@
  * the rules side.
  */
 
-import type { DemoPropBehaviour, DemoPropKind, DemoThrowWeight } from "@/core/prop-contract";
+import type { PropBehaviour, ThrowWeight } from "@/core/prop-contract";
+import type { PropKind } from "@/core/prop-kinds";
 
 /**
  * The loose props, unchanged in speed and range from when those were the only two numbers.
@@ -16,7 +17,7 @@ import type { DemoPropBehaviour, DemoPropKind, DemoThrowWeight } from "@/core/pr
  * They are deliberately near-weightless in the new fields: the point of this table is that a body is
  * heavy, and a body is only heavy next to the rock you throw one-handed.
  */
-export const PROP_WEIGHTS: Readonly<Record<DemoPropKind, DemoThrowWeight>> = {
+export const PROP_WEIGHTS: Readonly<Record<PropKind, ThrowWeight>> = {
   stick: {
     speed: 22,
     range: 40,
@@ -165,7 +166,7 @@ export const PROP_WEIGHTS: Readonly<Record<DemoPropKind, DemoThrowWeight>> = {
  * Every archetype carries its own row, so this is only reached by a throw that has lost its payload —
  * and it is the plain slime's weight, because that is the body the demo throws most.
  */
-export const DEFAULT_BODY_WEIGHT: DemoThrowWeight = {
+export const DEFAULT_BODY_WEIGHT: ThrowWeight = {
   speed: 9,
   // Four and a half cells, against a rock's eight. A body is thrown across a fight, not across the
   // room: what came back from the first pass at this was that a slime still flew like a stone, and
@@ -191,7 +192,7 @@ export const DEFAULT_BODY_WEIGHT: DemoThrowWeight = {
  * A row per prop is the fix. A kind that is missing something is now missing it visibly, in a table
  * where the thing beside it has one.
  */
-export const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
+export const PROP_BEHAVIOURS: Readonly<Record<PropKind, PropBehaviour>> = {
   // A sharpened stake: it runs one body through and nails it to whatever stops it. Not a javelin —
   // that is a weapon of its own further down, and the two are told apart by what they carry.
   stick: {

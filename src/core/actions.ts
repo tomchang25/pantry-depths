@@ -10,17 +10,12 @@ import { blessBonus, hasBless } from "@/core/bless";
 import { canCarry, isBoned } from "@/core/enemy-contract";
 
 import { takeSealed } from "@/core/extraction";
-import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/core/maze";
+import { blocksProjectile, tileAt, type Tile } from "@/core/maze";
+import type { Cell } from "@/core/grid";
+import type { PropKind } from "@/core/prop-kinds";
 import { burst } from "@/core/particles";
 import { coreBase, coreBonus } from "@/core/sealed";
-import {
-  propBehaviour,
-  propWeight,
-  throwWeight,
-  type DemoPropKind,
-  type DemoThrowKind,
-  type DemoThrowWeight,
-} from "@/core/prop-contract";
+import { propBehaviour, propWeight, throwWeight, type ThrowKind, type ThrowWeight } from "@/core/prop-contract";
 import {
   announce,
   damageEnemy,
@@ -30,10 +25,10 @@ import {
   stunEnemy,
   SWING_SECONDS,
   THROW_SWING_SECONDS,
-  type DemoEnemy,
-  type DemoHeld,
-  type DemoProp,
-  type DemoWorld,
+  type Enemy,
+  type Held,
+  type Prop,
+  type World,
   raiseSfx,
 } from "@/core/world";
 
@@ -73,7 +68,7 @@ const RECOIL_SHOVE = 0.8;
 const RECOIL_SHAKE = 0.22;
 
 /** Every throw aimed at the floor stops where the crosshair meets it, lobbed or straight. */
-function throwRange(world: DemoWorld, base: number): number {
+function throwRange(world: World, base: number): number {
   if (world.player.pitch > 0) {
     return base;
   }
@@ -85,7 +80,7 @@ function throwRange(world: DemoWorld, base: number): number {
   return Math.min(base, Math.max(THROW_SPAWN_AHEAD, aimDistance - THROW_SPAWN_AHEAD));
 }
 
-export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
+export const PROP_LABELS: Readonly<Record<PropKind, string>> = {
   stick: "Stakes",
   rock: "Rocks",
   bomb: "Bombs",
@@ -101,7 +96,7 @@ export const PROP_LABELS: Readonly<Record<DemoPropKind, string>> = {
   crossbowBolt: "Bolt",
 };
 
-const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
+const THROW_CALLS: Readonly<Record<PropKind, string>> = {
   stick: "Stake away!",
   rock: "Rock away!",
   bomb: "Bomb away!",
@@ -117,7 +112,7 @@ const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
   crossbowBolt: "Bolt away!",
 };
 
-export function meleeReach(world: DemoWorld): number {
+export function meleeReach(world: World): number {
   const base = coreBase(world.catalog)?.meleeReach ?? REACH;
   return (
     (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_REACH : base) +
@@ -126,7 +121,7 @@ export function meleeReach(world: DemoWorld): number {
   );
 }
 
-export function meleeDamage(world: DemoWorld): number {
+export function meleeDamage(world: World): number {
   const base = coreBase(world.catalog)?.meleeDamage ?? BASE_MELEE_DAMAGE;
   return (
     (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_DAMAGE : base) +
@@ -142,21 +137,21 @@ export function meleeDamage(world: DemoWorld): number {
  * to be consulted somewhere, and one place per axis is the only arrangement where a new source of
  * modifiers reaches every axis at once.
  */
-export function playerSpeed(world: DemoWorld): number {
+export function playerSpeed(world: World): number {
   return PLAYER_SPEED + blessBonus(world.bless, "moveSpeed");
 }
 
 /** The damage a thrown object does on contact — the same as a bare swing, blessings aside. */
-export function thrownImpactDamage(world: DemoWorld): number {
+export function thrownImpactDamage(world: World): number {
   return meleeDamage(world);
 }
 
-export function thrownWallDamage(world: DemoWorld, kind: DemoThrowKind): number {
+export function thrownWallDamage(world: World, kind: ThrowKind): number {
   return kind === "enemy" ? THROWN_WALL_DAMAGE : propBehaviour(world.catalog, kind).wallDamage;
 }
 
 /** What the hands are currently carrying weighs, for whatever wants to charge the player for it. */
-export function heldWeight(world: DemoWorld, held: DemoHeld): DemoThrowWeight | undefined {
+export function heldWeight(world: World, held: Held): ThrowWeight | undefined {
   if (!held) {
     return undefined;
   }
@@ -164,12 +159,12 @@ export function heldWeight(world: DemoWorld, held: DemoHeld): DemoThrowWeight | 
   return held.kind === "enemy" ? held.enemy.archetype.weight : propWeight(world.catalog, held.prop);
 }
 
-function facing(world: DemoWorld): Readonly<{ x: number; y: number }> {
+function facing(world: World): Readonly<{ x: number; y: number }> {
   return { x: Math.cos(world.player.angle), y: Math.sin(world.player.angle) };
 }
 
 /** Whether a point is inside the given reach and roughly ahead of the player. */
-function inFront(world: DemoWorld, x: number, y: number, reach: number, arc: number): number | undefined {
+function inFront(world: World, x: number, y: number, reach: number, arc: number): number | undefined {
   const toX = x - world.player.x;
   const toY = y - world.player.y;
   const distance = Math.hypot(toX, toY);
@@ -184,12 +179,12 @@ function inFront(world: DemoWorld, x: number, y: number, reach: number, arc: num
 }
 
 function nearestEnemyAhead(
-  world: DemoWorld,
+  world: World,
   reach: number,
   arc: number,
-  accepts: (enemy: DemoEnemy) => boolean = () => true,
-): DemoEnemy | undefined {
-  let best: DemoEnemy | undefined;
+  accepts: (enemy: Enemy) => boolean = () => true,
+): Enemy | undefined {
+  let best: Enemy | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const enemy of world.enemies) {
@@ -218,8 +213,8 @@ function nearestEnemyAhead(
  * Nearest ends up at the front without a sort — each strictly closer find is moved there — because
  * that one is what the arc is drawn through. The order of the rest is arbitrary and nothing reads it.
  */
-function sweepAhead(world: DemoWorld, reach: number, arc: number): readonly DemoEnemy[] {
-  const struck: DemoEnemy[] = [];
+function sweepAhead(world: World, reach: number, arc: number): readonly Enemy[] {
+  const struck: Enemy[] = [];
   let nearestDistance = Number.POSITIVE_INFINITY;
 
   for (const enemy of world.enemies) {
@@ -244,8 +239,8 @@ function sweepAhead(world: DemoWorld, reach: number, arc: number): readonly Demo
   return struck;
 }
 
-function nearestPropAhead(world: DemoWorld): DemoProp | undefined {
-  let best: DemoProp | undefined;
+function nearestPropAhead(world: World): Prop | undefined {
+  let best: Prop | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const prop of world.props) {
@@ -266,7 +261,7 @@ function nearestPropAhead(world: DemoWorld): DemoProp | undefined {
  * Barricades count even though you can see over them: the same predicate that stops a thrown rock
  * is the one that decides what a swing lands on, so the two can never disagree.
  */
-export function wallAhead(world: DemoWorld, reach = REACH): DemoCell | undefined {
+export function wallAhead(world: World, reach = REACH): Cell | undefined {
   const direction = facing(world);
   const steps = Math.max(4, Math.round(reach * 4));
 
@@ -284,7 +279,7 @@ export function wallAhead(world: DemoWorld, reach = REACH): DemoCell | undefined
 }
 
 /** Iron sparks rather than splinters, and the cell opens up when the last spike goes. */
-function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: number, quiet: boolean): void {
+function damageBarricade(world: World, cell: Cell, tile: Tile, damage: number, quiet: boolean): void {
   tile.hp = Math.max(0, tile.hp - damage);
   world.terrainVersion += 1;
   burst(world.particles, "ember", cell.x + 0.5, cell.y + 0.5, 0.45, 7, {
@@ -324,7 +319,7 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
  * into an errand. Its own branch rather than the masonry one below, which would have given it stone
  * chips, a wall's debris direction, and the wall-broken announcement.
  */
-function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: number, quiet: boolean): void {
+function damageMortar(world: World, cell: Cell, tile: Tile, damage: number, quiet: boolean): void {
   tile.hp = Math.max(0, tile.hp - damage);
   world.terrainVersion += 1;
   burst(world.particles, "ember", cell.x + 0.5, cell.y + 0.5, 0.5, 8, {
@@ -371,7 +366,7 @@ function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: 
  * that were about the player. The debris and the break sound still play; those are local by nature
  * and say nothing to anyone out of earshot.
  */
-export function damageWall(world: DemoWorld, cell: DemoCell, damage: number, quiet = false): void {
+export function damageWall(world: World, cell: Cell, damage: number, quiet = false): void {
   const tile = tileAt(world.maze, cell.x, cell.y);
 
   // A trench belongs here rather than below: it has no hit points, so without this it would fall
@@ -474,7 +469,7 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number, qui
   }
 }
 
-function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
+function spawnProjectile(world: World, kind: ThrowKind, payload: Enemy | undefined): void {
   const direction = facing(world);
   const weight = throwWeight(world.catalog, kind, payload?.archetype.weight);
   const range = throwRange(world, weight.range);
@@ -519,7 +514,7 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
   world.shake = Math.max(world.shake, weight.recoil * RECOIL_SHAKE);
 }
 
-function throwHeld(world: DemoWorld): void {
+function throwHeld(world: World): void {
   const held = world.held;
 
   if (!held) {
@@ -551,7 +546,7 @@ function throwHeld(world: DemoWorld): void {
  * A shot is not a throw and must not read as one: it keeps the arm's dip so the press has weight, but
  * the object stays put, so nothing is handed to the viewmodel to animate leaving.
  */
-function shootHeld(world: DemoWorld): void {
+function shootHeld(world: World): void {
   const held = world.held;
 
   if (!held || held.kind !== "prop") {
@@ -576,7 +571,7 @@ function shootHeld(world: DemoWorld): void {
   announce(world, left > 0 ? `Bolt away! (${left} left)` : "Last bolt — only the stock now");
 }
 
-function strikeAltar(world: DemoWorld): boolean {
+function strikeAltar(world: World): boolean {
   if (world.altar.hp <= 0) {
     return false;
   }
@@ -650,7 +645,7 @@ function strikeAltar(world: DemoWorld): boolean {
  * Also records where it landed. The arc is drawn through the nearest of them, so a swing at something
  * on the left visibly goes left — the difference between an attack animation and a canned one.
  */
-function melee(world: DemoWorld): void {
+function melee(world: World): void {
   const reach = meleeReach(world);
   const struck = sweepAhead(world, reach, MELEE_ARC);
   const nearest = struck[0];
@@ -731,7 +726,7 @@ function melee(world: DemoWorld): void {
  * one hit. Mashing used to be a whole extra hit per click, which made the animation decoration over
  * damage that had already been dealt.
  */
-export function primaryAction(world: DemoWorld): void {
+export function primaryAction(world: World): void {
   if (world.status !== "playing" || world.swing > 0) {
     return;
   }
@@ -772,7 +767,7 @@ export function primaryAction(world: DemoWorld): void {
  * reason the arm's three quarters of a second is not a lie. Everything the hit does — the damage, the
  * shove, the blood, and the point the arc is drawn through — happens here.
  */
-export function resolveSwing(world: DemoWorld): void {
+export function resolveSwing(world: World): void {
   if (world.status !== "playing") {
     return;
   }
@@ -780,7 +775,7 @@ export function resolveSwing(world: DemoWorld): void {
   melee(world);
 }
 
-function dropHeld(world: DemoWorld): void {
+function dropHeld(world: World): void {
   const held = world.held;
 
   if (!held) {
@@ -808,7 +803,7 @@ function dropHeld(world: DemoWorld): void {
 }
 
 /** Right button: grab an enemy or a stack of ammunition — or put down what is held. */
-export function grabAction(world: DemoWorld): void {
+export function grabAction(world: World): void {
   if (world.status !== "playing") {
     return;
   }

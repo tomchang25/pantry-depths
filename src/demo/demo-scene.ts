@@ -42,27 +42,28 @@ import {
   tileIndex,
 } from "@/core/maze";
 import { extractionShare } from "@/core/extraction";
-import type { DemoParticleKind } from "@/core/particles";
+import type { ParticleKind } from "@/core/particles";
 import { BLESSING_HOLD_SECONDS } from "@/core/rooms";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { GAME_CATALOG } from "@/content/catalog";
-import { propBehaviour, type DemoPropKind } from "@/core/prop-contract";
-import type { DemoMaze, DemoRoom, DemoTile } from "@/core/maze";
+import { propBehaviour } from "@/core/prop-contract";
+import type { PropKind } from "@/core/prop-kinds";
+import type { Maze, Room, Tile } from "@/core/maze";
 import {
   bodyFootprint,
   hazardHeight,
   MORTAR_LOCK_SECONDS,
   projectileHeight,
   SHELL_BLAST_RADIUS,
-  type DemoCellLike,
-  type DemoDeath,
-  type DemoDeathCause,
-  type DemoEnemy,
-  type DemoIntent,
-  type DemoProjectile,
-  type DemoWorld,
+  type Death,
+  type DeathCause,
+  type Enemy,
+  type Intent,
+  type Projectile,
+  type World,
 } from "@/core/world";
+import type { Cell } from "@/core/grid";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
   RenderBeam,
@@ -135,7 +136,7 @@ export type DemoEntityProjectionOptions = Readonly<{
   display?: EntityDisplay;
 }>;
 
-function entityProjectionContext(world: DemoWorld): DemoEntityProjectionContext {
+function entityProjectionContext(world: World): DemoEntityProjectionContext {
   return {
     elapsedSeconds: world.elapsedSeconds,
     camera: { x: world.player.x, y: world.player.y, angle: world.player.angle },
@@ -169,7 +170,7 @@ const JAVELIN_WIDTH = 0.048;
 const FLYING_RODS: Readonly<
   Partial<
     Record<
-      DemoPropKind,
+      PropKind,
       Readonly<{
         length: number;
         width: number;
@@ -219,7 +220,7 @@ type TumblingRod = Readonly<{
   }>;
 }>;
 
-const TUMBLING_RODS: Readonly<Partial<Record<DemoPropKind, TumblingRod>>> = {
+const TUMBLING_RODS: Readonly<Partial<Record<PropKind, TumblingRod>>> = {
   hammer: { length: 0.46, width: 0.12, spin: 7.2, shaft: [88, 58, 32], tip: [214, 222, 232] },
   skeletonSword: {
     length: 0.72,
@@ -308,7 +309,7 @@ export function projectDemoBarricade(cell: Readonly<{ x: number; y: number }>, w
 }
 
 /** Which picture each loose object is drawn from. Exported so the prop workbench previews the same one. */
-export const PROP_ASSETS: Readonly<Record<DemoPropKind, string>> = {
+export const PROP_ASSETS: Readonly<Record<PropKind, string>> = {
   stick: DEMO_ASSET_IDS.stick,
   rock: DEMO_ASSET_IDS.rock,
   bomb: DEMO_ASSET_IDS.bomb,
@@ -361,7 +362,7 @@ export function bonedDisplayScale(appearance: EnemyAppearanceId, override?: Enti
  * Exported for exactly that: the offset it applies is the number being tuned, and a tuning tool that
  * recomputed the placement itself would be tuning against its own arithmetic rather than the game's.
  */
-export function warnMarkerSprite(enemy: DemoEnemy, override?: EntityDisplay): RenderSprite | undefined {
+export function warnMarkerSprite(enemy: Enemy, override?: EntityDisplay): RenderSprite | undefined {
   if (enemy.windupSeconds <= 0 || enemy.intent === "none") {
     return undefined;
   }
@@ -417,7 +418,7 @@ const DROWN_STAGE_AT_DEATH = 0.72;
  * One number drives both the frame and the height, because for this animation they are the same
  * statement: how far through the clip the body is *is* how far under the surface it is.
  */
-function drownStage(enemy: DemoEnemy): number {
+function drownStage(enemy: Enemy): number {
   if (enemy.drowningSeconds <= 0) {
     return 0;
   }
@@ -429,7 +430,7 @@ function drownedCorpseStage(progress: number): number {
   return DROWN_STAGE_AT_DEATH + (1 - DROWN_STAGE_AT_DEATH) * Math.min(1, Math.max(0, progress));
 }
 
-function surfaces(world: DemoWorld): RenderSurface[] {
+function surfaces(world: World): RenderSurface[] {
   const built: RenderSurface[] = [];
 
   for (let y = 0; y < world.maze.height; y += 1) {
@@ -480,7 +481,7 @@ const MAX_DRAWN_COPIES = 3;
 
 export type DemoPickupPlacement = Readonly<{
   id: string;
-  kind: DemoPropKind;
+  kind: PropKind;
   count: number;
   x: number;
   y: number;
@@ -535,7 +536,7 @@ export function propPickupSprites(placement: DemoPickupPlacement): RenderSprite[
 }
 
 /** An intent that is actually being wound up, which is the only kind that has a marker. */
-type CommittedIntent = Exclude<DemoIntent, "none">;
+type CommittedIntent = Exclude<Intent, "none">;
 
 /**
  * Which shape floats over a committed enemy.
@@ -563,7 +564,7 @@ function warnAsset(intent: CommittedIntent): string {
 }
 
 /** The wind-up marker floating over a committed enemy, and the lane a charger has claimed. */
-function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
+function telegraph(enemy: Enemy, built: RenderSprite[]): void {
   const marker = warnMarkerSprite(enemy);
 
   if (marker) {
@@ -572,7 +573,7 @@ function telegraph(enemy: DemoEnemy, built: RenderSprite[]): void {
 }
 
 /** Where the top of an enemy sits, so anything worn over its head is worn over *its* head. */
-function crownHeight(enemy: DemoEnemy, override?: EntityDisplay): number {
+function crownHeight(enemy: Enemy, override?: EntityDisplay): number {
   return isBoned(enemy.archetype) ? bonedDisplayScale(enemy.appearance, override) : slimeBody(enemy.appearance).height;
 }
 
@@ -591,7 +592,7 @@ const STUN_STAR_SCALE = 0.3;
  * Real world positions rather than an overlay, so the far star goes behind the head and the near one
  * in front. Sprites have no per-instance opacity, so the ring arrives and leaves on scale.
  */
-function stunStars(enemy: DemoEnemy, elapsedSeconds: number, built: RenderSprite[]): void {
+function stunStars(enemy: Enemy, elapsedSeconds: number, built: RenderSprite[]): void {
   if (enemy.stunSeconds <= 0 || enemy.drowningSeconds > 0) {
     return;
   }
@@ -668,11 +669,11 @@ function easeThenHold(elapsedSeconds: number): number {
  * a white that is simply there and then away reads as the moment the blade arrived. Shared by both
  * kinds of enemy so a bone body and a boneless one answer a hit identically.
  */
-function enemyHitFlash(enemy: DemoEnemy): number {
+function enemyHitFlash(enemy: Enemy): number {
   return enemy.hurtSeconds > 0 ? Math.min(1, enemy.hurtSeconds / 0.16) : 0;
 }
 
-function skeletonAnimation(context: DemoEntityProjectionContext, enemy: DemoEnemy): SkeletonPose {
+function skeletonAnimation(context: DemoEntityProjectionContext, enemy: Enemy): SkeletonPose {
   if (enemy.drowningSeconds > 0) {
     // Going under outranks everything else it was doing, the same way the simulation drops its
     // wind-up and its charge on entry. It is the shared drowning death, reached while the body is
@@ -721,7 +722,7 @@ function skeletonAnimation(context: DemoEntityProjectionContext, enemy: DemoEnem
 /** A clip cycling on its own frame rate, offset per body so a crowd does not move in lockstep. */
 function loopedPose(
   context: DemoEntityProjectionContext,
-  enemy: DemoEnemy,
+  enemy: Enemy,
   definition: SkeletonClipDefinition,
 ): SkeletonPose {
   const phase = enemyPhase(enemy.id) / (Math.PI * 2);
@@ -731,7 +732,7 @@ function loopedPose(
 
 function skeletonSprite(
   context: DemoEntityProjectionContext,
-  enemy: DemoEnemy,
+  enemy: Enemy,
   selected = skeletonAnimation(context, enemy),
   override?: EntityDisplay,
 ): RenderSprite {
@@ -765,7 +766,7 @@ function skeletonSprite(
  * skeleton over, it takes it apart, so that death is entirely a burst of bones and there is nothing
  * for the corpse itself to show. Exported so the workbench can scrub each clip at its own length.
  */
-export function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonDeathId | undefined {
+export function skeletonDeathAnimation(cause: DeathCause): SkeletonDeathId | undefined {
   if (cause === "cleaved") {
     return "cleaved";
   }
@@ -799,7 +800,7 @@ export function skeletonDeathAnimation(cause: DemoDeathCause): SkeletonDeathId |
 
 function skeletonDeathSprite(
   context: DemoEntityProjectionContext,
-  death: DemoDeath,
+  death: Death,
   override?: EntityDisplay,
 ): RenderSprite | undefined {
   const animation = skeletonDeathAnimation(death.cause);
@@ -837,8 +838,8 @@ function skeletonDeathSprite(
 /** One authored skeleton riding a javelin, replacing the slime-shaped fallback used by blobs. */
 function carriedSkeletonSprite(
   context: DemoEntityProjectionContext,
-  projectile: DemoProjectile,
-  enemy: DemoEnemy,
+  projectile: Projectile,
+  enemy: Enemy,
   index: number,
 ): RenderSprite {
   // Riding the shaft is being run through, which is the pose the impaled clip holds — and it holds
@@ -867,7 +868,7 @@ function carriedSkeletonSprite(
   };
 }
 
-function vfxSprites(world: DemoWorld, built: RenderSprite[]): void {
+function vfxSprites(world: World, built: RenderSprite[]): void {
   for (const effect of world.vfx) {
     const life = Math.min(1, effect.age / effect.life);
 
@@ -922,7 +923,7 @@ function vfxSprites(world: DemoWorld, built: RenderSprite[]): void {
   }
 }
 
-function sprites(world: DemoWorld): RenderSprite[] {
+function sprites(world: World): RenderSprite[] {
   const built: RenderSprite[] = [];
   const projectionContext = entityProjectionContext(world);
 
@@ -1072,7 +1073,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
  * The face is read back from the throw: the mark is on the side the javelin came from, which is the
  * only side it can be seen from.
  */
-function wallMark(death: DemoDeath): RenderSprite {
+function wallMark(death: Death): RenderSprite {
   const spread = Math.min(1, death.progress / 0.3);
   // Onto the plane. The body comes to rest inside the open cell in front of the wall, so the cell
   // boundary it was travelling towards is the face — pulled back a hair so the mark draws in front
@@ -1108,7 +1109,7 @@ function snapToFace(along: number, direction: number): number {
  * Typed off the sprite rather than from the grid's own vocabulary, because the demo owns no facings
  * of its own and has no other reason to import the game's.
  */
-function wallMarkFace(death: DemoDeath): NonNullable<RenderSprite["wallFace"]> {
+function wallMarkFace(death: Death): NonNullable<RenderSprite["wallFace"]> {
   if (Math.abs(death.directionX) >= Math.abs(death.directionY)) {
     return death.directionX > 0 ? "west" : "east";
   }
@@ -1162,7 +1163,7 @@ function enemyPhase(id: string): number {
  * looks, not new state of its own. Later clauses override earlier ones, so being hurt interrupts a
  * lunge visually the same way it reads in play.
  */
-function enemyBlob(context: DemoEntityProjectionContext, enemy: DemoEnemy): RenderBlob {
+function enemyBlob(context: DemoEntityProjectionContext, enemy: Enemy): RenderBlob {
   const body = SLIME_BODIES[enemy.appearance] ?? FALLBACK_BODY;
   const footprint = bodyFootprint(enemy.archetype);
   const t = context.elapsedSeconds;
@@ -1284,13 +1285,7 @@ const SHATTER_PIECES = 7;
  *
  * Every piece is placed from the death's own id, so the same body always breaks the same way.
  */
-function shatteredBlobs(
-  death: DemoDeath,
-  corpse: RenderBlob,
-  body: SlimeBody,
-  footprint: number,
-  t: number,
-): RenderBlob[] {
+function shatteredBlobs(death: Death, corpse: RenderBlob, body: SlimeBody, footprint: number, t: number): RenderBlob[] {
   const seed = enemyPhase(death.id);
   const flight = Math.min(1, t / 0.45);
   const settle = easeOut(flight);
@@ -1322,7 +1317,7 @@ function shatteredBlobs(
 }
 
 /** The corpse, one animation per way of dying. Empty once there is nothing left of it to show. */
-function deathBlobs(death: DemoDeath): RenderBlob[] {
+function deathBlobs(death: Death): RenderBlob[] {
   const body = SLIME_BODIES[death.appearance] ?? FALLBACK_BODY;
   const footprint = bodyFootprint(ENEMY_ARCHETYPES[death.archetypeId]);
   const t = Math.min(1, Math.max(0, death.progress));
@@ -1464,7 +1459,7 @@ function carriedBlob(
 /** Projects one living body without adding combat telegraphs or hit particles around it. */
 export function projectDemoEnemy(
   context: DemoEntityProjectionContext,
-  enemy: DemoEnemy,
+  enemy: Enemy,
   options: DemoEntityProjectionOptions = {},
 ): DemoEntityProjection {
   if (isBoned(enemy.archetype)) {
@@ -1480,7 +1475,7 @@ export function projectDemoEnemy(
 /** Projects one corpse, including the wall decal that replaces a splattered blob body. */
 export function projectDemoDeath(
   context: DemoEntityProjectionContext,
-  death: DemoDeath,
+  death: Death,
   options: DemoEntityProjectionOptions = {},
 ): DemoEntityProjection {
   if (isBoned(ENEMY_ARCHETYPES[death.archetypeId])) {
@@ -1499,8 +1494,8 @@ export function projectDemoDeath(
 /** Projects a body carried on a flying stick at the same offset used by the live demo. */
 export function projectCarriedDemoEnemy(
   context: DemoEntityProjectionContext,
-  projectile: DemoProjectile,
-  enemy: DemoEnemy,
+  projectile: Projectile,
+  enemy: Enemy,
   index: number,
 ): DemoEntityProjection {
   if (isBoned(enemy.archetype)) {
@@ -1530,7 +1525,7 @@ export function projectCarriedDemoEnemy(
   };
 }
 
-function blobs(world: DemoWorld): RenderBlob[] {
+function blobs(world: World): RenderBlob[] {
   const built: RenderBlob[] = [];
   const projectionContext = entityProjectionContext(world);
 
@@ -1578,7 +1573,7 @@ function blobs(world: DemoWorld): RenderBlob[] {
  * The stone, the light it throws, the rune over it and the embers off it all read from this one
  * number, so an altar can never look half-broken and shine as though it were untouched.
  */
-function altarShare(world: DemoWorld): number {
+function altarShare(world: World): number {
   return world.altar.maxHp > 0 ? Math.max(0, world.altar.hp) / world.altar.maxHp : 0;
 }
 
@@ -1627,7 +1622,7 @@ function litFace(color: readonly [number, number, number]): [number, number, num
  * under it, the stone darkens, and each piece that comes off is still lying on the floor afterwards —
  * so how much of an altar somebody has already spent is legible from across the room and from behind.
  */
-function altarBoxes(world: DemoWorld): RenderBox[] {
+function altarBoxes(world: World): RenderBox[] {
   const altar = world.altar;
   const damage = Math.min(altar.maxHp, Math.max(0, altar.maxHp - altar.hp));
   const wear = altar.maxHp > 0 ? damage / altar.maxHp : 0;
@@ -1730,7 +1725,7 @@ const PAD_HALF = ROOM_PAD_HALF + 0.5;
  * Static on purpose. Structure geometry is cached against the floor, so making the posts rise with the
  * claim would rebuild every wall on the floor every frame; the claim's progress is a light instead.
  */
-function blessingAltarBoxes(room: DemoRoom): RenderBox[] {
+function blessingAltarBoxes(room: Room): RenderBox[] {
   const x = room.center.x + 0.5;
   const y = room.center.y + 0.5;
   const built: RenderBox[] = [
@@ -1784,7 +1779,7 @@ function blessingAltarBoxes(room: DemoRoom): RenderBox[] {
  * thing on the floor not to walk into, which is the opposite of what this room is for — the whole of
  * it is that standing in it is good, and the water has to cover exactly the ground that pays.
  */
-function hotSpringBoxes(room: DemoRoom): RenderBox[] {
+function hotSpringBoxes(room: Room): RenderBox[] {
   const x = room.center.x + 0.5;
   const y = room.center.y + 0.5;
   return [
@@ -1848,7 +1843,7 @@ function hotSpringBoxes(room: DemoRoom): RenderBox[] {
  * the corners, and everything still stops at the doorway. Finding the room is the part the floor
  * charges for; standing in the right square once inside it is not.
  */
-function extractionBoxes(room: DemoRoom): RenderBox[] {
+function extractionBoxes(room: Room): RenderBox[] {
   const x = room.center.x + 0.5;
   const y = room.center.y + 0.5;
   const built: RenderBox[] = [
@@ -1924,7 +1919,7 @@ function extractionBoxes(room: DemoRoom): RenderBox[] {
  *
  * Cached against `terrainVersion`, which `stepTasks` bumps on the frame the lock comes off.
  */
-function stairBoxes(world: DemoWorld): RenderBox[] {
+function stairBoxes(world: World): RenderBox[] {
   const x = world.maze.exit.x + 0.5;
   const y = world.maze.exit.y + 0.5;
 
@@ -2040,7 +2035,7 @@ function stairBoxes(world: DemoWorld): RenderBox[] {
  * painted on the floor rather than as places. The altar is now a plinth you can walk around; the
  * stair is a pit sunk below the floor with four steps descending into it and a raised kerb.
  */
-function boxes(world: DemoWorld): RenderBox[] {
+function boxes(world: World): RenderBox[] {
   const built: RenderBox[] = altarBoxes(world);
 
   // Each side room's own fixture. The cursed altar is not here: it is the plinth above, which the floor
@@ -2100,7 +2095,7 @@ function boxes(world: DemoWorld): RenderBox[] {
 const MORTAR_BARREL_RINGS = 4;
 
 /** How hot an emplacement's muzzle is running, from cold between shots to white at launch. */
-function mortarGlow(world: DemoWorld, cell: DemoCellLike): number {
+function mortarGlow(world: World, cell: Cell): number {
   const mortar = world.mortars.find((entry) => entry.cellX === cell.x && entry.cellY === cell.y);
 
   if (!mortar || mortar.phase !== "locked") {
@@ -2120,7 +2115,7 @@ function mortarGlow(world: DemoWorld, cell: DemoCellLike): number {
  *
  * Darkens as it is broken down, so how close one is to being wrecked is readable from across a room.
  */
-function mortarBoxes(world: DemoWorld, cell: DemoCellLike, wear: number): RenderBox[] {
+function mortarBoxes(world: World, cell: Cell, wear: number): RenderBox[] {
   const centreX = cell.x + 0.5;
   const centreY = cell.y + 0.5;
   const dim = 1 - wear * 0.42;
@@ -2201,7 +2196,7 @@ export const POOL_FILL: readonly RenderFloorMaterial[] = ["water", "waterFouled"
  * The dry cells are named too, which is how the demo gets its own flagstones without touching the
  * default floor the shipped game draws.
  */
-function floorPatches(world: DemoWorld): RenderFloorPatch[] {
+function floorPatches(world: World): RenderFloorPatch[] {
   const built: RenderFloorPatch[] = [];
 
   for (let y = 0; y < world.maze.height; y += 1) {
@@ -2214,7 +2209,7 @@ function floorPatches(world: DemoWorld): RenderFloorPatch[] {
   return built;
 }
 
-function floorMaterial(tile: DemoTile | undefined): RenderFloorMaterial {
+function floorMaterial(tile: Tile | undefined): RenderFloorMaterial {
   if (tile?.kind === "filled") {
     return "demoCarrion";
   }
@@ -2259,11 +2254,11 @@ function rodBeam(
   };
 }
 
-function beams(world: DemoWorld): RenderBeam[] {
+function beams(world: World): RenderBeam[] {
   const built: RenderBeam[] = [];
 
   for (const projectile of world.projectiles) {
-    const rod = FLYING_RODS[projectile.kind as DemoPropKind];
+    const rod = FLYING_RODS[projectile.kind as PropKind];
 
     if (rod) {
       // The shaft points along its own flight line, which is the aim line it left the hand on.
@@ -2286,7 +2281,7 @@ function beams(world: DemoWorld): RenderBeam[] {
       continue;
     }
 
-    const tumbling = TUMBLING_RODS[projectile.kind as DemoPropKind];
+    const tumbling = TUMBLING_RODS[projectile.kind as PropKind];
 
     if (!tumbling) {
       continue;
@@ -2335,7 +2330,7 @@ function beams(world: DemoWorld): RenderBeam[] {
 }
 
 /** Blood already spilled, as a material mixed into the floor rather than an image laid over it. */
-function floorOverlays(world: DemoWorld): RenderFloorOverlay[] {
+function floorOverlays(world: World): RenderFloorOverlay[] {
   const built: RenderFloorOverlay[] = [];
 
   for (let y = 0; y < world.maze.height; y += 1) {
@@ -2353,7 +2348,7 @@ function floorOverlays(world: DemoWorld): RenderFloorOverlay[] {
   return built;
 }
 
-const PARTICLE_COLORS: Readonly<Record<DemoParticleKind, readonly [number, number, number]>> = {
+const PARTICLE_COLORS: Readonly<Record<ParticleKind, readonly [number, number, number]>> = {
   blood: [146, 20, 28],
   stoneChip: [128, 118, 142],
   woodChip: [138, 92, 48],
@@ -2364,7 +2359,7 @@ const PARTICLE_COLORS: Readonly<Record<DemoParticleKind, readonly [number, numbe
 };
 
 /** Everything small and numerous, as flat dots rather than sprites. */
-function particles(world: DemoWorld): RenderParticle[] {
+function particles(world: World): RenderParticle[] {
   const built: RenderParticle[] = [];
 
   for (const particle of world.particles.items) {
@@ -2417,7 +2412,7 @@ const BEACON_BEADS = 9;
  * one place the mark absolutely has to be legible is the place the player is standing in it, so the
  * mark also has to exist above the floor.
  */
-function landingBeacons(world: DemoWorld, built: RenderParticle[]): void {
+function landingBeacons(world: World, built: RenderParticle[]): void {
   const columns: { x: number; y: number; closing: number }[] = [];
 
   for (const mortar of world.mortars) {
@@ -2474,7 +2469,7 @@ const BEAD_COLOR: readonly [number, number, number] = [255, 96, 88];
  * dotted line happens to be what a sight line looks like anyway.
  */
 function beadLine(
-  world: DemoWorld,
+  world: World,
   fromX: number,
   fromY: number,
   directionX: number,
@@ -2514,7 +2509,7 @@ const CUT_BEADS = 15;
  * current facing, which is now fixed for the whole wind-up: the body locks its aim when it commits,
  * so this arc is nailed to a piece of the room from the first frame.
  */
-function cutArc(enemy: DemoEnemy, elapsedSeconds: number, built: RenderParticle[]): void {
+function cutArc(enemy: Enemy, elapsedSeconds: number, built: RenderParticle[]): void {
   if (enemy.windupSeconds <= 0 || enemy.intent !== "melee") {
     return;
   }
@@ -2552,7 +2547,7 @@ const SIGHT_LINE_HEIGHT = 0.42;
  * lock there was no future to draw. It brightens as the wind-up runs out, so the line says both where
  * the shot is going and how long there is to not be there.
  */
-function sightLines(world: DemoWorld, built: RenderParticle[]): void {
+function sightLines(world: World, built: RenderParticle[]): void {
   for (const enemy of world.enemies) {
     cutArc(enemy, world.elapsedSeconds, built);
 
@@ -2616,7 +2611,7 @@ const EXTRACT_HOT: readonly [number, number, number] = [148, 246, 96];
  * for which one comes first.
  */
 function chargeRun(
-  world: DemoWorld,
+  world: World,
   fromX: number,
   fromY: number,
   directionX: number,
@@ -2649,7 +2644,7 @@ function chargeRun(
  * Order matters within each mark: the fill goes down first and the edge over it, so a circle keeps a
  * hard rim right up to the moment it is full.
  */
-function floorDecals(world: DemoWorld): RenderFloorDecal[] {
+function floorDecals(world: World): RenderFloorDecal[] {
   const built: RenderFloorDecal[] = [];
 
   for (const enemy of world.enemies) {
@@ -2915,7 +2910,7 @@ function pushBlastRim(built: RenderFloorDecal[], x: number, y: number, radius: n
  * as the hold accumulates, and goes to full when the claim lands. Leaving the room drops it back to
  * nothing on the next frame, because the hold itself resets — the readout is the state, not a copy of it.
  */
-function roomLights(world: DemoWorld): RenderLight[] {
+function roomLights(world: World): RenderLight[] {
   const built: RenderLight[] = [];
 
   for (const room of world.maze.rooms) {
@@ -2966,7 +2961,7 @@ function roomLights(world: DemoWorld): RenderLight[] {
   return built;
 }
 
-function lights(world: DemoWorld): RenderLight[] {
+function lights(world: World): RenderLight[] {
   // The torch the player is carrying, as an actual light in the world rather than a screen effect —
   // so it pools on the floor around them, throws their surroundings into relief, and dies out at a
   // distance that tells them how far they can see.
@@ -3124,7 +3119,7 @@ function lights(world: DemoWorld): RenderLight[] {
   return built;
 }
 
-function emitters(world: DemoWorld): RenderEmitter[] {
+function emitters(world: World): RenderEmitter[] {
   const built: RenderEmitter[] = world.enemies
     .filter((enemy) => enemy.drowningSeconds > 0)
     .map((enemy) => ({ id: `${enemy.id}-drown`, x: enemy.x, y: enemy.y, kind: "steam" as const, density: 9 }));
@@ -3197,7 +3192,7 @@ function emitters(world: DemoWorld): RenderEmitter[] {
  * Applied to pitch only. Pitch is presentation — nothing in the simulation reads it, and aiming is
  * horizontal — so shaking it cannot cost the player a shot, which a positional shake could.
  */
-function blastKick(world: DemoWorld): number {
+function blastKick(world: World): number {
   let kick = 0;
 
   for (const effect of world.vfx) {
@@ -3220,7 +3215,7 @@ function blastKick(world: DemoWorld): number {
  * Kept to a tap. This fires far more often than a detonation does — every throw and every landing —
  * and a camera that swings on all of them stops reading as weight and starts making people ill.
  */
-function weightKick(world: DemoWorld): number {
+function weightKick(world: World): number {
   return Math.sin(world.elapsedSeconds * 52) * world.shake * 0.014;
 }
 
@@ -3235,7 +3230,7 @@ function weightKick(world: DemoWorld): number {
  * however the counter happens to line up.
  */
 type TerrainCache = {
-  maze: DemoMaze;
+  maze: Maze;
   version: number;
   surfaces: RenderSurface[];
   floorPatches: RenderFloorPatch[];
@@ -3259,7 +3254,7 @@ type StainCache = {
 
 let stainCache: StainCache | undefined;
 
-function cachedOverlays(world: DemoWorld): RenderFloorOverlay[] {
+function cachedOverlays(world: World): RenderFloorOverlay[] {
   if (stainCache && stainCache.stains === world.stains && stainCache.version === world.stainsVersion) {
     return stainCache.overlays;
   }
@@ -3268,7 +3263,7 @@ function cachedOverlays(world: DemoWorld): RenderFloorOverlay[] {
   return stainCache.overlays;
 }
 
-function cachedTerrain(world: DemoWorld): TerrainCache {
+function cachedTerrain(world: World): TerrainCache {
   if (terrainCache && terrainCache.maze === world.maze && terrainCache.version === world.terrainVersion) {
     return terrainCache;
   }
@@ -3283,7 +3278,7 @@ function cachedTerrain(world: DemoWorld): TerrainCache {
   return terrainCache;
 }
 
-export function createDemoScene(world: DemoWorld): RenderScene {
+export function createDemoScene(world: World): RenderScene {
   const terrain = cachedTerrain(world);
   const rows: string[] = [];
 
@@ -3343,7 +3338,7 @@ export function demoMeleeImpactPitch(impact: number): number {
   return -Math.sin((1 - strength) * Math.PI) * strength * 0.011;
 }
 
-export function createDemoEffects(world: DemoWorld): PresentationRenderEffects {
+export function createDemoEffects(world: World): PresentationRenderEffects {
   return {
     // Enemy state and deaths are carried by the blobs in the scene itself now — flash, pose and
     // corpse animation included — so the sprite-side effect channels stay empty here.

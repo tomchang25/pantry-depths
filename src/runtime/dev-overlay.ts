@@ -2,7 +2,7 @@
  * The instrument panel: what the machine is doing, which cheats are on, and the buttons that put
  * the floor into a state worth looking at.
  *
- * Deliberately not part of the HUD. `DemoHudModel` is what the player is told about themselves, and a
+ * Deliberately not part of the HUD. `HudModel` is what the player is told about themselves, and a
  * frame counter is not that — it was living in the health readout, which meant reading health was
  * parsing a compound line whose two halves change for unrelated reasons.
  *
@@ -13,9 +13,9 @@
  * most of the time — so the key is the real control and the chip is where you find out what it is.
  */
 
-import "@/runtime/demo-dev-overlay.css";
+import "@/runtime/dev-overlay.css";
 
-export type DemoDevOverlayModel = Readonly<{
+export type DevOverlayModel = Readonly<{
   mindsFrozen: boolean;
   worldFrozen: boolean;
   fps: number;
@@ -36,7 +36,7 @@ export type DemoDevOverlayModel = Readonly<{
  * from outside is eight lines of listener bookkeeping split across two places, and the half that
  * removes them is the half that gets forgotten.
  */
-export type DemoDevOverlayActions = Readonly<{
+export type DevOverlayActions = Readonly<{
   toggleGodMode(): void;
   testArena(): void;
   killAll(): void;
@@ -48,7 +48,7 @@ export type DemoDevOverlayActions = Readonly<{
 
 export type MountedDemoDevOverlay = Readonly<{
   element: HTMLDivElement;
-  update(model: DemoDevOverlayModel): void;
+  update(model: DevOverlayModel): void;
   dispose(): void;
 }>;
 
@@ -59,7 +59,7 @@ export type MountedDemoDevOverlay = Readonly<{
  * clicks taken by the thing that re-locks the pointer. Later sibling, later paint, and the buttons are
  * reachable whenever the pointer is free.
  */
-export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemoDevOverlay {
+export function mountDevOverlay(actions: DevOverlayActions): MountedDemoDevOverlay {
   const element = document.createElement("div");
   const fps = document.createElement("span");
   const godModeButton = document.createElement("button");
@@ -119,7 +119,7 @@ export function mountDemoDevOverlay(actions: DemoDevOverlayActions): MountedDemo
     command("Bless · L", actions.grantBless),
   );
 
-  const update = (model: DemoDevOverlayModel): void => {
+  const update = (model: DevOverlayModel): void => {
     fps.textContent = `${Math.round(model.fps)} FPS`;
     godModeButton.textContent = `God mode · ${model.godMode ? "on" : "off"} · G`;
     godModeButton.dataset.active = String(model.godMode);

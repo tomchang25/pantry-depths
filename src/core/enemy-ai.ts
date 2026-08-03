@@ -44,11 +44,12 @@ import {
   attackWindup,
   MELEE_CUT_HALF_ANGLE,
   STRIKE_SECONDS,
-  type DemoWindupIntent,
+  type WindupIntent,
 } from "@/core/enemy-contract";
 import { hasBless } from "@/core/bless";
 import { checkHazards } from "@/core/impacts";
-import { breadthFirstStep, randomReachableCell, type DemoCell } from "@/core/maze";
+import { breadthFirstStep, randomReachableCell } from "@/core/maze";
+import type { Cell } from "@/core/grid";
 import { burst } from "@/core/particles";
 
 import { FLUNG, slideMove, unstick, WALKING } from "@/core/movement";
@@ -61,8 +62,8 @@ import {
   nextId,
   randomAmmo,
   stunEnemy,
-  type DemoEnemy,
-  type DemoWorld,
+  type Enemy,
+  type World,
   raiseSfx,
   rollIdleSeconds,
 } from "@/core/world";
@@ -70,7 +71,7 @@ import {
 const REPATH_SECONDS = 0.4;
 const SEPARATION = 0.62;
 
-function decayTimers(enemy: DemoEnemy, deltaSeconds: number): void {
+function decayTimers(enemy: Enemy, deltaSeconds: number): void {
   enemy.stunSeconds = Math.max(0, enemy.stunSeconds - deltaSeconds);
   enemy.hurtSeconds = Math.max(0, enemy.hurtSeconds - deltaSeconds);
   enemy.attackPoseSeconds = Math.max(0, enemy.attackPoseSeconds - deltaSeconds);
@@ -78,7 +79,7 @@ function decayTimers(enemy: DemoEnemy, deltaSeconds: number): void {
   enemy.repathSeconds = Math.max(0, enemy.repathSeconds - deltaSeconds);
 }
 
-function applyPush(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+function applyPush(world: World, enemy: Enemy, deltaSeconds: number): void {
   if (enemy.pushX === 0 && enemy.pushY === 0) {
     return;
   }
@@ -106,7 +107,7 @@ function applyPush(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): vo
   checkHazards(world, enemy);
 }
 
-function separate(world: DemoWorld, enemy: DemoEnemy): Readonly<{ x: number; y: number }> {
+function separate(world: World, enemy: Enemy): Readonly<{ x: number; y: number }> {
   let offsetX = 0;
   let offsetY = 0;
 
@@ -138,11 +139,7 @@ function separate(world: DemoWorld, enemy: DemoEnemy): Readonly<{ x: number; y: 
  * this particular waypoint has just been reached, which is a normal frame and not a reason to give up
  * on anything.
  */
-function pathHeading(
-  world: DemoWorld,
-  enemy: DemoEnemy,
-  goal: DemoCell,
-): Readonly<{ x: number; y: number }> | undefined {
+function pathHeading(world: World, enemy: Enemy, goal: Cell): Readonly<{ x: number; y: number }> | undefined {
   const cell = { x: Math.floor(enemy.x), y: Math.floor(enemy.y) };
 
   // The cooldown alone gates the search. Retrying on an empty waypoint as well meant a player
@@ -187,7 +184,7 @@ function shortestTurn(angle: number): number {
  * facing backwards pivots on the spot until it is pointed at something. That is the whole mechanism
  * that stops a steered body from ever travelling sideways.
  */
-function steerToward(enemy: DemoEnemy, desiredAngle: number, turnRate: number, deltaSeconds: number): number {
+function steerToward(enemy: Enemy, desiredAngle: number, turnRate: number, deltaSeconds: number): number {
   const error = shortestTurn(desiredAngle - enemy.facingAngle);
   const step = turnRate * deltaSeconds;
   enemy.facingAngle = shortestTurn(enemy.facingAngle + Math.max(-step, Math.min(step, error)));
@@ -208,8 +205,8 @@ function steerToward(enemy: DemoEnemy, desiredAngle: number, turnRate: number, d
  * with legs has. Everything else keeps the old behaviour.
  */
 function walk(
-  world: DemoWorld,
-  enemy: DemoEnemy,
+  world: World,
+  enemy: Enemy,
   headingX: number,
   headingY: number,
   speed: number,
@@ -261,7 +258,7 @@ function walk(
  * landing circle are both statements about a spot on the floor — and keeping two representations of
  * one lock is how they come apart.
  */
-function beginWindup(world: DemoWorld, enemy: DemoEnemy, intent: DemoWindupIntent): void {
+function beginWindup(world: World, enemy: Enemy, intent: WindupIntent): void {
   enemy.intent = intent;
   enemy.windupSeconds = attackWindup(enemy.archetype);
   enemy.windupTotal = attackWindup(enemy.archetype);
@@ -273,7 +270,7 @@ function beginWindup(world: DemoWorld, enemy: DemoEnemy, intent: DemoWindupInten
   enemy.facingAngle = Math.atan2(enemy.aimY - enemy.y, enemy.aimX - enemy.x);
 }
 
-function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
+function fireShot(world: World, enemy: Enemy): void {
   const shot = enemy.archetype.shot;
 
   if (!shot) {
@@ -312,7 +309,7 @@ function fireShot(world: DemoWorld, enemy: DemoEnemy): void {
  * something two cells away still runs its full length past it — which is what leaves the charger
  * beyond the player, facing the wrong way, when it misses.
  */
-function launchCharge(enemy: DemoEnemy): void {
+function launchCharge(enemy: Enemy): void {
   const dx = enemy.aimX - enemy.x;
   const dy = enemy.aimY - enemy.y;
   const length = Math.max(0.0001, Math.hypot(dx, dy));
@@ -340,7 +337,7 @@ function launchCharge(enemy: DemoEnemy): void {
  * converging on a body is a wind-up in a way that particles leaving one never is. The release throws
  * them back out along the arc, so the moment the second ends is punctuated rather than merely over.
  */
-function honeBlade(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+function honeBlade(world: World, enemy: Enemy, deltaSeconds: number): void {
   if (enemy.intent !== "melee") {
     return;
   }
@@ -368,7 +365,7 @@ function honeBlade(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): vo
 }
 
 /** The blade going, thrown outward along the arc it just swept. */
-function releaseBlade(world: DemoWorld, enemy: DemoEnemy): void {
+function releaseBlade(world: World, enemy: Enemy): void {
   burst(world.particles, "ember", enemy.x, enemy.y, 0.62, 12, {
     speed: 5.5,
     spreadZ: 0.7,
@@ -382,7 +379,7 @@ function releaseBlade(world: DemoWorld, enemy: DemoEnemy): void {
   });
 }
 
-function stokeCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+function stokeCharge(world: World, enemy: Enemy, deltaSeconds: number): void {
   if (enemy.intent !== "charge") {
     return;
   }
@@ -404,7 +401,7 @@ function stokeCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): 
 }
 
 /** Runs a charge already in flight. Missing costs the charger the stun that makes it punishable. */
-function stepCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+function stepCharge(world: World, enemy: Enemy, deltaSeconds: number): void {
   enemy.chargeSeconds -= deltaSeconds;
   const before = { x: enemy.x, y: enemy.y };
   const moved = slideMove(
@@ -469,7 +466,7 @@ function stepCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
  * Exported because the hazard step needs the same rule: a shot arriving from the front is exactly
  * the case the hostage is for.
  */
-export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fromY?: number): void {
+export function hurtPlayer(world: World, amount: number, fromX?: number, fromY?: number): void {
   world.hitFlash = 1;
   // Flat, not positional: this one happened to the player, so it is not somewhere across the room.
   raiseSfx(world, "playerHurt");
@@ -543,7 +540,7 @@ export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fro
  * there being two switches. Skipping it wholesale is what the world freeze does, and it leaves a
  * struck body lit white forever, because the hit flash is a timer in the head of this loop.
  */
-export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
+export function stepEnemies(world: World, deltaSeconds: number): void {
   const frozen = world.mindsFrozen;
 
   for (const enemy of world.enemies) {
@@ -595,7 +592,7 @@ export function stepEnemies(world: DemoWorld, deltaSeconds: number): void {
 }
 
 /** Runs a wind-up already committed to, and resolves whatever it was committed to when it expires. */
-function stepWindup(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): void {
+function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
   stokeCharge(world, enemy, deltaSeconds);
   honeBlade(world, enemy, deltaSeconds);
   // Committed means committed: a body winding up neither moves nor turns. It used to keep tracking
@@ -673,7 +670,7 @@ function stepWindup(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
  * whose attack was cut short by a stun. Treating both as "back to chasing" is what keeps a stunned
  * charger from waking up in a state nothing will ever leave.
  */
-function stepMind(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean, deltaSeconds: number): void {
+function stepMind(world: World, enemy: Enemy, distance: number, sighted: boolean, deltaSeconds: number): void {
   const mind = enemy.mind === "attack" ? "chase" : enemy.mind;
   enemy.mind = mind;
 
@@ -702,7 +699,7 @@ function stepMind(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted:
 }
 
 /** Sends a body back to standing about, with a fresh pause and no errand left over. */
-function rest(enemy: DemoEnemy): void {
+function rest(enemy: Enemy): void {
   enemy.mind = "idle";
   enemy.idleSeconds = rollIdleSeconds();
   enemy.wanderCell = undefined;
@@ -716,7 +713,7 @@ function rest(enemy: DemoEnemy): void {
  * arrive at their pauses in groups — a wave that lost the player, a doorway three of them came through
  * — and without this they would spend the whole pause occupying one square.
  */
-function stepIdle(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSeconds: number): void {
+function stepIdle(world: World, enemy: Enemy, distance: number, deltaSeconds: number): void {
   if (distance <= SIGHT_RANGE) {
     enemy.mind = "chase";
     return;
@@ -750,7 +747,7 @@ function stepIdle(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSec
  * new one, which is a flood of the whole open floor, every frame, forever. Resting on failure is what
  * bounds that search to once a pause.
  */
-function stepWander(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaSeconds: number): void {
+function stepWander(world: World, enemy: Enemy, distance: number, deltaSeconds: number): void {
   if (distance <= SIGHT_RANGE) {
     enemy.mind = "chase";
     enemy.wanderCell = undefined;
@@ -805,7 +802,7 @@ function stepWander(world: DemoWorld, enemy: DemoEnemy, distance: number, deltaS
  * and a charger that crept closer between charges would be launching from somewhere its own telegraph
  * had not described.
  */
-function stepChase(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted: boolean, deltaSeconds: number): void {
+function stepChase(world: World, enemy: Enemy, distance: number, sighted: boolean, deltaSeconds: number): void {
   if (distance > DISENGAGE_RANGE) {
     rest(enemy);
     return;
@@ -865,13 +862,7 @@ function stepChase(world: DemoWorld, enemy: DemoEnemy, distance: number, sighted
  * it wants to be further away, and every direction that achieves that is equally good. Cornered, it
  * presses into the wall, which is the honest picture of a shooter that has been run down.
  */
-function stepRetreat(
-  world: DemoWorld,
-  enemy: DemoEnemy,
-  distance: number,
-  sighted: boolean,
-  deltaSeconds: number,
-): void {
+function stepRetreat(world: World, enemy: Enemy, distance: number, sighted: boolean, deltaSeconds: number): void {
   const attack = enemy.archetype.attack;
 
   if (attack === undefined || distance >= attack.min) {
@@ -893,13 +884,13 @@ function stepRetreat(
  * would end the frame facing whichever neighbour last pushed it — which is how a shooter ends up
  * aiming at its own flank.
  */
-function holdGround(world: DemoWorld, enemy: DemoEnemy, towardX: number, towardY: number, deltaSeconds: number): void {
+function holdGround(world: World, enemy: Enemy, towardX: number, towardY: number, deltaSeconds: number): void {
   walk(world, enemy, 0, 0, enemy.archetype.speed, deltaSeconds);
   faceThePlayer(enemy, Math.atan2(towardY, towardX), deltaSeconds);
 }
 
 /** Swings a standing body's facing toward the player, at its own turn rate if it has one. */
-function faceThePlayer(enemy: DemoEnemy, desiredAngle: number, deltaSeconds: number): void {
+function faceThePlayer(enemy: Enemy, desiredAngle: number, deltaSeconds: number): void {
   const turnRate = enemy.archetype.turnRate;
 
   if (turnRate === undefined) {
@@ -921,7 +912,7 @@ function faceThePlayer(enemy: DemoEnemy, desiredAngle: number, deltaSeconds: num
  * The cooldown stays here rather than upstream, because a body on cooldown is still an ordinary
  * chasing body — the false answer is what tells the caller to hold its ground instead of striking.
  */
-function beginAttack(world: DemoWorld, enemy: DemoEnemy): boolean {
+function beginAttack(world: World, enemy: Enemy): boolean {
   const intent = enemy.archetype.windupIntent;
 
   if (intent === undefined || enemy.attackCooldown > 0) {

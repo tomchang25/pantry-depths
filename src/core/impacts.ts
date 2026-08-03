@@ -14,7 +14,7 @@ import { hasBless } from "@/core/bless";
 import { isBarricadeCell, isTrenchCell, isWaterCell, tileIndex } from "@/core/maze";
 import { burst } from "@/core/particles";
 
-import { addVfx, damageEnemy, killEnemy, raiseSfx, stunEnemy, type DemoEnemy, type DemoWorld } from "@/core/world";
+import { addVfx, damageEnemy, killEnemy, raiseSfx, stunEnemy, type Enemy, type World } from "@/core/world";
 
 /** How wide "near the impact" is for a rock or a thrown body. */
 export const IMPACT_RADIUS = 1.2;
@@ -40,7 +40,7 @@ export const DROWN_SECONDS = 1.1;
 const LANDING_HEARD_WITHIN = 9;
 
 /** Sends a body outward from a point. Knockback ignores water, which is what makes water lethal. */
-export function knockBack(enemy: DemoEnemy, fromX: number, fromY: number, force: number): void {
+export function knockBack(enemy: Enemy, fromX: number, fromY: number, force: number): void {
   const dx = enemy.x - fromX;
   const dy = enemy.y - fromY;
   const distance = Math.hypot(dx, dy);
@@ -60,7 +60,7 @@ export function knockBack(enemy: DemoEnemy, fromX: number, fromY: number, force:
  * Two hazards, one check, because they are reached the same way: nothing walks into either, so
  * anything standing in one was put there by a knockback, a throw, or a charge that overshot.
  */
-export function checkHazards(world: DemoWorld, enemy: DemoEnemy): void {
+export function checkHazards(world: World, enemy: Enemy): void {
   if (enemy.drowningSeconds > 0) {
     return;
   }
@@ -113,7 +113,7 @@ export function checkHazards(world: DemoWorld, enemy: DemoEnemy): void {
  * is a kill like any other everywhere downstream — it counts, it scatters bones, it drops what the
  * body was carrying.
  */
-function swallow(world: DemoWorld, enemy: DemoEnemy): void {
+function swallow(world: World, enemy: Enemy): void {
   burst(world.particles, "dust", enemy.x, enemy.y, 0.3, 12, {
     speed: 1.6,
     spreadZ: 1.2,
@@ -125,7 +125,7 @@ function swallow(world: DemoWorld, enemy: DemoEnemy): void {
 }
 
 /** Anything shoved onto the spikes dies there and then, run through where it landed. */
-function impale(world: DemoWorld, enemy: DemoEnemy): void {
+function impale(world: World, enemy: Enemy): void {
   burst(world.particles, "blood", enemy.x, enemy.y, 0.4, 16, {
     speed: 2.4,
     spreadZ: 2.6,
@@ -136,7 +136,7 @@ function impale(world: DemoWorld, enemy: DemoEnemy): void {
   killEnemy(world, enemy, "impaled");
 }
 
-function enemiesWithin(world: DemoWorld, x: number, y: number, radius: number): DemoEnemy[] {
+function enemiesWithin(world: World, x: number, y: number, radius: number): Enemy[] {
   return world.enemies.filter((enemy) => enemy.drowningSeconds <= 0 && Math.hypot(enemy.x - x, enemy.y - y) <= radius);
 }
 
@@ -146,12 +146,12 @@ function enemiesWithin(world: DemoWorld, x: number, y: number, radius: number): 
  * Written as a queue rather than recursion so the hop limit is a real bound on the whole cascade
  * rather than a bound on one branch of it.
  */
-export function chainLightning(world: DemoWorld, seeds: readonly DemoEnemy[]): void {
+export function chainLightning(world: World, seeds: readonly Enemy[]): void {
   const visited = new Set(seeds.map((enemy) => enemy.id));
   let frontier = [...seeds];
 
   for (let hop = 0; hop < CHAIN_MAX_HOPS && frontier.length > 0; hop += 1) {
-    const next: DemoEnemy[] = [];
+    const next: Enemy[] = [];
 
     for (const source of frontier) {
       for (const target of enemiesWithin(world, source.x, source.y, CHAIN_RADIUS)) {
@@ -186,7 +186,7 @@ export function chainLightning(world: DemoWorld, seeds: readonly DemoEnemy[]): v
  * is somewhere else, and smashing one is supposed to be a thing the player goes and does.
  */
 function shatterWalls(
-  world: DemoWorld,
+  world: World,
   x: number,
   y: number,
   radius: number,
@@ -223,7 +223,7 @@ function shatterWalls(
 }
 
 export function detonate(
-  world: DemoWorld,
+  world: World,
   x: number,
   y: number,
   damageWall: (cell: { x: number; y: number }, damage: number) => void,
@@ -271,12 +271,12 @@ export const SHELL_PUSH = 7;
  * boundary check refuses.
  */
 export function shellImpact(
-  world: DemoWorld,
+  world: World,
   x: number,
   y: number,
   damage: number,
   radius: number,
-  hurtPlayer: (world: DemoWorld, amount: number, fromX: number, fromY: number) => void,
+  hurtPlayer: (world: World, amount: number, fromX: number, fromY: number) => void,
   damageWall: (cell: { x: number; y: number }, damage: number) => void,
 ): void {
   raiseSfx(world, "shellLand", { x, y });
@@ -304,7 +304,7 @@ export function shellImpact(
 }
 
 /** A rock landing: everyone in a small radius takes a swing's worth and gets scattered. */
-export function rockImpact(world: DemoWorld, x: number, y: number): void {
+export function rockImpact(world: World, x: number, y: number): void {
   raiseSfx(world, "rockLand", { x, y });
   const struck = enemiesWithin(world, x, y, IMPACT_RADIUS);
 
@@ -328,8 +328,8 @@ export function rockImpact(world: DemoWorld, x: number, y: number): void {
  * already going would just herd them ahead of the throw, which is the opposite of clearing a path.
  */
 export function bargeInto(
-  world: DemoWorld,
-  enemy: DemoEnemy,
+  world: World,
+  enemy: Enemy,
   atX: number,
   atY: number,
   directionX: number,
@@ -354,7 +354,7 @@ export function bargeInto(
  * distance because it is the floor carrying it: a body dropped across the room is a thump you hear
  * about, and one dropped at your feet is one you feel.
  */
-function arrival(world: DemoWorld, x: number, y: number, thud: number): void {
+function arrival(world: World, x: number, y: number, thud: number): void {
   if (thud <= 0) {
     return;
   }
@@ -398,7 +398,7 @@ export type BodyLanding = Readonly<{
  *
  * The blessed version keeps its detonation, which is the whole reason that blessing exists.
  */
-export function bodyLanding(world: DemoWorld, thrown: DemoEnemy, landing: BodyLanding): void {
+export function bodyLanding(world: World, thrown: Enemy, landing: BodyLanding): void {
   const explosive = hasBless(world.bless, "explosiveBody");
   const hitWall = landing.hitWall;
   stunEnemy(thrown, BODY_STUN_SECONDS);
@@ -425,7 +425,7 @@ export function bodyLanding(world: DemoWorld, thrown: DemoEnemy, landing: BodyLa
 }
 
 /** Sinks anything already drowning, and finishes it when the water closes over. */
-export function stepDrowning(world: DemoWorld, deltaSeconds: number): void {
+export function stepDrowning(world: World, deltaSeconds: number): void {
   for (const enemy of world.enemies.slice()) {
     if (enemy.drowningSeconds <= 0) {
       continue;

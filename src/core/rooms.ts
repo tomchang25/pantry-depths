@@ -20,9 +20,9 @@
  * because what stands on a floor is drawn by a module a concurrent rewrite owns.
  */
 
-import { padRoomAt, type DemoRoom } from "@/core/maze";
+import { padRoomAt, type Room } from "@/core/maze";
 import { burst } from "@/core/particles";
-import { announce, awardBless, type DemoWorld } from "@/core/world";
+import { announce, awardBless, type World } from "@/core/world";
 
 /** Unbroken seconds on the dais that claim the blessing. */
 export const BLESSING_HOLD_SECONDS = 5;
@@ -35,7 +35,7 @@ function trickle(seconds: number, rate: number): boolean {
   return Math.random() < seconds * rate;
 }
 
-function soakInSpring(world: DemoWorld, room: DemoRoom, seconds: number): void {
+function soakInSpring(world: World, room: Room, seconds: number): void {
   world.soakSeconds += seconds;
 
   if (trickle(seconds, 16)) {
@@ -55,7 +55,7 @@ function soakInSpring(world: DemoWorld, room: DemoRoom, seconds: number): void {
   world.player.hp = Math.min(world.player.maxHp, world.player.hp + HOT_SPRING_HEAL_PER_SECOND * seconds);
 }
 
-function holdBlessingAltar(world: DemoWorld, room: DemoRoom | undefined, seconds: number): void {
+function holdBlessingAltar(world: World, room: Room | undefined, seconds: number): void {
   const progress = world.maze.progress;
 
   if (progress.blessingTaken || room?.role !== "blessingAltar") {
@@ -105,7 +105,7 @@ function holdBlessingAltar(world: DemoWorld, room: DemoRoom | undefined, seconds
  * Cheap enough to run every frame and deliberately stateless apart from the floor's own progress, so
  * a room's business cannot be half-finished across a descent.
  */
-export function stepRooms(world: DemoWorld, seconds: number): void {
+export function stepRooms(world: World, seconds: number): void {
   const room = padRoomAt(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
 
   if (room?.role === "hotSpring") {

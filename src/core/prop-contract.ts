@@ -10,10 +10,9 @@
 import type { GameCatalog } from "@/core/catalog";
 import type { PropKind } from "@/core/prop-kinds";
 
-export type DemoPropKind = PropKind;
-export type DemoThrowKind = DemoPropKind | "enemy";
+export type ThrowKind = PropKind | "enemy";
 
-export type DemoThrowWeight = Readonly<{
+export type ThrowWeight = Readonly<{
   /** Cells per second it leaves the hand at. */
   speed: number;
   /** Cells it covers before it is spent, before the crosshair-to-floor cap shortens it. */
@@ -50,10 +49,10 @@ export type DemoThrowWeight = Readonly<{
  * had left, and none of it ends the flight. A weapon that bodies cannot stop has to be counting
  * something else, which is why the capacity below reads as masonry for exactly this value.
  */
-export type DemoPropFlightHit = "stop" | "skewer" | "cleave" | "reap";
+export type PropFlightHit = "stop" | "skewer" | "cleave" | "reap";
 
 /** What it does where it stops, whether that is a wall, a body, or the end of its range. */
-export type DemoPropLanding = "spend" | "burst" | "detonate" | "pin" | "strike";
+export type PropLanding = "spend" | "burst" | "detonate" | "pin" | "strike";
 
 /**
  * What the left hand does with it: opens, or pulls a trigger.
@@ -63,7 +62,7 @@ export type DemoPropLanding = "spend" | "burst" | "detonate" | "pin" | "strike";
  * kind of object rather than a different kind of throw: what leaves the hand is not the thing being
  * held, and the thing being held is still there afterwards until its uses run out.
  */
-export type DemoPropUse = "throw" | "shoot";
+export type PropUse = "throw" | "shoot";
 
 /**
  * What the number on a stack counts.
@@ -79,22 +78,22 @@ export type DemoPropUse = "throw" | "shoot";
  * how it is drawn, which is why it lives here and not in the authored display table where somebody
  * could tune a crossbow into three of them.
  */
-export type DemoPropCount = "objects" | "charges";
+export type PropCount = "objects" | "charges";
 
 /** How it is drawn on the way there. */
-export type DemoPropForm = "billboard" | "tumbling" | "rod";
+export type PropForm = "billboard" | "tumbling" | "rod";
 
-export type DemoPropBehaviour = Readonly<{
-  use: DemoPropUse;
-  counts: DemoPropCount;
+export type PropBehaviour = Readonly<{
+  use: PropUse;
+  counts: PropCount;
   /**
    * What the hand is left holding once a shooter's uses run out. Only shooters set it.
    *
    * Distinct from `leaves`, which is what a *thrown* prop drops where it landed. This one never
    * touches the floor: the weapon is spent in the hand and what remains is still in it.
    */
-  spends?: DemoPropKind;
-  flightHit: DemoPropFlightHit;
+  spends?: PropKind;
+  flightHit: PropFlightHit;
   /**
    * How much this throw is allowed to spend before it is full and comes down.
    *
@@ -107,7 +106,7 @@ export type DemoPropBehaviour = Readonly<{
    * Ignored by anything that stops at the first thing it touches.
    */
   capacity: number;
-  landing: DemoPropLanding;
+  landing: PropLanding;
   /** Against the hit points in `@/demo/maze`: a bare swing is one, and a rock opens either wall. */
   wallDamage: number;
   /**
@@ -117,15 +116,15 @@ export type DemoPropBehaviour = Readonly<{
    * cracked one comes back as nothing, which is a two-use weapon expressed entirely in this column —
    * no counter on the prop, no durability field, and the picture in your hand is the count.
    */
-  leaves: DemoPropKind | undefined;
-  form: DemoPropForm;
+  leaves: PropKind | undefined;
+  form: PropForm;
 }>;
 
-export function propBehaviour(catalog: GameCatalog, kind: DemoPropKind): DemoPropBehaviour {
+export function propBehaviour(catalog: GameCatalog, kind: PropKind): PropBehaviour {
   return catalog.propBehaviours[kind];
 }
 
-export function propWeight(catalog: GameCatalog, kind: DemoPropKind): DemoThrowWeight {
+export function propWeight(catalog: GameCatalog, kind: PropKind): ThrowWeight {
   return catalog.propWeights[kind];
 }
 
@@ -136,7 +135,7 @@ export function propWeight(catalog: GameCatalog, kind: DemoPropKind): DemoThrowW
  * neither of those things, so the number is never consulted for one, and answering rather than
  * refusing keeps the flight step from having to know which kinds are props.
  */
-export function throwCapacity(catalog: GameCatalog, kind: DemoThrowKind): number {
+export function throwCapacity(catalog: GameCatalog, kind: ThrowKind): number {
   return kind === "enemy" ? 1 : catalog.propBehaviours[kind].capacity;
 }
 
@@ -146,7 +145,7 @@ export function throwCapacity(catalog: GameCatalog, kind: DemoThrowKind): number
  * Read off the flight rule instead of being declared again beside it, because they are one statement:
  * a weapon nothing alive can stop is the same weapon that opens the wall behind them.
  */
-export function breaksThroughWalls(catalog: GameCatalog, kind: DemoThrowKind): boolean {
+export function breaksThroughWalls(catalog: GameCatalog, kind: ThrowKind): boolean {
   return kind !== "enemy" && catalog.propBehaviours[kind].flightHit === "reap";
 }
 
@@ -156,11 +155,7 @@ export function breaksThroughWalls(catalog: GameCatalog, kind: DemoThrowKind): b
  * The body's weight is passed in rather than looked up here: whose body it is stays the caller's
  * business, which is what keeps this module from having to know that enemies exist.
  */
-export function throwWeight(
-  catalog: GameCatalog,
-  kind: DemoThrowKind,
-  body: DemoThrowWeight | undefined,
-): DemoThrowWeight {
+export function throwWeight(catalog: GameCatalog, kind: ThrowKind, body: ThrowWeight | undefined): ThrowWeight {
   if (kind === "enemy") {
     return body ?? catalog.defaultBodyWeight;
   }

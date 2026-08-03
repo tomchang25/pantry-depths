@@ -10,8 +10,9 @@
  * whole difficulty knob, and the damage barely matters next to them.
  */
 
-import type { DemoArchetypeId, DemoEnemyArchetype } from "@/core/enemy-contract";
-import type { DemoThrowWeight } from "@/core/prop-contract";
+import type { EnemyArchetype } from "@/core/enemy-contract";
+import type { MapCastKind } from "@/core/room-contract";
+import type { ThrowWeight } from "@/core/prop-contract";
 import { DEFAULT_BODY_WEIGHT } from "@/content/props/prop-definitions";
 
 const CHARGER_REACH = 0.86;
@@ -26,7 +27,7 @@ const SWORDSMAN_REACH = 0.95;
 const SLIME_HOLD = 0.8;
 
 /** The small one: it goes further out of the hand and lands lighter than the other two. */
-const LIGHT_BODY_WEIGHT: DemoThrowWeight = {
+const LIGHT_BODY_WEIGHT: ThrowWeight = {
   speed: 10,
   range: 5.2,
   lobbed: true,
@@ -41,7 +42,7 @@ const LIGHT_BODY_WEIGHT: DemoThrowWeight = {
  * A slab of a thing. Picking one up is a commitment, throwing it barely clears the room in front of
  * you, and every part of doing it is felt.
  */
-const HEAVY_BODY_WEIGHT: DemoThrowWeight = {
+const HEAVY_BODY_WEIGHT: ThrowWeight = {
   speed: 7.5,
   range: 3.6,
   lobbed: true,
@@ -67,7 +68,7 @@ const HEAVY_BODY_WEIGHT: DemoThrowWeight = {
  * Every one of them omits the whole attack block. That absence is the entity: a slime costs the
  * player position rather than health, and it can do that forever because it has nothing to stop for.
  */
-const SLIME_GREEN: DemoEnemyArchetype = {
+const SLIME_GREEN: EnemyArchetype = {
   id: "slimeGreen",
   name: "Green Slime",
   appearance: "greenSlime",
@@ -83,7 +84,7 @@ const SLIME_GREEN: DemoEnemyArchetype = {
   drag: 0.25,
 };
 
-const SLIME_BLUE: DemoEnemyArchetype = {
+const SLIME_BLUE: EnemyArchetype = {
   id: "slimeBlue",
   name: "Blue Slime",
   appearance: "blueSlime",
@@ -100,7 +101,7 @@ const SLIME_BLUE: DemoEnemyArchetype = {
   drag: 0.5,
 };
 
-const SLIME_RED: DemoEnemyArchetype = {
+const SLIME_RED: EnemyArchetype = {
   id: "slimeRed",
   name: "Red Slime",
   appearance: "redSlime",
@@ -120,7 +121,7 @@ const SLIME_RED: DemoEnemyArchetype = {
   drag: 2 / 3,
 };
 
-const SWORDSMAN: DemoEnemyArchetype = {
+const SWORDSMAN: EnemyArchetype = {
   id: "swordsman",
   name: "Skeleton Swordsman",
   appearance: "skeletonSwordsman",
@@ -168,7 +169,7 @@ const SWORDSMAN: DemoEnemyArchetype = {
  * so it is a body you cannot pick up, that plays authored clips, and that drops the hammer it was
  * swinging.
  */
-const HAMMERMAN: DemoEnemyArchetype = {
+const HAMMERMAN: EnemyArchetype = {
   id: "hammerman",
   name: "Skeleton Hammer-bearer",
   appearance: "skeletonHammerman",
@@ -209,7 +210,7 @@ const HAMMERMAN: DemoEnemyArchetype = {
  * timer after the shot was a pause with nothing to look at. The rhythm is the wind-up repeating, and
  * the range is what the two are balanced against: a javelin has to come close enough to be answered.
  */
-const JAVELINEER: DemoEnemyArchetype = {
+const JAVELINEER: EnemyArchetype = {
   id: "javelineer",
   name: "Skeleton Javelineer",
   appearance: "skeletonJavelineer",
@@ -229,7 +230,7 @@ const JAVELINEER: DemoEnemyArchetype = {
   shot: { speed: 6, damage: 18, range: 6, knockback: 3.5 },
 };
 
-const CROSSBOWMAN: DemoEnemyArchetype = {
+const CROSSBOWMAN: EnemyArchetype = {
   id: "crossbowman",
   name: "Skeleton Crossbowman",
   appearance: "skeletonCrossbowman",
@@ -249,7 +250,7 @@ const CROSSBOWMAN: DemoEnemyArchetype = {
   shot: { speed: 8, damage: 12, range: 12, knockback: 0 },
 };
 
-export const ENEMY_ARCHETYPES: Readonly<Record<DemoArchetypeId, DemoEnemyArchetype>> = {
+export const ENEMY_ARCHETYPES: Readonly<Record<MapCastKind, EnemyArchetype>> = {
   slimeGreen: SLIME_GREEN,
   slimeBlue: SLIME_BLUE,
   slimeRed: SLIME_RED,

@@ -16,14 +16,14 @@ import {
   attackCooldown,
   DISENGAGE_RANGE,
   isBoned,
-  type DemoArchetypeId,
-  type DemoEnemyArchetype,
-  type DemoWindupIntent,
+  type EnemyArchetype,
+  type WindupIntent,
 } from "@/core/enemy-contract";
+import type { MapCastKind } from "@/core/room-contract";
 import {
   blocksProjectile,
   blocksWalk,
-  buildDemoFloor,
+  buildFloor,
   gridArea,
   holdsStains,
   isInsideGrid,
@@ -32,17 +32,15 @@ import {
   sinkBody,
   standingRoom,
   tileIndex,
-  type DemoCell,
-  type DemoCrowd,
-  type DemoMaze,
+  type Crowd,
+  type Maze,
 } from "@/core/maze";
+import type { Cell } from "@/core/grid";
 import type { ResolvedMap } from "@/core/map-contract";
 import type { SfxCueId } from "@/core/sfx-cues";
-import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/core/particles";
-import type { DemoPropKind, DemoThrowKind } from "@/core/prop-contract";
-
-/** A grid coordinate as the demo passes it around; structurally the same as the maze's own cell. */
-export type DemoCellLike = Readonly<{ x: number; y: number }>;
+import { burst, createParticleField, shatterBones, type ParticleField } from "@/core/particles";
+import type { ThrowKind } from "@/core/prop-contract";
+import type { PropKind } from "@/core/prop-kinds";
 
 /**
  * What an enemy is currently committed to. A wind-up is visible to the player before it resolves.
@@ -50,7 +48,7 @@ export type DemoCellLike = Readonly<{ x: number; y: number }>;
  * Built from the archetype's own declaration rather than listed again here, so an archetype that gains
  * a new kind of wind-up cannot end up with an intent no telegraph knows how to draw.
  */
-export type DemoIntent = "none" | DemoWindupIntent;
+export type Intent = "none" | WindupIntent;
 
 /**
  * What a body is currently doing about the player, as one of five mutually exclusive answers.
@@ -66,11 +64,11 @@ export type DemoIntent = "none" | DemoWindupIntent;
  * minds of their own; encoding one here would mean storing what it was doing before, which is the same
  * field twice and two chances to disagree.
  */
-export type DemoEnemyMind = "idle" | "wander" | "chase" | "attack" | "retreat";
+export type EnemyMind = "idle" | "wander" | "chase" | "attack" | "retreat";
 
-export type DemoEnemy = {
+export type Enemy = {
   id: string;
-  archetype: DemoEnemyArchetype;
+  archetype: EnemyArchetype;
   appearance: EnemyAppearanceId;
   x: number;
   y: number;
@@ -83,9 +81,9 @@ export type DemoEnemy = {
   pushX: number;
   pushY: number;
   repathSeconds: number;
-  waypoint: DemoCell | undefined;
+  waypoint: Cell | undefined;
   /** What this body is doing about the player. Every movement decision is dispatched on it. */
-  mind: DemoEnemyMind;
+  mind: EnemyMind;
   /**
    * How long an idling body has left before it goes looking for somewhere to be.
    *
@@ -102,11 +100,11 @@ export type DemoEnemy = {
    * held heading produces one walking into a wall until a timer says otherwise; committing to a
    * destination and pathing to it means a wandering body crosses rooms and goes through doorways.
    */
-  wanderCell: DemoCell | undefined;
+  wanderCell: Cell | undefined;
   /** Counts down through the telegraph; while above zero the enemy is committed and visibly winding up. */
   windupSeconds: number;
   windupTotal: number;
-  intent: DemoIntent;
+  intent: Intent;
   /**
    * Where the current wind-up is aimed, taken when it began and never revised.
    *
@@ -135,17 +133,17 @@ export type DemoEnemy = {
  * taken in one grab and spent one throw at a time, so the decision is at the moment you pick it up
  * rather than repeated three times at the same spot.
  */
-export type DemoProp = {
+export type Prop = {
   id: string;
-  kind: DemoPropKind;
+  kind: PropKind;
   count: number;
   x: number;
   y: number;
 };
 
-export type DemoProjectile = {
+export type Projectile = {
   id: string;
-  kind: DemoThrowKind;
+  kind: ThrowKind;
   x: number;
   y: number;
   directionX: number;
@@ -178,7 +176,7 @@ export type DemoProjectile = {
    */
   fall: number;
   /** The body of a thrown enemy, so it can land and keep fighting if it survives the flight. */
-  payload: DemoEnemy | undefined;
+  payload: Enemy | undefined;
   struck: Set<string>;
   /** Recent positions, newest last. Presentation only — the trail is drawn from it. */
   trail: { x: number; y: number; z: number }[];
@@ -188,7 +186,7 @@ export type DemoProjectile = {
    * at the wall: being skewered is not a state anything is expected to survive. The shaft is drawn
    * from this list, which is why it is a list even when only one thing can be on it.
    */
-  skewered: DemoEnemy[];
+  skewered: Enemy[];
   /** Victims a cleaving throw has already taken, which is what limits a blade to three. */
   cleaved: number;
   /**
@@ -207,11 +205,11 @@ export type DemoProjectile = {
  * on the way past. A shell is the emplacement's, and behaves like nothing else in the demo — it is
  * genuinely airborne, so it passes over walls and over heads and concerns nobody until it lands.
  */
-export type DemoHazardKind = "bolt" | "shell";
+export type HazardKind = "bolt" | "shell";
 
-export type DemoHazard = {
+export type Hazard = {
   id: string;
-  kind: DemoHazardKind;
+  kind: HazardKind;
   x: number;
   y: number;
   directionX: number;
@@ -242,7 +240,7 @@ export type DemoHazard = {
  * Two beats and nothing else: holding a locked mark while the fuse burns, or standing between shots.
  * Which one it is decides everything drawn on the floor around it.
  */
-export type DemoMortarPhase = "idle" | "locked";
+export type MortarPhase = "idle" | "locked";
 
 /**
  * The floor's own artillery, as a behaviour.
@@ -251,10 +249,10 @@ export type DemoMortarPhase = "idle" | "locked";
  * emplacement exists, how solid it is, and how much breaking it has left in it; this owns only what
  * it is doing about it. Merging the two would put a firing timer on every tile in the dungeon.
  */
-export type DemoMortar = {
+export type Mortar = {
   cellX: number;
   cellY: number;
-  phase: DemoMortarPhase;
+  phase: MortarPhase;
   /** Seconds left of the current phase. */
   seconds: number;
   /** The spot the current lock is on. Meaningless while idle. */
@@ -268,11 +266,11 @@ export type DemoMortar = {
  * Kept separate from the identified form so `addVfx` can take a plain description: `Omit` over a
  * union distributes into something no literal satisfies, which made every call site fight the type.
  */
-export type DemoVfxSpec =
+export type VfxSpec =
   | { kind: "blast"; x: number; y: number; radius: number; age: number; life: number }
   | { kind: "arc"; fromX: number; fromY: number; toX: number; toY: number; age: number; life: number };
 
-export type DemoVfx = DemoVfxSpec & { id: string };
+export type Vfx = VfxSpec & { id: string };
 
 /**
  * How an enemy died, which is what its body does next.
@@ -285,28 +283,26 @@ export type DemoVfx = DemoVfxSpec & { id: string };
  * same statement about the body, and it is not a statement about a corpse — what is left is a mark
  * on the masonry, so both come through one cause rather than two that render alike.
  */
-export type DemoDeathCause = "slain" | "cleaved" | "drowned" | "splattered" | "blasted" | "impaled";
+export type DeathCause = "slain" | "cleaved" | "drowned" | "splattered" | "blasted" | "impaled";
 
-export type DemoDeath = {
+export type Death = {
   id: string;
   appearance: EnemyAppearanceId;
   x: number;
   y: number;
   progress: number;
-  cause: DemoDeathCause;
+  cause: DeathCause;
   /** Direction the killing blow travelled, for deaths with an axis — currently only pinning. */
   directionX: number;
   directionY: number;
-  archetypeId: DemoArchetypeId;
+  archetypeId: MapCastKind;
   facingAngle: number;
 };
 
-export type DemoHeld =
-  | Readonly<{ kind: "prop"; prop: DemoPropKind; count: number }>
-  | Readonly<{ kind: "enemy"; enemy: DemoEnemy }>
-  | undefined;
+export type Held =
+  Readonly<{ kind: "prop"; prop: PropKind; count: number }> | Readonly<{ kind: "enemy"; enemy: Enemy }> | undefined;
 
-export type DemoPlayer = {
+export type Player = {
   x: number;
   y: number;
   angle: number;
@@ -320,7 +316,7 @@ export type DemoPlayer = {
 };
 
 /** Which arm animation a press started: one of the eight cuts, or the throw, which is not a cut. */
-export type DemoSwingKind = MeleeAttackId | "throw";
+export type SwingKind = MeleeAttackId | "throw";
 
 /**
  * How long one swing holds the arm.
@@ -346,7 +342,7 @@ export const SWING_SECONDS = MELEE_SWING_SECONDS;
 export const THROW_SWING_SECONDS = 0.26;
 
 /** Where in the world a swing was aimed, so the arc can be drawn through it. */
-export type DemoSwingTarget = { x: number; y: number; z: number; connected: boolean } | undefined;
+export type SwingTarget = { x: number; y: number; z: number; connected: boolean } | undefined;
 
 /**
  * A hit the player took, remembered long enough to point at where it came from.
@@ -359,7 +355,7 @@ export type DemoSwingTarget = { x: number; y: number; z: number; connected: bool
  * Severity scales how loud the mark is and never how long it lasts. A heavy hit should be louder, not
  * still on screen after the thing that landed it has been dealt with.
  */
-export type DemoDamageMark = {
+export type DamageMark = {
   x: number;
   y: number;
   age: number;
@@ -374,9 +370,9 @@ export const MAX_DAMAGE_MARKS = 8;
 const DAMAGE_MARK_FULL = 20;
 
 /** `extracted` is the only ending that keeps anything; `dead` is the only one that loses it. */
-export type DemoStatus = "playing" | "dead" | "extracted";
+export type RunStatus = "playing" | "dead" | "extracted";
 
-export type DemoAltar = {
+export type Altar = {
   hp: number;
   maxHp: number;
   x: number;
@@ -390,28 +386,28 @@ export type DemoAltar = {
  * happened, and the surface that ran the tick plays the report. The two fields are exactly the two
  * arguments the player takes, so draining is a hand-over rather than a translation.
  */
-export type DemoSfxCue = Readonly<{ id: SfxCueId; at?: Readonly<{ x: number; y: number }> }>;
+export type SfxEvent = Readonly<{ id: SfxCueId; at?: Readonly<{ x: number; y: number }> }>;
 
-export type DemoWorld = {
+export type World = {
   /** The map this run plays. Descending draws a new floor from it rather than from somewhere else. */
   map: ResolvedMap;
   /** Every authored table the rules read, injected at creation. See `@/core/catalog`. */
   catalog: GameCatalog;
-  maze: DemoMaze;
+  maze: Maze;
   depth: number;
-  player: DemoPlayer;
-  altar: DemoAltar;
+  player: Player;
+  altar: Altar;
   bless: BlessState;
-  enemies: DemoEnemy[];
-  props: DemoProp[];
-  projectiles: DemoProjectile[];
-  hazards: DemoHazard[];
+  enemies: Enemy[];
+  props: Prop[];
+  projectiles: Projectile[];
+  hazards: Hazard[];
   /** What this tick sounded like. The rules push; the surface drains once per frame and plays. */
-  sfxCues: DemoSfxCue[];
+  sfxCues: SfxEvent[];
   /** One per standing emplacement, rebuilt from the floor whenever the floor is. */
-  mortars: DemoMortar[];
-  vfx: DemoVfx[];
-  particles: DemoParticleField;
+  mortars: Mortar[];
+  vfx: Vfx[];
+  particles: ParticleField;
   /**
    * How bloodied each cell's floor is, indexed like the maze. Accumulates over a floor and is wiped
    * when a new one is generated, so a hard-fought room stays visibly hard-fought.
@@ -419,7 +415,7 @@ export type DemoWorld = {
   stains: Float32Array;
   /** Bumped whenever `stains` changes, so the scene's overlay list can be reused between kills. */
   stainsVersion: number;
-  deaths: DemoDeath[];
+  deaths: Death[];
   /**
    * Bumped whenever the terrain or the altar changes.
    *
@@ -428,7 +424,7 @@ export type DemoWorld = {
    * times a second.
    */
   terrainVersion: number;
-  held: DemoHeld;
+  held: Held;
   /**
    * Debug: stops what a body decided — where to go, moving, turning, a wind-up or charge it committed
    * to — along with reinforcements arriving and the floor's artillery. Toggled by the P key.
@@ -453,7 +449,7 @@ export type DemoWorld = {
    * still tell you what would have killed you. Toggled by the G key.
    */
   godMode: boolean;
-  status: DemoStatus;
+  status: RunStatus;
   elapsedSeconds: number;
   /**
    * Where the run's clock stopped, or unset while it is still running.
@@ -473,7 +469,7 @@ export type DemoWorld = {
    */
   swing: number;
   swingTotal: number;
-  swingKind: DemoSwingKind;
+  swingKind: SwingKind;
   /**
    * Whether this swing has already reached the thing it was aimed at.
    *
@@ -482,7 +478,7 @@ export type DemoWorld = {
    * a picture drawn over something already settled.
    */
   swingResolved: boolean;
-  swingTarget: DemoSwingTarget;
+  swingTarget: SwingTarget;
   /** Rises when a swing connects, decays fast. Drives the impact hitch on the arm and the camera. */
   impact: number;
   /**
@@ -495,7 +491,7 @@ export type DemoWorld = {
   spawnSeconds: number;
   hitFlash: number;
   /** Recent hits with a known origin, newest last. Presentation points at them; nothing else reads them. */
-  damageMarks: DemoDamageMark[];
+  damageMarks: DamageMark[];
   walkBob: number;
   /**
    * Unbroken seconds the player has stood on the hot spring's pad.
@@ -572,13 +568,13 @@ export const IDLE_SPAWN_RECHECK_SECONDS = 1;
  * between rooms freely, so the only honest answer to "how many" is the one belonging to where the
  * question is being asked from.
  */
-export function crowdHere(world: DemoWorld): DemoCrowd {
+export function crowdHere(world: World): Crowd {
   return standingRoom(world.maze, Math.floor(world.player.x), Math.floor(world.player.y)).crowd;
 }
 
-export const AMMO_KINDS: readonly DemoPropKind[] = ["stick", "rock", "bomb"];
+export const AMMO_KINDS: readonly PropKind[] = ["stick", "rock", "bomb"];
 
-export function randomAmmo(): DemoPropKind {
+export function randomAmmo(): PropKind {
   return AMMO_KINDS[Math.floor(Math.random() * AMMO_KINDS.length)] ?? "rock";
 }
 
@@ -593,13 +589,13 @@ export function rollIdleSeconds(): number {
   return 2 + Math.random() * 2;
 }
 
-export function nextId(world: DemoWorld, prefix: string): string {
+export function nextId(world: World, prefix: string): string {
   world.nextId += 1;
   return `${prefix}-${world.nextId}`;
 }
 
-function walkableCells(maze: DemoMaze): DemoCell[] {
-  const cells: DemoCell[] = [];
+function walkableCells(maze: Maze): Cell[] {
+  const cells: Cell[] = [];
 
   for (let y = 1; y < maze.height - 1; y += 1) {
     for (let x = 1; x < maze.width - 1; x += 1) {
@@ -622,17 +618,17 @@ function takeRandom<T>(pool: T[]): T | undefined {
 }
 
 /** How much floor a body takes up, against the player and against anything thrown at it. */
-export function bodyFootprint(archetype: DemoEnemyArchetype): number {
+export function bodyFootprint(archetype: EnemyArchetype): number {
   return archetype.footprint ?? ENEMY_RADIUS;
 }
 
 /** Two thirds of a floor comes after you; the rest of it is simply in the way. */
 const SLIME_SHARE = 0.4;
 
-const SLIME_KINDS: readonly DemoArchetypeId[] = ["slimeGreen", "slimeBlue", "slimeRed"];
+const SLIME_KINDS: readonly MapCastKind[] = ["slimeGreen", "slimeBlue", "slimeRed"];
 
 /** Everything with an attack, in even shares: four bodies that stop, commit, and can be read. */
-const HUNTER_KINDS: readonly DemoArchetypeId[] = ["swordsman", "hammerman", "javelineer", "crossbowman"];
+const HUNTER_KINDS: readonly MapCastKind[] = ["swordsman", "hammerman", "javelineer", "crossbowman"];
 
 /**
  * Two rolls rather than one ladder: what kind of thing this is, then which of them.
@@ -641,7 +637,7 @@ const HUNTER_KINDS: readonly DemoArchetypeId[] = ["swordsman", "hammerman", "jav
  * is the ordinary case. Keeping the two rolls apart is what lets a type be added to either list
  * without silently taking floor space away from the other.
  */
-function pickArchetype(catalog: GameCatalog): DemoEnemyArchetype {
+function pickArchetype(catalog: GameCatalog): EnemyArchetype {
   const pool = Math.random() < SLIME_SHARE ? SLIME_KINDS : HUNTER_KINDS;
   const picked = pool[Math.floor(Math.random() * pool.length)];
   return catalog.archetypes[picked ?? "slimeGreen"];
@@ -667,8 +663,8 @@ export const SHELL_BLAST_RADIUS = 1.5;
  * The tiles are the authority on which exist; this list only carries what they are doing. Staggering
  * the opening idle means a fresh floor does not fire every mortar it has on the same beat.
  */
-export function collectMortars(maze: DemoMaze): DemoMortar[] {
-  const built: DemoMortar[] = [];
+export function collectMortars(maze: Maze): Mortar[] {
+  const built: Mortar[] = [];
 
   for (let y = 0; y < maze.height; y += 1) {
     for (let x = 0; x < maze.width; x += 1) {
@@ -690,7 +686,7 @@ export function collectMortars(maze: DemoMaze): DemoMortar[] {
   return built;
 }
 
-export function createEnemy(world: DemoWorld, x: number, y: number, archetype?: DemoEnemyArchetype): DemoEnemy {
+export function createEnemy(world: World, x: number, y: number, archetype?: EnemyArchetype): Enemy {
   archetype ??= pickArchetype(world.catalog);
   return {
     id: nextId(world, "enemy"),
@@ -742,7 +738,7 @@ export function createEnemy(world: DemoWorld, x: number, y: number, archetype?: 
  * Nothing here asks whether a cell is walkable. A body on masonry settles out of it on its first
  * frame the way any shoved body does, and a body in water drowns, which is a thing to author.
  */
-export function standCast(world: DemoWorld, override?: DemoArchetypeId): number {
+export function standCast(world: World, override?: MapCastKind): number {
   const standing = standingRoom(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
   let here = 0;
 
@@ -772,7 +768,7 @@ export function standCast(world: DemoWorld, override?: DemoArchetypeId): number 
  * Used both for a new run and for arriving on the next floor down, which is why it takes the world
  * rather than building one: descending keeps health, hands, and blessings and replaces only this.
  */
-export function populateFloor(world: DemoWorld): void {
+export function populateFloor(world: World): void {
   const maze = world.maze;
   world.enemies = [];
   world.props = [];
@@ -843,7 +839,7 @@ export function populateFloor(world: DemoWorld): void {
 
       world.props.push({
         id: nextId(world, "prop"),
-        kind: kind as DemoPropKind,
+        kind: kind as PropKind,
         count: 3,
         x: cell.x + 0.5,
         y: cell.y + 0.5,
@@ -852,12 +848,12 @@ export function populateFloor(world: DemoWorld): void {
   }
 }
 
-export function createDemoWorld(map: ResolvedMap, catalog: GameCatalog): DemoWorld {
-  const maze = buildDemoFloor(map);
+export function createWorld(map: ResolvedMap, catalog: GameCatalog): World {
+  const maze = buildFloor(map);
   // A cursed core can roll health downward, so the floor of one is what a run starts with rather than
   // the base: a bad roll makes a run harder, never unplayable before it begins.
   const startingMaxHp = Math.max(50, PLAYER_BASE_MAX_HP + coreBonus("maxHp"));
-  const world: DemoWorld = {
+  const world: World = {
     map,
     catalog,
     maze,
@@ -929,7 +925,7 @@ export function createDemoWorld(map: ResolvedMap, catalog: GameCatalog): DemoWor
  * cross, so the pathfinding worst case (a player nothing can reach) stays reproducible on the
  * flattened floor. Enemy count is topped up to the cap so every sprite is on screen at once.
  */
-export function flattenFloorForTesting(world: DemoWorld): void {
+export function flattenFloorForTesting(world: World): void {
   for (let y = 1; y < world.maze.height - 1; y += 1) {
     for (let x = 1; x < world.maze.width - 1; x += 1) {
       const tile = world.maze.tiles[tileIndex(world.maze, x, y)];
@@ -957,7 +953,7 @@ export function flattenFloorForTesting(world: DemoWorld): void {
  * Adds one enemy somewhere the player is not looking at from close range, if the floor is not
  * already full. Returns whether one arrived, so the caller can say so.
  */
-export function spawnReinforcement(world: DemoWorld): boolean {
+export function spawnReinforcement(world: World): boolean {
   if (world.enemies.length >= crowdHere(world).cap) {
     return false;
   }
@@ -986,11 +982,11 @@ export function spawnReinforcement(world: DemoWorld): boolean {
  * like the player's contract it mirrors — treats "flat interface-adjacent sound" as the absence of a
  * place rather than a place of zeroes.
  */
-export function raiseSfx(world: DemoWorld, id: SfxCueId, at?: Readonly<{ x: number; y: number }>): void {
+export function raiseSfx(world: World, id: SfxCueId, at?: Readonly<{ x: number; y: number }>): void {
   world.sfxCues.push(at ? { id, at } : { id });
 }
 
-export function awardBless(world: DemoWorld): void {
+export function awardBless(world: World): void {
   const granted = grantBless(world.catalog, world.bless);
   const healthGain = blessMaxHpGain(world.catalog, granted);
 
@@ -1008,7 +1004,7 @@ export function awardBless(world: DemoWorld): void {
  * one exit and forgotten by the other: the clock stops, and any pad the player was standing on stops
  * paying into the screen.
  */
-export function endRun(world: DemoWorld, status: "dead" | "extracted"): void {
+export function endRun(world: World, status: "dead" | "extracted"): void {
   if (status === "dead") {
     raiseSfx(world, "playerDeath");
   }
@@ -1019,11 +1015,11 @@ export function endRun(world: DemoWorld, status: "dead" | "extracted"): void {
 }
 
 /** How long the run has been going, which stops counting when the run does. */
-export function runClockSeconds(world: DemoWorld): number {
+export function runClockSeconds(world: World): number {
   return world.finishedSeconds ?? world.elapsedSeconds;
 }
 
-export function announce(world: DemoWorld, message: string, seconds = 2.2): void {
+export function announce(world: World, message: string, seconds = 2.2): void {
   world.message = message;
   world.messageSeconds = seconds;
   // Deliberately silent. The line changes constantly — a sound on it was the most frequent noise in
@@ -1033,7 +1029,7 @@ export function announce(world: DemoWorld, message: string, seconds = 2.2): void
 /** Ceiling on how dark one cell can get, so a long fight does not end in a solid red floor. */
 const MAX_STAIN = 0.72;
 
-export function stainFloor(world: DemoWorld, x: number, y: number, amount: number): void {
+export function stainFloor(world: World, x: number, y: number, amount: number): void {
   const cellX = Math.floor(x);
   const cellY = Math.floor(y);
 
@@ -1052,14 +1048,14 @@ export function stainFloor(world: DemoWorld, x: number, y: number, amount: numbe
   world.stainsVersion += 1;
 }
 
-export function addVfx(world: DemoWorld, effect: DemoVfxSpec): void {
+export function addVfx(world: World, effect: VfxSpec): void {
   // Silent on purpose: the blast that matters already announces itself at its own site, and an arc is
   // one hop in a cascade — a sound per hop turned one lightning strike into a drum roll.
   world.vfx.push({ ...effect, id: nextId(world, "vfx") });
 }
 
 /** Records where a hit came from, so the frame can point at it until it fades. */
-export function markDamageFrom(world: DemoWorld, amount: number, fromX: number, fromY: number): void {
+export function markDamageFrom(world: World, amount: number, fromX: number, fromY: number): void {
   world.damageMarks.push({
     x: fromX,
     y: fromY,
@@ -1085,7 +1081,7 @@ export function markDamageFrom(world: DemoWorld, amount: number, fromX: number, 
  * a parameter because a pile put down deliberately — a crossbow with shots still in it — is the same
  * placement problem and should not need a second function to get the wall nudge right.
  */
-export function dropProp(world: DemoWorld, kind: DemoPropKind, x: number, y: number, count = 1): void {
+export function dropProp(world: World, kind: PropKind, x: number, y: number, count = 1): void {
   let placedX = x;
   let placedY = y;
 
@@ -1145,17 +1141,17 @@ export function flightDepth(travelled: number, range: number, arc: number, fall:
  * way down for most of the throw, which is a body; above one it carries flat and drops at the end,
  * which is a stone.
  */
-export function projectileHeight(projectile: DemoProjectile): number {
+export function projectileHeight(projectile: Projectile): number {
   return flightHeight(projectile.travelled, projectile.range, projectile.arc, projectile.fall, projectile.plunge);
 }
 
 /** Whether this throw has reached the floor. Only a weapon that stops where it lands asks. */
-export function projectileGrounded(projectile: DemoProjectile): boolean {
+export function projectileGrounded(projectile: Projectile): boolean {
   return flightDepth(projectile.travelled, projectile.range, projectile.arc, projectile.fall, projectile.plunge) <= 0;
 }
 
 /** Height of a shell above the floor. A bolt's curve is flat, so this answers its fixed carry height. */
-export function hazardHeight(hazard: DemoHazard): number {
+export function hazardHeight(hazard: Hazard): number {
   return flightHeight(hazard.travelled, hazard.range, hazard.arc, hazard.fall, hazard.plunge);
 }
 
@@ -1167,7 +1163,7 @@ export function hazardHeight(hazard: DemoHazard): number {
  * left. A slime carries no armoury and now drops nothing at all, which leaves two sources of weapons
  * on a floor: the things that were holding them, and the walls.
  */
-const BONE_DROPS: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: number }>[] = [
+const BONE_DROPS: readonly Readonly<{ kind: PropKind; count: number; upTo: number }>[] = [
   { kind: "skeletonSkull", count: 1, upTo: 0.3 },
   { kind: "skeletonFemur", count: 1, upTo: 0.5 },
 ];
@@ -1179,13 +1175,12 @@ const BONE_DROPS: readonly Readonly<{ kind: DemoPropKind; count: number; upTo: n
  * artwork is the only place that is true. A crossbow arrives with three shots in it and then the
  * stock itself is throwable, which is the behaviour it already has at a different count.
  */
-const SKELETON_ARMOURY: Readonly<Partial<Record<EnemyAppearanceId, Readonly<{ kind: DemoPropKind; count: number }>>>> =
-  {
-    skeletonSwordsman: { kind: "skeletonSword", count: 1 },
-    skeletonHammerman: { kind: "hammer", count: 1 },
-    skeletonJavelineer: { kind: "skeletonJavelin", count: 1 },
-    skeletonCrossbowman: { kind: "crossbow", count: 3 },
-  };
+const SKELETON_ARMOURY: Readonly<Partial<Record<EnemyAppearanceId, Readonly<{ kind: PropKind; count: number }>>>> = {
+  skeletonSwordsman: { kind: "skeletonSword", count: 1 },
+  skeletonHammerman: { kind: "hammer", count: 1 },
+  skeletonJavelineer: { kind: "skeletonJavelin", count: 1 },
+  skeletonCrossbowman: { kind: "crossbow", count: 3 },
+};
 
 /** Above this the roll leaves nothing, which is what four in every ten corpses do. */
 const ARMOURY_UP_TO = 0.6;
@@ -1199,7 +1194,7 @@ export const LIFESTEAL_HEAL = 12;
  * bomb dropped in are all the same body in the same water. Every one of them shows on the surface,
  * and the third fills the cell in.
  */
-function swallowIntoPool(world: DemoWorld, enemy: DemoEnemy): void {
+function swallowIntoPool(world: World, enemy: Enemy): void {
   const cellX = Math.floor(enemy.x);
   const cellY = Math.floor(enemy.y);
 
@@ -1229,7 +1224,7 @@ function swallowIntoPool(world: DemoWorld, enemy: DemoEnemy): void {
  * Drowning is the one that scatters nothing: a body going under does not come apart, it sinks, and
  * bones thrown off it would arrive above the water it just disappeared into.
  */
-function deathViolence(cause: DemoDeathCause): number {
+function deathViolence(cause: DeathCause): number {
   if (cause === "blasted") {
     return 1;
   }
@@ -1254,12 +1249,7 @@ function deathViolence(cause: DemoDeathCause): number {
   throw new Error("unknown skeleton death cause");
 }
 
-export function killEnemy(
-  world: DemoWorld,
-  enemy: DemoEnemy,
-  cause: DemoDeathCause = "slain",
-  direction?: DemoCellLike,
-): void {
+export function killEnemy(world: World, enemy: Enemy, cause: DeathCause = "slain", direction?: Cell): void {
   const index = world.enemies.indexOf(enemy);
 
   if (index >= 0) {
@@ -1346,18 +1336,18 @@ export function killEnemy(
  *
  * Longest wins. A body already lying down from a worse hit is not stood back up by a lesser one.
  */
-export function stunEnemy(enemy: DemoEnemy, seconds: number): void {
+export function stunEnemy(enemy: Enemy, seconds: number): void {
   enemy.stunSeconds = Math.max(enemy.stunSeconds, seconds);
   enemy.windupSeconds = 0;
   enemy.intent = "none";
 }
 
 export function damageEnemy(
-  world: DemoWorld,
-  enemy: DemoEnemy,
+  world: World,
+  enemy: Enemy,
   amount: number,
-  cause: DemoDeathCause = "slain",
-  direction?: DemoCellLike,
+  cause: DeathCause = "slain",
+  direction?: Cell,
 ): void {
   if (enemy.drowningSeconds > 0) {
     return;
@@ -1384,7 +1374,7 @@ export function damageEnemy(
  * respond, which is what makes reaching across a floor to soften something a real option rather than
  * a way of summoning it.
  */
-function provoke(world: DemoWorld, enemy: DemoEnemy): void {
+function provoke(world: World, enemy: Enemy): void {
   if (Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y) > DISENGAGE_RANGE) {
     return;
   }
@@ -1404,7 +1394,7 @@ function provoke(world: DemoWorld, enemy: DemoEnemy): void {
  * every shot in the timbers forever. Using the same predicate the shot itself uses means it simply
  * does not take the shot, and walks until it has an angle — which is what cover is supposed to do.
  */
-export function hasLineOfSight(maze: DemoMaze, fromX: number, fromY: number, toX: number, toY: number): boolean {
+export function hasLineOfSight(maze: Maze, fromX: number, fromY: number, toX: number, toY: number): boolean {
   const distance = Math.hypot(toX - fromX, toY - fromY);
   const steps = Math.ceil(distance * 8);
 

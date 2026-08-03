@@ -6,7 +6,7 @@
  */
 
 import { resolveAppRoute } from "@/app/app-route";
-import type { MountedDemo } from "@/runtime/demo-surface";
+import type { MountedGame } from "@/runtime/surface";
 
 const mount = document.querySelector<HTMLDivElement>("#app");
 
@@ -15,7 +15,7 @@ if (!mount) {
 }
 
 const appMount = mount;
-let mountedDemo: MountedDemo | undefined;
+let mountedDemo: MountedGame | undefined;
 let moduleDisposed = false;
 
 function renderLoadFailure(logLabel: string, message: string, error: unknown): void {
@@ -49,13 +49,13 @@ function renderOrdinaryPlay(): void {
     ? (new URLSearchParams(window.location.search).get("map") ?? undefined)
     : undefined;
 
-  void import("@/runtime/demo-surface")
-    .then(async ({ mountDemo }) => {
+  void import("@/runtime/surface")
+    .then(async ({ mountGame }) => {
       if (moduleDisposed) {
         return;
       }
 
-      const mounted = await mountDemo(appMount, mapName);
+      const mounted = await mountGame(appMount, mapName);
 
       if (moduleDisposed) {
         mounted.dispose();

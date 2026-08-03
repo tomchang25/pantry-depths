@@ -9,15 +9,15 @@
  * hazard instead of scenery.
  */
 
-import { blocksFlung, blocksWalk, type DemoMaze } from "@/core/maze";
+import { blocksFlung, blocksWalk, type Maze } from "@/core/maze";
 
-export type DemoPoint = Readonly<{ x: number; y: number }>;
-export type DemoBlocker = (maze: DemoMaze, x: number, y: number) => boolean;
+export type Point = Readonly<{ x: number; y: number }>;
+export type Blocker = (maze: Maze, x: number, y: number) => boolean;
 
-export const WALKING: DemoBlocker = blocksWalk;
-export const FLUNG: DemoBlocker = blocksFlung;
+export const WALKING: Blocker = blocksWalk;
+export const FLUNG: Blocker = blocksFlung;
 
-function overlapsBlocked(maze: DemoMaze, x: number, y: number, radius: number, blocked: DemoBlocker): boolean {
+function overlapsBlocked(maze: Maze, x: number, y: number, radius: number, blocked: Blocker): boolean {
   const minX = Math.floor(x - radius);
   const maxX = Math.floor(x + radius);
   const minY = Math.floor(y - radius);
@@ -42,13 +42,13 @@ function overlapsBlocked(maze: DemoMaze, x: number, y: number, radius: number, b
 }
 
 export function slideMove(
-  maze: DemoMaze,
-  from: DemoPoint,
+  maze: Maze,
+  from: Point,
   deltaX: number,
   deltaY: number,
   radius: number,
-  blocked: DemoBlocker = WALKING,
-): DemoPoint {
+  blocked: Blocker = WALKING,
+): Point {
   let { x, y } = from;
 
   if (deltaX !== 0 && !overlapsBlocked(maze, x + deltaX, y, radius, blocked)) {
@@ -63,7 +63,7 @@ export function slideMove(
 }
 
 /** Nudges a body out of geometry it is already inside, which happens when a wall closes on it. */
-export function unstick(maze: DemoMaze, point: DemoPoint, radius: number, blocked: DemoBlocker = WALKING): DemoPoint {
+export function unstick(maze: Maze, point: Point, radius: number, blocked: Blocker = WALKING): Point {
   if (!overlapsBlocked(maze, point.x, point.y, radius, blocked)) {
     return point;
   }

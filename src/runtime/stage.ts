@@ -15,9 +15,9 @@
  */
 
 import { ENEMY_ARCHETYPES } from "@/content/enemies/enemy-archetypes";
-import type { DemoArchetypeId } from "@/core/enemy-contract";
+import type { MapCastKind } from "@/core/room-contract";
 import { mainRoom } from "@/core/maze";
-import { standCast, type DemoWorld } from "@/core/world";
+import { standCast, type World } from "@/core/world";
 
 /**
  * Which map is the stage.
@@ -38,7 +38,7 @@ export const STAGE_MAP_NAME = "stage";
  * default and overriding it is a deliberate act with a way back — an override with no way back would
  * make a hand-arranged cast something a keypress destroys.
  */
-const CAST_CHOICES = [undefined, ...(Object.keys(ENEMY_ARCHETYPES) as DemoArchetypeId[])] as const;
+const CAST_CHOICES = [undefined, ...(Object.keys(ENEMY_ARCHETYPES) as MapCastKind[])] as const;
 
 /**
  * Session state, held beside the world rather than on it.
@@ -49,7 +49,7 @@ const CAST_CHOICES = [undefined, ...(Object.keys(ENEMY_ARCHETYPES) as DemoArchet
  */
 let choice = 0;
 
-export function isStage(world: DemoWorld): boolean {
+export function isStage(world: World): boolean {
   return world.map.name === STAGE_MAP_NAME;
 }
 
@@ -82,7 +82,7 @@ export function stepStageChoice(by: number): string {
  * Anything holding a body goes with them. A hand still holding a body that no longer exists, or a
  * javelin still carrying one, is a reference to something the floor has forgotten.
  */
-export function restageCast(world: DemoWorld): number {
+export function restageCast(world: World): number {
   world.enemies = [];
 
   if (world.held?.kind === "enemy") {
@@ -118,7 +118,7 @@ export function restageCast(world: DemoWorld): number {
  * else": the cast returns to its cells, the arrival is the arrival, and the bodies are held still
  * whether or not they had been released.
  */
-export function dressStage(world: DemoWorld): void {
+export function dressStage(world: World): void {
   if (!isStage(world)) {
     return;
   }

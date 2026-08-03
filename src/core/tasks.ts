@@ -15,11 +15,11 @@
  */
 
 import { takeSealed } from "@/core/extraction";
-import { roomAt, type DemoFloorProgress, type DemoTask, type DemoTaskKind } from "@/core/maze";
-import { announce, awardBless, type DemoWorld } from "@/core/world";
+import { roomAt, type FloorProgress, type Task, type TaskKind } from "@/core/maze";
+import { announce, awardBless, type World } from "@/core/world";
 
 /** How each task reads on the message line and in the panel. Second person, because it is being asked of the player. */
-export const TASK_LABELS: Readonly<Record<DemoTaskKind, string>> = {
+export const TASK_LABELS: Readonly<Record<TaskKind, string>> = {
   kills: "bodies down",
   wallsBroken: "walls broken",
   roomsVisited: "side rooms entered",
@@ -29,11 +29,11 @@ export const TASK_LABELS: Readonly<Record<DemoTaskKind, string>> = {
 /** Far enough out that the refusal arrives before the stairs would have taken you. */
 const DESCENT_WARN_RADIUS = 2.2;
 
-function describe(task: DemoTask): string {
+function describe(task: Task): string {
   return `${task.done}/${task.target} ${TASK_LABELS[task.kind]}`;
 }
 
-function currentDone(world: DemoWorld, progress: DemoFloorProgress, kind: DemoTaskKind): number {
+function currentDone(world: World, progress: FloorProgress, kind: TaskKind): number {
   if (kind === "kills") {
     return world.kills - (progress.killsAtArrival ?? world.kills);
   }
@@ -55,7 +55,7 @@ function currentDone(world: DemoWorld, progress: DemoFloorProgress, kind: DemoTa
 
 // Side rooms only. The main region is a room like the others now, and it is the one the player starts
 // standing in — counting it would hand over a quarter of this task before the floor had been walked.
-function noteRoom(world: DemoWorld): void {
+function noteRoom(world: World): void {
   const room = roomAt(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
 
   if (room?.side && !world.maze.progress.roomsVisited.includes(room.side)) {
@@ -68,7 +68,7 @@ function noteRoom(world: DemoWorld): void {
  *
  * Met is sticky. A task whose counter could fall — none can today — would otherwise pay twice.
  */
-function settle(world: DemoWorld, progress: DemoFloorProgress, task: DemoTask): boolean {
+function settle(world: World, progress: FloorProgress, task: Task): boolean {
   task.done = Math.min(task.target, Math.max(task.done, currentDone(world, progress, task.kind)));
 
   if (task.met || task.done < task.target) {
@@ -79,7 +79,7 @@ function settle(world: DemoWorld, progress: DemoFloorProgress, task: DemoTask): 
   return true;
 }
 
-export function stepTasks(world: DemoWorld): void {
+export function stepTasks(world: World): void {
   const progress = world.maze.progress;
 
   if (progress.killsAtArrival === undefined || progress.wallsBrokenAtArrival === undefined) {

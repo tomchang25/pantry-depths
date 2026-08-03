@@ -7,10 +7,10 @@
  * gets busy.
  */
 
-export type DemoParticleKind = "blood" | "stoneChip" | "woodChip" | "dust" | "ember" | "splash" | "bone";
+export type ParticleKind = "blood" | "stoneChip" | "woodChip" | "dust" | "ember" | "splash" | "bone";
 
-export type DemoParticle = {
-  kind: DemoParticleKind;
+export type Particle = {
+  kind: ParticleKind;
   x: number;
   y: number;
   z: number;
@@ -30,9 +30,9 @@ export type DemoParticle = {
 /** Beyond this the oldest are dropped. Chosen so a bomb in a crowd cannot stall a frame. */
 const PARTICLE_LIMIT = 420;
 
-export type DemoParticleField = { items: DemoParticle[] };
+export type ParticleField = { items: Particle[] };
 
-export function createParticleField(): DemoParticleField {
+export function createParticleField(): ParticleField {
   return { items: [] };
 }
 
@@ -40,7 +40,7 @@ function random(from: number, to: number): number {
   return from + Math.random() * (to - from);
 }
 
-function push(field: DemoParticleField, particle: DemoParticle): void {
+function push(field: ParticleField, particle: Particle): void {
   if (field.items.length >= PARTICLE_LIMIT) {
     field.items.shift();
   }
@@ -56,8 +56,8 @@ function push(field: DemoParticleField, particle: DemoParticle): void {
  * what tells the two apart at a glance.
  */
 export function burst(
-  field: DemoParticleField,
-  kind: DemoParticleKind,
+  field: ParticleField,
+  kind: ParticleKind,
   x: number,
   y: number,
   z: number,
@@ -121,7 +121,7 @@ export function burst(
  * Fragments only. Nothing here becomes a prop and nothing here can be picked up: what killing a
  * skeleton is worth is one drop table and this is not it.
  */
-export function shatterBones(field: DemoParticleField, x: number, y: number, violence: number): void {
+export function shatterBones(field: ParticleField, x: number, y: number, violence: number): void {
   burst(field, "bone", x, y, 0.62, 6 + Math.round(violence * 2), {
     speed: 2.4 + violence * 3.4,
     spreadZ: 2.2 + violence * 1.6,
@@ -132,7 +132,7 @@ export function shatterBones(field: DemoParticleField, x: number, y: number, vio
   });
 }
 
-export type ParticleLanding = Readonly<{ kind: DemoParticleKind; x: number; y: number }>;
+export type ParticleLanding = Readonly<{ kind: ParticleKind; x: number; y: number }>;
 
 /**
  * Advances every particle and reports the ones that touched down this tick.
@@ -141,14 +141,14 @@ export type ParticleLanding = Readonly<{ kind: DemoParticleKind; x: number; y: n
  * fell, so a spray leaves a scatter and a pool leaves a pool, without anyone authoring either.
  */
 export function stepParticles(
-  field: DemoParticleField,
+  field: ParticleField,
   deltaSeconds: number,
   blocked: (x: number, y: number) => boolean,
 ): ParticleLanding[] {
   const landings: ParticleLanding[] = [];
 
   for (let index = field.items.length - 1; index >= 0; index -= 1) {
-    const particle = field.items[index] as DemoParticle;
+    const particle = field.items[index] as Particle;
     particle.age += deltaSeconds;
 
     if (particle.age >= particle.life) {

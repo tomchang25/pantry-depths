@@ -30,6 +30,7 @@ import type {
   MapTileKind,
   MapWallMix,
 } from "@/core/room-contract";
+import type { Cell } from "@/core/grid";
 
 /**
  * How much floor there is, in cells.
@@ -37,7 +38,7 @@ import type {
  * Two numbers rather than one, because a map that can be authored is a map that can be oblong. Every
  * floor-shaped thing satisfies this — a floor is one — so the accessors below take the floor itself.
  */
-export type DemoGridExtent = Readonly<{ width: number; height: number }>;
+export type GridExtent = Readonly<{ width: number; height: number }>;
 
 /**
  * The tile vocabulary, owned by the content layer and aliased here.
@@ -46,12 +47,9 @@ export type DemoGridExtent = Readonly<{ width: number; height: number }>;
  * it declares the kinds and this half — which may import content — takes them as its own. A kind added
  * there without a branch here then fails to compile, which is the whole point of the arrangement.
  */
-export type DemoTileKind = MapTileKind;
 
-export type DemoCell = Readonly<{ x: number; y: number }>;
-
-export type DemoTile = {
-  kind: DemoTileKind;
+export type Tile = {
+  kind: MapTileKind;
   /** Remaining hits. Stone starts at 4, wood at 2, border is unbreakable and stays at Infinity. */
   hp: number;
   maxHp: number;
@@ -63,10 +61,9 @@ export type DemoTile = {
 };
 
 /** The four sides a room can hang off. */
-export type DemoRoomSide = "north" | "south" | "west" | "east";
+export type RoomSide = "north" | "south" | "west" | "east";
 
 /** What business a room holds. Owned by the map contract and aliased here, the same as the tiles. */
-export type DemoRoomRole = MapRoomRole;
 
 /**
  * How many bodies a room holds, and how fast it puts them back.
@@ -79,7 +76,7 @@ export type DemoRoomRole = MapRoomRole;
  * an author writes and the shape the spawn code reads cannot drift apart. What arrives here is the
  * declaration, not one floor's numbers — the rolling happens where the question is asked.
  */
-export type DemoCrowd = MapCrowd;
+export type Crowd = MapCrowd;
 
 /**
  * A block of a floor, large or small.
@@ -89,7 +86,7 @@ export type DemoCrowd = MapCrowd;
  * is reached through one doorway; the region everything else hangs off does none of the three — and
  * never by kind, which is what gives anything that varies per region somewhere honest to live.
  */
-export type DemoRoom = Readonly<{
+export type Room = Readonly<{
   /**
    * Which room file this was built from.
    *
@@ -99,19 +96,19 @@ export type DemoRoom = Readonly<{
    */
   id: string;
   /** What business this room holds, when it holds any. */
-  role?: DemoRoomRole;
+  role?: MapRoomRole;
   /** Which side of the main region it hangs off. The main region hangs off nothing. */
-  side?: DemoRoomSide;
+  side?: RoomSide;
   /** Inclusive bounds of the open interior, wall ring excluded. */
   minX: number;
   minY: number;
   maxX: number;
   maxY: number;
   /** Middle of the interior, which is where the room's business stands. */
-  center: DemoCell;
+  center: Cell;
   /** The interior cell the doorway opens through, on the side facing the main region. */
-  doorway?: DemoCell;
-  crowd: DemoCrowd;
+  doorway?: Cell;
+  crowd: Crowd;
   /**
    * The bodies this room's file stands at named cells, still in room-local coordinates.
    *
@@ -128,10 +125,10 @@ export type DemoRoom = Readonly<{
  * Every kind is a running total against a target, because the simulation already keeps all four and a
  * task that needs a new signal is a task the floor cannot actually observe.
  */
-export type DemoTaskKind = "kills" | "wallsBroken" | "roomsVisited" | "poolsFilled";
+export type TaskKind = "kills" | "wallsBroken" | "roomsVisited" | "poolsFilled";
 
-export type DemoTask = {
-  kind: DemoTaskKind;
+export type Task = {
+  kind: TaskKind;
   /** What this floor is asking for, in the kind's own unit. */
   target: number;
   /** How much of it this floor has seen. */
@@ -145,7 +142,7 @@ export type DemoTask = {
  * Mutable, and hung off the floor for the same reason a pool counts the bodies it has swallowed: it
  * has exactly the floor's lifetime, and descending is meant to wipe it.
  */
-export type DemoFloorProgress = {
+export type FloorProgress = {
   /** Unbroken seconds the player has stood on the blessing altar's pad. */
   heldSeconds: number;
   /**
@@ -160,7 +157,7 @@ export type DemoFloorProgress = {
   /** Pools this floor has closed over with bodies. */
   poolsFilled: number;
   /** Which side rooms the player has set foot in. */
-  roomsVisited: DemoRoomSide[];
+  roomsVisited: RoomSide[];
   /**
    * The run counters as they read when this floor began, so a task counts this floor rather than the
    * run. Unset until the first step on the floor, because the floor is built before anyone reads it.
@@ -168,9 +165,9 @@ export type DemoFloorProgress = {
   killsAtArrival: number | undefined;
   wallsBrokenAtArrival: number | undefined;
   /** Met to open the descent, and to reveal where it is. Pays nothing by itself. */
-  main: DemoTask;
+  main: Task;
   /** Each pays a blessing the moment it is met. */
-  secondary: DemoTask[];
+  secondary: Task[];
 };
 
 /**
@@ -179,7 +176,7 @@ export type DemoFloorProgress = {
  * One main task and three secondaries, the same four every floor. The run's difficulty is a clock,
  * not a rising target list, so a floor asking more at depth would be pricing the same work twice.
  */
-function createFloorProgress(): DemoFloorProgress {
+function createFloorProgress(): FloorProgress {
   return {
     heldSeconds: 0,
     extractionSeconds: 0,
@@ -197,22 +194,22 @@ function createFloorProgress(): DemoFloorProgress {
   };
 }
 
-export type DemoMaze = Readonly<{
+export type Maze = Readonly<{
   width: number;
   height: number;
-  tiles: DemoTile[];
-  entrance: DemoCell;
-  exit: DemoCell;
-  altar: DemoCell;
-  progress: DemoFloorProgress;
+  tiles: Tile[];
+  entrance: Cell;
+  exit: Cell;
+  altar: Cell;
+  progress: FloorProgress;
   /**
    * Where a run is left with everything it is carrying.
    *
    * Open from the first second and marked by nothing, which is the whole of it: leaving stays a
    * continuous choice, and knowing where to leave from is something a floor charges time for.
    */
-  extraction: DemoCell;
-  rooms: readonly DemoRoom[];
+  extraction: Cell;
+  rooms: readonly Room[];
 }>;
 
 /**
@@ -258,10 +255,10 @@ export const POOL_FILL_BODIES = 3;
  * Two dimensions rather than one, because a map that can be authored is a map whose rooms can be
  * oblong. Everything below reads the block it was handed rather than a size the module knows.
  */
-type DemoBlock = Readonly<{ x: number; y: number; width: number; height: number }>;
+type Block = Readonly<{ x: number; y: number; width: number; height: number }>;
 
 /** Which way a side room faces the region it hangs off. */
-const SLOT_INWARD: Readonly<Record<DemoRoomSide, DemoCell>> = {
+const SLOT_INWARD: Readonly<Record<RoomSide, Cell>> = {
   north: { x: 0, y: 1 },
   south: { x: 0, y: -1 },
   west: { x: 1, y: 0 },
@@ -269,11 +266,11 @@ const SLOT_INWARD: Readonly<Record<DemoRoomSide, DemoCell>> = {
 };
 
 /** The cells a room actually holds, wall ring excluded. What every share a room states is taken of. */
-function interiorArea(block: DemoBlock): number {
+function interiorArea(block: Block): number {
   return (block.width - 2) * (block.height - 2);
 }
 
-function blockCenter(block: DemoBlock): DemoCell {
+function blockCenter(block: Block): Cell {
   return { x: block.x + Math.floor((block.width - 1) / 2), y: block.y + Math.floor((block.height - 1) / 2) };
 }
 
@@ -285,19 +282,19 @@ function blockCenter(block: DemoBlock): DemoCell {
  * multiplication here means there is one place for that mistake to be made and it has already been
  * made correctly.
  */
-export function tileIndex(extent: DemoGridExtent, x: number, y: number): number {
+export function tileIndex(extent: GridExtent, x: number, y: number): number {
   return y * extent.width + x;
 }
 
-export function cellFromIndex(extent: DemoGridExtent, index: number): DemoCell {
+export function cellFromIndex(extent: GridExtent, index: number): Cell {
   return { x: index % extent.width, y: Math.floor(index / extent.width) };
 }
 
-export function isInsideGrid(extent: DemoGridExtent, x: number, y: number): boolean {
+export function isInsideGrid(extent: GridExtent, x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < extent.width && y < extent.height;
 }
 
-export function gridArea(extent: DemoGridExtent): number {
+export function gridArea(extent: GridExtent): number {
   return extent.width * extent.height;
 }
 
@@ -336,14 +333,14 @@ function shuffled<T>(values: readonly T[]): T[] {
   return copy;
 }
 
-function carve(extent: DemoGridExtent, solid: boolean[], block: DemoBlock): void {
-  const start: DemoCell = { x: block.x + 1, y: block.y + 1 };
-  const last: DemoCell = { x: block.x + block.width - 2, y: block.y + block.height - 2 };
-  const stack: DemoCell[] = [start];
+function carve(extent: GridExtent, solid: boolean[], block: Block): void {
+  const start: Cell = { x: block.x + 1, y: block.y + 1 };
+  const last: Cell = { x: block.x + block.width - 2, y: block.y + block.height - 2 };
+  const stack: Cell[] = [start];
   solid[tileIndex(extent, start.x, start.y)] = false;
 
   while (stack.length > 0) {
-    const current = stack[stack.length - 1] as DemoCell;
+    const current = stack[stack.length - 1] as Cell;
     const steps = shuffled([
       { x: 2, y: 0 },
       { x: -2, y: 0 },
@@ -380,10 +377,10 @@ function carve(extent: DemoGridExtent, solid: boolean[], block: DemoBlock): void
 /** Floods a few small pools into already-open floor. Pools grow by random adjacency, so none is a
  * neat rectangle and most end up hugging a corridor edge where something can be knocked into them. */
 function floodPools(
-  extent: DemoGridExtent,
-  tiles: DemoTile[],
-  open: DemoCell[],
-  block: DemoBlock,
+  extent: GridExtent,
+  tiles: Tile[],
+  open: Cell[],
+  block: Block,
   keepClear: ReadonlySet<number>,
   wanted: Readonly<{ share: number; size: MapQuantity }>,
 ): void {
@@ -403,7 +400,7 @@ function floodPools(
       continue;
     }
 
-    const frontier: DemoCell[] = [seed];
+    const frontier: Cell[] = [seed];
     const size = Math.min(roll(wanted.size), target - wet);
 
     // A cell counts against the pool's size only once it is actually wet. The frontier holds the same
@@ -413,7 +410,7 @@ function floodPools(
     let filled = 0;
 
     while (filled < size && frontier.length > 0) {
-      const cell = frontier.splice(Math.floor(Math.random() * frontier.length), 1)[0] as DemoCell;
+      const cell = frontier.splice(Math.floor(Math.random() * frontier.length), 1)[0] as Cell;
       const tile = tiles[tileIndex(extent, cell.x, cell.y)];
 
       if (!tile || tile.kind !== "open" || keepClear.has(tileIndex(extent, cell.x, cell.y))) {
@@ -455,9 +452,9 @@ function floodPools(
  * onto is only interesting where the fighting happens, and where the fighting happens is not where
  * the walls were.
  */
-function scatterBarricades(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCell[], quantity: MapQuantity): void {
+function scatterBarricades(extent: GridExtent, tiles: Tile[], open: Cell[], quantity: MapQuantity): void {
   const wanted = roll(quantity);
-  const placed: DemoCell[] = [];
+  const placed: Cell[] = [];
   const pool = shuffled(open);
 
   for (const cell of pool) {
@@ -491,9 +488,9 @@ function scatterBarricades(extent: DemoGridExtent, tiles: DemoTile[], open: Demo
  * same patch of floor and turn a readable hazard into a coin flip. The floor is small enough that a
  * handful of them reach everywhere between them.
  */
-function scatterMortars(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCell[], quantity: MapQuantity): void {
+function scatterMortars(extent: GridExtent, tiles: Tile[], open: Cell[], quantity: MapQuantity): void {
   const wanted = roll(quantity);
-  const placed: DemoCell[] = [];
+  const placed: Cell[] = [];
 
   for (const cell of shuffled(open)) {
     if (placed.length >= wanted) {
@@ -517,8 +514,8 @@ function scatterMortars(extent: DemoGridExtent, tiles: DemoTile[], open: DemoCel
   }
 }
 
-function walkableCells(extent: DemoGridExtent, tiles: readonly DemoTile[], block: DemoBlock): DemoCell[] {
-  const cells: DemoCell[] = [];
+function walkableCells(extent: GridExtent, tiles: readonly Tile[], block: Block): Cell[] {
+  const cells: Cell[] = [];
 
   for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
     for (let x = block.x + 1; x < block.x + block.width - 1; x += 1) {
@@ -531,22 +528,22 @@ function walkableCells(extent: DemoGridExtent, tiles: readonly DemoTile[], block
   return cells;
 }
 
-function openTile(): DemoTile {
+function openTile(): Tile {
   return { kind: "open", hp: 0, maxHp: 0, bodies: 0 };
 }
 
-function borderTile(): DemoTile {
+function borderTile(): Tile {
   return { kind: "border", hp: Number.POSITIVE_INFINITY, maxHp: Number.POSITIVE_INFINITY, bodies: 0 };
 }
 
 /** One wall, drawn against the room's own ratio. Normalised, so the two numbers need not sum to one. */
-function wallTile(walls: MapWallMix): DemoTile {
+function wallTile(walls: MapWallMix): Tile {
   return Math.random() * (walls.stone + walls.wood) < walls.wood
     ? { kind: "wood", hp: WOOD_WALL_HP, maxHp: WOOD_WALL_HP, bodies: 0 }
     : { kind: "stone", hp: STONE_WALL_HP, maxHp: STONE_WALL_HP, bodies: 0 };
 }
 
-function tileOfKind(kind: DemoTileKind): DemoTile {
+function tileOfKind(kind: MapTileKind): Tile {
   if (kind === "stone") {
     return { kind, hp: STONE_WALL_HP, maxHp: STONE_WALL_HP, bodies: 0 };
   }
@@ -578,7 +575,7 @@ function tileOfKind(kind: DemoTileKind): DemoTile {
  * them. This is the whole of what "the main region is a room like the others" buys, and the reason a
  * map can carry an authored room beside a carved one without either knowing the other exists.
  */
-function paintRoom(extent: DemoGridExtent, tiles: DemoTile[], block: DemoBlock, room: MapRoom): void {
+function paintRoom(extent: GridExtent, tiles: Tile[], block: Block, room: MapRoom): void {
   if ("authored" in room.structure) {
     for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
       for (let x = block.x + 1; x < block.x + block.width - 1; x += 1) {
@@ -610,7 +607,7 @@ function paintRoom(extent: DemoGridExtent, tiles: DemoTile[], block: DemoBlock, 
   // already the tightest this room can be, so a room asking to be less open than that gets its
   // corridors — closing one to meet a smaller number would sever the room the carve just guaranteed
   // was whole.
-  const walls: DemoCell[] = [];
+  const walls: Cell[] = [];
   let openCells = 0;
 
   for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
@@ -646,7 +643,7 @@ function paintRoom(extent: DemoGridExtent, tiles: DemoTile[], block: DemoBlock, 
 const NO_CROWD: MapCrowd = { cap: 0, starting: 0 };
 
 /** Where a room stands on the floor, in the terms everything that walks and draws asks in. */
-function roomOn(block: DemoBlock, source: MapRoom): DemoRoom {
+function roomOn(block: Block, source: MapRoom): Room {
   return {
     id: source.id,
     ...(source.role === undefined ? {} : { role: source.role }),
@@ -670,11 +667,11 @@ function roomOn(block: DemoBlock, source: MapRoom): DemoRoom {
  * — that is the same five cells it has always been.
  */
 function attachRoom(
-  extent: DemoGridExtent,
-  tiles: DemoTile[],
+  extent: GridExtent,
+  tiles: Tile[],
   keepClear: Set<number>,
-  placed: Readonly<{ block: DemoBlock; side: DemoRoomSide; main: DemoBlock; source: MapRoom }>,
-): DemoRoom {
+  placed: Readonly<{ block: Block; side: RoomSide; main: Block; source: MapRoom }>,
+): Room {
   const { block, side, main, source } = placed;
   const inward = SLOT_INWARD[side];
   const center = blockCenter(block);
@@ -682,7 +679,7 @@ function attachRoom(
   const step2 = vertical ? inward.y : inward.x;
   // The room's last interior cell on the side facing the main region.
   const edge = Math.floor(((vertical ? block.height : block.width) - 1) / 2) - 1;
-  const doorway: DemoCell = { x: center.x + inward.x * edge, y: center.y + inward.y * edge };
+  const doorway: Cell = { x: center.x + inward.x * edge, y: center.y + inward.y * edge };
   // The main region's first interior cell on the same line, however much boundary lies between.
   const target = vertical
     ? inward.y > 0
@@ -704,7 +701,7 @@ function attachRoom(
 }
 
 /** Neither masonry nor boundary: something in the way that a walk cannot pass and a floor still owns. */
-function isHazardKind(kind: DemoTileKind): boolean {
+function isHazardKind(kind: MapTileKind): boolean {
   return kind === "water" || kind === "barricade" || kind === "mortar";
 }
 
@@ -726,7 +723,7 @@ function isHazardKind(kind: DemoTileKind): boolean {
  * Searches over floor and hazards together, which always succeeds: the carve leaves every open cell
  * in the main region on one tree, and every doorway was forced open onto it.
  */
-function clearWalkToRooms(extent: DemoGridExtent, tiles: DemoTile[], from: DemoCell, rooms: readonly DemoRoom[]): void {
+function clearWalkToRooms(extent: GridExtent, tiles: Tile[], from: Cell, rooms: readonly Room[]): void {
   const cameFrom = new Map<number, number>();
   const queue: number[] = [tileIndex(extent, from.x, from.y)];
   const seen = new Set<number>(queue);
@@ -809,14 +806,9 @@ function clearWalkToRooms(extent: DemoGridExtent, tiles: DemoTile[], from: DemoC
  * that will still be there afterwards would report a repair that did not happen. Ground sealed behind
  * a trench is refused when the room file is saved, which is why nothing here has to cope with it.
  */
-function openStrandedGround(
-  extent: DemoGridExtent,
-  tiles: DemoTile[],
-  from: DemoCell,
-  authored: ReadonlySet<number>,
-): void {
+function openStrandedGround(extent: GridExtent, tiles: Tile[], from: Cell, authored: ReadonlySet<number>): void {
   const kinds = (): MapTileKind[] => tiles.map((tile) => tile.kind);
-  const STEPS: readonly DemoCell[] = [
+  const STEPS: readonly Cell[] = [
     { x: 1, y: 0 },
     { x: -1, y: 0 },
     { x: 0, y: 1 },
@@ -924,7 +916,7 @@ function openStrandedGround(
  * centred on the other axis. Both are whole-cell placements, which is what the map contract's at-rest
  * rules were written to guarantee — this function trusts them rather than re-deriving them.
  */
-function blockForSlot(map: ResolvedMap, slot: DemoRoomSide | "main", room: MapRoom, main: MapRoom): DemoBlock {
+function blockForSlot(map: ResolvedMap, slot: RoomSide | "main", room: MapRoom, main: MapRoom): Block {
   const mainX = Math.floor((map.width - main.width) / 2);
   const mainY = Math.floor((map.height - main.height) / 2);
 
@@ -957,7 +949,7 @@ function blockForSlot(map: ResolvedMap, slot: DemoRoomSide | "main", room: MapRo
   };
 }
 
-const SIDE_ORDER: readonly DemoRoomSide[] = ["north", "south", "west", "east"];
+const SIDE_ORDER: readonly RoomSide[] = ["north", "south", "west", "east"];
 
 /**
  * Assembles one floor from one map, and refuses it if the draw left no way out.
@@ -967,8 +959,8 @@ const SIDE_ORDER: readonly DemoRoomSide[] = ["north", "south", "west", "east"];
  * subsequent draw in a seeded run, which is the one cheap piece of evidence this whole change has —
  * the same seed has to produce the same floor it produced before there were maps.
  */
-export function buildDemoFloor(map: ResolvedMap): DemoMaze {
-  const extent: DemoGridExtent = { width: map.width, height: map.height };
+export function buildFloor(map: ResolvedMap): Maze {
+  const extent: GridExtent = { width: map.width, height: map.height };
   const mainPlacement = map.fixed.find((placement) => placement.slot === "main");
 
   if (!mainPlacement) {
@@ -977,20 +969,20 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
 
   const main = mainPlacement.room;
   const mainBlock = blockForSlot(map, "main", main, main);
-  const tiles: DemoTile[] = Array.from({ length: gridArea(extent) }, () => borderTile());
+  const tiles: Tile[] = Array.from({ length: gridArea(extent) }, () => borderTile());
   const fixedSides = map.fixed.filter((placement) => placement.slot !== "main");
 
   paintRoom(extent, tiles, mainBlock, main);
 
   for (const placement of fixedSides) {
-    const side = placement.slot as DemoRoomSide;
+    const side = placement.slot as RoomSide;
     paintRoom(extent, tiles, blockForSlot(map, side, placement.room, main), placement.room);
   }
 
-  const takenSides = new Set(fixedSides.map((placement) => placement.slot as DemoRoomSide));
+  const takenSides = new Set(fixedSides.map((placement) => placement.slot as RoomSide));
   const freeSides = SIDE_ORDER.filter((side) => !takenSides.has(side));
   const drawn = shuffled(map.pool).slice(0, map.draw);
-  const placedSides = drawn.map((room, index) => ({ side: freeSides[index] as DemoRoomSide, room }));
+  const placedSides = drawn.map((room, index) => ({ side: freeSides[index] as RoomSide, room }));
 
   for (const placed of placedSides) {
     paintRoom(extent, tiles, blockForSlot(map, placed.side, placed.room, main), placed.room);
@@ -998,7 +990,7 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
 
   const keepClear = new Set<number>();
   const sideRooms = [
-    ...fixedSides.map((placement) => ({ side: placement.slot as DemoRoomSide, room: placement.room })),
+    ...fixedSides.map((placement) => ({ side: placement.slot as RoomSide, room: placement.room })),
     ...placedSides,
   ].map((placed) =>
     attachRoom(extent, tiles, keepClear, {
@@ -1010,7 +1002,7 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
   );
   // The region everything hangs off comes first, so a cell is asked about the block it is actually in
   // before it is asked about the ones attached to that block.
-  const rooms: readonly DemoRoom[] = [roomOn(mainBlock, main), ...sideRooms];
+  const rooms: readonly Room[] = [roomOn(mainBlock, main), ...sideRooms];
   const byRole = new Map(sideRooms.map((room) => [room.role, room]));
 
   // Each room is furnished with what it asked for and nothing else, so a room that asked for nothing
@@ -1020,10 +1012,10 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
   //
   // The main region comes first and each thing is placed over a freshly recomputed list of free cells,
   // which is the order a seeded floor was drawn in before any of this was authorable.
-  const furnished: readonly Readonly<{ block: DemoBlock; room: MapRoom }>[] = [
+  const furnished: readonly Readonly<{ block: Block; room: MapRoom }>[] = [
     { block: mainBlock, room: main },
     ...fixedSides.map((placement) => ({
-      block: blockForSlot(map, placement.slot as DemoRoomSide, placement.room, main),
+      block: blockForSlot(map, placement.slot as RoomSide, placement.room, main),
       room: placement.room,
     })),
     ...placedSides.map((placed) => ({
@@ -1039,7 +1031,7 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
       continue;
     }
 
-    const free = (): DemoCell[] =>
+    const free = (): Cell[] =>
       walkableCells(extent, tiles, block).filter((cell) => !keepClear.has(tileIndex(extent, cell.x, cell.y)));
 
     if (scatter.pools) {
@@ -1117,13 +1109,13 @@ export function buildDemoFloor(map: ResolvedMap): DemoMaze {
 }
 
 /** Which room's interior a cell stands in, or nothing when it stands in a wall or a doorway. */
-export function roomAt(maze: DemoMaze, x: number, y: number): DemoRoom | undefined {
+export function roomAt(maze: Maze, x: number, y: number): Room | undefined {
   return maze.rooms.find((room) => x >= room.minX && y >= room.minY && x <= room.maxX && y <= room.maxY);
 }
 
 /** The region a floor's rooms hang off. Every floor has exactly one, and it hangs off nothing. */
-export function mainRoom(maze: DemoMaze): DemoRoom {
-  return (maze.rooms.find((room) => room.side === undefined) ?? maze.rooms[0]) as DemoRoom;
+export function mainRoom(maze: Maze): Room {
+  return (maze.rooms.find((room) => room.side === undefined) ?? maze.rooms[0]) as Room;
 }
 
 /**
@@ -1133,7 +1125,7 @@ export function mainRoom(maze: DemoMaze): DemoRoom {
  * every time it enters a room. The region everything hangs off owns whatever is between rooms, which
  * is the whole reason it had to become a room before anything could be asked of it.
  */
-export function standingRoom(maze: DemoMaze, x: number, y: number): DemoRoom {
+export function standingRoom(maze: Maze, x: number, y: number): Room {
   return roomAt(maze, x, y) ?? mainRoom(maze);
 }
 
@@ -1150,7 +1142,7 @@ export function standingRoom(maze: DemoMaze, x: number, y: number): DemoRoom {
  */
 export const ROOM_PAD_HALF = 1;
 
-export function padRoomAt(maze: DemoMaze, x: number, y: number): DemoRoom | undefined {
+export function padRoomAt(maze: Maze, x: number, y: number): Room | undefined {
   return maze.rooms.find(
     (room) =>
       // A pad is where a room's business stands, so a room holding no business has none. Without this
@@ -1161,7 +1153,7 @@ export function padRoomAt(maze: DemoMaze, x: number, y: number): DemoRoom | unde
   );
 }
 
-export function tileAt(maze: DemoMaze, x: number, y: number): DemoTile | undefined {
+export function tileAt(maze: Maze, x: number, y: number): Tile | undefined {
   return isInsideGrid(maze, x, y) ? maze.tiles[tileIndex(maze, x, y)] : undefined;
 }
 
@@ -1181,12 +1173,12 @@ export function tileAt(maze: DemoMaze, x: number, y: number): DemoTile | undefin
  * named once here rather than added to each of them — the whole point of filling one in is that it
  * stops being a hazard and becomes somewhere to walk.
  */
-function isFloorKind(kind: DemoTileKind): boolean {
+function isFloorKind(kind: MapTileKind): boolean {
   return kind === "open" || kind === "filled";
 }
 
 /** Line of sight only. You can see over a pool, a trench and a barricade — none of them stands up. */
-export function blocksVision(maze: DemoMaze, x: number, y: number): boolean {
+export function blocksVision(maze: Maze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
   return (
     tile === undefined ||
@@ -1200,13 +1192,13 @@ export function blocksVision(maze: DemoMaze, x: number, y: number): boolean {
  * Barricades count and pools do not, which is what makes a barricade cover: you and whatever is
  * behind it can see each other perfectly well, and neither of you can put anything through it.
  */
-export function blocksProjectile(maze: DemoMaze, x: number, y: number): boolean {
+export function blocksProjectile(maze: Maze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
   return tile === undefined || (!isFloorKind(tile.kind) && tile.kind !== "water" && tile.kind !== "trench");
 }
 
 /** What stops a body moving under its own power. Nothing walks into a pool or onto the spikes. */
-export function blocksWalk(maze: DemoMaze, x: number, y: number): boolean {
+export function blocksWalk(maze: Maze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
   return tile === undefined || !isFloorKind(tile.kind);
 }
@@ -1242,7 +1234,7 @@ export const DEMO_WALL_HEIGHT = 1;
  * what flies below their top, the boundary stops everything so the arena stays sealed however hard
  * the throw, and pools stop nothing.
  */
-export function blocksProjectileAt(maze: DemoMaze, x: number, y: number, z: number): boolean {
+export function blocksProjectileAt(maze: Maze, x: number, y: number, z: number): boolean {
   const tile = tileAt(maze, x, y);
 
   if (tile === undefined || tile.kind === "border") {
@@ -1273,15 +1265,15 @@ export function blocksProjectileAt(maze: DemoMaze, x: number, y: number, z: numb
  * Only walls. A barricade must *not* be in here: if it stopped flung bodies they would pile against
  * it and never land on it, and landing on it is the entire point of the thing.
  */
-export function blocksFlung(maze: DemoMaze, x: number, y: number): boolean {
+export function blocksFlung(maze: Maze, x: number, y: number): boolean {
   return blocksVision(maze, x, y);
 }
 
-export function isWaterCell(maze: DemoMaze, x: number, y: number): boolean {
+export function isWaterCell(maze: Maze, x: number, y: number): boolean {
   return tileAt(maze, x, y)?.kind === "water";
 }
 
-export function isTrenchCell(maze: DemoMaze, x: number, y: number): boolean {
+export function isTrenchCell(maze: Maze, x: number, y: number): boolean {
   return tileAt(maze, x, y)?.kind === "trench";
 }
 
@@ -1293,7 +1285,7 @@ export function isTrenchCell(maze: DemoMaze, x: number, y: number): boolean {
  * sight entirely, so there is nothing on its surface to mark. Asked at both ends, where a stain is
  * recorded and where it is drawn, so the two can never disagree about a cell.
  */
-export function holdsStains(maze: DemoMaze, x: number, y: number): boolean {
+export function holdsStains(maze: Maze, x: number, y: number): boolean {
   const kind = tileAt(maze, x, y)?.kind;
   return kind !== "water" && kind !== "trench" && kind !== "filled" && kind !== "mortar";
 }
@@ -1305,7 +1297,7 @@ export function holdsStains(maze: DemoMaze, x: number, y: number): boolean {
  * every time something drowns. Anything that dies somewhere that is not open water — dry land, a
  * pool already filled in — is not a body the pool swallows and changes nothing.
  */
-export function sinkBody(maze: DemoMaze, x: number, y: number): boolean {
+export function sinkBody(maze: Maze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
 
   if (tile?.kind !== "water") {
@@ -1331,7 +1323,7 @@ export function sinkBody(maze: DemoMaze, x: number, y: number): boolean {
  * Exactly the water contract — walk around it, see and throw over it, and be flung onto it. That
  * last one is the whole point: it turns every knockback next to one into a kill.
  */
-export function isBarricadeCell(maze: DemoMaze, x: number, y: number): boolean {
+export function isBarricadeCell(maze: Maze, x: number, y: number): boolean {
   return tileAt(maze, x, y)?.kind === "barricade";
 }
 
@@ -1346,7 +1338,7 @@ export function isBarricadeCell(maze: DemoMaze, x: number, y: number): boolean {
  * The start cell is never a candidate for itself, and it is not required to be walkable: a body flung
  * onto a barricade still gets asked where it is going, and the answer is somewhere off it.
  */
-export function randomReachableCell(maze: DemoMaze, from: DemoCell): DemoCell | undefined {
+export function randomReachableCell(maze: Maze, from: Cell): Cell | undefined {
   const queue: number[] = [tileIndex(maze, from.x, from.y)];
   const reachable: number[] = [];
   const seen = new Set<number>(queue);
@@ -1392,7 +1384,7 @@ export function randomReachableCell(maze: DemoMaze, from: DemoCell): DemoCell | 
 }
 
 /** Open cells reachable from a start cell, ignoring destructibility. Used only by enemy pathing. */
-export function breadthFirstStep(maze: DemoMaze, from: DemoCell, to: DemoCell): DemoCell | undefined {
+export function breadthFirstStep(maze: Maze, from: Cell, to: Cell): Cell | undefined {
   if (from.x === to.x && from.y === to.y) {
     return undefined;
   }

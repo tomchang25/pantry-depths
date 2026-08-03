@@ -31,18 +31,18 @@ import {
   isBoned,
   MELEE_CUT_HALF_ANGLE,
   STRIKE_SECONDS,
-  type DemoArchetypeId,
 } from "@/core/enemy-contract";
+import type { MapCastKind } from "@/core/room-contract";
 import { DROWN_SECONDS } from "@/core/impacts";
 import { DEATH_SECONDS } from "@/core/simulation";
 import {
   bodyFootprint,
   ENEMY_RADIUS,
   projectileHeight,
-  type DemoDeath,
-  type DemoDeathCause,
-  type DemoEnemy,
-  type DemoProjectile,
+  type Death,
+  type DeathCause,
+  type Enemy,
+  type Projectile,
 } from "@/core/world";
 import type {
   CameraPose,
@@ -87,10 +87,10 @@ type WallFace = "north" | "east" | "south" | "west";
 type CoverageState = "available" | "procedural" | "missing";
 
 type EntityWorkbenchState = {
-  archetypeId: DemoArchetypeId;
+  archetypeId: MapCastKind;
   situation: EntitySituation;
   bodyState: EntityBodyState;
-  deathCause: DemoDeathCause;
+  deathCause: DeathCause;
   direction: number;
   playing: boolean;
   speed: number;
@@ -136,7 +136,7 @@ const BODY_STATES: readonly Readonly<{ id: EntityBodyState; label: string }>[] =
 ];
 
 const LIVING_STATES = ["idle", "walk", "hurt", "stunned", "windup", "strike", "recovery"] as const;
-const DEATH_CAUSES: readonly DemoDeathCause[] = ["slain", "cleaved", "drowned", "splattered", "blasted", "impaled"];
+const DEATH_CAUSES: readonly DeathCause[] = ["slain", "cleaved", "drowned", "splattered", "blasted", "impaled"];
 const WALL_FACES: readonly WallFace[] = ["north", "east", "south", "west"];
 const POOL_BODY_LABELS = ["Clear water", "One body in it", "Two bodies in it"];
 
@@ -234,7 +234,7 @@ function previewDisplay(state: EntityWorkbenchState): EntityDisplay {
  * corners, and one that cannot get through a doorway cannot block one either. Seeing by how much
  * they differ is the only way to judge whether a colour is sized right.
  */
-function bodyCircles(enemy: DemoEnemy): RenderFloorDecal[] {
+function bodyCircles(enemy: Enemy): RenderFloorDecal[] {
   return [
     {
       x: enemy.x,
@@ -260,7 +260,7 @@ function bodyCircles(enemy: DemoEnemy): RenderFloorDecal[] {
  * attack: reach is the simulation's number and does not shrink with the artwork, so a body taken far
  * enough down ends up shorter than the arc it swings.
  */
-function attackCone(state: EntityWorkbenchState, enemy: DemoEnemy): RenderFloorDecal[] {
+function attackCone(state: EntityWorkbenchState, enemy: Enemy): RenderFloorDecal[] {
   if (state.bodyState !== "windup" || !isBoned(enemy.archetype)) {
     return [];
   }
@@ -282,7 +282,7 @@ function attackCone(state: EntityWorkbenchState, enemy: DemoEnemy): RenderFloorD
   ];
 }
 
-function createEnemy(archetypeId: DemoArchetypeId, id = "workbench-enemy"): DemoEnemy {
+function createEnemy(archetypeId: MapCastKind, id = "workbench-enemy"): Enemy {
   const archetype = ENEMY_ARCHETYPES[archetypeId];
   return {
     id,
@@ -321,7 +321,7 @@ function createEnemy(archetypeId: DemoArchetypeId, id = "workbench-enemy"): Demo
   };
 }
 
-function createDeath(archetypeId: DemoArchetypeId, cause: DemoDeathCause, progress: number): DemoDeath {
+function createDeath(archetypeId: MapCastKind, cause: DeathCause, progress: number): Death {
   const archetype = ENEMY_ARCHETYPES[archetypeId];
   return {
     id: `workbench-${archetypeId}-${cause}`,
@@ -342,7 +342,7 @@ function createContext(elapsedSeconds: number, camera: CameraPose = ROOM_CAMERA)
 }
 
 /** Puts a living body's simulation fields where the demo puts them to reach one visible state. */
-function stateEnemy(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityBodyState, "dying">): DemoEnemy {
+function stateEnemy(archetypeId: MapCastKind, bodyState: Exclude<EntityBodyState, "dying">): Enemy {
   const enemy = createEnemy(archetypeId);
 
   if (bodyState === "walk") {
@@ -438,7 +438,7 @@ const CARRIED_RANGE = 3;
 function createProjectile(
   elapsedSeconds: number,
   flight: Readonly<{ flightPitch: number; flightSpeed: number }>,
-): DemoProjectile {
+): Projectile {
   const travelled = (elapsedSeconds * flight.flightSpeed) % CARRIED_RANGE;
   const pitchRadians = (flight.flightPitch / 180) * Math.PI;
   const directionX = 0.92;
@@ -502,11 +502,11 @@ function isEmpty(projection: DemoEntityProjection): boolean {
  * The preview does force one, because scrubbing a named clip frame by frame is what it is for. The
  * table must not: forcing `walk` on a slime would report a walk the game can never show.
  */
-function livingProbe(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityBodyState, "dying">): DemoEntityProjection {
+function livingProbe(archetypeId: MapCastKind, bodyState: Exclude<EntityBodyState, "dying">): DemoEntityProjection {
   return projectDemoEnemy(PROBE_CONTEXT, stateEnemy(archetypeId, bodyState));
 }
 
-function livingCoverage(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityBodyState, "dying">): CoverageState {
+function livingCoverage(archetypeId: MapCastKind, bodyState: Exclude<EntityBodyState, "dying">): CoverageState {
   const probe = livingProbe(archetypeId, bodyState);
 
   if (isEmpty(probe)) {
@@ -527,14 +527,12 @@ function livingCoverage(archetypeId: DemoArchetypeId, bodyState: Exclude<EntityB
  * identical from here and only one of them is finished. A list that has to be edited is the point:
  * adding a cause to it is a decision, and forgetting to add one shows up as a gap.
  */
-const PROCEDURAL_BONED_DEATHS: readonly DemoDeathCause[] = ["blasted"];
+const PROCEDURAL_BONED_DEATHS: readonly DeathCause[] = ["blasted"];
 
 /** Every death cause of one body, and whether it has a picture of its own. */
-function deathCoverage(
-  archetypeId: DemoArchetypeId,
-): Map<DemoDeathCause, Readonly<{ state: CoverageState; note: string }>> {
+function deathCoverage(archetypeId: MapCastKind): Map<DeathCause, Readonly<{ state: CoverageState; note: string }>> {
   const boned = isBoned(ENEMY_ARCHETYPES[archetypeId]);
-  const found = new Map<DemoDeathCause, Readonly<{ state: CoverageState; note: string }>>();
+  const found = new Map<DeathCause, Readonly<{ state: CoverageState; note: string }>>();
 
   for (const cause of DEATH_CAUSES) {
     const probe = projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, cause, PROBE_PROGRESS));
@@ -555,7 +553,7 @@ function deathCoverage(
   return found;
 }
 
-function facesEightWays(archetypeId: DemoArchetypeId): boolean {
+function facesEightWays(archetypeId: MapCastKind): boolean {
   const front = createEnemy(archetypeId);
   const side = createEnemy(archetypeId);
   side.facingAngle = front.facingAngle + Math.PI / 2;
@@ -565,7 +563,7 @@ function facesEightWays(archetypeId: DemoArchetypeId): boolean {
 }
 
 /** Whether the body goes under the surface it is standing on rather than staying on top of it. */
-function sinksInWater(archetypeId: DemoArchetypeId): boolean {
+function sinksInWater(archetypeId: MapCastKind): boolean {
   const enemy = createEnemy(archetypeId);
   enemy.drowningSeconds = DROWN_SECONDS / 2;
   const projection = projectDemoEnemy(PROBE_CONTEXT, enemy);
@@ -583,7 +581,7 @@ function sinksInWater(archetypeId: DemoArchetypeId): boolean {
  * so a probe written that way reports a finished death as a gap. What both actually want to know is
  * whether the situation is depicted at all.
  */
-function depictsDeath(archetypeId: DemoArchetypeId, cause: DemoDeathCause): boolean {
+function depictsDeath(archetypeId: MapCastKind, cause: DeathCause): boolean {
   const probe = projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, cause, PROBE_PROGRESS));
 
   if (isEmpty(probe)) {
@@ -593,29 +591,29 @@ function depictsDeath(archetypeId: DemoArchetypeId, cause: DemoDeathCause): bool
   return projectionShape(probe) !== projectionShape(deathProbe(archetypeId, "slain"));
 }
 
-function deathProbe(archetypeId: DemoArchetypeId, cause: DemoDeathCause): DemoEntityProjection {
+function deathProbe(archetypeId: MapCastKind, cause: DeathCause): DemoEntityProjection {
   return projectDemoDeath(PROBE_CONTEXT, createDeath(archetypeId, cause, PROBE_PROGRESS));
 }
 
 /** Whether ending against masonry is shown as something other than an ordinary death. */
-function endsAgainstMasonry(archetypeId: DemoArchetypeId): boolean {
+function endsAgainstMasonry(archetypeId: MapCastKind): boolean {
   return depictsDeath(archetypeId, "splattered");
 }
 
 /** Whether being run through is shown as something other than an ordinary death. */
-function runThrough(archetypeId: DemoArchetypeId): boolean {
+function runThrough(archetypeId: MapCastKind): boolean {
   return depictsDeath(archetypeId, "impaled");
 }
 
 /** Whether a carried body follows the shaft it is on when the throw is pitched. */
-function ridesTheShaft(archetypeId: DemoArchetypeId): boolean {
+function ridesTheShaft(archetypeId: MapCastKind): boolean {
   const enemy = createEnemy(archetypeId);
   const level = projectCarriedDemoEnemy(PROBE_CONTEXT, probeProjectile(0), enemy, 0);
   const lobbed = projectCarriedDemoEnemy(PROBE_CONTEXT, probeProjectile(1.4), enemy, 0);
   return projectionShape(level) !== projectionShape(lobbed);
 }
 
-function probeProjectile(arc: number): DemoProjectile {
+function probeProjectile(arc: number): Projectile {
   return {
     ...createProjectile(PROBE_SECONDS, { flightPitch: 0, flightSpeed: 3 }),
     arc,
@@ -623,7 +621,7 @@ function probeProjectile(arc: number): DemoProjectile {
   };
 }
 
-const SITUATION_COVERAGE: readonly Readonly<{ label: string; holds: (archetypeId: DemoArchetypeId) => boolean }>[] = [
+const SITUATION_COVERAGE: readonly Readonly<{ label: string; holds: (archetypeId: MapCastKind) => boolean }>[] = [
   { label: "Sinks in water", holds: sinksInWater },
   { label: "Ends against masonry", holds: endsAgainstMasonry },
   { label: "Run through", holds: runThrough },
@@ -819,7 +817,7 @@ function bodyProjection(
   context: DemoEntityProjectionContext,
   state: EntityWorkbenchState,
   progress: number,
-  placement?: Pick<DemoDeath, "directionX" | "directionY" | "x" | "y">,
+  placement?: Pick<Death, "directionX" | "directionY" | "x" | "y">,
 ): DemoEntityProjection {
   if (state.bodyState === "dying") {
     const death = { ...createDeath(state.archetypeId, state.deathCause, progress), ...placement };
@@ -876,7 +874,7 @@ function carriedScene(elapsedSeconds: number, state: EntityWorkbenchState): Rend
 
 type WallSetup = Readonly<{
   camera: CameraPose;
-  death: Pick<DemoDeath, "directionX" | "directionY" | "x" | "y">;
+  death: Pick<Death, "directionX" | "directionY" | "x" | "y">;
   surfaces: readonly RenderSurface[];
 }>;
 
@@ -1098,7 +1096,7 @@ function createRange(
 
 function comparisonScene(
   cause: "splattered" | "impaled",
-  archetypeId: DemoArchetypeId,
+  archetypeId: MapCastKind,
   elapsedSeconds: number,
 ): RenderScene {
   const progress = (elapsedSeconds / DEATH_SECONDS) % 1;

@@ -35,7 +35,7 @@ import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { slimeBody } from "@/demo/demo-scene";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
-import { bodyFootprint, type DemoWorld } from "@/core/world";
+import { bodyFootprint, type World } from "@/core/world";
 import type { PresentationImages } from "@/presentation/presentation-image-loader";
 
 /**
@@ -53,7 +53,7 @@ const STAGE_HEIGHT_FRACTION = 1.45;
 const PROP_DISPLAYS = propDisplaysByKind(parsePropDisplays(propDisplayJson));
 
 export type DemoViewmodelModel = Pick<
-  DemoWorld,
+  World,
   | "damageMarks"
   | "elapsedSeconds"
   | "held"

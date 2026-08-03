@@ -91,11 +91,6 @@ Landing order is the table order. Children 2 and 3 could swap; nothing else can.
 
 Perishable coordinates, recorded 2026-08-03 against `26210bd` (pre-closeout survey; re-verify against live code per child). Conflicts resolve in favour of the conceptual half.
 
-### Child 8 — The rename pass
-
-- Every `Demo`-prefixed symbol that survived the moves loses the prefix in one mechanical, typecheck-verified change — the content-side vocabulary from child 3 (`DemoThrowWeight`, `DemoPropBehaviour`, `DemoEnemyArchetype`, and the rest), and the run-side types the later children moved (`DemoWorld`, `DemoCell`, `DemoInput`, the HUD model types). Redundant aliases dissolve into their sources (`DemoPropKind` → `PropKind`, `DemoArchetypeId` → `MapCastKind` or a rename of that source; decided at spec time). Renaming waits for this child so every symbol is renamed exactly once, in its final home.
-- Runs after the last move and before Child End; verification is `npm run verify` — a rename that changes no behaviour needs no playtest of its own.
-
 ### Child End
 
 - Delete `test/unit/repository/demo-half-is-untested.test.ts` (guard bans string imports `@/demo/`, `@/presentation/`; frozen exemption is the image-loader test).

@@ -10,8 +10,8 @@ import {
 } from "@/content/viewmodel/melee-viewmodel";
 import { MELEE_CUT_START, MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/melee-contract";
 import { MELEE_HALF_ANGLE } from "@/core/actions";
-import { mountDemoDevOverlay, type DemoDevOverlayModel } from "@/runtime/demo-dev-overlay";
-import { mountDemoHud, type DemoHudModel, type DemoHudOverlayRosterEntry } from "@/ui/demo-hud";
+import { mountDevOverlay, type DevOverlayModel } from "@/runtime/dev-overlay";
+import { mountHud, type HudModel, type HudOverlayRosterEntry } from "@/ui/hud";
 import { demoMeleeImpactPitch } from "@/demo/demo-scene";
 import { drawDemoViewmodel, type DemoViewmodelModel } from "@/demo/demo-viewmodel";
 import type { CameraPose, RenderBeam, RenderBox, RenderScene, RenderSurface } from "@/presentation/render-scene";
@@ -112,7 +112,7 @@ function roomScene(
   };
 }
 
-function defaultHudModel(): DemoHudModel {
+function defaultHudModel(): HudModel {
   const tiles = Array.from({ length: 12 * 12 }, (_value, index) => {
     const x = index % 12;
     const y = Math.floor(index / 12);
@@ -211,7 +211,7 @@ function defaultHudModel(): DemoHudModel {
  * content does. Nine rows because nine is what a run holding everything carries, and the density of
  * nine is the whole thing being looked at.
  */
-const PREVIEW_ROSTER: readonly DemoHudOverlayRosterEntry[] = [
+const PREVIEW_ROSTER: readonly HudOverlayRosterEntry[] = [
   {
     color: "#e8a24c",
     detail: "Far more melee reach and damage, and every hit knocks back",
@@ -287,7 +287,7 @@ const ROSTER_PREVIEW_HELD: Readonly<Record<Exclude<RosterPreview, "off">, readon
   full: PREVIEW_ROSTER.map((_entry, index) => index),
 };
 
-function previewPauseOverlay(state: Exclude<RosterPreview, "off">): NonNullable<DemoHudModel["overlay"]> {
+function previewPauseOverlay(state: Exclude<RosterPreview, "off">): NonNullable<HudModel["overlay"]> {
   const held = ROSTER_PREVIEW_HELD[state];
   return {
     action: "Press Tab to resume",
@@ -396,13 +396,13 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   );
   const hudGrid = document.createElement("div");
   hudGrid.className = "debug-form-grid";
-  const hud = mountDemoHud();
+  const hud = mountHud();
   // Every command is inert here, the toggle included. This tab previews the corner against the
   // picture behind it and owns no world, so there is nothing for a kill or a spawn to act on; and
   // the two switches are already driven by this panel's own checkboxes, which a live chip would
   // silently disagree with the moment either was used.
   const noop = (): void => {};
-  const dev = mountDemoDevOverlay({
+  const dev = mountDevOverlay({
     toggleGodMode: noop,
     testArena: noop,
     killAll: noop,
@@ -420,7 +420,7 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
    */
   // No stage behind this preview, so no cast row: the panel draws the row only where restaging means
   // something, and this tab owns no world to restage.
-  let devModel: DemoDevOverlayModel = { mindsFrozen: false, worldFrozen: false, fps: 60, godMode: false };
+  let devModel: DevOverlayModel = { mindsFrozen: false, worldFrozen: false, fps: 60, godMode: false };
   const refreshDev = (): void => dev.update(devModel);
 
   for (const [label, key] of [

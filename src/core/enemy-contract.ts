@@ -9,7 +9,7 @@
  */
 
 import type { MapCastKind } from "@/core/room-contract";
-import type { DemoThrowWeight } from "@/core/prop-contract";
+import type { ThrowWeight } from "@/core/prop-contract";
 
 /** The archetypes that own baked artwork. Retained creature archetypes borrow the matching slime. */
 export type EnemyAppearanceId =
@@ -25,15 +25,6 @@ export type EnemyAppearanceId =
   | "placeholder";
 
 /**
- * What the archetype rows are called, adopted from the cast vocabulary the room files are written in.
- *
- * A room may stand a named body at a named cell, so the seven names are content: they are written
- * into room files and read back out of them. The table below is keyed by the same list, so a body
- * added to either without the other fails to compile rather than failing to appear.
- */
-export type DemoArchetypeId = MapCastKind;
-
-/**
  * What a body is made of, which decides most of what is true about it besides its behaviour.
  *
  * A soft body is a blob: the scene deforms it, it can be picked up and thrown, and it bursts. A boned
@@ -45,7 +36,7 @@ export type DemoArchetypeId = MapCastKind;
  * would have had to be added to each of them by hand and would have been quietly wrong until it was.
  * Asking what the body is made of is the question all of them actually meant.
  */
-export type DemoBodyKind = "soft" | "boned";
+export type BodyKind = "soft" | "boned";
 
 /**
  * What an archetype's wind-up commits to, declared once here rather than inferred from its numbers.
@@ -60,10 +51,10 @@ export type DemoBodyKind = "soft" | "boned";
  * it, that is the same statement as having no attack. It is the slime, and it is the reason this is
  * optional rather than defaulted.
  */
-export type DemoWindupIntent = "shoot" | "charge" | "melee";
+export type WindupIntent = "shoot" | "charge" | "melee";
 
-export type DemoEnemyArchetype = Readonly<{
-  id: DemoArchetypeId;
+export type EnemyArchetype = Readonly<{
+  id: MapCastKind;
   name: string;
   appearance: EnemyAppearanceId;
   health: number;
@@ -74,7 +65,7 @@ export type DemoEnemyArchetype = Readonly<{
    * it there is to kill are two different statements about it, and tying them together would mean
    * never being able to move one without moving the other.
    */
-  weight: DemoThrowWeight;
+  weight: ThrowWeight;
   /**
    * How fast this body travels, and the only speed it has.
    *
@@ -98,10 +89,10 @@ export type DemoEnemyArchetype = Readonly<{
   windup?: number;
   contactDamage?: number;
   contactRange?: number;
-  body: DemoBodyKind;
+  body: BodyKind;
   /** Whether a contact attack commits through a visible wind-up instead of landing on touch. */
   meleeWindup?: boolean;
-  windupIntent?: DemoWindupIntent;
+  windupIntent?: WindupIntent;
   /**
    * How much floor this body takes up, in cells: the size of its drawn blob, the reach of the shove
    * it gives the player, and the target a thrown object has to hit.
@@ -181,12 +172,12 @@ export type DemoEnemyArchetype = Readonly<{
  * cannot accidentally be grabbable — there is no flag to forget. The rule is the material: soft bodies
  * go in the hand, boned ones do not.
  */
-export function canCarry(archetype: DemoEnemyArchetype): boolean {
+export function canCarry(archetype: EnemyArchetype): boolean {
   return archetype.body === "soft";
 }
 
 /** Whether a body is drawn from authored clips rather than as a blob the scene deforms. */
-export function isBoned(archetype: DemoEnemyArchetype): boolean {
+export function isBoned(archetype: EnemyArchetype): boolean {
   return archetype.body === "boned";
 }
 
@@ -197,19 +188,19 @@ export function isBoned(archetype: DemoEnemyArchetype): boolean {
  * no reach to strike from, no wait between strikes, and nothing to strike for, and every branch that
  * would resolve an attack is unreachable for it — so the arithmetic is not merely safe, it is true.
  */
-export function attackReach(archetype: DemoEnemyArchetype): number {
+export function attackReach(archetype: EnemyArchetype): number {
   return archetype.contactRange ?? 0;
 }
 
-export function attackWindup(archetype: DemoEnemyArchetype): number {
+export function attackWindup(archetype: EnemyArchetype): number {
   return archetype.windup ?? 0;
 }
 
-export function attackCooldown(archetype: DemoEnemyArchetype): number {
+export function attackCooldown(archetype: EnemyArchetype): number {
   return archetype.attackCooldown ?? 0;
 }
 
-export function attackDamage(archetype: DemoEnemyArchetype): number {
+export function attackDamage(archetype: EnemyArchetype): number {
   return archetype.contactDamage ?? 0;
 }
 

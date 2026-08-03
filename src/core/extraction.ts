@@ -17,7 +17,7 @@
 import { padRoomAt } from "@/core/maze";
 
 import { bankReward, resolveReward, type ResolvedReward } from "@/core/sealed";
-import { announce, endRun, raiseSfx, type DemoWorld } from "@/core/world";
+import { announce, endRun, raiseSfx, type World } from "@/core/world";
 
 /** Unbroken seconds on the pad that end the run. The same five the blessing altar asks for. */
 export const EXTRACTION_HOLD_SECONDS = 5;
@@ -34,7 +34,7 @@ export const SEALED_CARD_PREFIX = "sealed:";
 /** What the last extraction opened, kept so the run-end screen can show it after the world is frozen. */
 let lastResolved: readonly ResolvedReward[] = [];
 
-export function takeSealed(world: DemoWorld, source: "clean" | "cursed"): void {
+export function takeSealed(world: World, source: "clean" | "cursed"): void {
   world.carried.push({ source });
   world.pendingCard = `${SEALED_CARD_PREFIX}${source}`;
   raiseSfx(world, "rewardGain");
@@ -42,12 +42,12 @@ export function takeSealed(world: DemoWorld, source: "clean" | "cursed"): void {
 }
 
 /** Whether the player is standing on the extraction pad this step. */
-export function onExtractionPad(world: DemoWorld): boolean {
+export function onExtractionPad(world: World): boolean {
   const room = padRoomAt(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
   return room?.role === "extraction";
 }
 
-function extract(world: DemoWorld): void {
+function extract(world: World): void {
   const resolved = world.carried.map((reward) => resolveReward(world.catalog, reward));
 
   for (const reward of resolved) {
@@ -60,7 +60,7 @@ function extract(world: DemoWorld): void {
   announce(world, "Out, with everything you were carrying", 6);
 }
 
-export function stepExtraction(world: DemoWorld, seconds: number): void {
+export function stepExtraction(world: World, seconds: number): void {
   const progress = world.maze.progress;
 
   if (!onExtractionPad(world)) {
@@ -83,7 +83,7 @@ export function stepExtraction(world: DemoWorld, seconds: number): void {
  * How much of the hold is done, from nothing to all of it. Read by the scene and by the HUD, so the
  * light, the ground, and the countdown are three views of one number rather than three timers.
  */
-export function extractionShare(world: DemoWorld): number {
+export function extractionShare(world: World): number {
   return Math.min(1, world.maze.progress.extractionSeconds / EXTRACTION_HOLD_SECONDS);
 }
 
