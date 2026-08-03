@@ -54,7 +54,7 @@ The ban on testing the demo half exists because a test written against a moving 
 | #   | Child                       | Focus                                                                                         | Form                                                                                |
 | --- | --------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | 1   | Governance baseline         | Structure addendum corrections; boundary rules describing the demo tree as it is              | Shipped — `demo_migration_01_governance_baseline.implementation_spec.md` (archived) |
-| 2   | Retire the turn-based model | Delete the old combat model and its tables; keep the vocabulary the live render path uses     | Execution below                                                                     |
+| 2   | Retire the turn-based model | Delete the old combat model and its tables; keep the vocabulary the live render path uses     | Shipped — `demo_migration_02_retire_turn_based.implementation_spec.md` (archived)   |
 | 3   | Tables into content         | The pure-data halves of the enemy, throwing, blessing, modifier, and sealed catalogues        | Execution below                                                                     |
 | 4   | The sound seam              | Rules emit semantic cues; the surface plays them                                              | Execution below                                                                     |
 | 5   | The map contract            | Core owns the floor vocabulary and contracts; content produces values against them            | Execution below                                                                     |
@@ -87,15 +87,6 @@ Landing order is the table order. Children 2 and 3 could swap; nothing else can.
 ## Execution
 
 Perishable coordinates, recorded 2026-08-03 against `26210bd` (pre-closeout survey; re-verify against live code per child). Conflicts resolve in favour of the conceptual half.
-
-### Child 2 — Retire the turn-based model
-
-- Delete `src/core/combat.ts` (fully dead in live code; only consumer is its own test).
-- `src/core/grid.ts`: keep `Facing` and `Cell` — live via `src/presentation/render-scene.ts` (`cell`, `hintFaces`, `wallFace`, floor patches/overlays) and `canvas-gameplay-renderer.ts` (`WALL_FACE_NORMALS` keyed by `Facing`). Delete `MoveDirection`, the four turn tables, `headingFor`, `moveInDirection`, `turnLeft/turnRight`; re-verify `areSameCell`/`areEdgeAdjacent`/`moveForward`/`FACING_STEPS` consumers at spec time (believed core-internal).
-- `src/content/combat/enemies.ts`: delete `EnemyId`, `EnemyArchetype`, `ENEMY_ARCHETYPES`, `getEnemyArchetype`, and the `CombatTarget` binding. **Keep `EnemyAppearanceId`** — 10 importers (demo ×4, presentation ×2, content ×3, entity-workbench). New home: `src/content/enemies/` beside the display schema, or stays in a renamed module; spec decides.
-- Delete `src/content/combat/player-stages.ts` (re-verify: no live importer found; only `test/unit/core/combat.test.ts`).
-- Delete `test/unit/core/combat.test.ts`. Rework `test/unit/content/enemies/skeleton-definitions.test.ts` off `getEnemyArchetype`.
-- Verification: `npm run verify` (typecheck proves the survivors); no playtest needed — nothing live changes.
 
 ### Child 3 — Tables into content
 

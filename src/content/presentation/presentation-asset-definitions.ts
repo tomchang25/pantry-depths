@@ -17,7 +17,7 @@ import slimeYellowNormal from "@/content/enemies/assets/slime-yellow-normal.png"
 import skeletonSwordsmanAttack from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-attack.png";
 import skeletonSwordsmanHurt from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-hurt.png";
 import skeletonSwordsmanNormal from "@/content/enemies/assets/skeleton-swordsman/skeleton-swordsman-normal.png";
-import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
 import blockPlaceholder from "@/content/presentation/assets/block-placeholder.png";
 import keyBlue from "@/content/presentation/assets/key-blue.png";
 import keyRed from "@/content/presentation/assets/key-red.png";

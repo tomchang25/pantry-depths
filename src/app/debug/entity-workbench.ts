@@ -2,7 +2,7 @@ import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
 import { createPropWorkbench } from "@/app/debug/prop-workbench";
 import { createRenderPanel } from "@/app/debug/render-panel";
-import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
 import {
   entityDisplaysByAppearance,

@@ -7,7 +7,7 @@
  * string of sparks is correctly hidden by the wall between you and it.
  */
 
-import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
 import {
   entityDisplaysByAppearance,

@@ -5,7 +5,7 @@
  * this module deliberately owns its own truth so `src/core/` stays untouched.
  */
 
-import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/content/viewmodel/melee-viewmodel";
 import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState } from "@/demo/bless";
 import { coreBonus, type SealedReward } from "@/demo/sealed";

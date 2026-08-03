@@ -22,7 +22,7 @@
  * readable: where it is pointed is where it is about to be.
  */
 
-import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
 import type { MapCastKind } from "@/content/maps/room-schema";
 import { DEFAULT_BODY_WEIGHT, type DemoThrowWeight } from "@/demo/throw-weight";
 

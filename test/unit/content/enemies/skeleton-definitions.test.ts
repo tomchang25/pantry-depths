@@ -1,4 +1,3 @@
-import { getEnemyArchetype } from "@/content/combat/enemies";
 import { SKELETON_ACTIONS, SKELETON_ATLAS_MANIFEST } from "@/content/enemies/skeleton-action-definitions";
 import {
   skeletonAtlasDimensions,
@@ -49,9 +48,5 @@ describe("skeleton content", () => {
     for (const definition of Object.values(SKELETON_PICKUP_ASSETS)) {
       expect(SKELETON_PICKUP_URLS[definition.assetId]).toBe(definition.url);
     }
-  });
-
-  it("replaces the retained skeleton placeholder with the authored swordsman", () => {
-    expect(getEnemyArchetype("skeleton").appearanceId).toBe("skeletonSwordsman");
   });
 });

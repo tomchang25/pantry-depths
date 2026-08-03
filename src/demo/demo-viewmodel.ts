@@ -19,7 +19,7 @@
  * world, and a second copy of the object sailing across the viewmodel only competes with the real one.
  */
 
-import type { EnemyAppearanceId } from "@/content/combat/enemies";
+import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
 import {
   drawMeleeAttack,
   drawMeleeViewmodel,
