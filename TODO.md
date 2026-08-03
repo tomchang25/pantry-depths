@@ -24,6 +24,7 @@ A brief lives here too and is the one kind of line `/implement` cannot take: it 
 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
 - [three_scene] Prove in a sandbox experiment that Three.js reproduces the full view and atmosphere, with block models for enemies and structures - [ref plans/three_scene.plan.md]
+- [three_scene_graduation] Make the Three.js runtime the game's renderer and delete both the interim projection and the ray-marched one, once the three-scene verdict lands - [ref plans/three_scene_graduation.plan.md]
 - [enemy_structure_models] Draft plan for authored block models across enemies and structures, to be completed after the three-scene verdict - [ref plans/enemy_structure_models.plan.md]
 
 ---

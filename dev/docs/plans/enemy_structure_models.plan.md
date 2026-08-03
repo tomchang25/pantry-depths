@@ -28,7 +28,7 @@ Answered by the three-scene spike; each blocks queueing until answered.
 ## Non-Goals
 
 1. No new enemy kinds and no behaviour or balance changes — this is a re-clothing of what exists.
-2. No renderer work: the runtime that consumes these models is the graduation plan's subject, not this one's.
+2. No renderer work: the runtime that consumes these models is the graduation plan's subject (`three_scene_graduation.plan.md`), not this one's. That plan additionally records the soft bodies as a knowing regression pointed at this one, so the slime roster is the first thing here anybody will ask for.
 
 ## Acceptance Criteria
 
