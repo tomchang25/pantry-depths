@@ -125,9 +125,12 @@ varying vec3 vWorldPos;
 varying float vDepth;
 varying vec3 vWorldNormal;
 varying vec2 vUv;
+varying float vAlong;
 
 void main() {
   vUv = uv;
+  // Where along its own length this vertex sits, for geometry that runs one colour into another.
+  vAlong = position.z + 0.5;
 
   // Skinning through three's own chunks rather than by hand. They are no-ops unless the renderer
   // defines USE_SKINNING, which it does per object for a skinned mesh whatever material it wears —
@@ -235,11 +238,29 @@ const PLANE_FRAGMENT = fragmentFor(
 const BOX_FRAGMENT = fragmentFor(
   `
   float shade = faceShade(vWorldNormal);
-  vec3 source = shade < 0.0 ? min(uColor * 1.28, vec3(1.0)) : uColor;
+  vec3 source = shade < 0.0 ? uTopColor : uColor;
   float level = clamp(1.0 - vDepth / ${MAX_DEPTH}.0, 0.2, 1.0) * (shade < 0.0 ? 1.0 : shade);
   gl_FragColor = vec4(source * level, 1.0);
 `,
-  "uniform vec3 uColor;",
+  "uniform vec3 uColor;\nuniform vec3 uTopColor;",
+);
+
+/**
+ * A long thing in the air: a stake, a javelin, a bolt, a tumbling hammer or blade.
+ *
+ * The renderer draws these as beams running one colour into another along their length, and the
+ * gradient is most of what tells a javelin from a bar — the pale point is the end that arrives. Lit
+ * as a body, because that is what it is: something in the room rather than a picture over it.
+ */
+const ROD_FRAGMENT = fragmentFor(
+  `
+  vec3 albedo = mix(uColor, uTipColor, clamp(vAlong, 0.0, 1.0));
+  vec4 warm = warmthAt(vWorldPos, vDepth);
+  vec3 color = mix(albedo, ${FOG_INK}, clamp(vDepth / ${MAX_DEPTH}.0, 0.0, 0.82));
+  color = mix(color, warm.rgb, warm.a * 0.22);
+  gl_FragColor = vec4(color, 1.0);
+`,
+  "uniform vec3 uColor;\nuniform vec3 uTipColor;\nvarying float vAlong;",
 );
 
 /**
@@ -260,7 +281,7 @@ const BODY_FRAGMENT = fragmentFor(
   color = mix(color, vec3(1.0), uFlash);
   gl_FragColor = vec4(color, 1.0);
 `,
-  "uniform vec3 uColor;\nuniform float uFlash;",
+  "uniform vec3 uColor;\nuniform float uFlash;\nuniform float uFaceted;",
 );
 
 /**
@@ -432,12 +453,27 @@ export class SceneLighting {
     });
   }
 
-  /** A structure, in one flat colour. */
-  box(color: number): THREE.ShaderMaterial {
+  /**
+   * A structure, in its own flat colour and its own top colour.
+   *
+   * Both authored rather than one derived from the other: an emplacement's barrel takes a charging
+   * glow on its top faces that is not a brightening of its sides, and the barricade's edges dull at
+   * their own rate as the iron is cut down.
+   */
+  box(color: number, topColor: number): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
-      uniforms: { ...this.shared, uColor: { value: rawColor(color) } },
+      uniforms: { ...this.shared, uColor: { value: rawColor(color) }, uTopColor: { value: rawColor(topColor) } },
       vertexShader: VERTEX_GLSL,
       fragmentShader: BOX_FRAGMENT,
+    });
+  }
+
+  /** A rod in flight, running shaft colour to tip colour along its length. */
+  rod(shaft: number, tip: number): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+      uniforms: { ...this.shared, uColor: { value: rawColor(shaft) }, uTipColor: { value: rawColor(tip) } },
+      vertexShader: VERTEX_GLSL,
+      fragmentShader: ROD_FRAGMENT,
     });
   }
 

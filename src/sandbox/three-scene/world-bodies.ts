@@ -325,7 +325,10 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
           // sinks, which is what the rules describe happening to it.
           const sink = enemy.drowningSeconds > 0 ? Math.min(1, 1 - enemy.drowningSeconds / 1.6) * 1.2 : 0;
           body.root.position.set(enemy.x, -sink, enemy.y);
-          body.root.rotation.y = -enemy.facingAngle - Math.PI / 2;
+          // Half a turn away from the camera's own formula, and that distinction was a real defect:
+          // the camera looks down its local −Z while this armature was turned to face +Z, so reusing
+          // the yaw the camera uses pointed every body exactly backwards.
+          body.root.rotation.y = Math.PI / 2 - enemy.facingAngle;
           const stagger = enemy.stunSeconds > 0 ? Math.sin(elapsedSeconds * 9 + bodyPhase(enemy.id)) * 0.12 : 0;
           body.root.rotation.z = stagger;
 

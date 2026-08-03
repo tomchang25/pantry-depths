@@ -62,6 +62,54 @@ const CUT_BEADS = 15;
 const BEACON_HEIGHT = 1.3;
 const BEACON_BEADS = 9;
 
+/**
+ * The long weapons that fly point-first, and what each one looks like doing it.
+ *
+ * Length, width and the two colours are the shipped ones. The gradient matters more than it sounds:
+ * the pale end is the end that arrives, and it is most of what tells a javelin from a bar in the air.
+ */
+const FLYING_RODS: Readonly<
+  Partial<Record<PropKind, Readonly<{ length: number; width: number; shaft: number; tip: number }>>>
+> = {
+  stick: { length: 0.95, width: 0.055, shaft: 0x684224, tip: 0xe8d6b0 },
+  skeletonJavelin: { length: 1.3, width: 0.048, shaft: 0xcdbfa2, tip: 0xf4eddc },
+  skeletonJavelinCracked: { length: 1.3, width: 0.048, shaft: 0xa89c84, tip: 0xd6cebc },
+  crossbowBolt: { length: 0.56, width: 0.038, shaft: 0xe2dac4, tip: 0xf8f4e6 },
+};
+
+/**
+ * The weapons that turn over end for end on the way.
+ *
+ * `spin` is radians of tumble per cell travelled: the heavier and clumsier the object the slower it
+ * turns, which is most of what separates a blade whipping over from a stock cartwheeling. `guard` is
+ * the second bar a sword needs for its crosspiece, held square to the blade so the thing reads as a
+ * cross turning rather than as a stick.
+ */
+type TumblingRod = Readonly<{
+  length: number;
+  width: number;
+  spin: number;
+  shaft: number;
+  tip: number;
+  guard?: Readonly<{ length: number; width: number; shaft: number; tip: number }>;
+}>;
+
+const TUMBLING_RODS: Readonly<Partial<Record<PropKind, TumblingRod>>> = {
+  hammer: { length: 0.46, width: 0.12, spin: 7.2, shaft: 0x583a20, tip: 0xd6dee8 },
+  skeletonSword: {
+    length: 0.72,
+    width: 0.055,
+    spin: 8.4,
+    shaft: 0xa2abb6,
+    tip: 0xeef2f8,
+    guard: { length: 0.2, width: 0.045, shaft: 0x5c3e1c, tip: 0xc49646 },
+  },
+  crossbowSpent: { length: 0.54, width: 0.09, spin: 5.6, shaft: 0x9a8c74, tip: 0xbac0c8 },
+};
+
+/** Radians of tumble per cell travelled, for a prop drawn as a picture rather than as a rod. */
+const PROP_TUMBLE = 5.6;
+
 /** Which picture each loose object is drawn from. */
 const PROP_SPRITES: Readonly<Record<PropKind, SceneSpriteId | "authored">> = {
   stick: "stick",
@@ -163,15 +211,40 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
     disposables.push(texture);
   }
 
-  /** Flights: the rod a long weapon is in the air, and the orb incoming fire arrives as. */
-  const flightGeometry = new THREE.BoxGeometry(0.055, 0.055, 1);
-  const flightMaterial = lighting.body(0xe8e0c8);
-  const flights = new THREE.InstancedMesh(flightGeometry, flightMaterial, 48);
-  flights.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  flights.frustumCulled = false;
-  flights.count = 0;
-  root.add(flights);
-  disposables.push(flightGeometry, flightMaterial, flights);
+  /**
+   * Flights: one mesh per thing in the air, pooled by the projectile's own id.
+   *
+   * Not instanced, because the three ways a thrown thing travels want three different shapes and the
+   * count is tiny — a floor holds a handful in the air at once. Pooling by id is what lets a sword
+   * keep its crosspiece and a rock keep its picture from frame to frame.
+   */
+  const rodMaterials = new Map<string, THREE.ShaderMaterial>();
+  const flightMeshes = new Map<string, THREE.Mesh>();
+  const flightSprites = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>>();
+
+  /**
+   * One unit cube for every rod, sized by the mesh's own scale.
+   *
+   * Unit-length on purpose: the shaft-to-tip gradient reads the vertex's own z, so a geometry built
+   * at its true length would only span the gradient when that length happened to be one — a sword's
+   * short crosspiece came out entirely mid-gradient, neither shaft nor tip.
+   */
+  const rodGeometry = new THREE.BoxGeometry(1, 1, 1);
+  disposables.push(rodGeometry);
+
+  const rodMaterial = (shaft: number, tip: number): THREE.ShaderMaterial => {
+    const key = `${shaft}:${tip}`;
+    const existing = rodMaterials.get(key);
+
+    if (existing) {
+      return existing;
+    }
+
+    const created = lighting.rod(shaft, tip);
+    rodMaterials.set(key, created);
+    disposables.push(created);
+    return created;
+  };
 
   const orbGeometry = new THREE.PlaneGeometry(1, 1);
   const orbMaterial = lighting.sprite(textureFor("hazardOrb"), { billboard: true });
@@ -229,6 +302,10 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
 
       for (const material of propMaterials.values()) {
         material.dispose();
+      }
+
+      for (const mesh of flightSprites.values()) {
+        mesh.material.dispose();
       }
 
       stainTexture?.dispose();
@@ -562,24 +639,76 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
     }
   }
 
+  /**
+   * Everything in the air, in the three ways the projection says a thing can travel.
+   *
+   * A rod that flies point-first takes the pitch of its own launch line, so an upward throw reads as
+   * flying up; a rod that tumbles turns end over end at its own rate; anything else is its own
+   * picture, spinning. The first build drew one beige bar for all of them, level, and a fifth of a
+   * cell too high — which is why every throw looked like the same wrong throw.
+   */
   function syncFlights(world: World): void {
-    let index = 0;
+    const live = new Set<string>();
 
     for (const projectile of world.projectiles) {
-      if (index >= flights.instanceMatrix.count) {
-        break;
+      const height = projectileHeight(projectile);
+      const flying = FLYING_RODS[projectile.kind as PropKind];
+
+      if (flying) {
+        live.add(projectile.id);
+        // The shaft points along its own flight line, which is the aim line it left the hand on.
+        const slope = projectile.arc / Math.max(0.0001, projectile.range);
+        placeRod(projectile.id, projectile, Math.atan(slope), height, flying);
+        continue;
       }
 
-      forward.set(projectile.directionX, 0, projectile.directionY).normalize();
-      position.set(projectile.x, projectileHeight(projectile) + 0.2, projectile.y);
-      quaternion.setFromUnitVectors(along, forward);
-      scale.set(1, 1, projectile.kind === "skeletonJavelin" ? 1.3 : 0.7);
-      flights.setMatrixAt(index, matrix.compose(position, quaternion, scale));
-      index += 1;
+      const tumbling = TUMBLING_RODS[projectile.kind as PropKind];
+
+      if (tumbling) {
+        live.add(projectile.id);
+        const spin = projectile.travelled * tumbling.spin;
+        placeRod(projectile.id, projectile, spin, height, tumbling);
+
+        if (tumbling.guard) {
+          // Square to the blade and turning with it, which is what makes a sword read as a sword
+          // rather than as one more bar in the air.
+          const guardId = `${projectile.id}-guard`;
+          live.add(guardId);
+          placeRod(guardId, projectile, spin + Math.PI / 2, height, tumbling.guard);
+        }
+
+        continue;
+      }
+
+      // Everything else is a picture of itself, turning over as it goes.
+      const sprite = PROP_SPRITES[projectile.kind as PropKind];
+
+      if (!sprite) {
+        continue;
+      }
+
+      live.add(projectile.id);
+      placeFlyingSprite(projectile.id, projectile, height, projectile.travelled * PROP_TUMBLE);
     }
 
-    flights.count = index;
-    flights.instanceMatrix.needsUpdate = true;
+    for (const [id, mesh] of flightMeshes) {
+      if (live.has(id)) {
+        continue;
+      }
+
+      root.remove(mesh);
+      flightMeshes.delete(id);
+    }
+
+    for (const [id, mesh] of flightSprites) {
+      if (live.has(id)) {
+        continue;
+      }
+
+      root.remove(mesh);
+      mesh.material.dispose();
+      flightSprites.delete(id);
+    }
 
     let incoming = 0;
 
@@ -598,6 +727,68 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
 
     orbs.count = incoming;
     orbs.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * One rod, at a pitch, centred on its own flight height.
+   *
+   * `pitch` is what the two kinds disagree about and nothing else does: a flying rod takes the slope
+   * of its launch line and holds it, a tumbling one takes an angle that grows with distance covered.
+   */
+  function placeRod(
+    id: string,
+    projectile: World["projectiles"][number],
+    pitch: number,
+    height: number,
+    rod: Readonly<{ length: number; width: number; shaft: number; tip: number }>,
+  ): void {
+    let mesh = flightMeshes.get(id);
+
+    if (!mesh) {
+      mesh = new THREE.Mesh(rodGeometry, rodMaterial(rod.shaft, rod.tip));
+      mesh.frustumCulled = false;
+      flightMeshes.set(id, mesh);
+      root.add(mesh);
+    }
+
+    mesh.scale.set(rod.width, rod.width, rod.length);
+
+    const flat = Math.hypot(projectile.directionX, projectile.directionY) || 1;
+    const alongPitch = Math.cos(pitch);
+    forward
+      .set((projectile.directionX / flat) * alongPitch, Math.sin(pitch), (projectile.directionY / flat) * alongPitch)
+      .normalize();
+    mesh.position.set(projectile.x, height, projectile.y);
+    mesh.quaternion.setFromUnitVectors(along, forward);
+  }
+
+  /** A thrown object that is a picture rather than a bar, turning over as it flies. */
+  function placeFlyingSprite(id: string, projectile: World["projectiles"][number], height: number, spin: number): void {
+    let mesh = flightSprites.get(id);
+
+    if (!mesh) {
+      const kind = projectile.kind as PropKind;
+      const sprite = PROP_SPRITES[kind];
+      const authored = SKELETON_PICKUP_ASSETS[kind as keyof typeof SKELETON_PICKUP_ASSETS];
+      const texture =
+        sprite === "authored" && authored ? authoredTextures.get(kind) : textureFor(sprite as SceneSpriteId);
+
+      if (!texture) {
+        return;
+      }
+
+      const material = lighting.sprite(texture, { billboard: true });
+      mesh = new THREE.Mesh(quad, material);
+      mesh.frustumCulled = false;
+      flightSprites.set(id, mesh);
+      root.add(mesh);
+    }
+
+    const size = PROP_DISPLAYS[projectile.kind as PropKind]?.floorScale ?? 0.4;
+    mesh.position.set(projectile.x, height, projectile.y);
+    mesh.scale.setScalar(size);
+    // Turned in the plane of the picture, since a billboard has no other axis to turn about.
+    mesh.rotation.z = spin;
   }
 
   /**

@@ -14,8 +14,8 @@
 
 import * as THREE from "three";
 
-import { isBarricadeCell, tileIndex, type Room } from "@/core/maze";
-import type { World } from "@/core/world";
+import { BARRICADE_HP, isBarricadeCell, MORTAR_HP, tileIndex, type Room, type Tile } from "@/core/maze";
+import { MORTAR_LOCK_SECONDS, type World } from "@/core/world";
 
 import type { SceneLighting } from "./scene-lighting";
 
@@ -27,7 +27,20 @@ type Box = Readonly<{
   bottom: number;
   top: number;
   color: number;
+  /** What the upward faces take. Omitted means the flat colour brightened, as the renderer does. */
+  topColor?: number;
 }>;
+
+/** Packs three 0-255 channels back into the hex the material factory takes. */
+function pack(red: number, green: number, blue: number): number {
+  const clamp = (value: number): number => Math.max(0, Math.min(255, Math.round(value)));
+  return (clamp(red) << 16) | (clamp(green) << 8) | clamp(blue);
+}
+
+/** The renderer's own `brighten(color, 1.28)`, for a box that authors no top colour of its own. */
+function brighten(hex: number): number {
+  return pack(((hex >> 16) & 255) * 1.28, ((hex >> 8) & 255) * 1.28, (hex & 255) * 1.28);
+}
 
 /** Every light a floor's fittings throw, in the scene builder's own colours and radii. */
 export type StructureLight = Readonly<{
@@ -47,8 +60,6 @@ const EXTRACTION_STONE = 0x7fae6a;
 const SEAL_STONE = 0x4a4256;
 const SEAL_IRON = 0x2e2836;
 const STAIR_STONE = 0x8fa8b6;
-const BARRICADE_IRON = 0x6b5b46;
-const MORTAR_IRON = 0x5c5462;
 
 /** Half the width of a room's business pad, matching the pad the rules test the player's feet against. */
 const PAD_HALF = 1.5;
@@ -178,25 +189,151 @@ function stairBoxes(world: World): Box[] {
   return built;
 }
 
-/** Iron caltrops, sized against the cell they refuse to let anyone walk into. */
-function barricadeBoxes(x: number, y: number): Box[] {
+/** Where the arms cross, and one spike out along each of them. The arm offset is the rail's own. */
+const BARRICADE_SPIKES = [
+  { alongX: 0, alongY: 0, top: 0.68 },
+  { alongX: -0.33, alongY: 0, top: 0.58 },
+  { alongX: 0.33, alongY: 0, top: 0.58 },
+  { alongX: 0, alongY: -0.33, top: 0.58 },
+  { alongX: 0, alongY: 0.33, top: 0.58 },
+] as const;
+
+const BARRICADE_REACH = 0.46;
+const BARRICADE_RAIL_WIDTH = 0.05;
+const BARRICADE_RAIL_TOP = 0.12;
+const BARRICADE_SPIKE_WIDTH = 0.05;
+
+/**
+ * Iron caltrops: two crossed rails with five spikes standing off them.
+ *
+ * Wear is not decoration. Eight bare swings is deliberately more than any wall, so a player cutting
+ * one down needs to see it going — the iron dulls and the spikes shorten, and both are read from
+ * across the room rather than by walking up to it.
+ */
+function barricadeBoxes(x: number, y: number, wear: number): Box[] {
   const centreX = x + 0.5;
   const centreY = y + 0.5;
-  return [
-    { x: centreX, y: centreY, halfX: 0.46, halfY: 0.05, bottom: 0.12, top: 0.2, color: BARRICADE_IRON },
-    { x: centreX, y: centreY, halfX: 0.05, halfY: 0.46, bottom: 0.12, top: 0.2, color: BARRICADE_IRON },
-    { x: centreX, y: centreY, halfX: 0.05, halfY: 0.05, bottom: 0, top: 0.68, color: BARRICADE_IRON },
+  const iron = pack(128 - wear * 44, 132 - wear * 46, 146 - wear * 50);
+  const edge = pack(196 - wear * 70, 204 - wear * 74, 220 - wear * 80);
+  const built: Box[] = [
+    {
+      x: centreX,
+      y: centreY,
+      halfX: BARRICADE_REACH,
+      halfY: BARRICADE_RAIL_WIDTH,
+      bottom: 0,
+      top: BARRICADE_RAIL_TOP,
+      color: iron,
+      topColor: edge,
+    },
+    {
+      x: centreX,
+      y: centreY,
+      halfX: BARRICADE_RAIL_WIDTH,
+      halfY: BARRICADE_REACH,
+      bottom: 0,
+      top: BARRICADE_RAIL_TOP,
+      color: iron,
+      topColor: edge,
+    },
   ];
+
+  for (const spike of BARRICADE_SPIKES) {
+    built.push({
+      x: centreX + spike.alongX,
+      y: centreY + spike.alongY,
+      halfX: BARRICADE_SPIKE_WIDTH,
+      halfY: BARRICADE_SPIKE_WIDTH,
+      bottom: BARRICADE_RAIL_TOP,
+      top: spike.top - wear * 0.18,
+      color: iron,
+      topColor: edge,
+    });
+  }
+
+  return built;
 }
 
-/** A squat emplacement on a carriage, which is all a mortar is until it fires. */
-function mortarBoxes(x: number, y: number): Box[] {
+const MORTAR_BARREL_RINGS = 4;
+
+/**
+ * A squat mortar on a timber carriage, pointing straight up.
+ *
+ * Vertical for two reasons that agree. Boxes here are axis-aligned and cannot be turned, so an
+ * angled barrel is not buildable from them at all — and a weapon that shells every direction around
+ * itself has no business being angled anyway.
+ *
+ * The muzzle takes the charging glow, which is where the shell leaves from and the only cue an
+ * emplacement gives about itself: the circle it paints is somewhere else entirely.
+ */
+function mortarBoxes(x: number, y: number, wear: number, glow: number): Box[] {
   const centreX = x + 0.5;
   const centreY = y + 0.5;
-  return [
-    { x: centreX, y: centreY, halfX: 0.38, halfY: 0.38, bottom: 0, top: 0.2, color: MORTAR_IRON },
-    { x: centreX, y: centreY, halfX: 0.22, halfY: 0.22, bottom: 0.2, top: 0.62, color: MORTAR_IRON },
+  const dim = 1 - wear * 0.42;
+  const built: Box[] = [
+    {
+      x: centreX,
+      y: centreY,
+      halfX: 0.4,
+      halfY: 0.4,
+      bottom: 0,
+      top: 0.14,
+      color: pack(96 * dim, 64 * dim, 36 * dim),
+      topColor: pack(132 * dim, 92 * dim, 54 * dim),
+    },
   ];
+
+  for (const side of [-1, 1]) {
+    built.push({
+      x: centreX + side * 0.3,
+      y: centreY,
+      halfX: 0.08,
+      halfY: 0.34,
+      bottom: 0.14,
+      top: 0.44,
+      color: pack(84 * dim, 56 * dim, 32 * dim),
+      topColor: pack(118 * dim, 80 * dim, 46 * dim),
+    });
+  }
+
+  // Widest at the muzzle, so the silhouette tapers instead of reading as a post.
+  for (let ring = 0; ring < MORTAR_BARREL_RINGS; ring += 1) {
+    const up = ring / (MORTAR_BARREL_RINGS - 1);
+    const half = 0.16 + up * 0.1;
+    const heat = glow * up;
+    built.push({
+      x: centreX,
+      y: centreY,
+      halfX: half,
+      halfY: half,
+      bottom: 0.12 + ring * 0.17,
+      top: 0.12 + (ring + 1) * 0.17,
+      color: pack(62 * dim + heat * 190, 66 * dim + heat * 62, 74 * dim + heat * 40),
+      topColor: pack(94 * dim + heat * 160, 98 * dim + heat * 80, 108 * dim + heat * 56),
+    });
+  }
+
+  return built;
+}
+
+/** How hot an emplacement's muzzle is running, from cold between shots to white at launch. */
+function mortarGlow(world: World, x: number, y: number): number {
+  const mortar = world.mortars.find((entry) => entry.cellX === x && entry.cellY === y);
+
+  if (!mortar || mortar.phase !== "locked") {
+    return 0;
+  }
+
+  return 1 - mortar.seconds / MORTAR_LOCK_SECONDS;
+}
+
+/** How far gone a breakable thing is, as the fraction of its hit points already spent. */
+function wearOf(tile: Tile | undefined, maxHp: number): number {
+  if (!tile) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, (maxHp - tile.hp) / Math.max(1, maxHp)));
 }
 
 /** A signature of everything a rebuild would change, so the floor is rebuilt exactly when it must be. */
@@ -207,6 +344,9 @@ function structureSignature(world: World): string {
     world.terrainVersion,
     world.maze.exit.x,
     world.maze.exit.y,
+    // The muzzle glow is state the terrain version knows nothing about, and it moves every frame a
+    // shot is being lined up. Quantised, so a rebuild happens a few times a fuse rather than sixty.
+    world.mortars.map((mortar) => (mortar.phase === "locked" ? Math.round(mortar.seconds * 6) : -1)).join(","),
   ].join(":");
 }
 
@@ -230,13 +370,17 @@ export function createWorldStructures(lighting: SceneLighting): WorldStructures 
     owned = [];
     root.clear();
 
-    const byColor = new Map<number, Box[]>();
+    // Keyed by the pair rather than by the flat colour: two boxes sharing a side colour and
+    // differing at the top are two materials, and merging them would give one of them the other's.
+    const byColor = new Map<string, { color: number; topColor: number; boxes: Box[] }>();
 
     const collect = (boxes: readonly Box[]): void => {
       for (const box of boxes) {
-        const bucket = byColor.get(box.color) ?? [];
-        bucket.push(box);
-        byColor.set(box.color, bucket);
+        const topColor = box.topColor ?? brighten(box.color);
+        const key = `${box.color}:${topColor}`;
+        const bucket = byColor.get(key) ?? { color: box.color, topColor, boxes: [] };
+        bucket.boxes.push(box);
+        byColor.set(key, bucket);
       }
     };
 
@@ -259,23 +403,25 @@ export function createWorldStructures(lighting: SceneLighting): WorldStructures 
 
     for (let y = 0; y < world.maze.height; y += 1) {
       for (let x = 0; x < world.maze.width; x += 1) {
+        const tile = world.maze.tiles[tileIndex(world.maze, x, y)];
+
         if (isBarricadeCell(world.maze, x, y)) {
-          collect(barricadeBoxes(x, y));
+          collect(barricadeBoxes(x, y, wearOf(tile, BARRICADE_HP)));
           continue;
         }
 
-        if (world.maze.tiles[tileIndex(world.maze, x, y)]?.kind === "mortar") {
-          collect(mortarBoxes(x, y));
+        if (tile?.kind === "mortar") {
+          collect(mortarBoxes(x, y, wearOf(tile, MORTAR_HP), mortarGlow(world, x, y)));
         }
       }
     }
 
     // One mesh per colour rather than per box: a floor's fittings come to a few hundred boxes once
     // the caltrops are counted, and a draw call each would be most of the frame's calls.
-    for (const [color, boxes] of byColor) {
+    for (const bucket of byColor.values()) {
       const geometries: THREE.BufferGeometry[] = [];
 
-      for (const box of boxes) {
+      for (const box of bucket.boxes) {
         const geometry = new THREE.BoxGeometry(box.halfX * 2, box.top - box.bottom, box.halfY * 2);
         geometry.translate(box.x, (box.bottom + box.top) / 2, box.y);
         geometries.push(geometry);
@@ -287,7 +433,7 @@ export function createWorldStructures(lighting: SceneLighting): WorldStructures 
         geometry.dispose();
       }
 
-      const material = lighting.box(color);
+      const material = lighting.box(bucket.color, bucket.topColor);
       const mesh = new THREE.Mesh(merged, material);
       root.add(mesh);
       owned.push(merged, material);
