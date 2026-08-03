@@ -12,7 +12,7 @@ This tracker is the forward-work authority.
 
 ## Active
 
-Nothing currently in progress.
+- `[demo_migration]` Move the demo's rules, tables, runtime, and interface into the formal layers and retire the two-half ruling - `dev/docs/plans/demo_migration.plan.md`
 
 ---
 
@@ -146,14 +146,6 @@ The boss concept currently on the table — a firing altar as a real 3D model, r
 
 Not scheduled. What forces the question is the boss fight or the second authored enemy, whichever is wanted first.
 
-### Moving The Demo Onto The Tested Half
-
-The demo half — `src/demo/`, `src/presentation/` — is verified only by playing, by standing ruling, and `test/unit/repository/demo-half-is-untested.test.ts` enforces it. The ruling's cost is now felt from the other side: an agent working on the demo cannot verify anything itself, so every change ends in a manual playtest or a browser session someone has to drive, and the demo's internal structure has grown without the pressure a tested boundary applies. Migration would mean moving the logic that never touches a frame — simulation rules, spawn and task state, damage arithmetic — across into the tested half, leaving a thin surface whose value genuinely is how it feels; revisiting the guard's boundary is part of the work, not a side effect, and it is a deliberate revision of the ruling rather than an exception to it.
-
-What makes it a decision rather than a queue is timing. A migration mid-churn freezes behaviour that is still moving: every test written against the blessing and boss work now in flight would break as that work lands, and the mirrored-direction-wheel lesson says a test written against a moving surface records the surface's bugs as specification. The migration waits for the behaviour to stop moving.
-
-Not scheduled. What would force it is the core design's remaining content shipping — or a content pass whose bug rate makes manual verification the bottleneck before then.
-
 ### One Enemy, One Record
 
 Changing an enemy's action or a number on it touches five or more files today, spread across archetype rows, AI branches, clip tables, display literals and spawn entries. The mechanical half of the fix is consolidation: one enemy becomes one record — statistics, actions, clip references, display numbers — read from one place, with `src/demo/enemy-archetypes.ts` as the seed the record grows from, and no behaviour change anywhere. The generalize-and-harden half deliberately waits, because an abstraction chosen before the blessing catalogue and the boss land would be guessed against the two consumers most likely to bend it.
@@ -166,7 +158,7 @@ Not scheduled. What would force it is the next content pass after the boss — o
 
 What a tile kind is is scattered the same way an enemy is: whether it can be walked on, seen over, thrown over, struck, stained, drowned in, drawn as a wall face or as a floor material, and whether it cuts ground off each live in their own if-chain, spread across the maze module, the action handlers, the scene builder and the presentation layer. None of those chains is exhaustive — a kind the chain does not name falls through to a default that compiles cleanly and is wrong silently. Adding the trench surfaced the count: around a dozen sites walked by hand, six of whose defaults were wrong, one of which would have let a swing break an unbreakable pit.
 
-The fix is the tile version of the enemy record above: one kind becomes one record of its answers, read by the questions instead of enumerated inside them, with exhaustiveness the compiler can check. It waits for the same reason and behind the same gate — a behaviour-preserving refactor in the untested half is proven by playing, so it queues with the enemy record and the migration entry rather than jumping them.
+The fix is the tile version of the enemy record above: one kind becomes one record of its answers, read by the questions instead of enumerated inside them, with exhaustiveness the compiler can check. It waits for the same reason and behind the same gate — a behaviour-preserving refactor is proven by playing until the migration lands its coverage, so it queues with the enemy record behind `dev/docs/plans/demo_migration.plan.md` rather than jumping it.
 
 Not scheduled. What would force it is the next tile kind, or the next silent wrong default found in play.
 
@@ -174,7 +166,7 @@ Not scheduled. What would force it is the next tile kind, or the next silent wro
 
 The direction document `dev/docs/design/pantry_demo_core.design.md` is frozen with the rest of its directory, but the work it pointed at is nearly done, and the tail is recorded here so it is a list rather than a memory. Three pieces remain: fleshing out the blessing catalogue; the boss fight, whose current concept is a firing altar the player cannot reach directly — ringed by an impassable moat — and breaks by turning pickups earned from the crowd against it; and sound effects, which are done: the engine, the trimmed coverage, the real samples, and the review workbench have all shipped, and what is left of them is the listening recorded below. All three are supervised manual work by nature: the boss is a mechanic decision, blessings are content taste, and audio cannot be judged without ears.
 
-This is the next supervised block, not autonomous work, and it lands before the two entries above — the migration and the enemy record — become safe to start.
+This is the next supervised block, not autonomous work. The demo migration was scheduled ahead of it by decision on 2026-08-03 (`dev/docs/plans/demo_migration.plan.md`); the enemy record entry above still waits behind this block.
 
 ### Browser Acceptance Coverage For Gameplay
 
