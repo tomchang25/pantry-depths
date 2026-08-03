@@ -1,0 +1,27 @@
+/**
+ * The three layers the scene renderer stacks inside whatever element it is given.
+ *
+ * Shipped with the module rather than written by each caller, because these two rules are not a
+ * matter of taste: the picture has to fill its viewport, and the overlays have to sit exactly on top
+ * of it without taking the clicks meant for it. A caller that got either wrong would get a renderer
+ * that silently draws at the wrong size or a first-person arm that swallows the pointer.
+ *
+ * What is deliberately absent is everything a caller *should* decide. No cursor — the game hides it
+ * and a debug tool shows a crosshair. No background, no border, no sizing of the viewport itself.
+ * The stacking order is DOM order and needs no z-index: the picture is appended first, the finishing
+ * pass over it, the arm over that.
+ */
+
+.scene-3d__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.scene-3d__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

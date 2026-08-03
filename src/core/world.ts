@@ -306,7 +306,14 @@ export type Player = {
   x: number;
   y: number;
   angle: number;
-  /** Vertical look as a fraction of screen height; the renderer shears the horizon by it. */
+  /**
+   * Vertical look, in radians above the horizontal.
+   *
+   * It was a fraction of screen height while the game was drawn by a column raycaster, which cannot
+   * rotate a camera and sheared its horizon by this instead. The renderer that replaced it turns a
+   * real camera, so the number is an angle. The old reading survives only in the raycaster itself,
+   * which no longer draws a run and is left every floor it still draws at level.
+   */
   pitch: number;
   /** Momentum the player is not in control of — currently only what a charger leaves behind. */
   pushX: number;

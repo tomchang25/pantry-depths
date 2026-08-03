@@ -24,27 +24,10 @@
   overflow: hidden;
 }
 
-.three-scene__canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
+/* The renderer ships the rules that size its own layers; what a page decides is the pointer over
+   them, and a tool for looking at a floor shows one. */
+.three-scene__viewport .scene-3d__canvas {
   cursor: crosshair;
-}
-
-/**
- * A 2D canvas laid over the rendered image. Two of them stack: the finishing pass first — dust, the
- * vignette, the red a hit leaves — and the authored arm over it.
- *
- * Stacked rather than composited into the frame, which is the whole of what the last checklist row
- * asks about: whether the arm the game already has can simply stay where it is. The order is the
- * shipped one, where both lens effects happen inside the renderer and the viewmodel lands after.
- */
-.three-scene__overlay {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
 }
 
 /**

@@ -110,7 +110,7 @@ export type Viewmodel = Readonly<{
 
 export function createViewmodel(): Viewmodel {
   const overlay = document.createElement("canvas");
-  overlay.className = "three-scene__overlay";
+  overlay.className = "scene-3d__overlay";
   const context = overlay.getContext("2d");
   const sprites = createSceneSprites();
   // The authored pickup artwork, loaded once. A carried object that has not arrived yet simply is
@@ -154,7 +154,7 @@ export function createViewmodel(): Viewmodel {
       context.clearRect(0, 0, width, height);
       const viewSize = Math.min(width * STAGE_WIDTH_FRACTION, height * STAGE_HEIGHT_FRACTION);
       const bob = Math.sin(world.elapsedSeconds * 2.2) * height * 0.006 + world.walkBob * height * 0.017;
-      drawArm(context, world);
+      drawArm(context, world, viewSize, bob);
       drawCarried(context, world, viewSize, bob);
       drawCarriedLight(context, world.elapsedSeconds);
       // Under the damage marks, deliberately. Being healed is good news and news you can wait a
@@ -168,15 +168,21 @@ export function createViewmodel(): Viewmodel {
     },
   };
 
-  /** The sword arm, on its own 720x405 stage placed at the bottom of the frame. */
-  function drawArm(target: CanvasRenderingContext2D, world: World): void {
-    const stageWidth = width * STAGE_WIDTH_FRACTION;
-    const scale = stageWidth / MELEE_VIEW_WIDTH;
-    const stageHeight = MELEE_VIEW_HEIGHT * scale;
+  /**
+   * The sword arm, on its own 720x405 stage anchored bottom-centre.
+   *
+   * Sized off whichever of the two fractions binds first, and uniformly, so the arm is never
+   * stretched by the window's shape and never outgrows a wide one. Scaling off the width alone —
+   * which this did until the game started drawing through here — is invisible in a viewport that
+   * happens to be roughly square and puts the hand in the middle of the screen on one that is twice
+   * as wide as it is tall.
+   */
+  function drawArm(target: CanvasRenderingContext2D, world: World, viewSize: number, bob: number): void {
+    const scale = viewSize / MELEE_VIEW_WIDTH;
     target.save();
-    target.translate((width - stageWidth) / 2, height - stageHeight * STAGE_HEIGHT_FRACTION + stageHeight);
+    target.translate(width * 0.5, height + bob);
     target.scale(scale, scale);
-    target.translate(0, -MELEE_VIEW_HEIGHT);
+    target.translate(-MELEE_VIEW_WIDTH * 0.5, -MELEE_VIEW_HEIGHT);
 
     const total = Math.max(0.0001, world.swingTotal);
     const progress = world.swing > 0 ? 1 - world.swing / total : 0;

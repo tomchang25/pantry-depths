@@ -49,7 +49,7 @@ export type FinishingPass = Readonly<{
 
 export function createFinishingPass(): FinishingPass {
   const overlay = document.createElement("canvas");
-  overlay.className = "three-scene__overlay";
+  overlay.className = "scene-3d__overlay";
   const context = overlay.getContext("2d");
   let width = 1;
   let height = 1;

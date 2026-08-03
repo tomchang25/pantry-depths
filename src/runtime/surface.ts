@@ -30,9 +30,6 @@ import {
   type HudTask,
 } from "@/ui/hud";
 import type { MapCastKind } from "@/core/room-contract";
-import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
-import { loadDemoImages } from "@/demo/demo-sprites";
-import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { mapNamed } from "@/runtime/maps";
 import { POOL_FILL_BODIES, padRoomAt, type TaskKind } from "@/core/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/rooms";
@@ -53,7 +50,7 @@ import {
   spawnReinforcement,
   type World,
 } from "@/core/world";
-import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
+import { SceneRenderer } from "@/presentation/scene-3d/scene-renderer";
 import {
   playSfx,
   resumeSfx,
@@ -78,16 +75,20 @@ const captureMode = import.meta.env.DEV && new URLSearchParams(window.location.s
 
 const MOUSE_SENSITIVITY = 0.0026;
 /**
- * Vertical look limits, asymmetric on purpose.
+ * Vertical look limit, in radians, and symmetric.
  *
- * Pitch is a shear, not a rotation, and shear artefacts are one-sided: looking down magnifies the
- * floor at the screen edge into smeared blocks and leaves billboards drawn front-on over a floor
- * seen from above, while looking up only ever shows more sky — which has no geometry to distort.
- * So the downward limit stops just short of the feet, and the upward one only stops the number
- * growing without limit while the mouse keeps travelling.
+ * It was neither until the renderer changed under it. The column raycaster could not rotate a camera,
+ * so its pitch was a shear measured in screen heights, and shear artefacts are one-sided — looking
+ * down smeared the floor at the edges of the view and left billboards drawn front-on over ground seen
+ * from above, while looking up only ever showed more sky. The limits were asymmetric to hide that,
+ * and the number was scaled on its way in to keep the shear gentle.
+ *
+ * A camera that actually turns has none of those problems, so the compensation goes with them. What
+ * is left is the look the replacement was judged with. Whether the downward limit should stay tighter
+ * than the upward one now that looking down costs nothing is a real question and a playtest's to
+ * answer, not this file's.
  */
-const MAX_PITCH_UP = 1.5;
-const MAX_PITCH_DOWN = 0.48;
+const MAX_PITCH = 1.45;
 /** Mouse counts per second that read as a full-speed turn, for the comfort vignette. */
 const FULL_TURN_RATE = 2600;
 const FLOOR_OBJECTIVE_SECONDS = 6;
@@ -545,7 +546,10 @@ function createHudModel(
 export async function mountGame(mount: HTMLElement, mapName?: string): Promise<MountedGame> {
   const map = mapNamed(mapName);
   const surface = document.createElement("main");
-  const canvas = document.createElement("canvas");
+  // A viewport rather than a canvas: the renderer stacks three layers of its own inside whatever
+  // element it is handed — the picture, the finishing pass, and the arm — and owns the rules that
+  // size them. What stays this file's is the box they go in and the pointer over it.
+  const view = document.createElement("div");
   const hud = mountHud();
   // After the HUD, never before it: the pause overlay is a full-surface button, and anything
   // painted under it has its clicks taken by the thing that re-locks the pointer.
@@ -559,21 +563,15 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
     restageCast: () => restageStage(),
   });
   surface.className = "demo";
-  canvas.className = "demo__canvas";
-  surface.append(canvas, hud.element, dev.element);
+  view.className = "demo__view";
+  surface.append(view, hud.element, dev.element);
   mount.replaceChildren(surface);
 
-  const images = await loadDemoImages();
-  const renderer = new CanvasGameplayRenderer(canvas, images);
-  // The demo runs a real-time camera, so half the plane resolution — both axes, keeping the coarse
-  // pixels square — buys frames the turn-based game has no need to buy.
-  renderer.halvePlaneRows = true;
-  renderer.halvePlaneColumns = true;
-  const sceneContext = canvas.getContext("2d");
-
-  if (!sceneContext) {
-    throw new Error("demo: scene canvas is unavailable");
-  }
+  const renderer = new SceneRenderer(view);
+  // Waited on before the first frame: bodies are cloned from an armature that arrives over the
+  // network, and a run that opens on a room whose occupants have not loaded has lied about what is
+  // in it. The floor itself, the fittings and every effect are built synchronously and need no wait.
+  await renderer.ready;
 
   let world = createWorld(map, GAME_CATALOG);
   dressStage(world);
@@ -626,7 +624,7 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
   const publish = (): void => {
     if (import.meta.env.DEV) {
       (window as unknown as { demoWorld?: World }).demoWorld = world;
-      (window as unknown as { demoRenderer?: CanvasGameplayRenderer }).demoRenderer = renderer;
+      (window as unknown as { demoRenderer?: SceneRenderer }).demoRenderer = renderer;
     }
   };
 
@@ -637,7 +635,7 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
     input.strafeRight = false;
   };
 
-  const locked = (): boolean => captureMode || document.pointerLockElement === canvas;
+  const locked = (): boolean => captureMode || document.pointerLockElement === renderer.canvas;
 
   const overlayModel = (): HudModel["overlay"] => {
     if (world.status !== "playing") {
@@ -867,17 +865,10 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
       objectiveSeconds = Math.max(0, objectiveSeconds - deltaSeconds);
     }
 
-    renderer.resize(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio);
-    const scene = createDemoScene(world);
-    renderer.render(scene, world.elapsedSeconds, createDemoEffects(world), {
-      reducedMotion: false,
-      grade: true,
-      turnRate,
-    });
-    // Where the swing landed, in screen space, so the arm and the arc can be aimed at it.
-    const target = world.swingTarget;
-    const aim = target ? renderer.project(scene, target) : undefined;
-    drawDemoViewmodel(sceneContext, images, world, aim ? { x: aim.screenX, y: aim.screenY } : undefined);
+    // One call where there were four. The renderer sizes itself against the element it was given,
+    // reads everything else off the world, and is told only the two things the world cannot say:
+    // how much time this frame covers, and how hard the hands are turning the view.
+    renderer.render(world, { deltaSeconds: active ? deltaSeconds : 0, turnRate });
     if (world.pendingCard !== undefined) {
       playSfx("uiSelect");
       showCard(world.pendingCard);
@@ -1058,8 +1049,8 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
     world.player.angle = turned - Math.PI * 2 * Math.floor(turned / (Math.PI * 2));
     turnInput += Math.abs(event.movementX) + Math.abs(event.movementY) * 0.5;
     world.player.pitch = Math.max(
-      -MAX_PITCH_DOWN,
-      Math.min(MAX_PITCH_UP, world.player.pitch - event.movementY * MOUSE_SENSITIVITY * 0.42),
+      -MAX_PITCH,
+      Math.min(MAX_PITCH, world.player.pitch - event.movementY * MOUSE_SENSITIVITY),
     );
   };
 
@@ -1093,14 +1084,14 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
     // The gesture that starts play is also the only moment a browser will hand over an audio context,
     // so arming the sound rides on it rather than needing a prompt of its own.
     unlockSfx();
-    const request = canvas.requestPointerLock({ unadjustedMovement: true }) as unknown;
+    const request = renderer.canvas.requestPointerLock({ unadjustedMovement: true }) as unknown;
 
     if (request instanceof Promise) {
       request.catch(() => {
         // Not every platform exposes raw input; an ordinary lock is still better than none. This
         // can also fail — the browser refuses relocks briefly after an Escape exit — and that is
         // fine: the overlay stays up and the next press gets through.
-        const fallback = canvas.requestPointerLock() as unknown;
+        const fallback = renderer.canvas.requestPointerLock() as unknown;
 
         if (fallback instanceof Promise) {
           fallback.catch(() => undefined);

@@ -30,6 +30,8 @@ import { createWorldStructures, type WorldStructures } from "./world-structures"
 import { SceneLighting, type SceneLight } from "./scene-lighting";
 import { createViewmodel, type Viewmodel, type ViewmodelKind } from "./viewmodel";
 
+import "./scene-3d.css";
+
 /**
  * Vertical field of view, derived rather than chosen.
  *
@@ -116,7 +118,7 @@ export class SceneRenderer {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     // No tone mapping, and its absence is deliberate: the shipped formulas clamp where they mean to,
     // and a curve laid over them would be a second opinion about the same pixels.
-    this.renderer.domElement.className = "three-scene__canvas";
+    this.renderer.domElement.className = "scene-3d__canvas";
     this.viewport.append(this.renderer.domElement);
 
     this.camera = new THREE.PerspectiveCamera(VERTICAL_FOV_DEGREES, 1, 0.02, 400);
@@ -172,6 +174,17 @@ export class SceneRenderer {
     this.sky.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
+  }
+
+  /**
+   * Resolves once the armature every skeleton is cloned from has arrived.
+   *
+   * Rendering before it is safe and simply draws no skeletons, which is unremarkable in a tool for
+   * looking at a floor and is a bug in a game — a run that opens on an empty room for a second has
+   * lied to the player about what is in it. A caller that cares waits; one that does not, does not.
+   */
+  get ready(): Promise<void> {
+    return this.bodies.ready;
   }
 
   get canvas(): HTMLCanvasElement {

@@ -33,10 +33,15 @@ body,
   display: none;
 }
 
-.demo__canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  image-rendering: pixelated;
+/* The box the renderer stacks its three layers inside. It ships the rules that size them; what is
+   left here is the box itself, the coarse pixels the game is drawn with, and the hidden pointer —
+   the last two being statements about this game rather than about any renderer. */
+.demo__view {
+  position: absolute;
+  inset: 0;
   cursor: none;
+}
+
+.demo__view .scene-3d__canvas {
+  image-rendering: pixelated;
 }
