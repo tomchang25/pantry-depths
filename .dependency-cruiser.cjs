@@ -120,7 +120,7 @@ module.exports = {
       name: "demo-imports-only-demo-presentation-content-core",
       severity: "error",
       comment:
-        "The demo tree is down to the interim projection half - scene building, sprite loading, the viewmodel - held in place until the 3D runtime decision (dev/docs/plans/demo_migration.plan.md). It may reach the projection stack and the two data layers, and nothing else.",
+        "The demo tree is down to the interim projection half - scene building, sprite loading, the viewmodel - held in place until the 3D runtime decision (migration archived at dev/docs/archived/demo_migration.plan.md). It may reach the projection stack and the two data layers, and nothing else.",
       from: { path: "^src/demo/" },
       to: { path: "^src/", pathNot: "^src/(demo|presentation|content|core)/" },
     },

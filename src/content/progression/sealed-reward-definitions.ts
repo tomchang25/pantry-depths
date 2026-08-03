@@ -6,8 +6,8 @@
  * both ends. The two sources differ in these rates and in that width, and in nothing else — paying
  * the cursed altar at a strictly higher rate would make it strictly better, which is not a curse.
  *
- * The sealing, resolution, and bank live with the run state in the demo half; these are the numbers
- * they draw against.
+ * The sealing, resolution, and bank live with the run state in core (`src/core/sealed.ts`); these
+ * are the numbers they draw against, injected through the game catalog.
  */
 
 import type { CoreCurse } from "@/core/progression-contract";

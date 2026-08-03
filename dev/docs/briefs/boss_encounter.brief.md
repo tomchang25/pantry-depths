@@ -8,7 +8,7 @@
 - 它要開的討論是：**demo 的樓層要不要有一場最終戰，如果要，它長什麼樣、用哪些現成零件、卡在哪個還沒答的決定上。** 討論的產出應該是一份 plan（或直接判定不做），產出存在的那一刻這份 brief 就刪掉。
 - 這份文件不是權威。裡面任何一句話都不能被引用來當作決策理由。
 
-寫作時間 2026-07-31，座標對應當時的程式碼，動手前一律重新核對。
+寫作時間 2026-07-31，座標於 2026-08-03 demo 遷移落地後校正過一輪（規則已從 `src/demo/` 搬入 `src/core/`），動手前仍一律重新核對。
 
 ---
 
@@ -37,14 +37,14 @@
 
 | 需要的東西                 | 現況                                                                                                                                                                                                        | 落點                                                                                                              |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 會發砲的固定物             | **已經有。** 迫擊砲台：隨機挑一個超出兩格 dead zone 的身體（玩家或敵人一視同仁），鎖住它腳下那格，畫圈 + 中央光柱，五秒後越牆砲擊，爆炸範圍內全吃，可被打破。設計理由記在 `CHANGELOG.md` 的 `telegraphs_06` | 砲台在 `src/demo/world.ts` 與 `src/demo/simulation.ts`；預告 decal 在 `src/demo/demo-scene.ts` 的 `floorDecals()` |
-| 攻擊預告                   | **已經有一整套。** 紅色警告色、按攻擊種類分符號（準心／火焰／刀刃）、鎖定的是「起手當下的位置」而不是命中瞬間的位置、地面 decal 通道                                                                        | `src/demo/enemy-ai.ts`、`src/presentation/render-scene.ts` 的 `RenderFloorDecal`                                  |
-| 投擲                       | **已經有。** 投擲物重量、飛行、命中、用壞、撿起                                                                                                                                                             | `src/demo/throw-weight.ts`                                                                                        |
-| 破壞建築                   | **已經有。** 石造物有生命值，鎚子專吃牆，charger 撞牆會破，最後一擊有整體崩塌的表現                                                                                                                         | `src/demo/actions.ts` 約 576 行                                                                                   |
+| 會發砲的固定物             | **已經有。** 迫擊砲台：隨機挑一個超出兩格 dead zone 的身體（玩家或敵人一視同仁），鎖住它腳下那格，畫圈 + 中央光柱，五秒後越牆砲擊，爆炸範圍內全吃，可被打破。設計理由記在 `CHANGELOG.md` 的 `telegraphs_06` | 砲台在 `src/core/world.ts` 與 `src/core/simulation.ts`；預告 decal 在 `src/demo/demo-scene.ts` 的 `floorDecals()` |
+| 攻擊預告                   | **已經有一整套。** 紅色警告色、按攻擊種類分符號（準心／火焰／刀刃）、鎖定的是「起手當下的位置」而不是命中瞬間的位置、地面 decal 通道                                                                        | `src/core/enemy-ai.ts`、`src/presentation/render-scene.ts` 的 `RenderFloorDecal`                                  |
+| 投擲                       | **已經有。** 投擲物重量、飛行、命中、用壞、撿起                                                                                                                                                             | 重量與行為表在 `src/content/props/prop-definitions.ts`；解算在 `src/core/actions.ts` 與 `src/core/impacts.ts`     |
+| 破壞建築                   | **已經有。** 石造物有生命值，鎚子專吃牆，charger 撞牆會破，最後一擊有整體崩塌的表現                                                                                                                         | `src/core/actions.ts`                                                                                             |
 | 敵人掉落拾取物             | **已經有。** 骷髏死掉會掉武器，包含用壞的形態；dev 面板有「一次掉一種」的指令                                                                                                                               | `src/content/enemies/skeleton-pickup-definitions.ts`                                                              |
-| 任務條件                   | **已經有。** 一個主任務開樓梯，三個次要任務各付一個祝福，條件都是模擬本來就在數的總數（屍體數、破了幾面牆、進了幾間側房、填了幾個池）                                                                       | `src/demo/tasks.ts`                                                                                               |
-| **壕溝（不可跨越的地形）** | **沒有。** 需要一種新 tile。maze 的 tile 詞彙已經因為 `mortar` 長過一次，通行與視線規則也已經不只 `open`/`filled` 兩種，所以路是通的                                                                        | `src/demo/maze.ts`                                                                                                |
-| **Boss 房**                | **沒有。** 現在一層固定是「一個 21 格主區 + 四邊各一間 7 格側房」，四種側房種類固定，每層抽的只有「哪一間貼哪一邊」                                                                                         | `src/demo/maze.ts`、`src/demo/rooms.ts`                                                                           |
+| 任務條件                   | **已經有。** 一個主任務開樓梯，三個次要任務各付一個祝福，條件都是模擬本來就在數的總數（屍體數、破了幾面牆、進了幾間側房、填了幾個池）                                                                       | `src/core/tasks.ts`                                                                                               |
+| **壕溝（不可跨越的地形）** | **已經有。** `trench` tile 已落地：不可跨越、不可填（與 `water` 同列 `UNFILLABLE_GROUND`）、不可破壞。細節動手前核對                                                                                        | `src/core/room-contract.ts`（詞彙）、`src/core/maze.ts`（通行）                                                   |
+| **Boss 房**                | **沒有。** 現在一層固定是「一個 21 格主區 + 四邊各一間 7 格側房」，四種側房種類固定，每層抽的只有「哪一間貼哪一邊」                                                                                         | `src/core/maze.ts`、`src/core/rooms.ts`                                                                           |
 | **Boss 本體**              | **沒有。** 生命值、階段、死亡、勝利條件全部沒有                                                                                                                                                             | —                                                                                                                 |
 
 ---
@@ -53,7 +53,7 @@
 
 **這是這份 brief 最重要的一段，接手的 Agent 如果只讀一段就讀這段。**
 
-先講一件容易誤判的事：遊戲本體 `src/presentation/canvas-gameplay-renderer.ts` 是 **Canvas 2D**，沒有 Three.js，three.js 只活在兩個 debug workbench 裡。所以「載入一個 GLB 放進遊戲」現在做不到。
+先講一件容易誤判的事：遊戲本體 `src/presentation/canvas-gameplay-renderer.ts` 是 **Canvas 2D**，沒有 Three.js，three.js 只活在 `src/sandbox/` 的兩個實驗裡（經 debug hub 進入）。所以「載入一個 GLB 放進遊戲」現在做不到。
 
 **但遊戲已經有一個立體方塊渲染通道**，在 `src/presentation/render-scene.ts` 約 170 行的 `RenderBox`：
 
@@ -79,7 +79,7 @@ RenderBox = { id, x, y, halfX, halfY, bottom, top, color, topColor? }
 voxel 資料
   → dev/tools/ 的離線轉換工具（合併同材質共面方塊、丟掉看不見的）
   → 一張 RenderBox 的 authored 表進 src/content/
-  → demo 讀表，擺在 boss 房
+  → 場景建構讀表，擺在 boss 房
 ```
 
 三個附加價值：它本身就是 data-drive 那條線的實例；**將來 three.js 化時這張表不用重做**（voxel 表跟渲染器無關，直接餵 InstancedMesh）；視覺語言跟方塊骷髏一致，而方塊骷髏已經定案是原型。
@@ -109,8 +109,8 @@ voxel 資料
 
 ## 跟其他工作的關係
 
-- **不擋 Map 契約，也不被它擋。** 手寫一張 `boss-test` map 的 JSON、用 `?map=boss-test` 走進去，就能在編輯器存在之前做渲染實驗。前提只有 `dev/docs/plans/map_contract_foundation.plan.md` 落地。
-- **壕溝需要一種新 tile。** `DemoTileKind`（`src/demo/maze.ts` 約 23 行）現在八種，已經因為 `mortar` 長過一次，所以路是通的。
+- **不擋 Map 契約，也不被它擋。** 手寫一張 `boss-test` map 的 JSON、用 `?map=boss-test` 走進去，就能在編輯器存在之前做渲染實驗。前提已成立：map 契約已落地（archived at `dev/docs/archived/map_contract_foundation.plan.md`）。`?map=` 現在是純開發用法，production build 會忽略它。
+- **壕溝的 tile 已經有了。** tile 詞彙現在是 `MAP_TILE_KINDS`（`src/core/room-contract.ts`），九種，`trench` 在列——這條前置已解。
 - **廢樓梯那件事排在 Boss 之後或同期。** 主任務改成開撤離之後，「打贏 Boss」跟「開撤離」的關係要一起想。
 
 ---
@@ -118,5 +118,5 @@ voxel 資料
 ## 給接手 Agent 的操作提醒
 
 - 讀 `CLAUDE.md` 的啟動鏈。
-- `src/demo/` 與 `src/presentation/` **不寫測試**，機器檢查的硬規則，見 `dev/agent_rules/test_operations.md`。轉換工具落在 `dev/tools/`、輸出表落在 `src/content/`，那半邊有測試，但「新增測試預設禁止，必須使用者逐次明確要求」同樣適用。
+- 測試走 `dev/agent_rules/test_operations.md` 的 gate：formal track 的新 unit test 必須先在 implementation spec 點名，browser test 一律交付後才提案；「demo 不寫測試」的舊機器規則已隨遷移退役。感覺層面——畫面、手感、動畫——仍由人玩來判定。
 - 產出是一份 plan。若要被 `/goal` 一路跑完，`dev/standards/work_lifecycle.addendum.md` 的三個條件必須成立 —— 特別是「文件裡不能有任何未答的問題」，也就是上面剩的兩題要先答完。

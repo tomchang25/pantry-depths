@@ -60,7 +60,7 @@ Not scheduled. What would force it is a second stage, or the first authored floo
 
 The direction is chosen: a development scene gets an address of its own. The sandbox goes to `/sandbox`, the room built to film promotional footage in goes to `/soundstage`, and a testbed scene goes to `/testbed/<scene name>`. What is not wanted is what exists — every one of them reached by naming a map in a query on the ordinary play route.
 
-The parameter is the wrong shape for three reasons, and the third is the one that matters. It puts every development floor on the address of the shipped game, which is now shut by ignoring the parameter outside development — a lid on the problem rather than an answer to it. It gives a scene nothing to own but a map name, so two scenes wanting different rules have nowhere to put them. And a scene is not a floor: the filming stage needs a fixed arrival, a way down that cannot be reached, a hidden instrument layer, and four keys nobody else should have, and none of that is expressible as content — so it is keyed off a string comparison against a map name inside the demo half. That comparison is a scene identity smuggled in as a literal, and a second scene doubles it.
+The parameter is the wrong shape for three reasons, and the third is the one that matters. It puts every development floor on the address of the shipped game, which is now shut by ignoring the parameter outside development — a lid on the problem rather than an answer to it. It gives a scene nothing to own but a map name, so two scenes wanting different rules have nowhere to put them. And a scene is not a floor: the filming stage needs a fixed arrival, a way down that cannot be reached, a hidden instrument layer, and four keys nobody else should have, and none of that is expressible as content — so it is keyed off a string comparison against a map name inside the runtime's stage dressing (`src/runtime/stage.ts`). That comparison is a scene identity smuggled in as a literal, and a second scene doubles it.
 
 What a scene would own, on the evidence of the one that exists: its address, the floor it opens, how arriving on it is dressed, which keys it adds, and what the screen shows by default. Five things, five places they currently live, none of them the same place.
 
@@ -148,9 +148,9 @@ Not scheduled. What forces the question is the boss fight or the second authored
 
 ### One Enemy, One Record
 
-Changing an enemy's action or a number on it touches five or more files today, spread across archetype rows, AI branches, clip tables, display literals and spawn entries. The mechanical half of the fix is consolidation: one enemy becomes one record — statistics, actions, clip references, display numbers — read from one place, with `src/demo/enemy-archetypes.ts` as the seed the record grows from, and no behaviour change anywhere. The generalize-and-harden half deliberately waits, because an abstraction chosen before the blessing catalogue and the boss land would be guessed against the two consumers most likely to bend it.
+Changing an enemy's action or a number on it touches five or more files today, spread across archetype rows, AI branches, clip tables, display literals and spawn entries. The mechanical half of the fix is consolidation: one enemy becomes one record — statistics, actions, clip references, display numbers — read from one place, with `src/content/enemies/enemy-archetypes.ts` as the seed the record grows from, and no behaviour change anywhere. The generalize-and-harden half deliberately waits, because an abstraction chosen before the blessing catalogue and the boss land would be guessed against the two consumers most likely to bend it.
 
-What makes it a decision rather than a queue is verification. A behaviour-preserving refactor in a half with no tests is proven by playing, so the mechanical half needs a supervised gate — a branch, then a playtest that confirms every enemy still moves and hits as before, before anything builds on top.
+What makes it a decision rather than a queue is verification. A behaviour-preserving refactor over the enemies' feel is proven by playing, so the mechanical half needs a supervised gate — a branch, then a playtest that confirms every enemy still moves and hits as before, before anything builds on top.
 
 Not scheduled. What would force it is the next content pass after the boss — or the next five-file enemy edit that goes wrong.
 
@@ -158,7 +158,7 @@ Not scheduled. What would force it is the next content pass after the boss — o
 
 What a tile kind is is scattered the same way an enemy is: whether it can be walked on, seen over, thrown over, struck, stained, drowned in, drawn as a wall face or as a floor material, and whether it cuts ground off each live in their own if-chain, spread across the maze module, the action handlers, the scene builder and the presentation layer. None of those chains is exhaustive — a kind the chain does not name falls through to a default that compiles cleanly and is wrong silently. Adding the trench surfaced the count: around a dozen sites walked by hand, six of whose defaults were wrong, one of which would have let a swing break an unbreakable pit.
 
-The fix is the tile version of the enemy record above: one kind becomes one record of its answers, read by the questions instead of enumerated inside them, with exhaustiveness the compiler can check. It waits for the same reason and behind the same gate — a behaviour-preserving refactor is proven by playing until the migration lands its coverage, so it queues with the enemy record behind `dev/docs/plans/demo_migration.plan.md` rather than jumping it.
+The fix is the tile version of the enemy record above: one kind becomes one record of its answers, read by the questions instead of enumerated inside them, with exhaustiveness the compiler can check. It waits for the same reason and behind the same gate — a behaviour-preserving refactor is proven by playing, so it queues with the enemy record behind a supervised playtest rather than jumping the line.
 
 Not scheduled. What would force it is the next tile kind, or the next silent wrong default found in play.
 
@@ -166,7 +166,7 @@ Not scheduled. What would force it is the next tile kind, or the next silent wro
 
 The direction document `dev/docs/design/pantry_demo_core.design.md` is frozen with the rest of its directory, but the work it pointed at is nearly done, and the tail is recorded here so it is a list rather than a memory. Three pieces remain: fleshing out the blessing catalogue; the boss fight, whose current concept is a firing altar the player cannot reach directly — ringed by an impassable moat — and breaks by turning pickups earned from the crowd against it; and sound effects, which are done: the engine, the trimmed coverage, the real samples, and the review workbench have all shipped, and what is left of them is the listening recorded below. All three are supervised manual work by nature: the boss is a mechanic decision, blessings are content taste, and audio cannot be judged without ears.
 
-This is the next supervised block, not autonomous work. The demo migration was scheduled ahead of it by decision on 2026-08-03 (`dev/docs/plans/demo_migration.plan.md`); the enemy record entry above still waits behind this block.
+This is the next supervised block, not autonomous work. The demo migration was scheduled ahead of it by decision on 2026-08-03 and has since landed (archived at `dev/docs/archived/demo_migration.plan.md`); the enemy record entry above still waits behind this block.
 
 ### Browser Acceptance Coverage For Gameplay
 

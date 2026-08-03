@@ -1,20 +1,12 @@
 # Pantry Depths
 
-A first-person grid dungeon crawler in the 魔塔 tradition. Five baked floors, stationary enemies, three key colors, and one formula on both sides of every exchange:
-
-```text
-damage = max(0, attacker.attack − defender.defense)
-```
-
-Every action — stepping, turning, attacking, opening a door — lets each enemy already within reach hit you once. Stepping into that reach is free and stepping out of it is free; standing there and doing anything is what costs. So the cost of passing an enemy is known before you touch it, and the whole game is deciding which costs to pay.
-
-Red keys open the way. Blue keys buy attack. Yellow keys buy defense. You spend HP to reach a key, and the stat it unlocks makes the rest of the route cheaper. Attack decides whether you can hurt something at all; defense decides how much it costs.
+A first-person, real-time dungeon crawler rendered by a Canvas 2D raycaster. A floor is assembled from authored rooms and stands its crowd on arrival — slimes that cost you position and skeletons that want a distance — with every attack telegraphed before it lands and avoidable if you read it. Clear the main task to open the way down, pay the side tasks for blessings, smash what stands in the way, throw what the dead drop, and descend.
 
 Rules live in `src/core/` and numbers in `src/content/`; those are the authority. The design documents under `dev/docs/design/` are frozen records of what the plans were derived from and are not read for current truth — see [`dev/standards/frozen_reference_directories.md`](dev/standards/frozen_reference_directories.md).
 
 ## Status
 
-The playable demo is the game. It currently lives in `src/demo/` and is being migrated into the formal layers — see [`TODO.md`](TODO.md) for forward work and `dev/docs/plans/demo_migration.plan.md` for the migration.
+The demo migration is complete (2026-08-03): the game lives in the formal layers. What remains of the old demo tree is the interim projection half in `src/demo/` — scene building, sprite loading, the viewmodel — held in place until the 3D renderer decision replaces it. Forward work lives in [`TODO.md`](TODO.md); the migration plan is archived at `dev/docs/archived/demo_migration.plan.md`.
 
 ## Running
 
@@ -42,20 +34,21 @@ That is the single aggregate gate: format check → typecheck → lint → impor
 
 ```text
 src/
-  app/            Bootstrap
-  core/           Deterministic rules: grid, turn resolution, damage
-  content/        Authored data: enemy table, door effects, baked floors
-  runtime/        Input to command, snapshot routing
-  presentation/   Canvas 2D raycaster, procedural textures, sprites, audio
-  harness/        Deterministic scenarios and the debug API
-  ui/             HUD overlay (plain DOM; this project uses no UI framework)
+  app/            Route boundary, bootstrap, and the debug tool surface
+  core/           The rules: contracts and vocabulary, floor assembly, the world and its tick, enemy minds
+  content/        Authored data: maps, rooms, enemies, props, progression, sfx, presentation assets
+  demo/           Interim projection half: scene building, sprites, viewmodel — until the 3D renderer decision
+  presentation/   Canvas 2D raycaster, procedural textures, image loading, audio
+  runtime/        Frame loop, input, mounting, stage dressing
+  sandbox/        Disposable experiments, entered through the debug hub
+  ui/             Plain-DOM HUD (this project uses no UI framework)
 dev/
   foundation/     Shared governance, pinned submodule
-  docs/design/    Game design document
   standards/      Project addenda
+  tools/          Offline tooling: authoring, capture, repository checks
 ```
 
-Layer boundaries are machine-checked. `core/` imports nothing outside `core/` and never touches a DOM global — that is what keeps combat deterministic and testable without a browser.
+Layer boundaries are machine-checked. `core/` imports nothing outside `core/` and never touches a DOM global; authored tables reach it through an injected game catalog. That is what keeps the rules portable and testable without a browser — the tick itself is real-time and deliberately random, a declared deviation recorded in `dev/standards/project_structure.addendum.md`.
 
 ## Governance
 
