@@ -14,11 +14,11 @@ import {
   DISENGAGE_RANGE,
   ENEMY_ARCHETYPES,
   isBoned,
-  rollIdleSeconds,
   type DemoArchetypeId,
   type DemoEnemyArchetype,
   type DemoWindupIntent,
-} from "@/demo/enemy-archetypes";
+} from "@/content/enemies/enemy-archetypes";
+import { rollIdleSeconds } from "@/demo/enemy-archetypes";
 import {
   blocksProjectile,
   blocksWalk,
@@ -38,7 +38,7 @@ import {
 import type { ResolvedMap } from "@/content/maps/map-resolver";
 import { playSfx } from "@/presentation/audio/sfx";
 import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/demo/particles";
-import type { DemoPropKind, DemoThrowKind } from "@/demo/throw-weight";
+import type { DemoPropKind, DemoThrowKind } from "@/content/props/prop-definitions";
 
 /** A grid coordinate as the demo passes it around; structurally the same as the maze's own cell. */
 export type DemoCellLike = Readonly<{ x: number; y: number }>;

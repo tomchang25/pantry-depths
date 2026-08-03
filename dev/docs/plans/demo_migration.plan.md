@@ -31,6 +31,8 @@ The demo tree today holds five different kinds of module, and the migration is s
 
 Two of those destinations are earned layers this plan creates. The runtime layer is the structure standard's own vocabulary for orchestration between core and presentation, which is exactly what the frame loop is. The ui layer was declared omitted when the project declared its no-React deviation; the HUD earning it as a plain-DOM layer revises that declaration rather than contradicting it — the deviation was about React, not about owning an interface layer.
 
+Every moved symbol keeps its name through the moves, `Demo` prefixes included. A dedicated rename child runs after the last move and renames them all in one pass, so each symbol is renamed exactly once, in its final home, and no diff mixes a move with a rename. The closing child then retires the institutions.
+
 ### The two contract inversions
 
 Two import directions have to flip before the rules can live in core, and each is its own child because each is independently shippable and independently playtestable while the code still sits in the demo tree.
@@ -55,12 +57,13 @@ The ban on testing the demo half exists because a test written against a moving 
 | --- | --------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | 1   | Governance baseline         | Structure addendum corrections; boundary rules describing the demo tree as it is              | Shipped — `demo_migration_01_governance_baseline.implementation_spec.md` (archived) |
 | 2   | Retire the turn-based model | Delete the old combat model and its tables; keep the vocabulary the live render path uses     | Shipped — `demo_migration_02_retire_turn_based.implementation_spec.md` (archived)   |
-| 3   | Tables into content         | The pure-data halves of the enemy, throwing, blessing, modifier, and sealed catalogues        | Execution below                                                                     |
+| 3   | Tables into content         | The pure-data halves of the enemy, throwing, blessing, modifier, and sealed catalogues        | Shipped — `demo_migration_03_tables_into_content.implementation_spec.md` (archived) |
 | 4   | The sound seam              | Rules emit semantic cues; the surface plays them                                              | Execution below                                                                     |
 | 5   | The map contract            | Core owns the floor vocabulary and contracts; content produces values against them            | Execution below                                                                     |
 | 6   | Rules into core             | The eleven rules modules move; boundary rules tighten to match                                | Execution below                                                                     |
 | 7   | Runtime and interface       | The surface becomes the runtime layer; the HUD becomes the ui layer; workbench imports follow | Execution below                                                                     |
-| 8   | Institutional closeout      | Guard deletion; both contract rewrites; checker sync; root entry points; tracker and history  | Execution below                                                                     |
+| 8   | The rename pass             | Every surviving `Demo`-prefixed symbol loses its prefix in one typecheck-verified change      | Execution below                                                                     |
+| End | Child End                   | Guard deletion; both contract rewrites; checker sync; root entry points; tracker and history  | Execution below                                                                     |
 
 Landing order is the table order. Children 2 and 3 could swap; nothing else can. Children 4 and 5 exist so that child 6 is a move rather than a move entangled with two redesigns.
 
@@ -87,12 +90,6 @@ Landing order is the table order. Children 2 and 3 could swap; nothing else can.
 ## Execution
 
 Perishable coordinates, recorded 2026-08-03 against `26210bd` (pre-closeout survey; re-verify against live code per child). Conflicts resolve in favour of the conceptual half.
-
-### Child 3 — Tables into content
-
-- Sources and their table halves: `src/demo/enemy-archetypes.ts` (533 lines; statistics, cooldowns, reach, wind-up intents — helpers like `rollIdleSeconds`, `isBoned`, `canCarry` stay demo-side until child 6), `src/demo/throw-weight.ts` (520; `propBehaviour`, `propWeight`, weights table), `src/demo/bless.ts` (198; `BLESS_CATALOG`, `BLESS_STACKING_CATALOG`), `src/demo/modifiers.ts` (171; the axis catalogue), `src/demo/sealed.ts` (141; reward tables — `coreBase`/`coreBonus` arithmetic may stay).
-- Destination: `src/content/` feature directories; spec draws the exact data/behaviour cut per module.
-- Verification: verify + playtest (a run touching blessings, throws, sealed cores).
 
 ### Child 4 — The sound seam
 
@@ -124,7 +121,12 @@ Perishable coordinates, recorded 2026-08-03 against `26210bd` (pre-closeout surv
 - `src/app/main.ts` wiring and all 8 workbench imports updated; structure addendum's ui/runtime rows and the no-React deviation text rewritten here (flagged in child 1).
 - Verification: verify + playtest (input feel, HUD, dev overlay, stage keys, restart).
 
-### Child 8 — Institutional closeout
+### Child 8 — The rename pass
+
+- Every `Demo`-prefixed symbol that survived the moves loses the prefix in one mechanical, typecheck-verified change — the content-side vocabulary from child 3 (`DemoThrowWeight`, `DemoPropBehaviour`, `DemoEnemyArchetype`, and the rest), and the run-side types the later children moved (`DemoWorld`, `DemoCell`, `DemoInput`, the HUD model types). Redundant aliases dissolve into their sources (`DemoPropKind` → `PropKind`, `DemoArchetypeId` → `MapCastKind` or a rename of that source; decided at spec time). Renaming waits for this child so every symbol is renamed exactly once, in its final home.
+- Runs after the last move and before Child End; verification is `npm run verify` — a rename that changes no behaviour needs no playtest of its own.
+
+### Child End
 
 - Delete `test/unit/repository/demo-half-is-untested.test.ts` (guard bans string imports `@/demo/`, `@/presentation/`; frozen exemption is the image-loader test).
 - Rewrite `dev/agent_rules/test_operations.md`: two surfaces (formal, sandbox); "Looking Is Not Testing", capture harness, browser-acceptance scope, and reporting sections survive with the demo references rewritten; the ban's history paragraph moves to history, not deleted from memory.

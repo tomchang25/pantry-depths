@@ -7,7 +7,7 @@
 
 import { chooseMeleeAttack } from "@/content/viewmodel/melee-viewmodel";
 import { blessBonus, hasBless } from "@/demo/bless";
-import { canCarry, isBoned } from "@/demo/enemy-archetypes";
+import { canCarry, isBoned } from "@/content/enemies/enemy-archetypes";
 import { playSfx } from "@/presentation/audio/sfx";
 import { takeSealed } from "@/demo/extraction";
 import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
@@ -20,7 +20,7 @@ import {
   type DemoPropKind,
   type DemoThrowKind,
   type DemoThrowWeight,
-} from "@/demo/throw-weight";
+} from "@/content/props/prop-definitions";
 import {
   announce,
   damageEnemy,

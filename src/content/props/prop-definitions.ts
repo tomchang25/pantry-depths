@@ -15,16 +15,16 @@
  * would tie two knobs together that want to move separately.
  *
  * It is the vocabulary both the props and the bodies speak, so it depends on neither of them. Its one
- * import is the authored list of what prop kinds exist, which lives a layer down because the table
- * that says how each one is drawn has to validate against the same list and cannot reach up here.
+ * import is the authored list of what prop kinds exist, declared beside the display table that
+ * validates against the same list.
  */
 
 /**
  * What kinds of loose object exist.
  *
- * Aliased from `src/content/` rather than declared here, because the authored table that says how each
- * one is drawn has to validate against the same list and that layer cannot import this one. One list,
- * two readers; a kind added there fails to compile here until every behaviour table below covers it.
+ * Aliased from the display schema rather than declared here, because the authored table that says how
+ * each one is drawn validates against the same list. One list, two readers; a kind added there fails
+ * to compile here until every behaviour table below covers it.
  */
 import type { PropKind } from "@/content/presentation/prop-display-schema";
 

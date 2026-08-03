@@ -32,7 +32,7 @@ import {
   MELEE_CUT_HALF_ANGLE,
   STRIKE_SECONDS,
   type DemoArchetypeId,
-} from "@/demo/enemy-archetypes";
+} from "@/content/enemies/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
 import { DEATH_SECONDS } from "@/demo/simulation";
 import {

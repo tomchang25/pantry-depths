@@ -30,7 +30,7 @@ import {
   attackReach,
   MELEE_CUT_HALF_ANGLE,
   STRIKE_SECONDS,
-} from "@/demo/enemy-archetypes";
+} from "@/content/enemies/enemy-archetypes";
 import { DROWN_SECONDS } from "@/demo/impacts";
 import {
   blocksFlung,
@@ -46,7 +46,7 @@ import type { DemoParticleKind } from "@/demo/particles";
 import { BLESSING_HOLD_SECONDS } from "@/demo/rooms";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
-import { propBehaviour, type DemoPropKind } from "@/demo/throw-weight";
+import { propBehaviour, type DemoPropKind } from "@/content/props/prop-definitions";
 import type { DemoMaze, DemoRoom, DemoTile } from "@/demo/maze";
 import {
   bodyFootprint,

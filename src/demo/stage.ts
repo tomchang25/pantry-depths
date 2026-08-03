@@ -14,7 +14,7 @@
  * kills bodies, so that last one is not a cosmetic problem.
  */
 
-import { ENEMY_ARCHETYPES, type DemoArchetypeId } from "@/demo/enemy-archetypes";
+import { ENEMY_ARCHETYPES, type DemoArchetypeId } from "@/content/enemies/enemy-archetypes";
 import { mainRoom } from "@/demo/maze";
 import { standCast, type DemoWorld } from "@/demo/world";
 

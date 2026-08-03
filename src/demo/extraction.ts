@@ -15,7 +15,7 @@
  */
 
 import type { DemoHudOverlay, DemoHudOverlayReward } from "@/demo/demo-hud";
-import { findBless } from "@/demo/bless";
+import { findBless } from "@/content/progression/bless-definitions";
 import { padRoomAt } from "@/demo/maze";
 import { playSfx } from "@/presentation/audio/sfx";
 import { bankReward, bankedRewards, resolveReward, type ResolvedReward } from "@/demo/sealed";

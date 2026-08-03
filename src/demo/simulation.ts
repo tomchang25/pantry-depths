@@ -15,7 +15,7 @@ import {
   thrownImpactDamage,
   thrownWallDamage,
 } from "@/demo/actions";
-import { isBoned } from "@/demo/enemy-archetypes";
+import { isBoned } from "@/content/enemies/enemy-archetypes";
 import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
 import { stepExtraction } from "@/demo/extraction";
 import {
@@ -49,7 +49,7 @@ import {
   throwCapacity,
   type DemoPropFlightHit,
   type DemoPropLanding,
-} from "@/demo/throw-weight";
+} from "@/content/props/prop-definitions";
 import {
   announce,
   bodyFootprint,

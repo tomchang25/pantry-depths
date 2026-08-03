@@ -13,12 +13,10 @@ import { grabAction, primaryAction, PROP_LABELS } from "@/demo/actions";
 import {
   BLESS_CATALOG,
   BLESS_STACKING_CATALOG,
-  blessBonus,
-  blessStackCount,
-  hasBless,
   findBless,
   type BlessDefinition,
-} from "@/demo/bless";
+} from "@/content/progression/bless-definitions";
+import { blessBonus, blessStackCount, hasBless } from "@/demo/bless";
 import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
 import { EXTRACTION_HOLD_SECONDS, extractionShare, runEndOverlay, SEALED_CARD_PREFIX } from "@/demo/extraction";
 import {
@@ -32,19 +30,19 @@ import {
   type DemoHudRun,
   type DemoHudTask,
 } from "@/demo/demo-hud";
-import type { DemoArchetypeId } from "@/demo/enemy-archetypes";
+import type { DemoArchetypeId } from "@/content/enemies/enemy-archetypes";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { mapNamed } from "@/demo/maps";
-import { findModifier, type ModifierAxis } from "@/demo/modifiers";
+import { findModifier, type ModifierAxis } from "@/content/progression/modifier-definitions";
 import { POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/demo/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/demo/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
 import { bankedRewards, equippedCore } from "@/demo/sealed";
 import { dressStage, isStage, restageCast, stageChoiceName, stepStageChoice } from "@/demo/stage";
 import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
-import type { DemoPropKind } from "@/demo/throw-weight";
+import type { DemoPropKind } from "@/content/props/prop-definitions";
 import {
   announce,
   awardBless,

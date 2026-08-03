@@ -6,39 +6,33 @@
  * genuinely does not know what it is carrying. That is the entire mechanism: what the player walks out
  * with is a gamble whose stake rises with every floor they survive, and dying loses all of it.
  *
- * Two sources, told apart by risk rather than by rate. A clean reward comes from finishing a floor's
- * main task and leans towards fragments. A cursed one comes from smashing the altar, leans towards
- * cores, and rolls those cores over a range widened at both ends — better than clean at the top and
- * worse than nothing at the bottom.
+ * Two sources, told apart by risk rather than by rate; the rates themselves are authored content in
+ * `@/content/progression/sealed-reward-definitions`. What stays here is the sealing, the resolution
+ * rolls, and the bank — run state and run randomness.
  *
  * The bank at the bottom is the only thing in the demo that outlives a run. Extraction is what puts
  * something in it, which is what makes the extraction room worth finding on the first floor rather
  * than on the last.
  */
 
-import { BLESS_CATALOG, BLESS_STACKING_CATALOG, type BlessId, type StackingBlessId } from "@/demo/bless";
+import {
+  BLESS_CATALOG,
+  BLESS_STACKING_CATALOG,
+  type BlessId,
+  type StackingBlessId,
+} from "@/content/progression/bless-definitions";
 import {
   CORE_CATALOG,
   findCore,
-  rollCoreModifiers,
   type CoreCurse,
   type CoreDefinition,
   type ModifierAxis,
   type ModifierRolls,
-} from "@/demo/modifiers";
+} from "@/content/progression/modifier-definitions";
+import { CORE_SHARE, FRAGMENT_EFFECTS } from "@/content/progression/sealed-reward-definitions";
+import { rollCoreModifiers } from "@/demo/modifiers";
 
 export type SealedReward = Readonly<{ source: CoreCurse }>;
-
-/**
- * How often a sealed reward turns out to be a core rather than a fragment.
- *
- * The two sources differ here and in the width of what a core rolls, and in nothing else. Paying the
- * cursed altar at a higher *rate* would make it strictly better, which is not a curse.
- */
-const CORE_SHARE: Readonly<Record<CoreCurse, number>> = { clean: 0.2, cursed: 0.6 };
-
-/** Blessing effects one fragment carries. A cursed fragment carries more than a clean one. */
-const FRAGMENT_EFFECTS: Readonly<Record<CoreCurse, number>> = { clean: 1, cursed: 2 };
 
 export type ResolvedFragment = Readonly<{
   kind: "fragment";

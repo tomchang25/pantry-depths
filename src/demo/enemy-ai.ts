@@ -42,12 +42,12 @@ import {
   attackDamage,
   attackReach,
   attackWindup,
-  rollIdleSeconds,
   MELEE_CUT_HALF_ANGLE,
   STRIKE_SECONDS,
   type DemoWindupIntent,
-} from "@/demo/enemy-archetypes";
+} from "@/content/enemies/enemy-archetypes";
 import { hasBless } from "@/demo/bless";
+import { rollIdleSeconds } from "@/demo/enemy-archetypes";
 import { checkHazards } from "@/demo/impacts";
 import { breadthFirstStep, randomReachableCell, type DemoCell } from "@/demo/maze";
 import { burst } from "@/demo/particles";
