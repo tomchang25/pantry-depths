@@ -9,7 +9,7 @@ import {
 } from "./api-contract";
 import { parseEntityDisplays } from "@/content/enemies/entity-display-schema";
 import { MAP_NAME_PATTERN, parseMapSource } from "@/content/maps/map-schema";
-import { ROOM_ID_PATTERN, parseRoomSource } from "@/content/maps/room-schema";
+import { ROOM_ID_PATTERN, parseRoomSource } from "@/content/rooms/room-schema";
 import { parsePropDisplays } from "@/content/presentation/prop-display-schema";
 import { parseSfxCues } from "@/content/sfx/sfx-cue-schema";
 import { parseSfxReview } from "@/content/sfx/sfx-review-schema";

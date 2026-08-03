@@ -15,7 +15,7 @@ import { parseRoomSource } from "./room-schema";
 
 const ROOM_SUFFIX = ".room.json";
 
-const ROOM_FILES = import.meta.glob<unknown>("../rooms/*.room.json", { eager: true, import: "default" });
+const ROOM_FILES = import.meta.glob<unknown>("./*.room.json", { eager: true, import: "default" });
 
 /** What a room file's path says the room inside it should be called. */
 function identityOf(path: string): string {

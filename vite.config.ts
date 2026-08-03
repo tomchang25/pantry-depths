@@ -79,7 +79,7 @@ function isUnwatchedAuthoredPath(path: string): boolean {
  */
 const LIBRARY_MODULE_BY_TARGET: Readonly<Record<string, string>> = {
   map: "src/content/maps/map-library.ts",
-  room: "src/content/maps/room-library.ts",
+  room: "src/content/rooms/room-library.ts",
 };
 
 /**

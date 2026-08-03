@@ -10,7 +10,7 @@
 import type { ResolvedMap } from "@/core/map-contract";
 import { resolveMap } from "./map-resolver";
 import { parseMapSource } from "./map-schema";
-import { ROOM_LIBRARY } from "./room-library";
+import { ROOM_LIBRARY } from "@/content/rooms/room-library";
 
 const MAP_SUFFIX = ".map.json";
 

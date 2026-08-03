@@ -162,6 +162,14 @@ The fix is the tile version of the enemy record above: one kind becomes one reco
 
 Not scheduled. What would force it is the next tile kind, or the next silent wrong default found in play.
 
+### Grouping Core Rides With The Records
+
+The rules layer is twenty-five flat files, and its internal dependency graph already shows five natural clusters: contracts and vocabulary (ten files, ~1,150 lines), floor assembly (`maze`, `rooms`, `movement`), the world and its tick (`world`, `simulation`, `tasks`, `extraction`, `run-level`), combat (`actions`, `enemy-ai`, `impacts`, `particles`), and progression (`bless`, `modifiers`, `sealed`). The subdirectory shape is sitting there, surveyed on 2026-08-03 — and cutting it now would still be premature, because the weight is not in the layout: five files (`maze` 1,448, `world` 1,412, `simulation` 1,056, `enemy-ai` 944, `actions` 835) carry two thirds of the layer's lines, and what is wrong with them is what the two record entries above describe, not where they sit. Both records will redraw file boundaries when they land; a directory layout chosen before them is import churn paid twice.
+
+So the grouping rides with the records: whichever record lands first settles its cluster's layout in the same change, and the layer is not resliced before then. One aside recorded so nobody rediscovers it as a bug: the contract modules and the catalog import each other's types — a type-only cycle the boundary rules deliberately exempt; it vanishes at compile time and needs no fix.
+
+Not scheduled. It waits behind the enemy and tile records above, and moves with them rather than before them.
+
 ### What Remains Of The Core Design
 
 The direction document `dev/docs/design/pantry_demo_core.design.md` is frozen with the rest of its directory, but the work it pointed at is nearly done, and the tail is recorded here so it is a list rather than a memory. Three pieces remain: fleshing out the blessing catalogue; the boss fight, whose current concept is a firing altar the player cannot reach directly — ringed by an impassable moat — and breaks by turning pickups earned from the crowd against it; and sound effects, which are done: the engine, the trimmed coverage, the real samples, and the review workbench have all shipped, and what is left of them is the listening recorded below. All three are supervised manual work by nature: the boss is a mechanic decision, blessings are content taste, and audio cannot be judged without ears.

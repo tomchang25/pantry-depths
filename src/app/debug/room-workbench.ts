@@ -24,8 +24,8 @@ import { createDebugPanel } from "@/app/debug/debug-shell";
 import { CAST_COLOURS, createFloorPreview, TILE_COLOURS } from "@/app/debug/floor-preview";
 import { resolveMap } from "@/content/maps/map-resolver";
 import { parseMapSource } from "@/content/maps/map-schema";
-import { ROOM_LIBRARY } from "@/content/maps/room-library";
-import { parseRoomSource, unfillableEnclosesRegion } from "@/content/maps/room-schema";
+import { ROOM_LIBRARY } from "@/content/rooms/room-library";
+import { parseRoomSource, unfillableEnclosesRegion } from "@/content/rooms/room-schema";
 import {
   MAP_CAST_KINDS,
   MAP_ROOM_ROLES,

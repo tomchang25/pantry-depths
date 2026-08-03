@@ -27,7 +27,7 @@ import { createRoomSurface } from "@/app/debug/room-workbench";
 import { resolveMap } from "@/content/maps/map-resolver";
 import { parseMapSource, type MapSource } from "@/content/maps/map-schema";
 import { MAP_SLOTS, type MapSlot } from "@/core/map-contract";
-import { ROOM_LIBRARY } from "@/content/maps/room-library";
+import { ROOM_LIBRARY } from "@/content/rooms/room-library";
 import { GAME_CATALOG } from "@/content/catalog";
 import { createWorld, type World } from "@/core/world";
 
