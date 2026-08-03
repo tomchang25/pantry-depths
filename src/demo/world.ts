@@ -36,7 +36,7 @@ import {
   type DemoMaze,
 } from "@/demo/maze";
 import type { ResolvedMap } from "@/content/maps/map-resolver";
-import { playSfx } from "@/presentation/audio/sfx";
+import type { SfxCueId } from "@/content/sfx/sfx-cue-definitions";
 import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/demo/particles";
 import type { DemoPropKind, DemoThrowKind } from "@/content/props/prop-definitions";
 
@@ -382,6 +382,15 @@ export type DemoAltar = {
   y: number;
 };
 
+/**
+ * One sound a tick decided to make: which cue, and where in the world if it happened somewhere.
+ *
+ * An event rather than a call, because the rules half may not reach the audio stack: it reports what
+ * happened, and the surface that ran the tick plays the report. The two fields are exactly the two
+ * arguments the player takes, so draining is a hand-over rather than a translation.
+ */
+export type DemoSfxCue = Readonly<{ id: SfxCueId; at?: Readonly<{ x: number; y: number }> }>;
+
 export type DemoWorld = {
   /** The map this run plays. Descending draws a new floor from it rather than from somewhere else. */
   map: ResolvedMap;
@@ -394,6 +403,8 @@ export type DemoWorld = {
   props: DemoProp[];
   projectiles: DemoProjectile[];
   hazards: DemoHazard[];
+  /** What this tick sounded like. The rules push; the surface drains once per frame and plays. */
+  sfxCues: DemoSfxCue[];
   /** One per standing emplacement, rebuilt from the floor whenever the floor is. */
   mortars: DemoMortar[];
   vfx: DemoVfx[];
@@ -868,6 +879,7 @@ export function createDemoWorld(map: ResolvedMap): DemoWorld {
     stains: new Float32Array(gridArea(maze)),
     stainsVersion: 0,
     deaths: [],
+    sfxCues: [],
     terrainVersion: 0,
     held: undefined,
     mindsFrozen: false,
@@ -962,6 +974,15 @@ export function spawnReinforcement(world: DemoWorld): boolean {
  * Both sources — smashing an altar and taking the stairs down — come through here, so the card and
  * the bar can never drift apart between them.
  */
+/**
+ * Reports one sound. The event carries its position only when it has one, because the queue's type —
+ * like the player's contract it mirrors — treats "flat interface-adjacent sound" as the absence of a
+ * place rather than a place of zeroes.
+ */
+export function raiseSfx(world: DemoWorld, id: SfxCueId, at?: Readonly<{ x: number; y: number }>): void {
+  world.sfxCues.push(at ? { id, at } : { id });
+}
+
 export function awardBless(world: DemoWorld): void {
   const granted = grantBless(world.bless);
   const healthGain = blessMaxHpGain(granted);
@@ -969,7 +990,7 @@ export function awardBless(world: DemoWorld): void {
   world.player.maxHp += healthGain;
   world.player.hp = Math.min(world.player.maxHp, world.player.hp + healthGain);
   world.pendingCard = granted.id;
-  playSfx("rewardGain");
+  raiseSfx(world, "rewardGain");
   announce(world, `Blessing gained: ${granted.name}`, 3);
 }
 
@@ -982,7 +1003,7 @@ export function awardBless(world: DemoWorld): void {
  */
 export function endRun(world: DemoWorld, status: "dead" | "extracted"): void {
   if (status === "dead") {
-    playSfx("playerDeath");
+    raiseSfx(world, "playerDeath");
   }
 
   world.status = status;
@@ -1254,7 +1275,7 @@ export function killEnemy(
   // The body's material rather than the cause: a skeleton comes apart in bone whatever took it apart,
   // and per-cause death voices are a decision deferred until somebody wants to author them. Raised
   // here rather than from each cause, so no route out of the world can be the one that forgot to.
-  playSfx(isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
+  raiseSfx(world, isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
 
   if (isBoned(enemy.archetype)) {
     // Called here rather than from each cause, so every route out of the world scatters the same

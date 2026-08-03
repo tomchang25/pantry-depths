@@ -51,7 +51,7 @@ import { rollIdleSeconds } from "@/demo/enemy-archetypes";
 import { checkHazards } from "@/demo/impacts";
 import { breadthFirstStep, randomReachableCell, type DemoCell } from "@/demo/maze";
 import { burst } from "@/demo/particles";
-import { playSfx } from "@/presentation/audio/sfx";
+
 import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import {
   announce,
@@ -64,6 +64,7 @@ import {
   stunEnemy,
   type DemoEnemy,
   type DemoWorld,
+  raiseSfx,
 } from "@/demo/world";
 
 const REPATH_SECONDS = 0.4;
@@ -471,7 +472,7 @@ function stepCharge(world: DemoWorld, enemy: DemoEnemy, deltaSeconds: number): v
 export function hurtPlayer(world: DemoWorld, amount: number, fromX?: number, fromY?: number): void {
   world.hitFlash = 1;
   // Flat, not positional: this one happened to the player, so it is not somewhere across the room.
-  playSfx("playerHurt");
+  raiseSfx(world, "playerHurt");
 
   // Beside the flash, and for the same reasons it is here rather than further down: this fires for a
   // hit the hostage eats and for one god mode pays for, because in both cases something out there

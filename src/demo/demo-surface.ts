@@ -854,6 +854,14 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
       );
     }
 
+    // Everything the rules decided to sound this frame, played in the order it was decided. Drained
+    // whether or not the world stepped, because input handlers raise cues between frames too.
+    for (const cue of world.sfxCues) {
+      playSfx(cue.id, cue.at);
+    }
+
+    world.sfxCues.length = 0;
+
     if (world.maze !== objectiveMaze) {
       objectiveMaze = world.maze;
       objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;

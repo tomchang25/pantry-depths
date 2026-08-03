@@ -41,7 +41,7 @@ import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
 import { stepParticles } from "@/demo/particles";
 import { stepRooms } from "@/demo/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
-import { playSfx } from "@/presentation/audio/sfx";
+
 import { stepTasks } from "@/demo/tasks";
 import {
   breaksThroughWalls,
@@ -75,6 +75,7 @@ import {
   type DemoMortar,
   type DemoProjectile,
   type DemoWorld,
+  raiseSfx,
 } from "@/demo/world";
 
 export type DemoInput = Readonly<{
@@ -291,7 +292,7 @@ function strikeWithProp(world: DemoWorld, projectile: DemoProjectile): void {
   }
 
   // The same material voice a swing gets: a thrown hit is still a hit on that body.
-  playSfx(isBoned(struck.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: struck.x, y: struck.y });
+  raiseSfx(world, isBoned(struck.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: struck.x, y: struck.y });
   knockBack(
     struck,
     projectile.x - projectile.directionX * 0.6,
@@ -367,7 +368,7 @@ function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall:
   const wallCue = hitWall ? WALL_STOP_CUES[behaviour.landing] : undefined;
 
   if (wallCue !== undefined) {
-    playSfx(wallCue, { x: projectile.x, y: projectile.y });
+    raiseSfx(world, wallCue, { x: projectile.x, y: projectile.y });
   }
 
   resolveLanding(world, projectile, behaviour.landing);
@@ -409,7 +410,7 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
     projectile.struck.add(enemy.id);
     world.enemies.splice(world.enemies.indexOf(enemy), 1);
     projectile.skewered.push(enemy);
-    playSfx(isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
+    raiseSfx(world, isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
     announce(world, "Skewered!", 1.2);
 
     if (projectile.skewered.length >= throwCapacity(projectile.kind)) {

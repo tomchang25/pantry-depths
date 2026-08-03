@@ -58,7 +58,7 @@ The ban on testing the demo half exists because a test written against a moving 
 | 1   | Governance baseline         | Structure addendum corrections; boundary rules describing the demo tree as it is              | Shipped — `demo_migration_01_governance_baseline.implementation_spec.md` (archived) |
 | 2   | Retire the turn-based model | Delete the old combat model and its tables; keep the vocabulary the live render path uses     | Shipped — `demo_migration_02_retire_turn_based.implementation_spec.md` (archived)   |
 | 3   | Tables into content         | The pure-data halves of the enemy, throwing, blessing, modifier, and sealed catalogues        | Shipped — `demo_migration_03_tables_into_content.implementation_spec.md` (archived) |
-| 4   | The sound seam              | Rules emit semantic cues; the surface plays them                                              | Execution below                                                                     |
+| 4   | The sound seam              | Rules emit semantic cues; the surface plays them                                              | Shipped — `demo_migration_04_sound_seam.implementation_spec.md` (archived)          |
 | 5   | The map contract            | Core owns the floor vocabulary and contracts; content produces values against them            | Execution below                                                                     |
 | 6   | Rules into core             | The eleven rules modules move; boundary rules tighten to match                                | Execution below                                                                     |
 | 7   | Runtime and interface       | The surface becomes the runtime layer; the HUD becomes the ui layer; workbench imports follow | Execution below                                                                     |
@@ -90,13 +90,6 @@ Landing order is the table order. Children 2 and 3 could swap; nothing else can.
 ## Execution
 
 Perishable coordinates, recorded 2026-08-03 against `26210bd` (pre-closeout survey; re-verify against live code per child). Conflicts resolve in favour of the conceptual half.
-
-### Child 4 — The sound seam
-
-- Direct `playSfx` importers in the rules half (6): `actions.ts`, `enemy-ai.ts`, `impacts.ts`, `simulation.ts`, `world.ts`, `extraction.ts`. (`demo-surface.ts` keeps its import — it becomes runtime, which may.)
-- Shape: the tick/world accumulates cue events (`SfxCueId` from `src/content/sfx/sfx-cue-definitions.ts`); the surface drains and calls `playSfx`. Where the cue-id union finally lives so future-core imports nothing outside core+own vocabulary is spec's question (options: id union moves core-side and the content cue table keys off it, or events carry plain strings validated at the seam).
-- Rate limiting lives in `src/presentation/audio/rate-limiter.ts` and stays player-side; emission order must preserve current audible behaviour.
-- Verification: verify + playtest with ears (combat, walls, water, extraction, UI cues).
 
 ### Child 5 — The map contract
 

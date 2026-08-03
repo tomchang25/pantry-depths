@@ -17,9 +17,9 @@
 import type { DemoHudOverlay, DemoHudOverlayReward } from "@/demo/demo-hud";
 import { findBless } from "@/content/progression/bless-definitions";
 import { padRoomAt } from "@/demo/maze";
-import { playSfx } from "@/presentation/audio/sfx";
+
 import { bankReward, bankedRewards, resolveReward, type ResolvedReward } from "@/demo/sealed";
-import { announce, endRun, runClockSeconds, type DemoWorld } from "@/demo/world";
+import { announce, endRun, raiseSfx, runClockSeconds, type DemoWorld } from "@/demo/world";
 
 /** Unbroken seconds on the pad that end the run. The same five the blessing altar asks for. */
 export const EXTRACTION_HOLD_SECONDS = 5;
@@ -39,7 +39,7 @@ let lastResolved: readonly ResolvedReward[] = [];
 export function takeSealed(world: DemoWorld, source: "clean" | "cursed"): void {
   world.carried.push({ source });
   world.pendingCard = `${SEALED_CARD_PREFIX}${source}`;
-  playSfx("rewardGain");
+  raiseSfx(world, "rewardGain");
   announce(world, `Sealed and ${source === "cursed" ? "cursed" : "clean"} - carry it out or lose it`, 3);
 }
 

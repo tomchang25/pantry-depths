@@ -8,7 +8,7 @@
 import { chooseMeleeAttack } from "@/content/viewmodel/melee-viewmodel";
 import { blessBonus, hasBless } from "@/demo/bless";
 import { canCarry, isBoned } from "@/content/enemies/enemy-archetypes";
-import { playSfx } from "@/presentation/audio/sfx";
+
 import { takeSealed } from "@/demo/extraction";
 import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
 import { burst } from "@/demo/particles";
@@ -34,6 +34,7 @@ import {
   type DemoHeld,
   type DemoProp,
   type DemoWorld,
+  raiseSfx,
 } from "@/demo/world";
 
 const BASE_MELEE_DAMAGE = 25;
@@ -303,7 +304,7 @@ function damageBarricade(world: DemoWorld, cell: DemoCell, tile: DemoTile, damag
 
   tile.kind = "open";
   tile.maxHp = 0;
-  playSfx("wallBreakStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
+  raiseSfx(world, "wallBreakStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
   burst(world.particles, "stoneChip", cell.x + 0.5, cell.y + 0.5, 0.5, 18, {
     speed: 3,
     spreadZ: 2.6,
@@ -343,7 +344,7 @@ function damageMortar(world: DemoWorld, cell: DemoCell, tile: DemoTile, damage: 
 
   tile.kind = "open";
   tile.maxHp = 0;
-  playSfx("wallBreakStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
+  raiseSfx(world, "wallBreakStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
   burst(world.particles, "stoneChip", cell.x + 0.5, cell.y + 0.5, 0.55, 20, {
     speed: 3.2,
     spreadZ: 2.8,
@@ -434,7 +435,7 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number, qui
   }
 
   // The wall coming down: the whole cell's worth of material, not a face's worth.
-  playSfx(wasWood ? "wallBreakWood" : "wallBreakStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
+  raiseSfx(world, wasWood ? "wallBreakWood" : "wallBreakStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
   burst(world.particles, wasWood ? "woodChip" : "stoneChip", cell.x + 0.5, cell.y + 0.5, 0.6, 26, {
     speed: 3.4,
     spreadZ: 3,
@@ -510,7 +511,7 @@ function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEne
   // body registers. One release sound for every throw — the arm moving is the same arm the swing
   // uses — and a bolt is a trigger rather than an open hand, so it stays silent here.
   if (kind !== "crossbowBolt") {
-    playSfx("throw");
+    raiseSfx(world, "throw");
   }
 
   world.player.pushX -= direction.x * weight.recoil * RECOIL_SHOVE;
@@ -613,7 +614,7 @@ function strikeAltar(world: DemoWorld): boolean {
 
   // The last blow: the whole structure's worth of stone rather than a face's worth, and the light
   // leaving it all at once.
-  playSfx("wallBreakStone", { x: world.altar.x, y: world.altar.y });
+  raiseSfx(world, "wallBreakStone", { x: world.altar.x, y: world.altar.y });
   burst(world.particles, "stoneChip", world.altar.x, world.altar.y, 0.6, 26, {
     speed: 3.4,
     spreadZ: 3,
@@ -666,7 +667,7 @@ function melee(world: DemoWorld): void {
     for (const enemy of struck) {
       enemy.pushX += direction.x * knockback;
       enemy.pushY += direction.y * knockback;
-      playSfx(isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
+      raiseSfx(world, isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
       damageEnemy(world, enemy, damage, "cleaved");
       burst(world.particles, "blood", enemy.x, enemy.y, 0.36, 6, {
         speed: 2,
@@ -690,7 +691,7 @@ function melee(world: DemoWorld): void {
   }
 
   if (strikeAltar(world)) {
-    playSfx("meleeHitAltar", { x: world.altar.x, y: world.altar.y });
+    raiseSfx(world, "meleeHitAltar", { x: world.altar.x, y: world.altar.y });
     world.swingTarget = { x: world.altar.x, y: world.altar.y, z: 0.6, connected: true };
     world.impact = 1;
     return;
@@ -704,7 +705,7 @@ function melee(world: DemoWorld): void {
     // Timber and stone answer a blade differently, and the barricade is timber by construction.
     const kind = tileAt(world.maze, cell.x, cell.y)?.kind;
     const wooden = kind === "wood" || kind === "barricade";
-    playSfx(wooden ? "meleeHitWallWood" : "meleeHitWallStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
+    raiseSfx(world, wooden ? "meleeHitWallWood" : "meleeHitWallStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
     world.swingTarget = { x: cell.x + 0.5, y: cell.y + 0.5, z: 0.55, connected: true };
     world.impact = 1;
     damageWall(world, cell, MELEE_WALL_DAMAGE);
@@ -758,7 +759,7 @@ export function primaryAction(world: DemoWorld): void {
   // catches when there is no chain to give the sequence a shape.
   world.swingKind = chooseMeleeAttack(world.swingKind === "throw" ? undefined : world.swingKind).id;
   // On the press rather than on the hit, because the whoosh is the arm moving and that starts now.
-  playSfx("meleeSwing");
+  raiseSfx(world, "meleeSwing");
   world.swing = SWING_SECONDS;
   world.swingTotal = SWING_SECONDS;
   world.swingResolved = false;
