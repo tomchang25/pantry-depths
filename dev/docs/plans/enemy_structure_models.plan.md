@@ -19,7 +19,7 @@ Provisional; renumber and complete after the spike.
 
 Answered by the three-scene spike; each blocks queueing until answered.
 
-1. Soft bodies: do slimes become deforming block models, or keep a shader-side treatment the spike found better?
+1. ~~Soft bodies: do slimes become deforming block models, or keep a shader-side treatment the spike found better?~~ **Answered 2026-08-03**: neither — the spike's programmatic blob was rejected outright, so slimes join the authored roster this plan builds, as modelled bodies with faces rather than shapes a renderer computes. What remains open is only their clip treatment: whether a soft body's squash-and-lunge is armature clips like the skeletons' or a small set of blend-shape poses.
 2. Texturing: do models sample the same procedural texture generators as the walls, or carry baked/vertex colors — what did the spike's look verdict prefer?
 3. Structure split: which structures earned authored models and which stayed procedural assemblies in the spike?
 4. Clip debt: the tracker records that every clip except idle and walk reads wrong on the current bake; does that re-authoring fold into this plan or stay its own supervised pass?
