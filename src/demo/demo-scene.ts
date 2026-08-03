@@ -7,7 +7,7 @@
  * string of sparks is correctly hidden by the wall between you and it.
  */
 
-import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
+import type { EnemyAppearanceId } from "@/core/enemy-contract";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
 import {
   entityDisplaysByAppearance,
@@ -22,16 +22,16 @@ import {
   type SkeletonDeathId,
 } from "@/content/enemies/skeleton-death-definitions";
 import { DEMO_ASSET_IDS, WARN_BLADE_STEPS } from "@/demo/demo-sprites";
+import { ENEMY_ARCHETYPES } from "@/content/enemies/enemy-archetypes";
 import {
   CHARGE_DISTANCE,
-  ENEMY_ARCHETYPES,
   isBoned,
   attackCooldown,
   attackReach,
   MELEE_CUT_HALF_ANGLE,
   STRIKE_SECONDS,
-} from "@/content/enemies/enemy-archetypes";
-import { DROWN_SECONDS } from "@/demo/impacts";
+} from "@/core/enemy-contract";
+import { DROWN_SECONDS } from "@/core/impacts";
 import {
   blocksFlung,
   blocksProjectile,
@@ -40,14 +40,15 @@ import {
   holdsStains,
   ROOM_PAD_HALF,
   tileIndex,
-} from "@/demo/maze";
-import { extractionShare } from "@/demo/extraction";
-import type { DemoParticleKind } from "@/demo/particles";
-import { BLESSING_HOLD_SECONDS } from "@/demo/rooms";
+} from "@/core/maze";
+import { extractionShare } from "@/core/extraction";
+import type { DemoParticleKind } from "@/core/particles";
+import { BLESSING_HOLD_SECONDS } from "@/core/rooms";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
-import { propBehaviour, type DemoPropKind } from "@/content/props/prop-definitions";
-import type { DemoMaze, DemoRoom, DemoTile } from "@/demo/maze";
+import { GAME_CATALOG } from "@/content/catalog";
+import { propBehaviour, type DemoPropKind } from "@/core/prop-contract";
+import type { DemoMaze, DemoRoom, DemoTile } from "@/core/maze";
 import {
   bodyFootprint,
   hazardHeight,
@@ -61,7 +62,7 @@ import {
   type DemoIntent,
   type DemoProjectile,
   type DemoWorld,
-} from "@/demo/world";
+} from "@/core/world";
 import type { PresentationRenderEffects } from "@/presentation/canvas-gameplay-renderer";
 import type {
   RenderBeam,
@@ -511,7 +512,7 @@ export function propPickupSprites(placement: DemoPickupPlacement): RenderSprite[
   const { id, kind, count, x, y } = placement;
   const bob = placement.bob ?? 0;
   const display = placement.display ?? PROP_DISPLAYS[kind];
-  const copies = propBehaviour(kind).counts === "charges" ? 1 : Math.min(count, MAX_DRAWN_COPIES);
+  const copies = propBehaviour(GAME_CATALOG, kind).counts === "charges" ? 1 : Math.min(count, MAX_DRAWN_COPIES);
   const built: RenderSprite[] = [
     ground(`${id}-shadow`, x, y, DEMO_ASSET_IDS.dropShadow, 0.5 + copies * 0.06),
     ground(`${id}-glow`, x, y, DEMO_ASSET_IDS.groundGlow, 0.75 + copies * 0.1),
@@ -1028,7 +1029,7 @@ function sprites(world: DemoWorld): RenderSprite[] {
       continue;
     }
 
-    const form = propBehaviour(projectile.kind).form;
+    const form = propBehaviour(GAME_CATALOG, projectile.kind).form;
 
     // Long flying weapons are beams, not pictures of one; see `beams`.
     if (form === "rod") {

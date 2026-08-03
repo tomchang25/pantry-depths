@@ -28,7 +28,8 @@ import { resolveMap } from "@/content/maps/map-resolver";
 import { parseMapSource, type MapSource } from "@/content/maps/map-schema";
 import { MAP_SLOTS, type MapSlot } from "@/core/map-contract";
 import { ROOM_LIBRARY } from "@/content/maps/room-library";
-import { createDemoWorld, type DemoWorld } from "@/demo/world";
+import { GAME_CATALOG } from "@/content/catalog";
+import { createDemoWorld, type DemoWorld } from "@/core/world";
 
 /** What a slot with nothing in it is worth in a select, which cannot hold an absence. */
 const NO_ROOM = "";
@@ -288,7 +289,7 @@ function createMapSurface(): HTMLElement {
 
   const rebuild = (): void => {
     try {
-      world = createDemoWorld(resolveMap(parseMapSource(sourceFrom(draft)), ROOM_LIBRARY));
+      world = createDemoWorld(resolveMap(parseMapSource(sourceFrom(draft)), ROOM_LIBRARY), GAME_CATALOG);
       failure = undefined;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

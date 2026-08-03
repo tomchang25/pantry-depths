@@ -1,21 +1,19 @@
 /**
  * The run's blessing state, and the award that mutates it.
  *
- * The catalogues — both tiers, their types, and the lookup — live in
- * `@/content/progression/bless-definitions`; the magnitudes live on the modifier catalogue beside
- * them. What stays here is the state a run holds and everything that reads or writes it, which is
- * run-half by nature and moves into core with the rules.
+ * The catalogues — both tiers and their magnitudes — are authored content and arrive through the
+ * game catalog; what lives here is the state a run holds and everything that reads or writes it.
  */
 
+import type { GameCatalog } from "@/core/catalog";
 import {
-  BLESS_CATALOG,
-  BLESS_STACKING_CATALOG,
+  blessingStep,
   type BlessDefinition,
   type BlessId,
+  type ModifierAxis,
   type StackingBlessAxis,
   type StackingBlessDefinition,
-} from "@/content/progression/bless-definitions";
-import { blessingStep, type ModifierAxis } from "@/content/progression/modifier-definitions";
+} from "@/core/progression-contract";
 
 export type BlessState = {
   owned: BlessId[];
@@ -55,8 +53,8 @@ export function blessBonus(state: BlessState, axis: ModifierAxis): number {
  * total already answers this exactly. Keeping a tally beside it would put a second owner on a number
  * that has one, and the two would disagree the first time either was written without the other.
  */
-export function blessStackCount(state: BlessState, axis: ModifierAxis): number {
-  const step = blessingStep(axis);
+export function blessStackCount(catalog: GameCatalog, state: BlessState, axis: ModifierAxis): number {
+  const step = blessingStep(catalog, axis);
   return step > 0 ? Math.round(state.stacking[axis] / step) : 0;
 }
 
@@ -66,8 +64,8 @@ export function blessStackCount(state: BlessState, axis: ModifierAxis): number {
  * Health is stored on the player rather than derived, so this axis is the one the award site has to
  * apply itself; the other three are totals the readers consult.
  */
-export function blessMaxHpGain(granted: BlessDefinition | StackingBlessDefinition): number {
-  return "axis" in granted && granted.axis === "maxHp" ? blessingStep(granted.axis) : 0;
+export function blessMaxHpGain(catalog: GameCatalog, granted: BlessDefinition | StackingBlessDefinition): number {
+  return "axis" in granted && granted.axis === "maxHp" ? blessingStep(catalog, granted.axis) : 0;
 }
 
 /**
@@ -77,8 +75,8 @@ export function blessMaxHpGain(granted: BlessDefinition | StackingBlessDefinitio
  * stacking tier, which has no uniqueness rule, so there is no third case and no award that is
  * really the absence of one.
  */
-export function grantBless(state: BlessState): BlessDefinition | StackingBlessDefinition {
-  const available = BLESS_CATALOG.filter((candidate) => !state.owned.includes(candidate.id));
+export function grantBless(catalog: GameCatalog, state: BlessState): BlessDefinition | StackingBlessDefinition {
+  const available = catalog.blessCatalog.filter((candidate) => !state.owned.includes(candidate.id));
   const distinct = available[Math.floor(Math.random() * available.length)];
 
   if (distinct) {
@@ -86,13 +84,13 @@ export function grantBless(state: BlessState): BlessDefinition | StackingBlessDe
     return distinct;
   }
 
-  const stacking = BLESS_STACKING_CATALOG[Math.floor(Math.random() * BLESS_STACKING_CATALOG.length)];
+  const stacking = catalog.blessStackingCatalog[Math.floor(Math.random() * catalog.blessStackingCatalog.length)];
 
   if (!stacking) {
     throw new Error("the stacking blessing catalogue is empty");
   }
 
-  state.stacking[stacking.axis] += blessingStep(stacking.axis);
+  state.stacking[stacking.axis] += blessingStep(catalog, stacking.axis);
   state.overflowMaxHp = state.stacking.maxHp;
   return stacking;
 }

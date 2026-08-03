@@ -1,5 +1,6 @@
 import sfxCuesJson from "@/content/sfx/sfx-cues.json";
-import { parseSfxCues, SFX_CUE_IDS } from "@/content/sfx/sfx-cue-schema";
+import { parseSfxCues } from "@/content/sfx/sfx-cue-schema";
+import { SFX_CUE_IDS } from "@/core/sfx-cues";
 import { describe, expect, it } from "vitest";
 
 /**

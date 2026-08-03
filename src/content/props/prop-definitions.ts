@@ -1,65 +1,14 @@
 /**
- * What can be thrown, and what it weighs.
+ * What can be thrown, and what it weighs: the authored rows behind `@/core/prop-contract`.
  *
- * Weight used to be two numbers — a speed and a range — and neither of them could make anything feel
- * heavy, because the flight curve ignored both: every throw left the hand along the aim line and came
- * down on the landing point in a symmetric arc, so a body and a pebble drew the same shape at
- * different speeds. Slowing a body down only ever made it a slow pebble.
- *
- * So weight is a record rather than a number, and every field is here because something visible reads
- * from it. Tuning heft is editing one row.
- *
- * Each row lives where the thing does. The loose props are named below; a slime's weight is its own
- * property on its archetype, beside its health and its speed. That split is deliberate — how heavy a
- * body is has nothing to do with how much of it there is to kill, and deriving one from the other
- * would tie two knobs together that want to move separately.
- *
- * It is the vocabulary both the props and the bodies speak, so it depends on neither of them. Its one
- * import is the authored list of what prop kinds exist, declared beside the display table that
- * validates against the same list.
+ * Weight is a record rather than a number, and every field is here because something visible reads
+ * from it — tuning heft is editing one row. The behaviour table is one row per prop for the same
+ * reason it always was: a kind missing something is missing it visibly, in a table where the thing
+ * beside it has one. Both tables reach the rules through the game catalog; nothing imports them from
+ * the rules side.
  */
 
-/**
- * What kinds of loose object exist.
- *
- * Aliased from the display schema rather than declared here, because the authored table that says how
- * each one is drawn validates against the same list. One list, two readers; a kind added there fails
- * to compile here until every behaviour table below covers it.
- */
-import type { PropKind } from "@/core/prop-kinds";
-
-export type DemoPropKind = PropKind;
-export type DemoThrowKind = DemoPropKind | "enemy";
-
-export type DemoThrowWeight = Readonly<{
-  /** Cells per second it leaves the hand at. */
-  speed: number;
-  /** Cells it covers before it is spent, before the crosshair-to-floor cap shortens it. */
-  range: number;
-  /** Whether gravity brings it down on its landing point, or it flies the line it was pointed along. */
-  lobbed: boolean;
-  /** Fraction of forward speed shed per second in flight. Zero flies at a constant speed. */
-  drag: number;
-  /**
-   * Where the flight spends its height, as the power the fall term is raised to — one is the
-   * symmetric parabola every throw used to draw.
-   *
-   * Below one peaks early and spends the rest of the throw coming down, which is a body. Above one
-   * carries flat and then drops away at the very end, which is a stone skipping out to its range.
-   *
-   * It is the one shape knob weight is allowed, because it is the only one that leaves the aim
-   * intact: the throw still departs along the aim line and still lands where the crosshair met the
-   * floor. A knob that scaled the launch angle instead would make heavy things fly somewhere other
-   * than where they were pointed, and pointing is not negotiable. See `projectileHeight`.
-   */
-  plunge: number;
-  /** What the throw costs the thrower: a shove backwards and a jolt of the view. */
-  recoil: number;
-  /** How hard the arrival lands — dust off the floor, the same jolt, and how hard it barges through. */
-  thud: number;
-  /** Movement speed multiplier while it is being carried. One is a hand that costs nothing. */
-  carrySlow: number;
-}>;
+import type { DemoPropBehaviour, DemoPropKind, DemoThrowWeight } from "@/core/prop-contract";
 
 /**
  * The loose props, unchanged in speed and range from when those were the only two numbers.
@@ -67,7 +16,7 @@ export type DemoThrowWeight = Readonly<{
  * They are deliberately near-weightless in the new fields: the point of this table is that a body is
  * heavy, and a body is only heavy next to the rock you throw one-handed.
  */
-const PROP_WEIGHTS: Readonly<Record<DemoPropKind, DemoThrowWeight>> = {
+export const PROP_WEIGHTS: Readonly<Record<DemoPropKind, DemoThrowWeight>> = {
   stick: {
     speed: 22,
     range: 40,
@@ -231,84 +180,6 @@ export const DEFAULT_BODY_WEIGHT: DemoThrowWeight = {
 };
 
 /**
- * What a throw does to the bodies it reaches while it is still in the air.
- *
- * `reap` is the one that spends nothing on them: it kills whatever it touches whatever that thing
- * had left, and none of it ends the flight. A weapon that bodies cannot stop has to be counting
- * something else, which is why the capacity below reads as masonry for exactly this value.
- */
-export type DemoPropFlightHit = "stop" | "skewer" | "cleave" | "reap";
-
-/** What it does where it stops, whether that is a wall, a body, or the end of its range. */
-export type DemoPropLanding = "spend" | "burst" | "detonate" | "pin" | "strike";
-
-/**
- * What the left hand does with it: opens, or pulls a trigger.
- *
- * Everything in the demo was thrown, and the button that throws was the same button that swings —
- * hands full meant throw, hands empty meant cut. A shooter is the third case, and it is a different
- * kind of object rather than a different kind of throw: what leaves the hand is not the thing being
- * held, and the thing being held is still there afterwards until its uses run out.
- */
-export type DemoPropUse = "throw" | "shoot";
-
-/**
- * What the number on a stack counts.
- *
- * Three stakes are three objects; a crossbow holding three shots is one object with three uses in
- * it. Both arrive as `count: 3`, and every reader of that number used to work out which it was for
- * itself — the floor drew three crossbows, and it was right by accident for everything else.
- *
- * Declared rather than derived. It happens to line up exactly with `use` today, because the only
- * thing holding charges is the only thing that is aimed; that is a coincidence of a table with one
- * shooter in it, not a rule. A thrown weapon with uses in it, or a shooter picked up one shot at a
- * time, would each break the guess silently — and this is a fact about the object rather than about
- * how it is drawn, which is why it lives here and not in the authored display table where somebody
- * could tune a crossbow into three of them.
- */
-export type DemoPropCount = "objects" | "charges";
-
-/** How it is drawn on the way there. */
-export type DemoPropForm = "billboard" | "tumbling" | "rod";
-
-export type DemoPropBehaviour = Readonly<{
-  use: DemoPropUse;
-  counts: DemoPropCount;
-  /**
-   * What the hand is left holding once a shooter's uses run out. Only shooters set it.
-   *
-   * Distinct from `leaves`, which is what a *thrown* prop drops where it landed. This one never
-   * touches the floor: the weapon is spent in the hand and what remains is still in it.
-   */
-  spends?: DemoPropKind;
-  flightHit: DemoPropFlightHit;
-  /**
-   * How much this throw is allowed to spend before it is full and comes down.
-   *
-   * On the prop rather than a constant per verb, which is what it used to be: one number for every
-   * skewer and one for every cleave, so two weapons could not disagree about how many they take. A
-   * stake takes one because the single body lifted off its feet and nailed to the far wall is the
-   * whole picture; a proper javelin runs three through and they arrive in a heap.
-   *
-   * Counted in bodies, except for a `reap`, which bodies do not cost at all — there it is walls.
-   * Ignored by anything that stops at the first thing it touches.
-   */
-  capacity: number;
-  landing: DemoPropLanding;
-  /** Against the hit points in `@/demo/maze`: a bare swing is one, and a rock opens either wall. */
-  wallDamage: number;
-  /**
-   * What lies on the floor where it stopped, or nothing if the throw spent it.
-   *
-   * A kind rather than a flag, so wear is a thing you can see. A femur comes back cracked and the
-   * cracked one comes back as nothing, which is a two-use weapon expressed entirely in this column —
-   * no counter on the prop, no durability field, and the picture in your hand is the count.
-   */
-  leaves: DemoPropKind | undefined;
-  form: DemoPropForm;
-}>;
-
-/**
  * What each throw does, in one place, because it used to be in three.
  *
  * Flight behaviour was a branch chain in the projectile step, landing behaviour was a second chain in
@@ -320,7 +191,7 @@ export type DemoPropBehaviour = Readonly<{
  * A row per prop is the fix. A kind that is missing something is now missing it visibly, in a table
  * where the thing beside it has one.
  */
-const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
+export const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
   // A sharpened stake: it runs one body through and nails it to whatever stops it. Not a javelin —
   // that is a weapon of its own further down, and the two are told apart by what they carry.
   stick: {
@@ -475,46 +346,3 @@ const PROP_BEHAVIOURS: Readonly<Record<DemoPropKind, DemoPropBehaviour>> = {
     form: "rod",
   },
 };
-
-export function propBehaviour(kind: DemoPropKind): DemoPropBehaviour {
-  return PROP_BEHAVIOURS[kind];
-}
-
-export function propWeight(kind: DemoPropKind): DemoThrowWeight {
-  return PROP_WEIGHTS[kind];
-}
-
-/**
- * How many bodies this throw takes before it is full, for anything that pierces or cleaves.
- *
- * Tolerates a thrown body the way `throwWeight` and the wall-damage lookup already do: a body does
- * neither of those things, so the number is never consulted for one, and answering rather than
- * refusing keeps the flight step from having to know which kinds are props.
- */
-export function throwCapacity(kind: DemoThrowKind): number {
-  return kind === "enemy" ? 1 : PROP_BEHAVIOURS[kind].capacity;
-}
-
-/**
- * Whether masonry is something this throw spends rather than something that stops it.
- *
- * Read off the flight rule instead of being declared again beside it, because they are one statement:
- * a weapon nothing alive can stop is the same weapon that opens the wall behind them.
- */
-export function breaksThroughWalls(kind: DemoThrowKind): boolean {
-  return kind !== "enemy" && PROP_BEHAVIOURS[kind].flightHit === "reap";
-}
-
-/**
- * What is in flight, or about to be.
- *
- * The body's weight is passed in rather than looked up here: whose body it is stays the caller's
- * business, which is what keeps this module from having to know that enemies exist.
- */
-export function throwWeight(kind: DemoThrowKind, body: DemoThrowWeight | undefined): DemoThrowWeight {
-  if (kind === "enemy") {
-    return body ?? DEFAULT_BODY_WEIGHT;
-  }
-
-  return PROP_WEIGHTS[kind];
-}

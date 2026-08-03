@@ -28,7 +28,7 @@
  * stops, and nothing exists that could ever stop it advancing before then.
  */
 
-import { damageWall } from "@/demo/actions";
+import { damageWall } from "@/core/actions";
 import {
   CHARGE_DAMAGE,
   CHARGE_DISTANCE,
@@ -45,14 +45,13 @@ import {
   MELEE_CUT_HALF_ANGLE,
   STRIKE_SECONDS,
   type DemoWindupIntent,
-} from "@/content/enemies/enemy-archetypes";
-import { hasBless } from "@/demo/bless";
-import { rollIdleSeconds } from "@/demo/enemy-archetypes";
-import { checkHazards } from "@/demo/impacts";
-import { breadthFirstStep, randomReachableCell, type DemoCell } from "@/demo/maze";
-import { burst } from "@/demo/particles";
+} from "@/core/enemy-contract";
+import { hasBless } from "@/core/bless";
+import { checkHazards } from "@/core/impacts";
+import { breadthFirstStep, randomReachableCell, type DemoCell } from "@/core/maze";
+import { burst } from "@/core/particles";
 
-import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
+import { FLUNG, slideMove, unstick, WALKING } from "@/core/movement";
 import {
   announce,
   endRun,
@@ -65,7 +64,8 @@ import {
   type DemoEnemy,
   type DemoWorld,
   raiseSfx,
-} from "@/demo/world";
+  rollIdleSeconds,
+} from "@/core/world";
 
 const REPATH_SECONDS = 0.4;
 const SEPARATION = 0.62;

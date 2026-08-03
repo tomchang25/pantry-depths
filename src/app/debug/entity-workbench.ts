@@ -2,7 +2,7 @@ import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createDebugPage, createDebugPanel, createDebugScroller } from "@/app/debug/debug-shell";
 import { createPropWorkbench } from "@/app/debug/prop-workbench";
 import { createRenderPanel } from "@/app/debug/render-panel";
-import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
+import type { EnemyAppearanceId } from "@/core/enemy-contract";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
 import {
   entityDisplaysByAppearance,
@@ -23,18 +23,18 @@ import {
   type DemoEntityProjection,
   type DemoEntityProjectionContext,
 } from "@/demo/demo-scene";
+import { ENEMY_ARCHETYPES } from "@/content/enemies/enemy-archetypes";
 import {
   attackCooldown,
   attackReach,
   attackWindup,
-  ENEMY_ARCHETYPES,
   isBoned,
   MELEE_CUT_HALF_ANGLE,
   STRIKE_SECONDS,
   type DemoArchetypeId,
-} from "@/content/enemies/enemy-archetypes";
-import { DROWN_SECONDS } from "@/demo/impacts";
-import { DEATH_SECONDS } from "@/demo/simulation";
+} from "@/core/enemy-contract";
+import { DROWN_SECONDS } from "@/core/impacts";
+import { DEATH_SECONDS } from "@/core/simulation";
 import {
   bodyFootprint,
   ENEMY_RADIUS,
@@ -43,7 +43,7 @@ import {
   type DemoDeathCause,
   type DemoEnemy,
   type DemoProjectile,
-} from "@/demo/world";
+} from "@/core/world";
 import type {
   CameraPose,
   RenderBeam,

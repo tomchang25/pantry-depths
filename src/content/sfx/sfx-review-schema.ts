@@ -11,7 +11,7 @@
  * prevent.
  */
 
-import { SFX_CUE_IDS, type SfxCueId } from "@/content/sfx/sfx-cue-schema";
+import { SFX_CUE_IDS, type SfxCueId } from "@/core/sfx-cues";
 
 export const SFX_FITS = ["shipped", "trial", "misfit"] as const;
 

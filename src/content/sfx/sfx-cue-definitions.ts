@@ -10,7 +10,8 @@
  */
 
 import sfxCuesJson from "@/content/sfx/sfx-cues.json";
-import { parseSfxCues, sfxCuesById, type SfxCue, type SfxCueId } from "@/content/sfx/sfx-cue-schema";
+import { parseSfxCues, sfxCuesById, type SfxCue } from "@/content/sfx/sfx-cue-schema";
+import { type SfxCueId } from "@/core/sfx-cues";
 import uiSelectUrl from "@/content/sfx/assets/uiSelect.wav";
 import meleeSwingUrl from "@/content/sfx/assets/meleeSwing.wav";
 import meleeHitFleshUrl from "@/content/sfx/assets/meleeHitFlesh.wav";
@@ -30,8 +31,8 @@ import rewardGainUrl from "@/content/sfx/assets/rewardGain.wav";
 import playerHurtUrl from "@/content/sfx/assets/playerHurt.wav";
 import playerDeathUrl from "@/content/sfx/assets/playerDeath.wav";
 
-export type { SfxCue, SfxCueId, SfxRecipe, SfxWaveform, SfxFilter, SfxSource } from "@/content/sfx/sfx-cue-schema";
-export { SFX_CUE_IDS, fromDb } from "@/content/sfx/sfx-cue-schema";
+export type { SfxCue, SfxRecipe, SfxWaveform, SfxFilter, SfxSource } from "@/content/sfx/sfx-cue-schema";
+export { fromDb } from "@/content/sfx/sfx-cue-schema";
 
 export const SFX_CUES: readonly SfxCue[] = parseSfxCues(sfxCuesJson);
 

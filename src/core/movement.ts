@@ -9,7 +9,7 @@
  * hazard instead of scenery.
  */
 
-import { blocksFlung, blocksWalk, type DemoMaze } from "@/demo/maze";
+import { blocksFlung, blocksWalk, type DemoMaze } from "@/core/maze";
 
 export type DemoPoint = Readonly<{ x: number; y: number }>;
 export type DemoBlocker = (maze: DemoMaze, x: number, y: number) => boolean;

@@ -34,7 +34,7 @@ module.exports = {
       name: "core-imports-only-core",
       severity: "error",
       comment:
-        "src/core holds the rule-owning layer: today the grid vocabulary the render contract speaks, and the home of the real-time rules as the demo migration lands. It must never reach content, presentation, ui, or a DOM global.",
+        "src/core holds the rules: the contracts, the floor assembly, the world, the tick, and the minds. Authored tables reach it through the injected game catalog, never through an import — it must never reach content, presentation, ui, or a DOM global.",
       from: { path: "^src/core/" },
       to: { path: "^src/", pathNot: "^src/core/" },
     },

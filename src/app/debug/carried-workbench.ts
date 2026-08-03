@@ -18,8 +18,8 @@ import { createRenderPanel } from "@/app/debug/render-panel";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind, type PropDisplay } from "@/content/presentation/prop-display-schema";
 import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
-import { MELEE_SWING_SECONDS } from "@/content/viewmodel/melee-viewmodel";
-import { PROP_LABELS } from "@/demo/actions";
+import { MELEE_SWING_SECONDS } from "@/core/melee-contract";
+import { PROP_LABELS } from "@/core/actions";
 import { drawDemoViewmodel, type DemoViewmodelModel } from "@/demo/demo-viewmodel";
 import type { CameraPose, RenderScene, RenderSurface } from "@/presentation/render-scene";
 

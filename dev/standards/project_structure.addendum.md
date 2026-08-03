@@ -24,22 +24,22 @@ Making the tick deterministic later retires this deviation.
 
 The standard names `presentation/` and `shared/` as earned layers that are created only when the owning work exists. This table is the current truth of which layers exist and what each holds; the demo migration plan is what moves the two pre-declared rows from absent to earned.
 
-| Layer               | Directory | Status                                                                                                                                                                     |
-| ------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/`          | Present   | Route boundary, bootstrap, and the debug tool surface. The ordinary route mounts the demo surface.                                                                         |
-| `src/core/`         | Present   | Holds the turn-based remnant (grid vocabulary, combat projection), scheduled for removal by the migration; becomes the home of the real-time rules as the migration lands. |
-| `src/content/`      | Present   | Authored data by feature: maps, rooms, enemies, combat tables, sfx, presentation assets, viewmodel definitions.                                                            |
-| `src/presentation/` | Present   | Earned by the renderer port: the Canvas 2D raycaster, procedural textures, the image loader, and the audio stack.                                                          |
-| `src/runtime/`      | Absent    | Earned layer, pre-declared: created by the migration's runtime child to own the frame loop, input, mounting, and session dressing.                                         |
-| `src/ui/`           | Absent    | Earned layer, pre-declared: created by the migration's interface child to own the plain-DOM HUD — see the No React deviation above.                                        |
-| `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                                                                                    |
-| `src/shared/`       | Absent    | Earned layer. Create only on demonstrated cross-feature ownership.                                                                                                         |
+| Layer               | Directory | Status                                                                                                                                                                                                 |
+| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/app/`          | Present   | Route boundary, bootstrap, and the debug tool surface. The ordinary route mounts the demo surface.                                                                                                     |
+| `src/core/`         | Present   | The rules: contracts and vocabulary, floor assembly, the world and its tick, the minds, actions, impacts, extraction, progression state. Reads authored tables only through the injected game catalog. |
+| `src/content/`      | Present   | Authored data by feature: maps, rooms, enemies, combat tables, sfx, presentation assets, viewmodel definitions.                                                                                        |
+| `src/presentation/` | Present   | Earned by the renderer port: the Canvas 2D raycaster, procedural textures, the image loader, and the audio stack.                                                                                      |
+| `src/runtime/`      | Absent    | Earned layer, pre-declared: created by the migration's runtime child to own the frame loop, input, mounting, and session dressing.                                                                     |
+| `src/ui/`           | Absent    | Earned layer, pre-declared: created by the migration's interface child to own the plain-DOM HUD — see the No React deviation above.                                                                    |
+| `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                                                                                                                |
+| `src/shared/`       | Absent    | Earned layer. Create only on demonstrated cross-feature ownership.                                                                                                                                     |
 
 A scaffolded empty directory is not a claim that the layer is earned. It carries a `.gitkeep` and nothing else; the first real module in it is still the change that has to justify the placement.
 
 ## The Demo Tree
 
-`src/demo/` is the playable game as it won the direction gate: rules, tables, runtime, interface, and projection in one tree, outside the platform layer vocabulary. It is declared here because the vocabulary does not name it, and because it is being dismantled: `dev/docs/plans/demo_migration.plan.md` moves its modules into the formal layers, and what remains at the end is the projection half — scene building, sprite loading, the viewmodel, particles — held in place until the 3D runtime decision replaces it.
+`src/demo/` holds what the migration has not yet re-homed: the surface (frame loop, input, mounting), the stage dressing, the HUD, and the projection half — scene building, sprite loading, the viewmodel. It is declared here because the vocabulary does not name it, and because it is being dismantled: `dev/docs/plans/demo_migration.plan.md` moves its modules into the formal layers, and what remains at the end is the projection half — scene building, sprite loading, the viewmodel — held in place until the 3D runtime decision replaces it.
 
 Import directions, machine-checked by the boundary rules:
 

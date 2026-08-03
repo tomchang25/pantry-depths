@@ -1,24 +1,25 @@
 /**
- * Demo world state.
+ * The world: the run's whole mutable state, and the operations every rule reaches it through.
  *
- * Real time, continuous coordinates, mutable. Nothing in here is the shipped game's turn model —
- * this module deliberately owns its own truth so `src/core/` stays untouched.
+ * Real time, continuous coordinates, mutable, random — the declared deviation from the platform's
+ * determinism expectation, recorded in the structure addendum. The world also carries the game
+ * catalog it was created with, so every authored number the rules read arrives by injection rather
+ * than by import.
  */
 
-import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
-import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/content/viewmodel/melee-viewmodel";
-import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState } from "@/demo/bless";
-import { coreBonus, type SealedReward } from "@/demo/sealed";
+import type { EnemyAppearanceId } from "@/core/enemy-contract";
+import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/melee-contract";
+import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState } from "@/core/bless";
+import { coreBonus, type SealedReward } from "@/core/sealed";
+import type { GameCatalog } from "@/core/catalog";
 import {
   attackCooldown,
   DISENGAGE_RANGE,
-  ENEMY_ARCHETYPES,
   isBoned,
   type DemoArchetypeId,
   type DemoEnemyArchetype,
   type DemoWindupIntent,
-} from "@/content/enemies/enemy-archetypes";
-import { rollIdleSeconds } from "@/demo/enemy-archetypes";
+} from "@/core/enemy-contract";
 import {
   blocksProjectile,
   blocksWalk,
@@ -34,11 +35,11 @@ import {
   type DemoCell,
   type DemoCrowd,
   type DemoMaze,
-} from "@/demo/maze";
+} from "@/core/maze";
 import type { ResolvedMap } from "@/core/map-contract";
-import type { SfxCueId } from "@/content/sfx/sfx-cue-definitions";
-import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/demo/particles";
-import type { DemoPropKind, DemoThrowKind } from "@/content/props/prop-definitions";
+import type { SfxCueId } from "@/core/sfx-cues";
+import { burst, createParticleField, shatterBones, type DemoParticleField } from "@/core/particles";
+import type { DemoPropKind, DemoThrowKind } from "@/core/prop-contract";
 
 /** A grid coordinate as the demo passes it around; structurally the same as the maze's own cell. */
 export type DemoCellLike = Readonly<{ x: number; y: number }>;
@@ -394,6 +395,8 @@ export type DemoSfxCue = Readonly<{ id: SfxCueId; at?: Readonly<{ x: number; y: 
 export type DemoWorld = {
   /** The map this run plays. Descending draws a new floor from it rather than from somewhere else. */
   map: ResolvedMap;
+  /** Every authored table the rules read, injected at creation. See `@/core/catalog`. */
+  catalog: GameCatalog;
   maze: DemoMaze;
   depth: number;
   player: DemoPlayer;
@@ -579,6 +582,17 @@ export function randomAmmo(): DemoPropKind {
   return AMMO_KINDS[Math.floor(Math.random() * AMMO_KINDS.length)] ?? "rock";
 }
 
+/**
+ * How long a body stands about before deciding where to go next.
+ *
+ * A range, rolled per body per pause. The point of the pause is that a floor reads as somewhere
+ * creatures live rather than a set of patrols, and a fixed length would defeat that on its own: bodies
+ * created in one pass stay in phase forever, so the whole room would stop and start together.
+ */
+export function rollIdleSeconds(): number {
+  return 2 + Math.random() * 2;
+}
+
 export function nextId(world: DemoWorld, prefix: string): string {
   world.nextId += 1;
   return `${prefix}-${world.nextId}`;
@@ -615,19 +629,10 @@ export function bodyFootprint(archetype: DemoEnemyArchetype): number {
 /** Two thirds of a floor comes after you; the rest of it is simply in the way. */
 const SLIME_SHARE = 0.4;
 
-const SLIMES: readonly DemoEnemyArchetype[] = [
-  ENEMY_ARCHETYPES.slimeGreen,
-  ENEMY_ARCHETYPES.slimeBlue,
-  ENEMY_ARCHETYPES.slimeRed,
-];
+const SLIME_KINDS: readonly DemoArchetypeId[] = ["slimeGreen", "slimeBlue", "slimeRed"];
 
 /** Everything with an attack, in even shares: four bodies that stop, commit, and can be read. */
-const HUNTERS: readonly DemoEnemyArchetype[] = [
-  ENEMY_ARCHETYPES.swordsman,
-  ENEMY_ARCHETYPES.hammerman,
-  ENEMY_ARCHETYPES.javelineer,
-  ENEMY_ARCHETYPES.crossbowman,
-];
+const HUNTER_KINDS: readonly DemoArchetypeId[] = ["swordsman", "hammerman", "javelineer", "crossbowman"];
 
 /**
  * Two rolls rather than one ladder: what kind of thing this is, then which of them.
@@ -636,10 +641,10 @@ const HUNTERS: readonly DemoEnemyArchetype[] = [
  * is the ordinary case. Keeping the two rolls apart is what lets a type be added to either list
  * without silently taking floor space away from the other.
  */
-function pickArchetype(): DemoEnemyArchetype {
-  const pool = Math.random() < SLIME_SHARE ? SLIMES : HUNTERS;
+function pickArchetype(catalog: GameCatalog): DemoEnemyArchetype {
+  const pool = Math.random() < SLIME_SHARE ? SLIME_KINDS : HUNTER_KINDS;
   const picked = pool[Math.floor(Math.random() * pool.length)];
-  return picked ?? ENEMY_ARCHETYPES.slimeGreen;
+  return catalog.archetypes[picked ?? "slimeGreen"];
 }
 
 /** How long an emplacement holds a mark before firing, and how long it stands between shots. */
@@ -685,7 +690,8 @@ export function collectMortars(maze: DemoMaze): DemoMortar[] {
   return built;
 }
 
-export function createEnemy(world: DemoWorld, x: number, y: number, archetype = pickArchetype()): DemoEnemy {
+export function createEnemy(world: DemoWorld, x: number, y: number, archetype?: DemoEnemyArchetype): DemoEnemy {
+  archetype ??= pickArchetype(world.catalog);
   return {
     id: nextId(world, "enemy"),
     archetype,
@@ -747,7 +753,7 @@ export function standCast(world: DemoWorld, override?: DemoArchetypeId): number 
           world,
           room.minX + member.x - 0.5,
           room.minY + member.y - 0.5,
-          ENEMY_ARCHETYPES[override ?? member.kind],
+          world.catalog.archetypes[override ?? member.kind],
         ),
       );
 
@@ -846,13 +852,14 @@ export function populateFloor(world: DemoWorld): void {
   }
 }
 
-export function createDemoWorld(map: ResolvedMap): DemoWorld {
+export function createDemoWorld(map: ResolvedMap, catalog: GameCatalog): DemoWorld {
   const maze = buildDemoFloor(map);
   // A cursed core can roll health downward, so the floor of one is what a run starts with rather than
   // the base: a bad roll makes a run harder, never unplayable before it begins.
   const startingMaxHp = Math.max(50, PLAYER_BASE_MAX_HP + coreBonus("maxHp"));
   const world: DemoWorld = {
     map,
+    catalog,
     maze,
     depth: 1,
     player: {
@@ -984,8 +991,8 @@ export function raiseSfx(world: DemoWorld, id: SfxCueId, at?: Readonly<{ x: numb
 }
 
 export function awardBless(world: DemoWorld): void {
-  const granted = grantBless(world.bless);
-  const healthGain = blessMaxHpGain(granted);
+  const granted = grantBless(world.catalog, world.bless);
+  const healthGain = blessMaxHpGain(world.catalog, granted);
 
   world.player.maxHp += healthGain;
   world.player.hp = Math.min(world.player.maxHp, world.player.hp + healthGain);

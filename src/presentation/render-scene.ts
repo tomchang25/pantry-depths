@@ -7,7 +7,7 @@
  * without owning a floor set.
  */
 
-import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
+import type { EnemyAppearanceId } from "@/core/enemy-contract";
 import type { Cell, Facing } from "@/core/grid";
 
 export type CameraPose = Readonly<{

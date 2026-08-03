@@ -10,15 +10,8 @@
  * particle funnel that raises most of these cues has coordinates but no world to ask.
  */
 
-import {
-  fromDb,
-  SFX_CUE_IDS,
-  sfxCue,
-  SFX_CUES,
-  sfxSampleUrl,
-  type SfxCue,
-  type SfxCueId,
-} from "@/content/sfx/sfx-cue-definitions";
+import { fromDb, sfxCue, SFX_CUES, sfxSampleUrl, type SfxCue } from "@/content/sfx/sfx-cue-definitions";
+import { SFX_CUE_IDS, type SfxCueId } from "@/core/sfx-cues";
 import { AudioMixer } from "@/presentation/audio/audio-mixer";
 import { bakeRecipe } from "@/presentation/audio/sfx-baker";
 

@@ -10,7 +10,7 @@
  * they draw against.
  */
 
-import type { CoreCurse } from "@/content/progression/modifier-definitions";
+import type { CoreCurse } from "@/core/progression-contract";
 
 /** How often a sealed reward turns out to be a core rather than a fragment. */
 export const CORE_SHARE: Readonly<Record<CoreCurse, number>> = { clean: 0.2, cursed: 0.6 };

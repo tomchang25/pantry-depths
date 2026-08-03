@@ -14,9 +14,10 @@
  * kills bodies, so that last one is not a cosmetic problem.
  */
 
-import { ENEMY_ARCHETYPES, type DemoArchetypeId } from "@/content/enemies/enemy-archetypes";
-import { mainRoom } from "@/demo/maze";
-import { standCast, type DemoWorld } from "@/demo/world";
+import { ENEMY_ARCHETYPES } from "@/content/enemies/enemy-archetypes";
+import type { DemoArchetypeId } from "@/core/enemy-contract";
+import { mainRoom } from "@/core/maze";
+import { standCast, type DemoWorld } from "@/core/world";
 
 /**
  * Which map is the stage.

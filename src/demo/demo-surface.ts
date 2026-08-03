@@ -9,19 +9,18 @@
 import "@/demo/demo-surface.css";
 
 import { PROP_KINDS } from "@/core/prop-kinds";
-import { grabAction, primaryAction, PROP_LABELS } from "@/demo/actions";
-import {
-  BLESS_CATALOG,
-  BLESS_STACKING_CATALOG,
-  findBless,
-  type BlessDefinition,
-} from "@/content/progression/bless-definitions";
-import { blessBonus, blessStackCount, hasBless } from "@/demo/bless";
+import { grabAction, primaryAction, PROP_LABELS } from "@/core/actions";
+import { BLESS_CATALOG, BLESS_STACKING_CATALOG } from "@/content/progression/bless-definitions";
+import { findBless, findModifier, type BlessDefinition, type ModifierAxis } from "@/core/progression-contract";
+import { blessBonus, blessStackCount, hasBless } from "@/core/bless";
 import { mountDemoDevOverlay } from "@/demo/demo-dev-overlay";
-import { EXTRACTION_HOLD_SECONDS, extractionShare, runEndOverlay, SEALED_CARD_PREFIX } from "@/demo/extraction";
+import { GAME_CATALOG } from "@/content/catalog";
+import { EXTRACTION_HOLD_SECONDS, extractionShare, lastExtractedRewards, SEALED_CARD_PREFIX } from "@/core/extraction";
 import {
   mountDemoHud,
   type DemoHudBlessIcon,
+  type DemoHudOverlay,
+  type DemoHudOverlayReward,
   type DemoHudCard,
   type DemoHudChannel,
   type DemoHudHeld,
@@ -30,19 +29,18 @@ import {
   type DemoHudRun,
   type DemoHudTask,
 } from "@/demo/demo-hud";
-import type { DemoArchetypeId } from "@/content/enemies/enemy-archetypes";
+import type { DemoArchetypeId } from "@/core/enemy-contract";
 import { createDemoEffects, createDemoScene } from "@/demo/demo-scene";
 import { loadDemoImages } from "@/demo/demo-sprites";
 import { drawDemoViewmodel } from "@/demo/demo-viewmodel";
 import { mapNamed } from "@/demo/maps";
-import { findModifier, type ModifierAxis } from "@/content/progression/modifier-definitions";
-import { POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/demo/maze";
-import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/demo/rooms";
-import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
-import { bankedRewards, equippedCore } from "@/demo/sealed";
+import { POOL_FILL_BODIES, padRoomAt, type DemoTaskKind } from "@/core/maze";
+import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/rooms";
+import { LEVEL_CARD_PREFIX, runLevel } from "@/core/run-level";
+import { bankedRewards, equippedCore, type ResolvedReward } from "@/core/sealed";
 import { dressStage, isStage, restageCast, stageChoiceName, stepStageChoice } from "@/demo/stage";
-import { stepDemoWorld, type DemoInput } from "@/demo/simulation";
-import type { DemoPropKind } from "@/content/props/prop-definitions";
+import { stepDemoWorld, type DemoInput } from "@/core/simulation";
+import type { DemoPropKind } from "@/core/prop-contract";
 import {
   announce,
   awardBless,
@@ -54,7 +52,7 @@ import {
   runClockSeconds,
   spawnReinforcement,
   type DemoWorld,
-} from "@/demo/world";
+} from "@/core/world";
 import { CanvasGameplayRenderer } from "@/presentation/canvas-gameplay-renderer";
 import {
   playSfx,
@@ -193,7 +191,7 @@ function cardModel(token: string): DemoHudCard {
     };
   }
 
-  const definition = token === "overflow" ? undefined : findBless(token as BlessDefinition["id"]);
+  const definition = token === "overflow" ? undefined : findBless(GAME_CATALOG, token as BlessDefinition["id"]);
 
   if (definition) {
     return {
@@ -435,8 +433,8 @@ function blessRoster(world: DemoWorld): readonly DemoHudOverlayRosterEntry[] {
   const stacking = BLESS_STACKING_CATALOG.filter((definition) => blessBonus(world.bless, definition.axis) > 0).map(
     (definition) => {
       const total = blessBonus(world.bless, definition.axis);
-      const count = blessStackCount(world.bless, definition.axis);
-      const precision = findModifier(definition.axis)?.precision ?? 0;
+      const count = blessStackCount(GAME_CATALOG, world.bless, definition.axis);
+      const precision = findModifier(GAME_CATALOG, definition.axis)?.precision ?? 0;
       return {
         color: definition.color,
         detail: definition.detail,
@@ -577,7 +575,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     throw new Error("demo: scene canvas is unavailable");
   }
 
-  let world = createDemoWorld(map);
+  let world = createDemoWorld(map, GAME_CATALOG);
   dressStage(world);
   let objectiveMaze = world.maze;
   let objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
@@ -720,7 +718,7 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
     // A cheat is a property of the session, not of the run. Losing god mode on every R would make it
     // useless for exactly the thing it is for: dying repeatedly on purpose.
     const carriedGodMode = world.godMode;
-    world = createDemoWorld(map);
+    world = createDemoWorld(map, GAME_CATALOG);
     // On a stage this is what makes R mean "shoot that again": the cast returns to its cells, the
     // arrival is the arrival, and the bodies are held still whether or not they had been released.
     // Deliberately not carried the way god mode is — being frozen belongs to the staged scene.
@@ -1199,5 +1197,78 @@ export async function mountDemo(mount: HTMLElement, mapName?: string): Promise<M
       hud.overlayButton.removeEventListener("click", handleOverlayClick);
       surface.remove();
     },
+  };
+}
+
+/** One opened reward, as a row on the run-end screen. */
+function rewardRow(reward: ResolvedReward): DemoHudOverlayReward {
+  const cursed = reward.source === "cursed";
+
+  if (reward.kind === "core") {
+    const rolls = Object.entries(reward.rolls)
+      .map(([axis, amount]) => `${axis === "maxHp" ? "HP" : "DMG"} ${(amount ?? 0) >= 0 ? "+" : ""}${amount}`)
+      .join(" · ");
+    return {
+      color: reward.core.color,
+      icon: reward.core.id,
+      name: `${cursed ? "Cursed" : "Clean"} ${reward.core.name} core`,
+      detail: rolls,
+    };
+  }
+
+  const effects = reward.effects.map((id) => findBless(GAME_CATALOG, id)?.name ?? id);
+  return {
+    color: cursed ? "#e2585f" : "#9fe0d0",
+    icon: "seal",
+    name: `${cursed ? "Cursed" : "Clean"} fragment`,
+    detail: effects.join(" · "),
+  };
+}
+
+function clock(seconds: number): string {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/**
+ * The screen a run ends on, either way it ended.
+ *
+ * Both endings live here rather than beside the frame loop, because what separates them is what the run
+ * kept: extraction lists everything it opened, one row per thing with what it rolled, and death lists
+ * only how much went down with you — a run that died never learns what it was carrying, which is the
+ * whole of why walking out early is a decision.
+ */
+export function runEndOverlay(world: DemoWorld): DemoHudOverlay {
+  const stats = [
+    { label: "Floor", value: `B${world.depth}` },
+    { label: "Time", value: clock(runClockSeconds(world)) },
+    { label: "Killed", value: String(world.kills) },
+    { label: "Blessings", value: String(world.bless.owned.length) },
+  ];
+
+  if (world.status === "extracted") {
+    return {
+      kind: "ended",
+      title: "Out",
+      tone: "out",
+      stats,
+      rewardsTitle: lastExtractedRewards().length > 0 ? "Opened on the way out" : "You walked out with nothing sealed",
+      rewards: lastExtractedRewards().map((reward) => rewardRow(reward)),
+      footer: `${bankedRewards().length} in the bank · press R to run again`,
+    };
+  }
+
+  const lost = world.carried.length;
+  return {
+    kind: "ended",
+    title: "Eaten",
+    tone: "lost",
+    stats,
+    rewardsTitle:
+      lost > 0
+        ? `${lost} sealed ${lost === 1 ? "reward" : "rewards"} went down with you, unopened`
+        : "You were carrying nothing sealed",
+    rewards: [],
+    footer: `${bankedRewards().length} in the bank · press R to run again`,
   };
 }

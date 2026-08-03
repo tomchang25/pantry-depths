@@ -1,4 +1,4 @@
-import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
+import type { EnemyAppearanceId } from "@/core/enemy-contract";
 import type { EnemySpriteState } from "@/content/presentation/presentation-asset-definitions";
 import type { Facing } from "@/core/grid";
 import { createProceduralTextures, type TextureSet } from "@/presentation/procedural-textures";

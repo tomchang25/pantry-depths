@@ -1,15 +1,4 @@
-export const MELEE_ATTACK_IDS = [
-  "horizontal-left-high",
-  "horizontal-left",
-  "horizontal-left-low",
-  "horizontal-right",
-  "diagonal-right",
-  "overhead",
-  "diagonal-left",
-  "thrust",
-] as const;
-
-export type MeleeAttackId = (typeof MELEE_ATTACK_IDS)[number];
+import { MELEE_ATTACK_IDS, type MeleeAttackId } from "@/core/melee-contract";
 
 export type MeleeViewmodelPose = Readonly<{
   angle: number;

@@ -11,8 +11,8 @@
 import { createRenderPanel, type RenderPanel } from "@/app/debug/render-panel";
 import type { MapCastKind, MapTileKind } from "@/core/room-contract";
 import { createDemoScene } from "@/demo/demo-scene";
-import { blocksVision } from "@/demo/maze";
-import type { DemoWorld } from "@/demo/world";
+import { blocksVision } from "@/core/maze";
+import type { DemoWorld } from "@/core/world";
 
 /**
  * One colour per tile kind, chosen to be told apart at four pixels rather than to look like the game.

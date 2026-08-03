@@ -5,13 +5,11 @@ import { createRenderPanel } from "@/app/debug/render-panel";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
 import {
   MELEE_ATTACKS,
-  MELEE_CUT_START,
-  MELEE_SWING_SECONDS,
   type MeleeAttackDefinition,
-  type MeleeAttackId,
   type MeleeViewmodelPose,
 } from "@/content/viewmodel/melee-viewmodel";
-import { MELEE_HALF_ANGLE } from "@/demo/actions";
+import { MELEE_CUT_START, MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/melee-contract";
+import { MELEE_HALF_ANGLE } from "@/core/actions";
 import { mountDemoDevOverlay, type DemoDevOverlayModel } from "@/demo/demo-dev-overlay";
 import { mountDemoHud, type DemoHudModel, type DemoHudOverlayRosterEntry } from "@/demo/demo-hud";
 import { demoMeleeImpactPitch } from "@/demo/demo-scene";

@@ -1,4 +1,4 @@
-import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
+import type { EnemyAppearanceId } from "@/core/enemy-contract";
 import {
   SKELETON_ACTIONS,
   type SkeletonActionId,

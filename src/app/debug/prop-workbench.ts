@@ -17,7 +17,7 @@ import { createRenderPanel } from "@/app/debug/render-panel";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind, type PropDisplay } from "@/content/presentation/prop-display-schema";
 import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
-import { PROP_LABELS } from "@/demo/actions";
+import { PROP_LABELS } from "@/core/actions";
 import { propPickupSprites } from "@/demo/demo-scene";
 import type {
   CameraPose,

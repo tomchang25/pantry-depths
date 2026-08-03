@@ -1,28 +1,13 @@
 /**
- * Blessings: the run's only permanent progression.
+ * Blessings: the run's only permanent progression, as the two authored tiers behind
+ * `@/core/progression-contract`.
  *
- * Two tiers, and an award never falls between them. The distinct tier rewrites a rule rather than
- * nudging a number, so the answer to "what does this run play like" is the list you are holding; it
- * holds one of each and runs out. Behind it the stacking tier moves a single number, repeats without
- * limit, and is therefore what the run keeps paying from once the distinct tier is spent.
- *
- * They are granted one at a time — from an altar, or from taking the stairs down — and never chosen
- * from a hand of three, because the point here is that the run shapes itself and you adapt.
- *
- * The catalogues live here; the run's blessing state, and the award that mutates it, live with the
- * rest of the run state in the demo half.
+ * The distinct tier rewrites a rule rather than nudging a number, holds one of each, and runs out;
+ * the stacking tier moves a single number and repeats without limit. Both reach the award through
+ * the game catalog.
  */
 
-import type { ModifierAxis } from "@/content/progression/modifier-definitions";
-
-export type BlessId = "heavyStrike" | "explosiveBody" | "stormStone" | "lifesteal" | "hostageGuard";
-
-export type BlessDefinition = Readonly<{
-  id: BlessId;
-  name: string;
-  detail: string;
-  color: string;
-}>;
+import type { BlessDefinition, StackingBlessDefinition } from "@/core/progression-contract";
 
 export const BLESS_CATALOG: readonly BlessDefinition[] = [
   {
@@ -57,24 +42,6 @@ export const BLESS_CATALOG: readonly BlessDefinition[] = [
     color: "#c79ae8",
   },
 ] as const;
-
-export type StackingBlessId = "vigour" | "brutality" | "swiftness" | "longReach";
-
-/**
- * The four numbers the stacking tier moves.
- *
- * The same axes a core rolls on, because they are one layer: the modifier catalogue owns the list and
- * the magnitudes, and an entry here only says which axis it moves and how it reads.
- */
-export type StackingBlessAxis = ModifierAxis;
-
-export type StackingBlessDefinition = Readonly<{
-  id: StackingBlessId;
-  axis: StackingBlessAxis;
-  name: string;
-  detail: string;
-  color: string;
-}>;
 
 /**
  * The tier that never empties.
@@ -112,10 +79,3 @@ export const BLESS_STACKING_CATALOG: readonly StackingBlessDefinition[] = [
     color: "#c0c8e8",
   },
 ] as const;
-
-export function findBless(id: BlessId | StackingBlessId): BlessDefinition | StackingBlessDefinition | undefined {
-  return (
-    BLESS_CATALOG.find((candidate) => candidate.id === id) ??
-    BLESS_STACKING_CATALOG.find((candidate) => candidate.id === id)
-  );
-}

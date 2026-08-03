@@ -5,14 +5,14 @@
  * only on whether the hands are full, so neither button ever needs a modifier.
  */
 
-import { chooseMeleeAttack } from "@/content/viewmodel/melee-viewmodel";
-import { blessBonus, hasBless } from "@/demo/bless";
-import { canCarry, isBoned } from "@/content/enemies/enemy-archetypes";
+import { chooseMeleeAttackId } from "@/core/melee-contract";
+import { blessBonus, hasBless } from "@/core/bless";
+import { canCarry, isBoned } from "@/core/enemy-contract";
 
-import { takeSealed } from "@/demo/extraction";
-import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/demo/maze";
-import { burst } from "@/demo/particles";
-import { coreBase, coreBonus } from "@/demo/sealed";
+import { takeSealed } from "@/core/extraction";
+import { blocksProjectile, tileAt, type DemoCell, type DemoTile } from "@/core/maze";
+import { burst } from "@/core/particles";
+import { coreBase, coreBonus } from "@/core/sealed";
 import {
   propBehaviour,
   propWeight,
@@ -20,7 +20,7 @@ import {
   type DemoPropKind,
   type DemoThrowKind,
   type DemoThrowWeight,
-} from "@/content/props/prop-definitions";
+} from "@/core/prop-contract";
 import {
   announce,
   damageEnemy,
@@ -35,7 +35,7 @@ import {
   type DemoProp,
   type DemoWorld,
   raiseSfx,
-} from "@/demo/world";
+} from "@/core/world";
 
 const BASE_MELEE_DAMAGE = 25;
 const HEAVY_MELEE_DAMAGE = 45;
@@ -118,7 +118,7 @@ const THROW_CALLS: Readonly<Record<DemoPropKind, string>> = {
 };
 
 export function meleeReach(world: DemoWorld): number {
-  const base = coreBase()?.meleeReach ?? REACH;
+  const base = coreBase(world.catalog)?.meleeReach ?? REACH;
   return (
     (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_REACH : base) +
     blessBonus(world.bless, "meleeReach") +
@@ -127,7 +127,7 @@ export function meleeReach(world: DemoWorld): number {
 }
 
 export function meleeDamage(world: DemoWorld): number {
-  const base = coreBase()?.meleeDamage ?? BASE_MELEE_DAMAGE;
+  const base = coreBase(world.catalog)?.meleeDamage ?? BASE_MELEE_DAMAGE;
   return (
     (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_DAMAGE : base) +
     blessBonus(world.bless, "meleeDamage") +
@@ -151,17 +151,17 @@ export function thrownImpactDamage(world: DemoWorld): number {
   return meleeDamage(world);
 }
 
-export function thrownWallDamage(kind: DemoThrowKind): number {
-  return kind === "enemy" ? THROWN_WALL_DAMAGE : propBehaviour(kind).wallDamage;
+export function thrownWallDamage(world: DemoWorld, kind: DemoThrowKind): number {
+  return kind === "enemy" ? THROWN_WALL_DAMAGE : propBehaviour(world.catalog, kind).wallDamage;
 }
 
 /** What the hands are currently carrying weighs, for whatever wants to charge the player for it. */
-export function heldWeight(held: DemoHeld): DemoThrowWeight | undefined {
+export function heldWeight(world: DemoWorld, held: DemoHeld): DemoThrowWeight | undefined {
   if (!held) {
     return undefined;
   }
 
-  return held.kind === "enemy" ? held.enemy.archetype.weight : propWeight(held.prop);
+  return held.kind === "enemy" ? held.enemy.archetype.weight : propWeight(world.catalog, held.prop);
 }
 
 function facing(world: DemoWorld): Readonly<{ x: number; y: number }> {
@@ -476,7 +476,7 @@ export function damageWall(world: DemoWorld, cell: DemoCell, damage: number, qui
 
 function spawnProjectile(world: DemoWorld, kind: DemoThrowKind, payload: DemoEnemy | undefined): void {
   const direction = facing(world);
-  const weight = throwWeight(kind, payload?.archetype.weight);
+  const weight = throwWeight(world.catalog, kind, payload?.archetype.weight);
   const range = throwRange(world, weight.range);
   // Every throw departs along the aim line: the unbent rise is the aim slope times the distance.
   // Lobbed kinds hand that rise back to gravity so they land at the end of the range; straight kinds
@@ -558,7 +558,7 @@ function shootHeld(world: DemoWorld): void {
     return;
   }
 
-  const behaviour = propBehaviour(held.prop);
+  const behaviour = propBehaviour(world.catalog, held.prop);
   const left = held.count - 1;
   world.held =
     left > 0
@@ -746,7 +746,7 @@ export function primaryAction(world: DemoWorld): void {
     world.swingResolved = true;
 
     // A shooter keeps what it is holding and sends something else. Everything else opens the hand.
-    if (world.held.kind === "prop" && propBehaviour(world.held.prop).use === "shoot") {
+    if (world.held.kind === "prop" && propBehaviour(world.catalog, world.held.prop).use === "shoot") {
       shootHeld(world);
       return;
     }
@@ -757,7 +757,7 @@ export function primaryAction(world: DemoWorld): void {
 
   // Never the cut just played, so consecutive swings always differ — the one repetition the eye
   // catches when there is no chain to give the sequence a shape.
-  world.swingKind = chooseMeleeAttack(world.swingKind === "throw" ? undefined : world.swingKind).id;
+  world.swingKind = chooseMeleeAttackId(world.swingKind === "throw" ? undefined : world.swingKind);
   // On the press rather than on the hit, because the whoosh is the arm moving and that starts now.
   raiseSfx(world, "meleeSwing");
   world.swing = SWING_SECONDS;

@@ -18,40 +18,15 @@ import meleeAttacksJson from "@/content/viewmodel/melee-attacks.json";
 import {
   parseMeleeAttacks,
   type MeleeAttackDefinition,
-  type MeleeAttackId,
   type MeleeViewmodelPose,
 } from "@/content/viewmodel/melee-attack-schema";
+import { MELEE_CUT_END, MELEE_CUT_START, type MeleeAttackId } from "@/core/melee-contract";
 
-export type { MeleeAttackDefinition, MeleeAttackId, MeleeViewmodelPose } from "@/content/viewmodel/melee-attack-schema";
+export type { MeleeAttackDefinition, MeleeViewmodelPose } from "@/content/viewmodel/melee-attack-schema";
 
 /** The space every coordinate in this module lives in. Callers scale it onto whatever they have. */
 export const MELEE_VIEW_WIDTH = 720;
 export const MELEE_VIEW_HEIGHT = 405;
-
-/**
- * How long one cut takes, in seconds.
- *
- * Part of the drawing rather than of any one caller: a lab that previewed one duration while the game
- * played another would be a lab for something the game does not do. Both read this.
- *
- * The poses were authored at 0.767 and that is still where they are clearest, but clarity was never
- * the only thing being paid for — a swing is also how fast the floor empties, and three quarters of a
- * second of committed arm is a long time to stand in a room that keeps producing. This is the trade
- * taken deliberately: about a fifth off the authored pace, which the eye still resolves as three
- * distinct poses. Below roughly 0.4 it stops being a cut and becomes a flicker, and the illusion the
- * whole module is built on is gone — that is the floor, not a suggestion.
- */
-export const MELEE_SWING_SECONDS = 0.6;
-
-/**
- * Where in a swing the blade is at the target.
- *
- * The cut phase runs from here to {@link MELEE_CUT_END}; the arc is drawn across it and the sparks
- * land inside it. A caller that resolves a hit rather than only drawing one wants this number, so the
- * damage happens on the frame the sword is through the thing rather than on the frame of the press.
- */
-export const MELEE_CUT_START = 0.24;
-export const MELEE_CUT_END = 0.49;
 
 const TAU = Math.PI * 2;
 
@@ -527,21 +502,4 @@ export function drawMeleeAttack(
   }
 
   drawMeleeViewmodel(context, { ...MELEE_IDLE_POSE, opacity: easeInCubic(phaseProgress(progress, 0.7, 1)) });
-}
-
-/**
- * The next cut, never the one just played.
- *
- * Eight attacks with no chain between them, so the only thing standing between this and a visible
- * pattern is that consecutive swings differ. Two in a row is the one repetition the eye catches.
- */
-export function chooseMeleeAttack(previous: MeleeAttackId | undefined): MeleeAttackDefinition {
-  const candidates = previous ? MELEE_ATTACKS.filter(({ id }) => id !== previous) : MELEE_ATTACKS;
-  const selected = candidates[Math.floor(Math.random() * candidates.length)];
-
-  if (!selected) {
-    throw new Error("melee viewmodel: no attack candidate is available");
-  }
-
-  return selected;
 }

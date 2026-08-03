@@ -6,37 +6,12 @@
  * the player's own strikes and what they land on, the deaths the environment hands out, the two blasts,
  * and one voice for the interface. A moment not on this list is meant to be silent.
  *
- * The id list lives here rather than beside the code that raises each sound, because `src/content/` may
- * only import content and core — a validator in this layer cannot reach into the demo for the death
- * causes it is covering. Keeping one list and demanding a row per id is the only arrangement where a
- * cue somebody raises cannot be missing its recipe and play silence instead.
+ * The id list is core vocabulary (`@/core/sfx-cues`): the rules report cues typed by it, and this
+ * table demands a row per id, which is the only arrangement where a cue somebody raises cannot be
+ * missing its recipe and play silence instead.
  */
 
-export const SFX_CUE_IDS = [
-  "uiSelect",
-  "meleeSwing",
-  "meleeHitFlesh",
-  "meleeHitBone",
-  "meleeHitWallStone",
-  "meleeHitWallWood",
-  "meleeHitAltar",
-  "wallBreakStone",
-  "wallBreakWood",
-  "throw",
-  "pinLand",
-  "strikeLand",
-  "rockLand",
-  "bodyBarge",
-  "bodyLand",
-  "waterEntry",
-  "detonation",
-  "shellLand",
-  "rewardGain",
-  "playerHurt",
-  "playerDeath",
-] as const;
-
-export type SfxCueId = (typeof SFX_CUE_IDS)[number];
+import { SFX_CUE_IDS, type SfxCueId } from "@/core/sfx-cues";
 
 export const SFX_WAVEFORMS = ["sine", "square", "sawtooth", "triangle", "noise"] as const;
 

@@ -14,12 +14,10 @@
  * interrupted can be finished — so the hold is broken by stepping off the pad and by nothing else.
  */
 
-import type { DemoHudOverlay, DemoHudOverlayReward } from "@/demo/demo-hud";
-import { findBless } from "@/content/progression/bless-definitions";
-import { padRoomAt } from "@/demo/maze";
+import { padRoomAt } from "@/core/maze";
 
-import { bankReward, bankedRewards, resolveReward, type ResolvedReward } from "@/demo/sealed";
-import { announce, endRun, raiseSfx, runClockSeconds, type DemoWorld } from "@/demo/world";
+import { bankReward, resolveReward, type ResolvedReward } from "@/core/sealed";
+import { announce, endRun, raiseSfx, type DemoWorld } from "@/core/world";
 
 /** Unbroken seconds on the pad that end the run. The same five the blessing altar asks for. */
 export const EXTRACTION_HOLD_SECONDS = 5;
@@ -50,7 +48,7 @@ export function onExtractionPad(world: DemoWorld): boolean {
 }
 
 function extract(world: DemoWorld): void {
-  const resolved = world.carried.map((reward) => resolveReward(reward));
+  const resolved = world.carried.map((reward) => resolveReward(world.catalog, reward));
 
   for (const reward of resolved) {
     bankReward(reward);
@@ -89,75 +87,12 @@ export function extractionShare(world: DemoWorld): number {
   return Math.min(1, world.maze.progress.extractionSeconds / EXTRACTION_HOLD_SECONDS);
 }
 
-/** One opened reward, as a row on the run-end screen. */
-function rewardRow(reward: ResolvedReward): DemoHudOverlayReward {
-  const cursed = reward.source === "cursed";
-
-  if (reward.kind === "core") {
-    const rolls = Object.entries(reward.rolls)
-      .map(([axis, amount]) => `${axis === "maxHp" ? "HP" : "DMG"} ${(amount ?? 0) >= 0 ? "+" : ""}${amount}`)
-      .join(" · ");
-    return {
-      color: reward.core.color,
-      icon: reward.core.id,
-      name: `${cursed ? "Cursed" : "Clean"} ${reward.core.name} core`,
-      detail: rolls,
-    };
-  }
-
-  const effects = reward.effects.map((id) => findBless(id)?.name ?? id);
-  return {
-    color: cursed ? "#e2585f" : "#9fe0d0",
-    icon: "seal",
-    name: `${cursed ? "Cursed" : "Clean"} fragment`,
-    detail: effects.join(" · "),
-  };
-}
-
-function clock(seconds: number): string {
-  const whole = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
-}
-
 /**
- * The screen a run ends on, either way it ended.
+ * What the last extraction opened, for the run-end screen to show after the world is frozen.
  *
- * Both endings live here rather than beside the frame loop, because what separates them is what the run
- * kept: extraction lists everything it opened, one row per thing with what it rolled, and death lists
- * only how much went down with you — a run that died never learns what it was carrying, which is the
- * whole of why walking out early is a decision.
+ * An accessor rather than an export of the variable, because the display half that builds the
+ * overlay lives outside core and reads this after the run has ended.
  */
-export function runEndOverlay(world: DemoWorld): DemoHudOverlay {
-  const stats = [
-    { label: "Floor", value: `B${world.depth}` },
-    { label: "Time", value: clock(runClockSeconds(world)) },
-    { label: "Killed", value: String(world.kills) },
-    { label: "Blessings", value: String(world.bless.owned.length) },
-  ];
-
-  if (world.status === "extracted") {
-    return {
-      kind: "ended",
-      title: "Out",
-      tone: "out",
-      stats,
-      rewardsTitle: lastResolved.length > 0 ? "Opened on the way out" : "You walked out with nothing sealed",
-      rewards: lastResolved.map((reward) => rewardRow(reward)),
-      footer: `${bankedRewards().length} in the bank · press R to run again`,
-    };
-  }
-
-  const lost = world.carried.length;
-  return {
-    kind: "ended",
-    title: "Eaten",
-    tone: "lost",
-    stats,
-    rewardsTitle:
-      lost > 0
-        ? `${lost} sealed ${lost === 1 ? "reward" : "rewards"} went down with you, unopened`
-        : "You were carrying nothing sealed",
-    rewards: [],
-    footer: `${bankedRewards().length} in the bank · press R to run again`,
-  };
+export function lastExtractedRewards(): readonly ResolvedReward[] {
+  return lastResolved;
 }

@@ -36,7 +36,8 @@ import {
   type MapTileKind,
 } from "@/core/room-contract";
 import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
-import { createDemoWorld, type DemoWorld } from "@/demo/world";
+import { GAME_CATALOG } from "@/content/catalog";
+import { createDemoWorld, type DemoWorld } from "@/core/world";
 
 /** The name the throwaway preview map wears. It is never written, and no file is ever called this. */
 const PREVIEW_MAP = "room-preview";
@@ -584,6 +585,7 @@ export function createRoomSurface(): HTMLElement {
           }),
           library,
         ),
+        GAME_CATALOG,
       );
       failure = undefined;
     } catch (error: unknown) {

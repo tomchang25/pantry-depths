@@ -1,10 +1,11 @@
 /**
  * The core rolls: the one random half of the modifier catalogue.
  *
- * The axes, bounds, and core catalogue live in `@/content/progression/modifier-definitions`; what
- * stays here is the draw against them, which is run randomness and moves into core with the rules.
+ * The axes, bounds, and core catalogue arrive through the game catalog; what lives here is the draw
+ * against them, which is run randomness.
  */
 
+import type { GameCatalog } from "@/core/catalog";
 import {
   CORE_ROLL_AXES,
   findModifier,
@@ -12,7 +13,7 @@ import {
   type ModifierAxis,
   type ModifierRange,
   type ModifierRolls,
-} from "@/content/progression/modifier-definitions";
+} from "@/core/progression-contract";
 
 function roll(range: ModifierRange, precision: number): number {
   const raw = range.low + Math.random() * (range.high - range.low);
@@ -21,11 +22,11 @@ function roll(range: ModifierRange, precision: number): number {
 }
 
 /** Rolls one core's modifiers. Called at resolution rather than at pickup, so a sealed reward is sealed. */
-export function rollCoreModifiers(curse: CoreCurse): ModifierRolls {
+export function rollCoreModifiers(catalog: GameCatalog, curse: CoreCurse): ModifierRolls {
   const rolled: Partial<Record<ModifierAxis, number>> = {};
 
   for (const axis of CORE_ROLL_AXES) {
-    const definition = findModifier(axis);
+    const definition = findModifier(catalog, axis);
 
     if (definition) {
       rolled[axis] = roll(curse === "cursed" ? definition.cursed : definition.clean, definition.precision);

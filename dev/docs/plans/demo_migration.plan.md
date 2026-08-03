@@ -13,7 +13,7 @@ The demo won the direction gate and is now the game, but it lives in a tree that
 3. At no point during the migration does any module sit outside a machine-enforced import boundary. The demo tree gets boundary rules describing its current reality before anything moves, so every subsequent move is a rule the checker watches tighten rather than a hole it cannot see.
 4. Migrated code joins the normal test discipline: new unit tests exist only where a child's implementation spec named them beforehand, per the existing test operations contract. The demo-specific test ban retires with the surface that justified it; the sandbox track's rules and its machine guard are untouched.
 5. The two operation contracts shaped around the exemption — the implement permissions and the test operations contract — are rewritten as coherent documents, not patched again. Both are load-bearing for the machine governance checker and for the sandbox track, so each rewrite lands in the same change as its checker and cross-reference updates.
-6. The projection half — the scene builder, the sprite loader, the first-person viewmodel, and the particles — stays where it is. The chosen 3D runtime will replace most of it, and moving six thousand lines that are scheduled to die is work done twice. The interim tree is declared for what it is: a projection layer awaiting the renderer decision, with a boundary rule of its own.
+6. The projection half — the scene builder, the sprite loader, and the first-person viewmodel — stays where it is. The chosen 3D runtime will replace most of it, and moving six thousand lines that are scheduled to die is work done twice. The interim tree is declared for what it is: a projection layer awaiting the renderer decision, with a boundary rule of its own.
 
 ## Design
 
@@ -27,7 +27,7 @@ The demo tree today holds five different kinds of module, and the migration is s
 | Numbers and catalogues: enemy statistics, throwable weights and behaviours, the blessing catalogue, the modifier axes, sealed-core rewards                        | content                       |
 | The frame loop, input, mounting, and session dressing (the filming stage's switches)                                                                              | runtime (earned by this plan) |
 | The HUD, its icons, and its stylesheet                                                                                                                            | ui (earned by this plan)      |
-| The projection half: scene building, sprite loading, the viewmodel, particles                                                                                     | stays put, declared interim   |
+| The projection half: scene building, sprite loading, the viewmodel                                                                                                | stays put, declared interim   |
 
 Two of those destinations are earned layers this plan creates. The runtime layer is the structure standard's own vocabulary for orchestration between core and presentation, which is exactly what the frame loop is. The ui layer was declared omitted when the project declared its no-React deviation; the HUD earning it as a plain-DOM layer revises that declaration rather than contradicting it — the deviation was about React, not about owning an interface layer.
 
@@ -60,7 +60,7 @@ The ban on testing the demo half exists because a test written against a moving 
 | 3   | Tables into content         | The pure-data halves of the enemy, throwing, blessing, modifier, and sealed catalogues        | Shipped — `demo_migration_03_tables_into_content.implementation_spec.md` (archived) |
 | 4   | The sound seam              | Rules emit semantic cues; the surface plays them                                              | Shipped — `demo_migration_04_sound_seam.implementation_spec.md` (archived)          |
 | 5   | The map contract            | Core owns the floor vocabulary and contracts; content produces values against them            | Shipped — `demo_migration_05_map_contract.implementation_spec.md` (archived)        |
-| 6   | Rules into core             | The eleven rules modules move; boundary rules tighten to match                                | Execution below                                                                     |
+| 6   | Rules into core             | The eleven rules modules move; boundary rules tighten to match                                | Shipped — `demo_migration_06_rules_into_core.implementation_spec.md` (archived)     |
 | 7   | Runtime and interface       | The surface becomes the runtime layer; the HUD becomes the ui layer; workbench imports follow | Execution below                                                                     |
 | 8   | The rename pass             | Every surviving `Demo`-prefixed symbol loses its prefix in one typecheck-verified change      | Execution below                                                                     |
 | End | Child End                   | Guard deletion; both contract rewrites; checker sync; root entry points; tracker and history  | Execution below                                                                     |
@@ -69,7 +69,7 @@ Landing order is the table order. Children 2 and 3 could swap; nothing else can.
 
 ## Non-Goals
 
-1. No move of the projection half. The scene builder, sprite loader, viewmodel, and particles wait for the 3D runtime decision; migrating them now is work the renderer replacement would discard.
+1. No move of the projection half. The scene builder, sprite loader, and viewmodel wait for the 3D runtime decision; migrating them now is work the renderer replacement would discard. (The particle field was originally listed here and turned out to be misclassified: the tick steps it and consumes its landings, so it moved with the rules — recorded as the rules child's declared deviation.)
 2. No behaviour, balance, content, or feel change of any kind.
 3. No scene routing. The map query parameter, the stage's name comparison, and the address-bar shape all stay exactly as they are.
 4. No enemy-record or tile-record consolidation. Both stay recorded drafts; this plan moves code between layers without reshaping it.
@@ -90,15 +90,6 @@ Landing order is the table order. Children 2 and 3 could swap; nothing else can.
 ## Execution
 
 Perishable coordinates, recorded 2026-08-03 against `26210bd` (pre-closeout survey; re-verify against live code per child). Conflicts resolve in favour of the conceptual half.
-
-### Child 6 — Rules into core
-
-- Move into `src/core/`: `maze.ts` (1456), `world.ts` (1394), `simulation.ts` (1055), `enemy-ai.ts` (952), `actions.ts` (839), `impacts.ts` (440), `extraction.ts` (163), `tasks.ts` (118), `rooms.ts` (118), `movement.ts` (93), `run-level.ts` (37) — ≈6.7k lines — plus the behaviour halves left behind by child 3.
-- Known residual edges to clear at spec time: `world.ts`/others importing `demo-sprites` asset ids (`DEMO_ASSET_IDS` believed scene-side only — re-verify), `particles.ts` (presentation-only per its own header; calls from rules become events or stay behind the seam), `demo-scene` back-references from `actions`/`impacts` if any.
-- `.dependency-cruiser.cjs`: core rule already says core imports only core; the demo-tree rule shrinks to the projection half.
-- Workbench importers of moved modules update in the same change (`entity-workbench` ← `simulation`/`world`/`enemy-archetypes`; `floor-preview`/`map-workbench`/`room-workbench` ← `world`/`maze`).
-- Unit tests: named in the spec preview per the standing gate. Strong candidates: floor-assembly refusals, damage/throw arithmetic, task state, run-level derivation. Nothing is added that the spec did not name.
-- Verification: verify + the plan's heaviest playtest — full floor loop, every enemy kind, throws, water, stage, extraction.
 
 ### Child 7 — Runtime and interface
 

@@ -19,7 +19,7 @@
  * world, and a second copy of the object sailing across the viewmodel only competes with the real one.
  */
 
-import type { EnemyAppearanceId } from "@/content/enemies/enemy-appearances";
+import type { EnemyAppearanceId } from "@/core/enemy-contract";
 import {
   drawMeleeAttack,
   drawMeleeViewmodel,
@@ -35,7 +35,7 @@ import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { slimeBody } from "@/demo/demo-scene";
 import { DEMO_ASSET_IDS } from "@/demo/demo-sprites";
-import { bodyFootprint, type DemoWorld } from "@/demo/world";
+import { bodyFootprint, type DemoWorld } from "@/core/world";
 import type { PresentationImages } from "@/presentation/presentation-image-loader";
 
 /**

@@ -6,31 +6,26 @@
  * genuinely does not know what it is carrying. That is the entire mechanism: what the player walks out
  * with is a gamble whose stake rises with every floor they survive, and dying loses all of it.
  *
- * Two sources, told apart by risk rather than by rate; the rates themselves are authored content in
- * `@/content/progression/sealed-reward-definitions`. What stays here is the sealing, the resolution
- * rolls, and the bank — run state and run randomness.
+ * Two sources, told apart by risk rather than by rate; the rates and catalogues arrive through the
+ * game catalog. What lives here is the sealing, the resolution rolls, and the bank — run state and
+ * run randomness.
  *
  * The bank at the bottom is the only thing in the demo that outlives a run. Extraction is what puts
  * something in it, which is what makes the extraction room worth finding on the first floor rather
  * than on the last.
  */
 
+import type { GameCatalog } from "@/core/catalog";
+import { rollCoreModifiers } from "@/core/modifiers";
 import {
-  BLESS_CATALOG,
-  BLESS_STACKING_CATALOG,
-  type BlessId,
-  type StackingBlessId,
-} from "@/content/progression/bless-definitions";
-import {
-  CORE_CATALOG,
   findCore,
+  type BlessId,
   type CoreCurse,
   type CoreDefinition,
   type ModifierAxis,
   type ModifierRolls,
-} from "@/content/progression/modifier-definitions";
-import { CORE_SHARE, FRAGMENT_EFFECTS } from "@/content/progression/sealed-reward-definitions";
-import { rollCoreModifiers } from "@/demo/modifiers";
+  type StackingBlessId,
+} from "@/core/progression-contract";
 
 export type SealedReward = Readonly<{ source: CoreCurse }>;
 
@@ -57,11 +52,14 @@ function pick<T>(values: readonly T[]): T | undefined {
   return values[Math.floor(Math.random() * values.length)];
 }
 
-function rollFragment(source: CoreCurse): ResolvedFragment {
-  const pool = [...BLESS_CATALOG.map((entry) => entry.id), ...BLESS_STACKING_CATALOG.map((entry) => entry.id)];
+function rollFragment(catalog: GameCatalog, source: CoreCurse): ResolvedFragment {
+  const pool = [
+    ...catalog.blessCatalog.map((entry) => entry.id),
+    ...catalog.blessStackingCatalog.map((entry) => entry.id),
+  ];
   const effects: (BlessId | StackingBlessId)[] = [];
 
-  for (let index = 0; index < FRAGMENT_EFFECTS[source]; index += 1) {
+  for (let index = 0; index < catalog.fragmentEffects[source]; index += 1) {
     const drawn = pick(pool);
 
     if (drawn) {
@@ -72,19 +70,21 @@ function rollFragment(source: CoreCurse): ResolvedFragment {
   return { kind: "fragment", source, effects };
 }
 
-function rollCore(source: CoreCurse): ResolvedCore {
-  const core = pick(CORE_CATALOG) ?? CORE_CATALOG[0];
+function rollCore(catalog: GameCatalog, source: CoreCurse): ResolvedCore {
+  const core = pick(catalog.coreCatalog) ?? catalog.coreCatalog[0];
 
   if (!core) {
     throw new Error("the core catalogue is empty");
   }
 
-  return { kind: "core", source, core, rolls: rollCoreModifiers(source) };
+  return { kind: "core", source, core, rolls: rollCoreModifiers(catalog, source) };
 }
 
 /** Opens one sealed reward. Called at extraction and never before it. */
-export function resolveReward(reward: SealedReward): ResolvedReward {
-  return Math.random() < CORE_SHARE[reward.source] ? rollCore(reward.source) : rollFragment(reward.source);
+export function resolveReward(catalog: GameCatalog, reward: SealedReward): ResolvedReward {
+  return Math.random() < catalog.coreShare[reward.source]
+    ? rollCore(catalog, reward.source)
+    : rollFragment(catalog, reward.source);
 }
 
 /**
@@ -129,7 +129,7 @@ export function coreBonus(axis: ModifierAxis): number {
 }
 
 /** The melee base the equipped core is, if there is one. */
-export function coreBase(): CoreDefinition | undefined {
+export function coreBase(catalog: GameCatalog): CoreDefinition | undefined {
   const equipped = equippedCore();
-  return equipped ? findCore(equipped.core.id) : undefined;
+  return equipped ? findCore(catalog, equipped.core.id) : undefined;
 }

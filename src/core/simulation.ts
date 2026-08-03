@@ -5,8 +5,8 @@
  * not replayed.
  */
 
-import { MELEE_CUT_START } from "@/content/viewmodel/melee-viewmodel";
-import type { SfxCueId } from "@/content/sfx/sfx-cue-definitions";
+import { MELEE_CUT_START } from "@/core/melee-contract";
+import type { SfxCueId } from "@/core/sfx-cues";
 import {
   damageWall,
   heldWeight,
@@ -14,10 +14,10 @@ import {
   resolveSwing,
   thrownImpactDamage,
   thrownWallDamage,
-} from "@/demo/actions";
-import { isBoned } from "@/content/enemies/enemy-archetypes";
-import { hurtPlayer, stepEnemies } from "@/demo/enemy-ai";
-import { stepExtraction } from "@/demo/extraction";
+} from "@/core/actions";
+import { isBoned } from "@/core/enemy-contract";
+import { hurtPlayer, stepEnemies } from "@/core/enemy-ai";
+import { stepExtraction } from "@/core/extraction";
 import {
   bargeInto,
   bodyLanding,
@@ -27,7 +27,7 @@ import {
   rockImpact,
   shellImpact,
   stepDrowning,
-} from "@/demo/impacts";
+} from "@/core/impacts";
 import {
   blocksProjectile,
   blocksProjectileAt,
@@ -36,20 +36,20 @@ import {
   isBarricadeCell,
   roll,
   tileAt,
-} from "@/demo/maze";
-import { FLUNG, slideMove, unstick, WALKING } from "@/demo/movement";
-import { stepParticles } from "@/demo/particles";
-import { stepRooms } from "@/demo/rooms";
-import { LEVEL_CARD_PREFIX, runLevel } from "@/demo/run-level";
+} from "@/core/maze";
+import { FLUNG, slideMove, unstick, WALKING } from "@/core/movement";
+import { stepParticles } from "@/core/particles";
+import { stepRooms } from "@/core/rooms";
+import { LEVEL_CARD_PREFIX, runLevel } from "@/core/run-level";
 
-import { stepTasks } from "@/demo/tasks";
+import { stepTasks } from "@/core/tasks";
 import {
   breaksThroughWalls,
   propBehaviour,
   throwCapacity,
   type DemoPropFlightHit,
   type DemoPropLanding,
-} from "@/content/props/prop-definitions";
+} from "@/core/prop-contract";
 import {
   announce,
   bodyFootprint,
@@ -76,7 +76,7 @@ import {
   type DemoProjectile,
   type DemoWorld,
   raiseSfx,
-} from "@/demo/world";
+} from "@/core/world";
 
 export type DemoInput = Readonly<{
   forward: boolean;
@@ -187,7 +187,7 @@ function stepPlayer(world: DemoWorld, input: DemoInput, deltaSeconds: number): v
     // decision rather than a free upgrade to the next throw. Wading through a crowd costs pace the
     // same way, and the two multiply: an armful of slime carried through a room of them is slow
     // twice over, which is exactly what it should feel like.
-    const carried = heldWeight(world.held)?.carrySlow ?? 1;
+    const carried = heldWeight(world, world.held)?.carrySlow ?? 1;
     const step = (playerSpeed(world) * carried * crowdPace(world) * deltaSeconds) / length;
     const moved = slideMove(world.maze, world.player, moveX * step, moveY * step, PLAYER_RADIUS, WALKING);
     world.player.x = moved.x;
@@ -364,7 +364,7 @@ function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall:
     return;
   }
 
-  const behaviour = propBehaviour(projectile.kind);
+  const behaviour = propBehaviour(world.catalog, projectile.kind);
   const wallCue = hitWall ? WALL_STOP_CUES[behaviour.landing] : undefined;
 
   if (wallCue !== undefined) {
@@ -386,7 +386,7 @@ function finishProjectile(world: DemoWorld, projectile: DemoProjectile, hitWall:
  * the wall is what does it, not the throw.
  */
 function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
-  if (projectile.skewered.length >= throwCapacity(projectile.kind)) {
+  if (projectile.skewered.length >= throwCapacity(world.catalog, projectile.kind)) {
     return;
   }
 
@@ -413,7 +413,7 @@ function skewerWithJavelin(world: DemoWorld, projectile: DemoProjectile): void {
     raiseSfx(world, isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
     announce(world, "Skewered!", 1.2);
 
-    if (projectile.skewered.length >= throwCapacity(projectile.kind)) {
+    if (projectile.skewered.length >= throwCapacity(world.catalog, projectile.kind)) {
       return;
     }
   }
@@ -448,7 +448,7 @@ function cleaveThrough(world: DemoWorld, projectile: DemoProjectile, stopsWhenFu
     killEnemy(world, enemy, "cleaved");
     announce(world, `Cleaves ${projectile.cleaved}!`, 1.2);
 
-    if (stopsWhenFull && projectile.cleaved >= throwCapacity(projectile.kind)) {
+    if (stopsWhenFull && projectile.cleaved >= throwCapacity(world.catalog, projectile.kind)) {
       return true;
     }
   }
@@ -573,7 +573,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
     let finished = false;
     let struckCell: DemoCellLike | undefined;
     let stoppedByWall = false;
-    const breaksThrough = breaksThroughWalls(projectile.kind);
+    const breaksThrough = breaksThroughWalls(world.catalog, projectile.kind);
 
     for (let step = 0; step < steps && !finished; step += 1) {
       const advance = distance / steps;
@@ -602,10 +602,10 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
         // and one throw. Anything that is not ordinary masonry takes the whole budget: it is
         // damaged for whatever it is worth, and the throw ends there.
         if (breaksThrough && spendsWall(world, cell)) {
-          damageWall(world, cell, thrownWallDamage(projectile.kind));
+          damageWall(world, cell, thrownWallDamage(world, projectile.kind));
           projectile.broke += 1;
 
-          if (projectile.broke < throwCapacity(projectile.kind)) {
+          if (projectile.broke < throwCapacity(world.catalog, projectile.kind)) {
             continue;
           }
 
@@ -633,7 +633,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
 
       if (projectile.kind === "enemy") {
         bargeThrough(world, projectile);
-      } else if (stoppedInFlight(world, projectile, propBehaviour(projectile.kind).flightHit)) {
+      } else if (stoppedInFlight(world, projectile, propBehaviour(world.catalog, projectile.kind).flightHit)) {
         finished = true;
         break;
       }
@@ -652,7 +652,7 @@ function stepProjectiles(world: DemoWorld, deltaSeconds: number): void {
     // The wall is spent before the projectile is: a body that lands where a wall just broke should
     // land in the opening, not against the wall that is no longer there.
     if (struckCell) {
-      damageWall(world, struckCell, thrownWallDamage(projectile.kind));
+      damageWall(world, struckCell, thrownWallDamage(world, projectile.kind));
     }
 
     // Only masonry counts as a wall here: what it decides is whether the landing is doubled and
