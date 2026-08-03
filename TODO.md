@@ -23,8 +23,7 @@ Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line 
 A brief lives here too and is the one kind of line `/implement` cannot take: it is format-free material handed to a later session, it authorizes nothing, and it is spent once it has seeded a real artifact. `dev/standards/work_lifecycle.addendum.md` owns its rules.
 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
-- [three_scene] Prove in a sandbox experiment that Three.js reproduces the full view and atmosphere, with block models for enemies and structures - [ref plans/three_scene.plan.md]
-- [three_scene_graduation] Make the Three.js runtime the game's renderer and delete both the interim projection and the ray-marched one, once the three-scene verdict lands - [ref plans/three_scene_graduation.plan.md]
+- [three_scene_graduation] Make the Three.js runtime the game's renderer and delete both the interim projection and the ray-marched one - [ref plans/three_scene_graduation.plan.md]
 - [enemy_structure_models] Draft plan for authored block models across enemies and structures, to be completed after the three-scene verdict - [ref plans/enemy_structure_models.plan.md]
 
 ---
@@ -101,7 +100,7 @@ The boned half of the roster also writes nothing durable at all: once the corpse
 
 And stains part ways with the floor decals for good. The two share nothing but the ground: a decal is a transient warning, rebuilt every frame inside a small capped slot budget that a mortar's circle must never be crowded out of; a stain is the floor's permanent record, accumulating for the life of the floor. The sub-cell half of that record — a mark where each spray actually lands, from hits as well as deaths, laid over the per-cell depth the ground already carries — therefore belongs to the stain channel, never the warning one. It also needs a fact the rules currently throw away: landing positions die in the same tick that computes them, so the rules would keep the recent ones.
 
-All of it is rules work that changes the shipped picture as well as the experiment's, so none of it moves before the three-scene verdict lands — a judged frame should not have two moving causes. What would force it afterwards: the graduation plan's fidelity tail, or the enemy record landing on the same branch.
+All of it is rules work that changes the shipped picture as well as the experiment's. It was held back so the renderer verdict would not be given against a frame with two moving causes; that verdict has landed, so what holds it now is only that the graduation is in flight and wants the same clean ground. What would force it: the graduation plan's fidelity tail, or the enemy record landing on the same branch.
 
 ### Three Kinds Of Side Room For Three Slots
 

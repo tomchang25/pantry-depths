@@ -1,6 +1,6 @@
 # Graduating The Three.js Runtime Into The Game
 
-> **Waiting on a verdict.** This plan authorizes nothing until the final whole-view verdict is recorded in `three_scene.plan.md`. That verdict is its only authorization; a no deletes this document unstarted along with the experiment folder it would have moved.
+> **Authorized 2026-08-03.** The spike that this plan waits on returned a viable verdict, given by the author with the experiment open: the Three.js runtime reproduces the whole game view well enough to become the game. That verdict is this plan's authorization and its only one.
 
 ## Goal
 
@@ -32,7 +32,7 @@ Two of them need a value the experiment does not compute and the runtime will: h
 
 ### The picture between children
 
-The seam child changes what the player sees, and the two children before it change nothing. That ordering is deliberate: by the time the seam is swapped, the runtime is expected to be at or above the shipped picture, because the spike's own children are what close the gaps the porting survey found. If the verdict lands while any of those gaps are open, this plan does not start — it would be committing the game to a picture nobody judged.
+The seam child changes what the player sees, and the two children before it change nothing. That ordering is deliberate: by the time the seam is swapped, the runtime is expected to be at or above the shipped picture. It starts there — the spike closed every gap its porting survey found before the verdict was given, precisely so the verdict was not given against a picture nobody plays.
 
 Two things are knowingly below the shipped picture on the day the seam swaps, and both are named children rather than surprises. Corpses are one settling shape for all six ways of dying; that is closed here. Soft bodies are a plain shape where the shipped renderer deforms them through squash, shatter and drowning; that is **not** closed here, because the spike rejected the programmatic blob outright and authored models are the modelling plan's subject. Until that plan lands, the soft bodies are the one place this plan ships a knowing regression, and it is recorded as one.
 
@@ -79,7 +79,7 @@ This plan does not declare itself goal-executable. Child 3 changes the whole pic
 
 ## Execution
 
-Perishable coordinates, recorded 2026-08-03 against `57dd494`, before any of the spike's remaining children have landed. Every child re-checks its own against the live code first; children 5 and 6 of the spike will add files this section does not know about. Conflicts resolve in favour of the conceptual half.
+Perishable coordinates, first recorded 2026-08-03 against `57dd494` and left as written when the spike's last three children landed on top of them. They are therefore known to be short: the experiment gained a floor-decal projection, a blood grid, a finishing pass and a sprite sheet after this was taken. Every child re-checks its own against the live code first. Conflicts resolve in favour of the conceptual half.
 
 ### Shared facts
 
@@ -96,7 +96,7 @@ Perishable coordinates, recorded 2026-08-03 against `57dd494`, before any of the
 - Boundary rules to change: `.dependency-cruiser.cjs` currently forbids anything outside `src/app/debug/` from importing `src/sandbox/`, and forbids the sandbox tree from importing `src/presentation/`. Both rules stop applying to this code the moment it moves; the new module obeys the ordinary presentation-layer rules instead.
 - Copies to retire in the same change:
   - `scene-textures.ts` (378 lines) against `src/presentation/procedural-textures.ts` (608). They are different implementations at different sizes, not a duplicate to delete — the child decides per material whether the shipped generator is called or the experiment's is kept and the shipped one narrowed. Do not leave both.
-  - `scene-sprites.ts` (511) against `src/demo/demo-sprites.ts` (914). Eight sprites in the experiment's set are built and never placed (`spark`, `bubble`, `groundGlow`, `dropShadow`, `bloodDrop`, `stoneChip`, `woodChip`, `dustPuff`); the spike's child 5 places four of them, so re-check before deleting any.
+  - `scene-sprites.ts` against `src/demo/demo-sprites.ts` (914). Both grew after this was taken; the experiment's set still holds a few drawings nothing places, so check each against its call sites before deleting any.
   - `assets/skeleton-blocky.glb` (112 KB) moves to `src/content/**/assets/` per the structure addendum's asset rule; `block-clips.ts` (21) holds the clip and weapon names copied from `src/sandbox/three-block/block-contracts.ts`.
 - `src/app/debug/debug-tools.ts` keeps a catalog entry pointing at the new location — a presentation module can be mounted by a debug tool, which is how the workbenches already work. The `THREE_SCENE_EXPERIMENT` chrome in `three-scene.ts` (277) stays a debug tool and stops being a sandbox one.
 - Nothing in `src/runtime/` changes. The game still draws through the Canvas renderer at the end of this child.
@@ -126,8 +126,8 @@ Perishable coordinates, recorded 2026-08-03 against `57dd494`, before any of the
 
 - Shipped source: `skeletonDeathAnimation` at `demo-scene.ts:769` reading `src/content/enemies/skeleton-death-definitions.ts` (112), `skeletonDeathSprite` at `:801`, and for soft bodies `deathBlobs` at `:1320`, `shatteredBlobs` at `:1288`, `drownedCorpseStage` at `:429`, plus `RenderBlobSplit` in `render-scene.ts:188`.
 - Present state: `syncCorpses`/`createCorpse` at `world-bodies.ts:522-556` — one icosahedron for every appearance and every cause, scaled flat by `death.progress`. Its own comment records that this is deliberate spike scope.
-- The six causes are `"slain" | "cleaved" | "drowned" | "splattered" | "blasted" | "impaled"` (`src/core/world.ts:286`). `splattered` is the wall mark, which the spike's child 5 builds — check it exists before rebuilding it here.
-- The soft-body half is **not** built. Record the regression against `dev/docs/plans/enemy_structure_models.plan.md`, whose open question 1 was already answered on 2026-08-03 by the spike rejecting the programmatic blob.
+- The six causes are `"slain" | "cleaved" | "drowned" | "splattered" | "blasted" | "impaled"` (`src/core/world.ts:286`). `splattered` already has its wall mark, built in the experiment before the verdict — do not rebuild it.
+- The soft-body half is **not** built. Record the regression against `dev/docs/plans/enemy_structure_models.plan.md`, whose first open question was answered on 2026-08-03 when the programmatic blob was rejected.
 
 ### Child 5 — The workbenches and demolition
 

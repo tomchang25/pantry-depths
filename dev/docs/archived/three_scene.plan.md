@@ -67,15 +67,29 @@ Three children shipped on 2026-08-03 — the static floor, the live world, and t
 
 The porting survey then found six checklist rows unbuilt, so the verdict waits on further children rather than on the fourth. Judging the fifth then found the blood on the ground-marks row was not merely present but wrong, which is the seventh.
 
-| #   | Child              | Focus                                                                                                                    | Form                                                       |
-| --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| 5   | What a fight draws | Detonations and arcs, the warning marks on the ground, the mark on masonry, and the small readability cues around a body | `three_scene_05_what_a_fight_draws.implementation_spec.md` |
-| 6   | The finishing pass | Air motes, the vignette and its warm centre, and the red answer to a hit                                                 | `three_scene_06_finishing_pass.implementation_spec.md`     |
-| 7   | Blood is ground    | The stain moves out of a sheet laid over the floor and into the floor's own texel                                        | `three_scene_07_blood_is_ground.implementation_spec.md`    |
+| #   | Child              | Focus                                                                                                                    | Form                                                                 |
+| --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| 5   | What a fight draws | Detonations and arcs, the warning marks on the ground, the mark on masonry, and the small readability cues around a body | Shipped — `three_scene_05_what_a_fight_draws.implementation_spec.md` |
+| 6   | The finishing pass | Air motes, the vignette and its warm centre, and the red answer to a hit                                                 | Shipped — `three_scene_06_finishing_pass.implementation_spec.md`     |
+| 7   | Blood is ground    | The stain moves out of a sheet laid over the floor and into the floor's own texel                                        | Shipped — `three_scene_07_blood_is_ground.implementation_spec.md`    |
 
-Landing order is 5, then 6, then 7. The order between the first two matters only in that 6 is a pass laid over whatever 5 leaves behind — judging the grade against a frame with no explosions in it would tune it against the wrong picture. The seventh could have come at any point; it is last because judging the fifth is what found it.
+Landing order was 5, then 6, then 7. The order between the first two mattered only in that 6 is a pass laid over whatever 5 leaves behind — judging the grade against a frame with no explosions in it would have tuned it against the wrong picture. The seventh could have come at any point; it was last because judging the fifth is what found it.
 
-**The plan is not closeable** until both land and the sitting happens: two of its acceptance criteria are verdicts only the author can give.
+All seven have shipped.
+
+### The verdict
+
+**Viable, given on 2026-08-03 by the author with the experiment open.** The Three.js runtime reproduces the whole game view well enough to become the game, and the follow-up is the graduation plan rather than a folder deletion.
+
+Three findings came out of the closing sittings, and none of them moved the verdict:
+
+The blood was wrong in three ways that turned out to be one way — it was drawn as a sheet laid over the floor instead of mixed into it, so it covered the warning marks, took the light twice and read brown, and had no gradation. Fixed in child 7 by putting it back in the texel where the shipped renderer keeps it.
+
+A body carried on a javelin flies at the wrong angle, because this block set has no impaled clip and the body is tipped along the shaft instead of posed. Recorded as a bug against the model roster rather than patched with a second guessed transform.
+
+And the fight itself raises less blood than the picture implied: only the player's swing and the spikes make a body bleed at all, so a thrown rock, a blast or a chain of lightning marks nothing. That is a rules gap older than this experiment and it is neither the experiment's to fix nor a mark against the runtime — it is recorded in the tracker's draft tier with the stain redesign it belongs to.
+
+What the sittings did **not** produce is a row-by-row reading of the checklist above. The two judging sessions and the closing pass covered it in aggregate — the whole view, in motion, against a reference recording — and the author accepted the aggregate. The plan asked for one verdict per row; it got one verdict for the view and three named defects, and that is what closed it.
 
 ### What building it turned up
 
@@ -87,7 +101,7 @@ Bodies are expensive. Each skeleton arrives as its own cloned armature of a doze
 
 ### What the verdict decides
 
-A full yes makes the follow-up a formal-track plan: graduate the approach into the presentation layer, swap the one seam the runtime draws through, migrate the debug workbenches that inspect the interim projection, and delete the demo tree — none of which this plan performs. That plan is now written and waiting rather than hypothetical (`three_scene_graduation.plan.md`); it names this plan's verdict as its own authorization and starts at nothing until the verdict is recorded here. A no, or a partial no on a load-bearing row, is recorded, the folder is deleted, and the graduation plan is deleted unstarted with it. Until the verdict lands, all renderer-bound visual polish elsewhere stays frozen, and the boss encounter's rendering question stays parked on this plan's outcome.
+A full yes makes the follow-up a formal-track plan: graduate the approach into the presentation layer, swap the one seam the runtime draws through, migrate the debug workbenches that inspect the interim projection, and delete the demo tree — none of which this plan performs. The yes landed, so `three_scene_graduation.plan.md` is authorized and is where all of that happens. Two things this plan was holding are released with it: renderer-bound visual polish elsewhere, frozen since this question was opened, and the boss encounter's rendering question, which was parked on this outcome.
 
 ## Non-Goals
 
@@ -102,39 +116,3 @@ A full yes makes the follow-up a formal-track plan: graduate the approach into t
 2. Every checklist row carries a verdict given by the user looking at the running experiment; none is left implicit.
 3. The final whole-view verdict — viable or not — is stated by the user in one sitting with the experiment open.
 4. The ordinary verification gate passes, and the production module graph is provably unchanged.
-
-## Execution
-
-Perishable notes, recorded 2026-08-03. The first four children's subsections are cut; the shared half is kept because the follow-up work it points at has not happened yet, and children 5 and 6 carry their own below.
-
-### Shared facts
-
-- Experiment folder: `src/sandbox/three-scene/`. One catalog entry in `src/app/debug/` mounts it, following the deferred-loader pattern of the existing experiments (see `THREE_BLOCK_EXPERIMENT` in `src/sandbox/three-block/three-block.ts:70`).
-- Boundary rules: the experiment may import only its own folder, `@/core/*`, and `@/content/*`. It may **not** import `src/presentation/` — the procedural texture generators in `src/presentation/procedural-textures.ts` must be copied into the experiment folder. Graduation later re-points to the originals.
-- Experiments never import each other. Reusable know-how in `src/sandbox/three-block/` (glTF loading, clip tables, weapon-bone visibility, bake camera constants in `block-contracts.ts` and `block-runtime.ts`) and the asset `src/sandbox/three-block/assets/skeleton-blocky.glb` are copied, not imported.
-- The scene vocabulary the current renderer consumes is enumerated in `src/presentation/render-scene.ts`; the projection that feeds it is `src/demo/demo-scene.ts`, whose builder functions (`surfaces`, `boxes`, `altarBoxes`, `stairBoxes`, `floorDecals`, `lights`, `emitters`, `NIGHT_SKY`, `EXIT_XRAY`) are the authoritative list of what each checklist row means concretely.
-- The seam the follow-up plan will eventually swap: `src/runtime/surface.ts:33-35` (`createDemoScene`, `createDemoEffects`, `loadDemoImages`, `drawDemoViewmodel`) plus six debug importers of `@/demo/*`: `entity-workbench`, `prop-workbench`, `hud-attack-workbench`, `carried-workbench`, `floor-preview`, `render-panel`. Not touched by this plan; listed so nobody re-derives it.
-- Dev server: `http://localhost:5273`. Gate: `npm run verify`. Three.js is already a dependency (used by both existing experiments).
-- What the experiment copied rather than imported, and would stop copying on graduation: the procedural texture generators, the blocky skeleton asset, and its clip and weapon names. The authored arm and the entity display table are imported from `src/content/` and need no such change.
-- `window.__sceneRuntime` is a development-only handle exposing the world and a `stand` call, so a session can pose the camera and take a picture from the same place twice. It follows the arrangement `src/sandbox/three-preview/` and the play surface both already use.
-- **A headless capture must listen to `console.error`, not just `pageerror`.** A WebGL shader that fails to compile reports through the console and nowhere else: the renderer keeps running, the page raises nothing, and every object wearing that material silently stops drawing. One such failure — a uniform used in a fragment but never declared — took out every body on the floor and passed a capture run that only watched for page errors.
-- The reference recording is `D:\Videos\Export\maze-first.mp4` (~40s of the shipped renderer). Frames extract with `ffmpeg -i <video> -vf "fps=10" out-%04d.png` for the side-by-side; the harness already proved headless capture of the experiment works via `__sceneRuntime.stand(...)` plus a Playwright screenshot.
-
-### Child 5 — What a fight draws
-
-Surface: `src/sandbox/three-scene/world-effects.ts` for everything but the last item, `scene-runtime.ts` for the light list.
-
-- **Detonations and arcs.** `world.vfx` is read today only by `blastKick` in `scene-runtime.ts:519`; nothing draws it. The shipped source is `vfxSprites` in `src/demo/demo-scene.ts:871-923`: a `blast` billboard scaled `radius * (0.5 + life * 1.3)` at `verticalAnchor: -0.4`, plus ten embers on a ring at `radius * (0.2 + life * 1.15)` shrinking with `0.34 * (1 - life)`; and for an arc, `ARC_SEGMENTS + 1` spark billboards along the segment with a perpendicular kink `sin(t * PI) * sin(segment * 5.3 + age * 40) * 0.16`. Both also emit a light — `demo-scene.ts:3098` and `:3109`.
-- **Warning marks on the ground.** The whole of `floorDecals` in `demo-scene.ts:2647-2911` plus its four shape builders (`chargeRun`, `pushPadSquare`, `pushAimCircle`, `pushIncomingCircle`, `pushBlastRim`, `incomingFlash`) and the colour constants at `:2591-2600`. The vocabulary is `RenderFloorDecalShape` in `src/presentation/render-scene.ts:114-137` — disc, ring, lane, sector. Today's experiment answers this with floating bead strings (`collectSightLines`, `collectCutArc`, `collectBeacons` in `world-effects.ts:365-479`); those stay, because the shipped renderer draws both, but the ground half is the missing one. It has to be lit and fogged as floor, so it belongs in the floor material's shader rather than as a separate unlit quad — `scene-lighting.ts`'s `PLANE_FRAGMENT` is where a decal test lands.
-- **The mark on masonry.** `wallMark` and `wallMarkFace` in `demo-scene.ts:1076-1127`, drawn from `DEMO_ASSET_IDS.wallSplat` (`demo-sprites.ts:491`). Needs a wall-face placement the experiment has no equivalent of; `snapToFace` at `:1102` is the axis-snapping rule.
-- **The small readability marks.** Four are one-liners against sprites `scene-sprites.ts` already builds and never places — `groundGlow` under a pickup pile (`demo-scene.ts:519`), `dropShadow` under anything with `projectile.fall > 0` (`:1017`), and the contact `hitSpark` while `enemy.hurtSeconds > 0` (`:972-983`). The fifth is `projectile.skewered` (`:1021-1025`, via `projectCarriedDemoEnemy`), which has no occurrence anywhere in the experiment folder.
-- **Wind-up lights.** Three entries in `demo-scene.ts:3052`, `:3067`, `:3083`, one per committed intent. The experiment's light list is `collectLights` in `scene-runtime.ts:358-405` and already has no count limit, so these are appended rather than budgeted.
-
-### Child 6 — The finishing pass
-
-Surface: a new module in the experiment folder plus one call in `scene-runtime.ts`'s frame.
-
-- The three passes are `#drawMotes` (`src/presentation/canvas-gameplay-renderer.ts:3331`), `#drawGrade` (`:3299`) and `#drawPlayerHit` (`:3357`). All three are screen-space and none needs the depth buffer, so the cheapest faithful home is a 2D layer over the WebGL canvas — the viewmodel overlay in `viewmodel.ts` is already exactly that arrangement and is where the red belongs, since it is the same layer the damage arcs are drawn on.
-- The grade reads a turn rate the experiment does not compute: `surface.ts:833` smooths `turnInput` against `FULL_TURN_RATE = 2600`, rising at 0.4 and falling at 0.06. `look()` in `scene-runtime.ts:283` is where the raw movement arrives.
-- `world.hitFlash` has no reader anywhere in the experiment folder today; the shipped path passes it through as `PresentationRenderEffects.playerHit`.
-- Motes are tied to the camera by `scene.camera.angle * width * 0.24 + camera.x * 26 + camera.y * 18`, which is what makes them air in a room rather than static over the image. Three layers, counts 30/22/14, sizes 1/2/3, alphas 0.05/0.085/0.12.
