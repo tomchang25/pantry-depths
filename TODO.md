@@ -23,6 +23,8 @@ Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line 
 A brief lives here too and is the one kind of line `/implement` cannot take: it is format-free material handed to a later session, it authorizes nothing, and it is spent once it has seeded a real artifact. `dev/standards/work_lifecycle.addendum.md` owns its rules.
 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
+- [three_scene] Prove in a sandbox experiment that Three.js reproduces the full view and atmosphere, with block models for enemies and structures - [ref plans/three_scene.plan.md]
+- [enemy_structure_models] Draft plan for authored block models across enemies and structures, to be completed after the three-scene verdict - [ref plans/enemy_structure_models.plan.md]
 
 ---
 
@@ -69,16 +71,6 @@ Three questions decide the shape and none is answered. Whether these are more de
 Related to the entry above, and not the same work: a soundstage with its own address still cannot decline the stairs and the plinth that every floor is built with. Doing this one first buys a place to put a scene's rules; doing that one first buys rules worth putting there.
 
 Not scheduled. What would force it is the second scene of any kind — a testbed, a second stage, or the sandbox wanting a rule the play route does not have.
-
-### Three.js, With The Block Skeleton As The Prototype
-
-The direction is chosen: the game moves to a Three.js runtime, and the blocky skeleton is the prototype everything else is built from. That closes the question the block experiment deliberately left open — it kept both the sprite bake and a runtime consumer possible on purpose, and the runtime wins.
-
-What this displaces is most of what draws the game today. The Canvas 2D renderer marches rays for walls, sorts billboards against a depth buffer, paints ground marks at sub-cell resolution, and carries the fog, the torch light, and the viewmodel; a Three.js runtime does each of those differently or not at all. The sprite bake stops being the path an enemy arrives by, and the eight-heading strip stops being the thing that judges one.
-
-What survives is the larger half. The blocky body, its six-bone armature, and its table-driven clips are already a glTF file the browser loads and plays, so the authoring loop needs no port. The simulation, the floor generation, the enemy behaviour, the tasks, and the HUD do not know what draws them and do not change.
-
-Nothing is scheduled. Two things decide the shape before this can become a plan: whether the runtime replaces the whole view or only the bodies standing in it, and whether it lands before or after the demo is ported into the permanent architecture — both touch the same files, and doing them in the wrong order means doing one of them twice.
 
 ### The Difficulty Level Nothing Reads
 
@@ -135,16 +127,6 @@ The recovery clip both types need for this is already baked and already unused: 
 What makes it a decision rather than a queue is what the reload is for. A cooldown that only exists to slow the fire rate is the thing that was just removed, because a pause with nothing to look at is not a window. A reload has to be legible enough that a player crosses the room _because_ they saw it start — which means its length, the clip, and the distance the shooter holds are one decision, not three.
 
 Not scheduled. What would force it is the shooters reading as unanswerable at their current range.
-
-### A Real 3D Layer Instead Of Baked Sprite Sheets
-
-The skeleton swordsman is an eight-way authored body: ten clips, eight directions, eight frames, baked offline from Blender into ten 2048-square atlases. That is 48 MB of PNG on disk and roughly 168 MB decoded, for one enemy. The cost is per enemy and it does not amortise — a second authored body is another 50 MB, and every added clip or direction multiplies it. Cutting the atlas cell back down is the only knob the current pipeline has, and it trades directly against the resolution that made the skeleton stop looking pasted onto the room.
-
-The alternative is a GPU 3D layer — Three.js or raw WebGL — where the same body is a rigged mesh of a few hundred kilobytes, viewable from any angle, at any resolution, with no bake step between authoring and seeing it. What makes this a decision rather than an obvious win is the compositing seam: walls, floors, depth, lighting, water and the x-ray markers are all the Canvas 2D raycaster's, and a second renderer has to agree with it about depth per column or the two images cannot be layered. Answering that is the work; the enemy is the easy half.
-
-The boss concept currently on the table — a firing altar as a real 3D model, ringed by an impassable moat — would force this question earlier than the second authored enemy does, because the altar is that second body in everything but gait. The decision also orders other work: renderer-bound visual polish (light falloff, distance fog, contact shading, the first-person arm) done before it is thrown away by a port, while HUD, input feel, and simulation-side feedback survive one. Decide the boss's visual technology first; everything renderer-bound queues behind that answer.
-
-Not scheduled. What forces the question is the boss fight or the second authored enemy, whichever is wanted first.
 
 ### One Enemy, One Record
 
