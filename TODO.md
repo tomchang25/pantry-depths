@@ -41,7 +41,7 @@ One line, no rationale, no backing document.
 
 One line, no rationale, no backing document.
 
-> No open bugs.
+- [three_scene] Bodies carried by a javelin fly at the wrong angle, and the impaled pose that would fix it needs an authored model and clip
 
 ---
 
