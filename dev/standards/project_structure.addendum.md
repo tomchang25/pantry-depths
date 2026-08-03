@@ -17,7 +17,7 @@ Reintroducing React, persistence, or a service worker retires the corresponding 
 
 ## Declared Deviation: A Random Real-Time Core
 
-The platform standard expects `src/core/` to own deterministic gameplay state. The rules this project is moving into core — per `dev/docs/plans/demo_migration.plan.md` — are the demo's: a real-time, mutating tick that draws on global randomness and guarantees no replay. They arrive as they are, because making the tick injectable-random is a behaviour-affecting redesign the migration deliberately ships none of. The screenshot harness seeds global randomness for reproducible captures, and that continues to work unchanged.
+The platform standard expects `src/core/` to own deterministic gameplay state. The rules that live in core are the demo's, moved there by the demo migration (archived at `dev/docs/archived/demo_migration.plan.md`): a real-time, mutating tick that draws on global randomness and guarantees no replay. They arrived as they were, because making the tick injectable-random is a behaviour-affecting redesign the migration deliberately shipped none of. The screenshot harness seeds global randomness for reproducible captures, and that continues to work unchanged.
 
 Making the tick deterministic later retires this deviation.
 
@@ -40,14 +40,14 @@ A scaffolded empty directory is not a claim that the layer is earned. It carries
 
 ## The Demo Tree
 
-`src/demo/` is down to the interim projection half: scene building, sprite loading, and the viewmodel. It is declared here because the vocabulary does not name it, and because it is being dismantled: `dev/docs/plans/demo_migration.plan.md` moves its modules into the formal layers, and what remains at the end is the projection half — scene building, sprite loading, the viewmodel — held in place until the 3D runtime decision replaces it.
+`src/demo/` is down to the interim projection half: scene building, sprite loading, and the viewmodel. It is declared here because the vocabulary does not name it. The demo migration (archived at `dev/docs/archived/demo_migration.plan.md`) moved everything else into the formal layers; what remains is held in place until the 3D runtime decision replaces it.
 
 Import directions, machine-checked by the boundary rules:
 
 - `src/demo/` imports itself, `src/presentation/`, `src/content/`, and `src/core/`, and nothing else in `src/`.
 - Nothing imports `src/demo/` except `src/runtime/`, which draws through it, and `src/app/`'s debug workbenches, which inspect it.
 
-Each migration child tightens these rules rather than opening a new door; the declaration and the rules retire together when the migration closes.
+The declaration and the rules retire with the tree itself, when the 3D runtime decision replaces the projection half.
 
 ## The Sandbox Tree
 

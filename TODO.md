@@ -12,7 +12,7 @@ This tracker is the forward-work authority.
 
 ## Active
 
-- `[demo_migration]` Move the demo's rules, tables, runtime, and interface into the formal layers and retire the two-half ruling - `dev/docs/plans/demo_migration.plan.md`
+Nothing currently in progress.
 
 ---
 

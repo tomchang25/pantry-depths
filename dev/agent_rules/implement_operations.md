@@ -2,15 +2,15 @@
 
 This file is the authoritative project-local permission delta for `/implement`. Read `dev/foundation/core/workflows/commands/implement.md`, `dev/foundation/core/workflows/work_lifecycle.md`, and `dev/foundation/core/workflows/implementation_spec_standard.md` first; their contracts continue to apply except for the narrow supersessions below.
 
-## Two Halves
+## The Sandbox Track Works Light
 
-These supersessions apply to the light-ceremony half: **demo work** — changes whose surface is `src/demo/` or `src/presentation/` — and **sandbox work** — changes whose surface is `src/sandbox/`, per `dev/standards/sandbox_track.md`. Changes to `src/core/`, `src/content/`, `src/harness/`, `src/app/debug/`, or `dev/tools/` run the foundation workflow unchanged, because that half is the architecture the demo is expected to be archived into later and it keeps its full ceremony. The demo surfaces leave the light half when the demo is archived; the sandbox surface is a permanent member, because disposable work never earns the ceremony back.
+The supersessions in the next two sections apply to **sandbox work** — changes whose surface is `src/sandbox/`, per `dev/standards/sandbox_track.md` — and to nothing else. Every other change runs the foundation workflow unchanged: the formal layers are the architecture the game lives in, and they keep their full ceremony. The sandbox is a permanent member of the light half, because disposable work never earns the ceremony back.
+
+**Why:** the light ceremony was written for the demo era, when a playable surface reached a playable state in a day while the surface it replaced took days longer describing itself. The demo has since been migrated into the formal layers and the ceremony went with it; what remains light is the track whose whole design is that its work is cheap to run and cheap to throw away.
 
 ## Phase 1 Is A Design Conversation
 
-The foundation's Focused Decision Scan gathers codebase evidence to surface user-authority decisions. In practice that framing makes every conversation about how to fit the request into the shape that already exists, and the answer arrives as a patch onto that shape.
-
-For demo work, Phase 1 is a conceptual discussion first: what should this be, and does the current shape deserve to survive it. Codebase evidence informs that conversation rather than bounding it.
+For sandbox work, the foundation's Focused Decision Scan is superseded: Phase 1 is a conceptual discussion first — what should this be, and does the current shape deserve to survive it. Codebase evidence informs that conversation rather than bounding it.
 
 1. Propose replacing existing code, not only extending it, whenever extension would preserve a shape nobody is defending. Say plainly when the honest answer is that something should be thrown away.
 2. Gather only the evidence the conversation needs. Do not open a survey of the change's eventual surface before the direction is agreed.
@@ -19,14 +19,12 @@ For demo work, Phase 1 is a conceptual discussion first: what should this be, an
 
 ## Phase 2 Delivers An Approach, Not An Inventory
 
-For demo work the spec is a short architectural note: what is being built, what owns it, what it replaces, and the shapes to avoid. It supersedes `implementation_spec_standard.md`'s required structure and the Relational Context inventory for this half only.
+For sandbox work the spec is a short architectural note: what is being built, what owns it, what it replaces, and the shapes to avoid. It supersedes `implementation_spec_standard.md`'s required structure and the Relational Context inventory for this track only.
 
 1. Name the owning modules and the direction of the change. Do not enumerate every file, signature, or call site — those are discovered during implementation.
 2. State the load-bearing decisions and the ones deliberately left open. Detail that cannot change the agreed shape does not belong in the note.
-3. Lifecycle tracking is one pointer or none. A demo change does not need a plan child, a `TODO.md` entry, and a spec to all agree before work starts.
-4. Verification is `dev/agent_rules/test_operations.md`, which for this half means `npm run verify` and looking at the thing: playing the demo, or opening a sandbox experiment's debug tool. Do not plan new automated coverage for `src/demo/` or `src/presentation/`; sandbox coverage stays inside the budget that file states.
-
-**Why:** the demo reached a playable state in a day; the surface it replaced took days longer and never got there. The difference was not effort, it was how much of each change went into describing the change. Preserving that speed is the point of this delta. Its demo scope expires when the demo is archived into the permanent architecture; its sandbox scope does not.
+3. Lifecycle tracking is one pointer or none.
+4. Verification is `dev/agent_rules/test_operations.md`, which for this track means `npm run verify` and opening the experiment's debug tool. Sandbox coverage stays inside the budget that file states.
 
 ## Explicit Second-Confirmation Bypass
 
@@ -89,7 +87,7 @@ The loop stops — genuinely stops, and asks — on any of the following. These 
 - A conflict between a child's `Execution` subsection and the live codebase that changes what the child does rather than only where it does it.
 - Scope growing past what the plan's Requirements ask for.
 - A verification failure not attributable to the loop's own edit, or two consecutive failed fix attempts on one check.
-- Anything requiring a destructive action, an external authorization, or a human judgement on an asset — including every judgement the demo half reserves for a person playing it.
+- Anything requiring a destructive action, an external authorization, or a human judgement on an asset — including every judgement reserved for a person playing the game.
 
 A stop ends the loop rather than pausing it. The remaining children go back to needing their own authorization, because whatever fired the guard is evidence the plan was less decided than it claimed.
 
