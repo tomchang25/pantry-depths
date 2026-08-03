@@ -8,6 +8,8 @@ This project inherits the shared default without override: agents treat Git as r
 
 ## Commit Messages
 
+Re-read this section immediately before composing each commit message. A read earlier in the same session does not satisfy this step.
+
 Follow `dev/foundation/core/workflows/commands/commit-msg.md` and the standards it references for format and content.
 
 A commit message is a changelog entry: it records what changed in the game or its tooling, in words a reader who has not seen the plan can follow. Every rule below is a consequence of that sentence.

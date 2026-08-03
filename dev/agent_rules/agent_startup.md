@@ -32,6 +32,7 @@ This file describes how to operate the repository. It deliberately says nothing 
 | Work                                                                               | Required reading                                                                          |
 | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | Run `/implement`                                                                   | `dev/agent_rules/implement_operations.md` plus the canonical `/implement` workflow        |
+| Run `/commit`                                                                      | `dev/workflows/commands/commit.md`, then the Git operations contract it routes to         |
 | Choose a probe, sketch, plan, or spec for new forward work                         | `dev/standards/work_lifecycle.addendum.md` after the foundation work lifecycle            |
 | Add or move a source file, create a layer, change an import direction              | `dev/standards/project_structure.addendum.md` and the platform project-structure standard |
 | Start, grow, graduate, or delete a sandbox experiment under `src/sandbox/`         | `dev/standards/sandbox_track.md`, then the owners it routes to                            |
