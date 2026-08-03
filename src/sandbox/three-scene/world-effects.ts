@@ -23,6 +23,7 @@ import { blocksProjectile } from "@/core/maze";
 import type { PropKind } from "@/core/prop-kinds";
 import { projectileHeight, type Enemy, type World } from "@/core/world";
 
+import { WALL_HEIGHT } from "./floor-meshes";
 import { SceneLighting } from "./scene-lighting";
 import { createSceneSprites, WARN_BLADE_STEPS, type SceneSpriteId, type SceneSprites } from "./scene-sprites";
 
@@ -34,6 +35,15 @@ const STAIN_RESOLUTION = 8;
 
 /** How many dots a frame can hold, per blend mode. A bomb in a crowd stays under this. */
 const PARTICLE_CAPACITY = 900;
+
+/** How many pictures a frame can hold per sheet. A detonation costs eleven, an arc eight. */
+const SHEET_CAPACITY = 160;
+
+/** How many beads a lightning arc is strung from. */
+const ARC_SEGMENTS = 7;
+
+/** How far off a wall a mark sits, so it draws in front of the masonry rather than inside it. */
+const WALL_MARK_CLEARANCE = 0.04;
 
 /** The colours the projection gives each kind of debris. */
 const PARTICLE_COLORS: Readonly<Record<string, readonly [number, number, number]>> = {
@@ -147,6 +157,16 @@ type DotField = {
   attribute: THREE.InstancedBufferAttribute;
 };
 
+/** One picture, drawn many times at many sizes and alphas: a fireball, an ember, a lightning bead. */
+type Blot = { x: number; y: number; z: number; size: number; alpha: number };
+
+/** The same pooling as a dot field, over a texture rather than a computed disc. */
+type SpriteField = {
+  mesh: THREE.InstancedMesh;
+  alpha: Float32Array;
+  attribute: THREE.InstancedBufferAttribute;
+};
+
 export type WorldEffects = Readonly<{
   root: THREE.Group;
   sync(world: World): void;
@@ -197,6 +217,46 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
 
   const plainDots = dotField(false);
   const additiveDots = dotField(true);
+
+  /**
+   * The two pictures a fight throws around: the fireball a detonation is, and the bead a lightning
+   * arc is strung from.
+   *
+   * Sheets rather than pooled meshes because a single bomb raises eleven of the first at once and an
+   * arc eight of the second, and both are gone within the second. Pooling by id would build and drop
+   * a dozen meshes per explosion.
+   */
+  const spriteField = (id: SceneSpriteId, additive: boolean): SpriteField => {
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const alpha = new Float32Array(SHEET_CAPACITY);
+    const attribute = new THREE.InstancedBufferAttribute(alpha, 1);
+    attribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute("aAlpha", attribute);
+    const material = lighting.spriteField(textureFor(id), additive);
+    const mesh = new THREE.InstancedMesh(geometry, material, SHEET_CAPACITY);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.frustumCulled = false;
+    mesh.count = 0;
+    root.add(mesh);
+    disposables.push(geometry, material, mesh);
+    return { mesh, alpha, attribute };
+  };
+
+  const fireballs = spriteField("blast", false);
+  const arcBeads = spriteField("spark", false);
+  const fireballBlots: Blot[] = [];
+  const arcBlots: Blot[] = [];
+
+  /** The mark a body driven into masonry leaves on it, one flat quad per death that left one. */
+  const wallMarks = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>>();
+  /** The warm patch of ground under a pickup, and the shadow under anything lobbed. */
+  const groundGlows = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>>();
+  const dropShadows = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>>();
+  const flatQuad = new THREE.PlaneGeometry(1, 1);
+  flatQuad.rotateX(-Math.PI / 2);
+  disposables.push(flatQuad);
+  const faceQuad = new THREE.PlaneGeometry(1, 1);
+  disposables.push(faceQuad);
 
   /** Pickups: one camera-facing picture each, at the size the floor authors for it. */
   const propMeshes = new Map<string, THREE.Mesh>();
@@ -279,15 +339,21 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
     sync(world) {
       plain.length = 0;
       additive.length = 0;
+      fireballBlots.length = 0;
+      arcBlots.length = 0;
       collectParticles(world);
       collectTrails(world);
       collectSightLines(world);
       collectBeacons(world);
       collectPlumes(world);
+      collectVfx(world);
       writeDots(plainDots, plain);
       writeDots(additiveDots, additive);
+      writeBlots(fireballs, fireballBlots);
+      writeBlots(arcBeads, arcBlots);
       syncProps(world);
       syncFlights(world);
+      syncWallMarks(world);
       syncStains(world);
     },
 
@@ -306,6 +372,14 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
 
       for (const mesh of flightSprites.values()) {
         mesh.material.dispose();
+      }
+
+      for (const pool of [wallMarks, groundGlows, dropShadows]) {
+        for (const mesh of pool.values()) {
+          mesh.material.dispose();
+        }
+
+        pool.clear();
       }
 
       stainTexture?.dispose();
@@ -566,6 +640,134 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
     }
   }
 
+  /**
+   * Detonations and lightning, which the experiment shook the camera for and drew nothing of.
+   *
+   * A fireball alone reads as a flash on the lens rather than as something that happened in the room,
+   * so the debris leaving the centre is what gives a blast a size a player can judge — and it is
+   * thrown along the ground, because that is where the thing that was standing there went.
+   *
+   * An arc is a line of beads with a perpendicular kink per segment, so it forks instead of reading as
+   * a ruler drawn between two bodies.
+   */
+  function collectVfx(world: World): void {
+    for (const effect of world.vfx) {
+      const life = Math.min(1, effect.age / effect.life);
+
+      if (effect.kind === "blast") {
+        fireballBlots.push({
+          x: effect.x,
+          y: effect.y,
+          // Expands and thins, which is the only way a still picture reads as a detonation.
+          z: effect.radius * (0.5 + life * 1.3) * 0.4,
+          size: effect.radius * (0.5 + life * 1.3),
+          alpha: 1 - life * life,
+        });
+
+        for (let ember = 0; ember < 10; ember += 1) {
+          const angle = (ember / 10) * Math.PI * 2 + effect.x;
+          const reach = effect.radius * (0.2 + life * 1.15);
+          const size = 0.34 * (1 - life);
+          fireballBlots.push({
+            x: effect.x + Math.cos(angle) * reach,
+            y: effect.y + Math.sin(angle) * reach,
+            z: size * 0.22 + life * 0.3,
+            size,
+            alpha: 1 - life,
+          });
+        }
+
+        continue;
+      }
+
+      const dx = effect.toX - effect.fromX;
+      const dy = effect.toY - effect.fromY;
+      const length = Math.max(0.0001, Math.hypot(dx, dy));
+
+      for (let segment = 0; segment <= ARC_SEGMENTS; segment += 1) {
+        const along = segment / ARC_SEGMENTS;
+        const jitter = Math.sin(along * Math.PI) * Math.sin(segment * 5.3 + effect.age * 40) * 0.16;
+        arcBlots.push({
+          x: effect.fromX + dx * along - (dy / length) * jitter,
+          y: effect.fromY + dy * along + (dx / length) * jitter,
+          z: 0.45,
+          size: 0.3 * (1 - life * 0.55),
+          alpha: 1 - life,
+        });
+      }
+    }
+  }
+
+  /** Writes a collected list of pictures into its sheet, at world size and its own alpha. */
+  function writeBlots(field: SpriteField, blots: readonly Blot[]): void {
+    const count = Math.min(blots.length, SHEET_CAPACITY);
+
+    for (let index = 0; index < count; index += 1) {
+      const blot = blots[index]!;
+      position.set(blot.x, blot.z, blot.y);
+      scale.setScalar(Math.max(0.001, blot.size));
+      field.mesh.setMatrixAt(index, matrix.compose(position, quaternion.identity(), scale));
+      field.alpha[index] = Math.max(0, Math.min(1, blot.alpha));
+    }
+
+    field.mesh.count = count;
+    field.mesh.instanceMatrix.needsUpdate = true;
+    field.attribute.needsUpdate = true;
+  }
+
+  /**
+   * What a body driven into masonry leaves on it.
+   *
+   * Fixed to the face rather than billboarded, which is the whole difference between a mark on a wall
+   * and a picture of one hovering near it. The axis of travel is snapped to the cell boundary the body
+   * was going towards, pulled back a hair so it draws in front of the stone; the other axis keeps the
+   * body's own position, which is what spreads a row of marks along a wall instead of stacking them.
+   */
+  function syncWallMarks(world: World): void {
+    const present = new Set<string>();
+
+    for (const death of world.deaths) {
+      if (death.cause !== "splattered") {
+        continue;
+      }
+
+      present.add(death.id);
+      let mesh = wallMarks.get(death.id);
+
+      if (!mesh) {
+        const material = lighting.sprite(textureFor("wallSplat"));
+        mesh = new THREE.Mesh(faceQuad, material);
+        mesh.frustumCulled = false;
+        // Just off the masonry and drawn after it, so the mark never fights the wall for depth.
+        mesh.renderOrder = 2;
+        wallMarks.set(death.id, mesh);
+        root.add(mesh);
+      }
+
+      // Hits at speed and spreads, then holds. Nothing about a stain moves after the first moment.
+      const size = 0.58 + Math.min(1, death.progress / 0.3) * 0.34;
+      const acrossX = Math.abs(death.directionX) >= Math.abs(death.directionY);
+      const travel = acrossX ? death.directionX : death.directionY;
+      const along = acrossX ? death.x : death.y;
+      const face = travel > 0 ? Math.ceil(along) - WALL_MARK_CLEARANCE : Math.floor(along) + WALL_MARK_CLEARANCE;
+      mesh.position.set(acrossX ? face : death.x, wallMarkHeight(size), acrossX ? death.y : face);
+      // The quad faces back the way the body came from, which is the only side the mark can be seen
+      // from: the masonry is behind it and the open cell the body crossed is in front.
+      mesh.rotation.y = acrossX ? (travel > 0 ? -Math.PI / 2 : Math.PI / 2) : travel > 0 ? Math.PI : 0;
+      mesh.scale.setScalar(size);
+    }
+
+    for (const [id, mesh] of wallMarks) {
+      if (present.has(id)) {
+        continue;
+      }
+
+      root.remove(mesh);
+      mesh.material.dispose();
+      wallMarks.delete(id);
+    }
+  }
+
   /** Writes a collected list into its instanced sheet, oldest first so overlap reads as depth. */
   function writeDots(field: DotField, dots: readonly Dot[]): void {
     const count = Math.min(dots.length, PARTICLE_CAPACITY);
@@ -625,6 +827,9 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
       const size = display?.floorScale ?? 0.4;
       mesh.position.set(prop.x, size / 2 + (display?.floorAnchor ?? 0), prop.y);
       mesh.scale.setScalar(size);
+      // A warm patch of ground under the pile. Small, and it is what stops a pickup reading as
+      // hovering: a picture standing on stone with nothing under it has no contact with the floor.
+      flatMark(groundGlows, "groundGlow", prop.id, prop.x, prop.y, 0.75 + Math.min(3, prop.count) * 0.1);
     }
 
     for (const [id, mesh] of propMeshes) {
@@ -636,6 +841,54 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
       propMaterials.get(id)?.dispose();
       propMaterials.delete(id);
       propMeshes.delete(id);
+    }
+
+    dropUnseen(groundGlows, seen);
+  }
+
+  /**
+   * A picture lying flat on the ground, pooled by whatever raised it.
+   *
+   * Flat rather than billboarded on purpose: a glow under a pickup and a shadow under a thrown rock
+   * are both marks on the floor, and a camera-facing quad squashed towards the ground is the sticker
+   * this experiment already rejected once for the warning marks.
+   */
+  function flatMark(
+    pool: Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>>,
+    sprite: SceneSpriteId,
+    id: string,
+    x: number,
+    y: number,
+    size: number,
+  ): void {
+    let mesh = pool.get(id);
+
+    if (!mesh) {
+      const material = lighting.sprite(textureFor(sprite));
+      mesh = new THREE.Mesh(flatQuad, material);
+      mesh.frustumCulled = false;
+      // Above the stain sheet, which is itself just above the flagstones.
+      mesh.renderOrder = 2;
+      pool.set(id, mesh);
+      root.add(mesh);
+    }
+
+    mesh.position.set(x, 0.012, y);
+    mesh.scale.setScalar(size);
+  }
+
+  function dropUnseen(
+    pool: Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>>,
+    seen: ReadonlySet<string>,
+  ): void {
+    for (const [id, mesh] of pool) {
+      if (seen.has(id)) {
+        continue;
+      }
+
+      root.remove(mesh);
+      mesh.material.dispose();
+      pool.delete(id);
     }
   }
 
@@ -649,9 +902,18 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
    */
   function syncFlights(world: World): void {
     const live = new Set<string>();
+    const shadowed = new Set<string>();
 
     for (const projectile of world.projectiles) {
       const height = projectileHeight(projectile);
+
+      // Anything lobbed marks where it is coming down, and the shadow is the aiming feedback. Keyed
+      // on the fall rather than on the rise, because a downward lob has a negative one.
+      if (projectile.fall > 0) {
+        shadowed.add(projectile.id);
+        flatMark(dropShadows, "dropShadow", projectile.id, projectile.x, projectile.y, 0.5);
+      }
+
       const flying = FLYING_RODS[projectile.kind as PropKind];
 
       if (flying) {
@@ -710,6 +972,7 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
       flightSprites.delete(id);
     }
 
+    dropUnseen(dropShadows, shadowed);
     let incoming = 0;
 
     for (const hazard of world.hazards) {
@@ -855,6 +1118,17 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
 
     stainTexture.needsUpdate = true;
   }
+}
+
+/**
+ * How high up the face a mark of this size hangs.
+ *
+ * Low, and clamped so the top of it never clears the stone. The walls here are a single storey and
+ * everything above them is open sky, so a mark centred where a body's chest was would put half a
+ * splatter in the night.
+ */
+function wallMarkHeight(size: number): number {
+  return Math.min(WALL_HEIGHT - size * 0.5, size * 0.62);
 }
 
 /** Which cell of the sword marker's strip says how far a wind-up has charged. */

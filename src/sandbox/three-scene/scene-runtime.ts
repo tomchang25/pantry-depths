@@ -28,6 +28,7 @@ import {
 import { stepWorld } from "@/core/simulation";
 import type { ResolvedMap } from "@/core/map-contract";
 
+import { collectFloorDecals } from "./floor-decals";
 import { buildFloorMeshes, triangleCount, type FloorMeshes } from "./floor-meshes";
 import { buildSky, type Sky } from "./sky";
 import { createSceneTextures, type SceneTextureSet } from "./scene-textures";
@@ -401,7 +402,88 @@ export class SceneRuntime {
       });
     }
 
+    this.collectWindupLights(elapsedSeconds);
+    this.collectVfxLights();
     return this.lights;
+  }
+
+  /**
+   * The light a body throws while it is committed to something, one class per intent.
+   *
+   * Three lights rather than one in three colours, because the three say different things and want
+   * different reach. A shot gathers inside the body and lights the ground it is standing on — enough
+   * to catch the eye off to one side of the view without competing with the torch. A sword has a full
+   * second to carry across a crowded room, so it pulses, on the same clock as the mark over its head
+   * and the wedge on the ground. A charge is the loudest thing in the room besides the torch: it
+   * holds still for three seconds, which is long enough to miss entirely, so it lights the walls and a
+   * charge being stoked behind you becomes something the room tells you about.
+   */
+  private collectWindupLights(elapsedSeconds: number): void {
+    for (const enemy of this.world.enemies) {
+      if (enemy.windupSeconds <= 0) {
+        continue;
+      }
+
+      const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
+
+      if (enemy.intent === "shoot") {
+        this.lights.push({
+          x: enemy.x,
+          y: enemy.y,
+          radius: 1.4 + progress * 1.1,
+          intensity: 0.35 + progress * 0.75,
+          color: [255, 108, 96],
+        });
+        continue;
+      }
+
+      if (enemy.intent === "melee") {
+        this.lights.push({
+          x: enemy.x,
+          y: enemy.y,
+          radius: 1.6 + progress * 1.8,
+          intensity: (0.3 + progress * 1.05) * (0.88 + Math.sin(elapsedSeconds * (8 + progress * 16)) * 0.12),
+          color: [255, 146, 112],
+        });
+        continue;
+      }
+
+      if (enemy.intent === "charge") {
+        this.lights.push({
+          x: enemy.x,
+          y: enemy.y,
+          radius: 2 + progress * 3,
+          intensity: (0.4 + progress * 1.5) * (0.9 + Math.sin(elapsedSeconds * (7 + progress * 12)) * 0.1),
+          color: [255, 96, 48],
+        });
+      }
+    }
+  }
+
+  /** What a detonation and a lightning arc throw onto everything around them while they last. */
+  private collectVfxLights(): void {
+    for (const effect of this.world.vfx) {
+      const life = Math.min(1, effect.age / effect.life);
+
+      if (effect.kind === "blast") {
+        this.lights.push({
+          x: effect.x,
+          y: effect.y,
+          radius: effect.radius * (1.6 + life * 1.6),
+          intensity: 1.6 * (1 - life),
+          color: [255, 176, 84],
+        });
+        continue;
+      }
+
+      this.lights.push({
+        x: (effect.fromX + effect.toX) / 2,
+        y: (effect.fromY + effect.toY) / 2,
+        radius: 3.4,
+        intensity: 1.2 * (1 - life),
+        color: [150, 214, 255],
+      });
+    }
   }
 
   private readonly frame = (time: number): void => {
@@ -437,6 +519,7 @@ export class SceneRuntime {
 
     this.sky.root.position.set(player.x, 0, player.y);
     this.lighting.update(elapsed, this.collectLights(elapsed));
+    this.lighting.updateDecals(collectFloorDecals(this.world));
 
     this.bodies.sync(this.world, elapsed, this.paused ? 0 : delta);
     this.structures.sync(this.world);

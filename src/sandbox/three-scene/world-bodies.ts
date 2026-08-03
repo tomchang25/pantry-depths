@@ -18,7 +18,7 @@ import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 import entityDisplayJson from "@/content/enemies/entity-display.json";
 import { entityDisplaysByAppearance, parseEntityDisplays } from "@/content/enemies/entity-display-schema";
 import { attackCooldown, isBoned, STRIKE_SECONDS, type EnemyAppearanceId } from "@/core/enemy-contract";
-import { bodyFootprint, type Death, type Enemy, type World } from "@/core/world";
+import { bodyFootprint, projectileHeight, type Death, type Enemy, type World } from "@/core/world";
 
 import type { SceneLighting } from "./scene-lighting";
 import { createSceneSprites, WARN_BLADE_STEPS, type SceneSpriteId } from "./scene-sprites";
@@ -143,6 +143,17 @@ export type WorldBodies = Readonly<{
   sync(world: World, elapsedSeconds: number, deltaSeconds: number): void;
   dispose(): void;
 }>;
+
+/**
+ * How long a struck body stays flashed, copied from the rule that sets it.
+ *
+ * Read here only to run the clock backwards: the spark grows across the flash rather than fading, so
+ * it needs the length the countdown started from and the rules export only the countdown.
+ */
+const HURT_SECONDS = 0.28;
+
+/** How far behind the point of a shaft the first carried body rides, and how far apart they sit. */
+const SKEWER_BACK = 0.3;
 
 /** How many stars orbit a stunned head, how far out, and how big each one is. */
 const STUN_STARS = 3;
@@ -391,6 +402,10 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
         blob.mesh.material.uniforms.uFlash!.value = flash;
       }
 
+      // Before the sweep, because a body riding a shaft is kept by the same map and would otherwise
+      // be swept the frame after it was placed: it left the enemy list the moment it was run through.
+      syncCarried(world, livingBoned, livingSoft, deltaSeconds);
+
       for (const [id, body] of boned) {
         if (livingBoned.has(id)) {
           continue;
@@ -436,6 +451,65 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
   };
 
   /**
+   * The bodies a javelin is carrying.
+   *
+   * A run-through body has left the enemy list — nothing steps it any more — so it is keyed off the
+   * shaft it is riding rather than off itself, and it is spaced back from the point so a javelin that
+   * took three of them reads as three rather than as one thick one.
+   *
+   * They are the same armature every other body is, which is the difference from the shipped renderer:
+   * that one draws them from the impaled death bake, and this block set has no impaled clip. So the
+   * body plays its standing clip and is tipped back along the shaft instead, which reads as carried
+   * rather than as walking through the air. A real pose belongs to the modelling plan.
+   */
+  function syncCarried(world: World, livingBoned: Set<string>, livingSoft: Set<string>, deltaSeconds: number): void {
+    for (const projectile of world.projectiles) {
+      projectile.skewered.forEach((enemy, index) => {
+        const id = `${projectile.id}-run-${index}`;
+        const back = SKEWER_BACK + index * SKEWER_BACK;
+        const x = projectile.x - projectile.directionX * back;
+        const y = projectile.y - projectile.directionY * back;
+        const height = projectileHeight(projectile);
+
+        if (!isBoned(enemy.archetype)) {
+          livingSoft.add(id);
+          let blob = soft.get(id);
+
+          if (!blob) {
+            blob = spawnSoft(enemy);
+            soft.set(id, blob);
+          }
+
+          const profile = slimeProfile(enemy.appearance);
+          const footprint = bodyFootprint(enemy.archetype);
+          blob.mesh.position.set(x, height, y);
+          blob.mesh.scale.set(footprint * 2, profile.height, footprint * 2);
+          return;
+        }
+
+        livingBoned.add(id);
+        let body = boned.get(id);
+
+        if (!body) {
+          body = spawnBoned(enemy);
+
+          if (!body) {
+            return;
+          }
+
+          boned.set(id, body);
+        }
+
+        body.root.position.set(x, height - 0.28, y);
+        body.root.rotation.y = Math.PI / 2 - enemy.facingAngle;
+        // Tipped onto its back along the shaft, which is what a body being carried by one looks like.
+        body.root.rotation.z = -1.15;
+        playClip(body, "idle", 0, deltaSeconds);
+      });
+    }
+  }
+
+  /**
    * The mark over a committed body, and the stars over a clubbed one.
    *
    * Both float at the body's own crown, which is the authored height rather than a constant: a green
@@ -463,6 +537,17 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
           );
           star.scale.setScalar(STUN_STAR_SCALE);
         }
+      }
+
+      // A short spark where the blow landed. The white flash on the body says something connected;
+      // this says where, which is what makes a crowded melee readable at all.
+      if (enemy.hurtSeconds > 0) {
+        const id = `${enemy.id}-spark`;
+        present.add(id);
+        const size = 0.16 + (HURT_SECONDS - enemy.hurtSeconds) * 0.7;
+        const spark = markerAt(id, "hitSpark");
+        spark.position.set(enemy.x, size * 0.84, enemy.y);
+        spark.scale.setScalar(size);
       }
 
       if (enemy.windupSeconds <= 0 || enemy.intent === "none") {

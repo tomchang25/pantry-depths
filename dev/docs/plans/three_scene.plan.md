@@ -67,10 +67,10 @@ Three children shipped on 2026-08-03 — the static floor, the live world, and t
 
 The porting survey then found six checklist rows unbuilt, so the verdict waits on two more children rather than on the fourth.
 
-| #   | Child              | Focus                                                                                                                    | Form            |
-| --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------ | --------------- |
-| 5   | What a fight draws | Detonations and arcs, the warning marks on the ground, the mark on masonry, and the small readability cues around a body | Execution below |
-| 6   | The finishing pass | Air motes, the vignette and its warm centre, and the red answer to a hit                                                 | Execution below |
+| #   | Child              | Focus                                                                                                                    | Form                                                       |
+| --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| 5   | What a fight draws | Detonations and arcs, the warning marks on the ground, the mark on masonry, and the small readability cues around a body | `three_scene_05_what_a_fight_draws.implementation_spec.md` |
+| 6   | The finishing pass | Air motes, the vignette and its warm centre, and the red answer to a hit                                                 | Execution below                                            |
 
 Landing order is 5 then 6, and the order matters only in that 6 is a pass laid over whatever 5 leaves behind — judging the grade against a frame with no explosions in it would tune it against the wrong picture.
 

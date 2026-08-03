@@ -33,6 +33,20 @@ const MAX_DEPTH = 18;
 /** How many placed lights a frame can carry. Well above what a floor holds; costs a loop, not a recompile. */
 const MAX_LIGHTS = 24;
 
+/**
+ * How many marks the ground can carry at once.
+ *
+ * Thirty-two because that is the renderer's own cap: it tracks which decals reach a cell as a bit per
+ * decal in a `Uint32Array`, so the thirty-third was never drawn there either. Anything past it is
+ * dropped rather than queued.
+ */
+const MAX_DECALS = 32;
+
+/** The three tests the ground runs, as the renderer numbers them. A disc is a ring with no hole. */
+const DECAL_RADIAL = 0;
+const DECAL_LANE = 1;
+const DECAL_SECTOR = 2;
+
 /** The ink every surface class fades toward with distance. */
 const FOG_INK = "vec3(13.0, 5.0, 24.0) / 255.0";
 
@@ -52,6 +66,33 @@ export type SceneLight = Readonly<{
   /** Packed as the renderer holds it: 0-255 per channel. */
   color: readonly [number, number, number];
 }>;
+
+/**
+ * A shape painted into the ground, in the flattened form the fragment tests.
+ *
+ * Deliberately the renderer's prepared form rather than the authored vocabulary: squared radii, a
+ * cosine in place of a half-angle, and one slot doing different work per kind. The alternative is
+ * doing that arithmetic per pixel instead of once per frame, for a shape that covers most of the
+ * screen when it covers anything.
+ */
+export type SceneDecal = Readonly<{
+  kind: typeof DECAL_RADIAL | typeof DECAL_LANE | typeof DECAL_SECTOR;
+  x: number;
+  y: number;
+  /** Radial and sector: squared outer radius. Lane: length along its direction. */
+  outer: number;
+  /** Radial: squared inner radius, zero for a disc. Lane: half its width. Sector: the half-angle's cosine. */
+  inner: number;
+  directionX: number;
+  directionY: number;
+  /** 0-255 per channel, like every other colour here. */
+  color: readonly [number, number, number];
+  strength: number;
+}>;
+
+export const SCENE_DECAL_RADIAL = DECAL_RADIAL;
+export const SCENE_DECAL_LANE = DECAL_LANE;
+export const SCENE_DECAL_SECTOR = DECAL_SECTOR;
 
 /**
  * What every material shares: where the eye is, how far along the flicker is, and the light list.
@@ -212,21 +253,86 @@ const WALL_FRAGMENT = fragmentFor(
 );
 
 /**
+ * The marks painted into the ground: a charger's lane, a cut's wedge, the ring a shell will land in.
+ *
+ * In the ground's own shader rather than on quads laid over it, which is the whole of what makes them
+ * marks. A quad takes its own brightness instead of the room's, fights the floor for depth, and lifts
+ * away from it at the edges of the view — the renderer's own note on this channel says so, and says
+ * that a decal is instead a test against the position the floor is already being sampled at.
+ *
+ * Later decals overwrite earlier ones rather than accumulating, so a caller stacks a fill and then an
+ * edge over it and gets a hard rim. That is the renderer's rule and the reason a closing circle keeps
+ * its outline right up to the moment it is full.
+ */
+const DECAL_GLSL = `
+uniform int uDecalCount;
+uniform vec4 uDecals[${MAX_DECALS}];
+uniform vec4 uDecalShape[${MAX_DECALS}];
+uniform vec4 uDecalTint[${MAX_DECALS}];
+
+vec4 decalAt(vec2 ground) {
+  vec3 mark = vec3(0.0);
+  float amount = 0.0;
+
+  for (int index = 0; index < ${MAX_DECALS}; index += 1) {
+    if (index >= uDecalCount) {
+      break;
+    }
+
+    vec4 decal = uDecals[index];
+    vec4 shape = uDecalShape[index];
+    vec2 to = ground - decal.xy;
+    int kind = int(decal.z);
+    bool covered = false;
+
+    if (kind == ${DECAL_LANE}) {
+      float along = dot(to, shape.zw);
+      float across = to.y * shape.z - to.x * shape.w;
+      covered = along >= 0.0 && along <= shape.x && abs(across) <= shape.y;
+    } else {
+      float squared = dot(to, to);
+
+      if (kind == ${DECAL_SECTOR}) {
+        // Compared as cosines rather than angles, so a wedge costs a dot product and one square root
+        // instead of an arctangent per pixel.
+        float reach = sqrt(squared);
+        covered = squared <= shape.x && reach > 0.0001 && dot(to, shape.zw) / reach >= shape.y;
+      } else {
+        covered = squared <= shape.x && squared >= shape.y;
+      }
+    }
+
+    if (covered) {
+      mark = uDecalTint[index].rgb;
+      amount = decal.w;
+    }
+  }
+
+  return vec4(mark, amount);
+}
+`;
+
+/**
  * Ground.
  *
  * Additive rather than a composite, and that is not a stylistic difference — the renderer's plane
  * pass writes `texel * fog + flat * (1 - fog) + gain * torch` per pixel, and the third term has a
  * negative blue. A floor near the torch therefore goes warm by losing blue as well as by gaining red.
+ *
+ * The mark goes into the texel first, before any of that, so a warning painted on a floor two rooms
+ * away fogs like the stone it is painted on rather than glowing through the dark at full strength.
  */
 const PLANE_FRAGMENT = fragmentFor(
   `
   vec4 texel = texture2D(uMap, vUv);
+  vec4 mark = decalAt(vWorldPos.xz);
+  vec3 ground = mix(texel.rgb, mark.rgb, mark.a);
   float fog = clamp(1.0 - vDepth / ${MAX_DEPTH}.0, 0.12, 1.0);
   float torch = clamp(1.2 - vDepth / 8.0, 0.0, 1.0) * torchFlicker();
-  vec3 color = texel.rgb * fog + ${PLANE_FOG_FLAT} * (1.0 - fog) + ${PLANE_TORCH_GAIN} * torch;
+  vec3 color = ground * fog + ${PLANE_FOG_FLAT} * (1.0 - fog) + ${PLANE_TORCH_GAIN} * torch;
   gl_FragColor = vec4(max(color, vec3(0.0)), 1.0);
 `,
-  "uniform sampler2D uMap;",
+  `uniform sampler2D uMap;\n${DECAL_GLSL}`,
 );
 
 /**
@@ -418,6 +524,71 @@ void main() {
 `;
 
 /**
+ * A pooled sheet of pictures, each with its own alpha: a fireball thinning as it expands, the beads
+ * an arc is strung from, the shadow under a lobbed rock.
+ *
+ * The dot field beside it cannot do this job and should not be taught to. A dot is a flat filled
+ * circle because that is literally what the renderer's particle pass draws — `arc` then `fill` — and
+ * a detonation is a radial gradient with a white core. So this is the dot field's textured sibling:
+ * the same instancing, the same per-instance alpha, sampling a picture and taking the sprite
+ * formula's fog and warmth.
+ */
+const SPRITE_FIELD_VERTEX_GLSL = `
+varying vec3 vWorldPos;
+varying float vDepth;
+varying vec3 vWorldNormal;
+varying vec2 vUv;
+varying float vSheetAlpha;
+
+attribute float aAlpha;
+
+void main() {
+  vUv = uv;
+  vSheetAlpha = aAlpha;
+
+  vec4 local = vec4(0.0, 0.0, 0.0, 1.0);
+  vec2 span = vec2(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz));
+
+  #ifdef USE_INSTANCING
+    local = instanceMatrix * local;
+    span *= vec2(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz));
+  #endif
+
+  vec2 offset = span * position.xy;
+  vec4 world = modelMatrix * local;
+  vWorldPos = world.xyz;
+  vec4 viewPosition = viewMatrix * world;
+  viewPosition.xy += offset;
+  vDepth = -viewPosition.z;
+  vWorldNormal = vec3(0.0, 1.0, 0.0);
+  gl_Position = projectionMatrix * viewPosition;
+}
+`;
+
+const SPRITE_FIELD_FRAGMENT = `
+uniform sampler2D uMap;
+${COMMON_GLSL}
+
+varying vec3 vWorldNormal;
+varying vec2 vUv;
+varying float vSheetAlpha;
+
+void main() {
+  vec4 texel = texture2D(uMap, vUv);
+  float alpha = texel.a * vSheetAlpha;
+
+  if (alpha < 0.004) {
+    discard;
+  }
+
+  vec4 warm = warmthAt(vWorldPos, vDepth);
+  vec3 color = mix(texel.rgb, ${FOG_INK}, clamp(vDepth / ${MAX_DEPTH}.0, 0.0, 0.82));
+  color = mix(color, warm.rgb, warm.a * 0.22);
+  gl_FragColor = vec4(color, alpha);
+}
+`;
+
+/**
  * A hex colour as three raw sRGB fractions.
  *
  * `THREE.Color` would linearise it, which is right for a physically lit scene and wrong here: the
@@ -444,10 +615,24 @@ export class SceneLighting {
     });
   }
 
+  /**
+   * The ground's marks, held apart from the light list because only the ground reads them.
+   *
+   * Handed out by reference like the lights above, so one write reaches every floor material — and
+   * spread into nothing else, since a wall carrying thirty-two unused shape slots is thirty-two
+   * uniform vectors a driver has to find room for on every wall material there is.
+   */
+  private readonly decals = {
+    uDecalCount: { value: 0 },
+    uDecals: { value: Array.from({ length: MAX_DECALS }, () => new THREE.Vector4()) },
+    uDecalShape: { value: Array.from({ length: MAX_DECALS }, () => new THREE.Vector4()) },
+    uDecalTint: { value: Array.from({ length: MAX_DECALS }, () => new THREE.Vector4()) },
+  };
+
   /** Ground: one material per floor texture. */
   plane(map: THREE.Texture): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
-      uniforms: { ...this.shared, uMap: { value: map } },
+      uniforms: { ...this.shared, ...this.decals, uMap: { value: map } },
       vertexShader: VERTEX_GLSL,
       fragmentShader: PLANE_FRAGMENT,
     });
@@ -539,6 +724,41 @@ export class SceneLighting {
       depthWrite: false,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
+  }
+
+  /**
+   * A pooled sheet of one picture, drawn many times at many alphas.
+   *
+   * `additive` is the same choice the dot field makes: a lightning bead brightens the room, a drop
+   * shadow darkens the ground under it, and the two cannot share a blend mode.
+   */
+  spriteField(map: THREE.Texture, additive = false): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+      uniforms: { ...this.shared, uMap: { value: map } },
+      vertexShader: SPRITE_FIELD_VERTEX_GLSL,
+      fragmentShader: SPRITE_FIELD_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    });
+  }
+
+  /**
+   * Puts this frame's marks where the ground can read them.
+   *
+   * Rebuilt whole every frame rather than diffed: the list is short, every entry moves — a lane
+   * sweeps, a circle blinks, a wedge opens — and the cost is a few dozen vector writes.
+   */
+  updateDecals(decals: readonly SceneDecal[]): void {
+    const count = Math.min(decals.length, MAX_DECALS);
+    this.decals.uDecalCount.value = count;
+
+    for (let index = 0; index < count; index += 1) {
+      const decal = decals[index]!;
+      this.decals.uDecals.value[index]!.set(decal.x, decal.y, decal.kind, Math.max(0, Math.min(1, decal.strength)));
+      this.decals.uDecalShape.value[index]!.set(decal.outer, decal.inner, decal.directionX, decal.directionY);
+      this.decals.uDecalTint.value[index]!.set(decal.color[0] / 255, decal.color[1] / 255, decal.color[2] / 255, 0);
+    }
   }
 
   /**

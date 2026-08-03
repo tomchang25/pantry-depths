@@ -7,8 +7,9 @@
  * of dust here is the puff of dust the game draws.
  *
  * Cut down to what an assembled floor actually raises: the soft blobs every particle is made of, the
- * three wind-up markers, the pickups, and the few glows. The atlases and the wall mark are left
- * behind — the bodies are block models here and nothing is pinned to masonry yet.
+ * three wind-up markers, the pickups, the few glows, and what a fight adds to them — the fireball, the
+ * contact spark, the lightning bead and the mark a body leaves on masonry. The enemy atlases are the
+ * one thing left behind, because the bodies are block models here.
  */
 
 const SPRITE_SIZE = 512;
@@ -266,6 +267,120 @@ function bombPile(): HTMLCanvasElement {
   return canvas;
 }
 
+/** A detonation's fireball: hot to white at the core, thinning to nothing at the rim. */
+function blast(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const fire = context.createRadialGradient(256, 256, 20, 256, 256, 250);
+  fire.addColorStop(0, "rgb(255 252 226 / 96%)");
+  fire.addColorStop(0.3, "rgb(255 176 62 / 88%)");
+  fire.addColorStop(0.66, "rgb(226 74 40 / 62%)");
+  fire.addColorStop(1, "rgb(120 24 20 / 0%)");
+  context.fillStyle = fire;
+  context.beginPath();
+  context.arc(256, 256, 250, 0, Math.PI * 2);
+  context.fill();
+  return canvas;
+}
+
+/**
+ * The mark a landed hit leaves: a tight core with shards thrown off it.
+ *
+ * Distinct from the fireball above, which swallows whatever it is drawn over. What a hit needs is
+ * something small and sharp enough to point at a body without hiding it.
+ */
+function hitSpark(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const core = context.createRadialGradient(256, 256, 0, 256, 256, 96);
+  core.addColorStop(0, "rgb(255 250 226 / 96%)");
+  core.addColorStop(0.4, "rgb(255 196 120 / 72%)");
+  core.addColorStop(1, "rgb(255 140 60 / 0%)");
+  context.fillStyle = core;
+  context.beginPath();
+  context.arc(256, 256, 96, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = "rgb(255 226 176 / 88%)";
+  context.lineCap = "round";
+
+  for (let shard = 0; shard < 7; shard += 1) {
+    const angle = (shard / 7) * Math.PI * 2 + 0.4;
+    const inner = 40 + ((shard * 37) % 30);
+    const outer = inner + 90 + ((shard * 61) % 80);
+    context.lineWidth = 13 - (shard % 3) * 3;
+    context.beginPath();
+    context.moveTo(256 + Math.cos(angle) * inner, 256 + Math.sin(angle) * inner);
+    context.lineTo(256 + Math.cos(angle) * outer, 256 + Math.sin(angle) * outer);
+    context.stroke();
+  }
+
+  return canvas;
+}
+
+/**
+ * What a body driven into masonry leaves on it.
+ *
+ * The runs and the drop at the end of each are the one thing that tells a viewer this is on a wall
+ * and not on the ground, so they are drawn downward from the centre of the mark rather than radially.
+ */
+function wallSplat(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  const core = context.createRadialGradient(256, 236, 10, 256, 236, 210);
+  core.addColorStop(0, "rgb(168 26 34 / 94%)");
+  core.addColorStop(0.42, "rgb(126 18 28 / 82%)");
+  core.addColorStop(0.78, "rgb(86 12 22 / 44%)");
+  core.addColorStop(1, "rgb(70 10 18 / 0%)");
+  context.fillStyle = core;
+
+  // An irregular rim rather than a circle, so the edge reads as something that hit and spread.
+  context.beginPath();
+
+  for (let step = 0; step <= 48; step += 1) {
+    const angle = (step / 48) * Math.PI * 2;
+    const wobble = 0.72 + Math.sin(angle * 3 + 0.7) * 0.14 + Math.sin(angle * 7 + 2.1) * 0.09;
+    const radius = 210 * wobble;
+    const x = 256 + Math.cos(angle) * radius;
+    const y = 236 + Math.sin(angle) * radius * 0.86;
+
+    if (step === 0) {
+      context.moveTo(x, y);
+      continue;
+    }
+
+    context.lineTo(x, y);
+  }
+
+  context.fill();
+  context.fillStyle = "rgb(120 16 26 / 76%)";
+
+  for (const run of [
+    { x: 176, width: 15, length: 172 },
+    { x: 232, width: 21, length: 232 },
+    { x: 296, width: 13, length: 138 },
+    { x: 336, width: 17, length: 196 },
+  ]) {
+    context.fillRect(run.x, 236, run.width, run.length);
+    context.beginPath();
+    context.arc(run.x + run.width / 2, 236 + run.length, run.width * 0.8, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  // A few flecks thrown clear of the main mark, which is what stops the outline reading as drawn.
+  context.fillStyle = "rgb(150 22 32 / 68%)";
+
+  for (const fleck of [
+    { x: 96, y: 150, radius: 15 },
+    { x: 402, y: 188, radius: 12 },
+    { x: 350, y: 96, radius: 9 },
+    { x: 140, y: 320, radius: 11 },
+  ]) {
+    context.beginPath();
+    context.arc(fleck.x, fleck.y, fleck.radius, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  return canvas;
+}
+
 /** The player's own lightning, and the bead every arc is strung from. */
 function spark(): HTMLCanvasElement {
   const [canvas, context] = surface();
@@ -465,7 +580,10 @@ export type SceneSpriteId =
   | "stickPile"
   | "rockPile"
   | "bombPile"
+  | "blast"
+  | "hitSpark"
   | "spark"
+  | "wallSplat"
   | "hazardOrb"
   | "bubble"
   | "stunStar"
@@ -491,7 +609,10 @@ export function createSceneSprites(): SceneSprites {
     stickPile: spikePile(),
     rockPile: rockPile(),
     bombPile: bombPile(),
+    blast: blast(),
+    hitSpark: hitSpark(),
     spark: spark(),
+    wallSplat: wallSplat(),
     hazardOrb: hazardOrb(),
     bubble: bubble(),
     stunStar: stunStar(),
