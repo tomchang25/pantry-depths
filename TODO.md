@@ -23,6 +23,7 @@ Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line 
 A brief lives here too and is the one kind of line `/implement` cannot take: it is format-free material handed to a later session, it authorizes nothing, and it is spent once it has seeded a real artifact. `dev/standards/work_lifecycle.addendum.md` owns its rules.
 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
+- [scene_routes] Give each development scene its own route and retire the map query parameter - [ref plans/scene_routes.implementation_spec.md]
 - [humanoid_block_bodies] Draft plan for one rig, one clip set and one part vocabulary across every humanoid, with death clips first - [ref plans/humanoid_block_bodies.plan.md]
 - [slime_bodies] Draft plan for what a slime is made of, blocked on choosing between a fluid body and a hopping block one - [ref plans/slime_bodies.plan.md]
 
@@ -58,19 +59,19 @@ What makes this a decision rather than a queue is how far the contract should be
 
 Not scheduled. What would force it is a second stage, or the first authored floor that genuinely has no stairs.
 
-### Scenes Are Routes, Not A Query Parameter
+### A Boss Lab As A Scene Catalog Entry
 
-The direction is chosen: a development scene gets an address of its own. The sandbox goes to `/sandbox`, the room built to film promotional footage in goes to `/soundstage`, and a testbed scene goes to `/testbed/<scene name>`. What is not wanted is what exists — every one of them reached by naming a map in a query on the ordinary play route.
+When the scene routes ship (the `[scene_routes]` line above), the expected second consumer of the scene catalog is a boss lab: the real game opened on a boss-test floor, with the boss's FSM or decision tree read out on the instrument layer and its transitions forced from commands and keys. On the catalog that is one entry plus one hooks bundle — state as panel chips, control as commands — and no play-surface branch, which is exactly the claim the scene-routes acceptance criteria make and this scene would prove.
 
-The parameter is the wrong shape for three reasons, and the third is the one that matters. It puts every development floor on the address of the shipped game, which is now shut by ignoring the parameter outside development — a lid on the problem rather than an answer to it. It gives a scene nothing to own but a map name, so two scenes wanting different rules have nowhere to put them. And a scene is not a floor: the filming stage needs a fixed arrival, a way down that cannot be reached, a hidden instrument layer, and four keys nobody else should have, and none of that is expressible as content — so it is keyed off a string comparison against a map name inside the runtime's stage dressing (`src/runtime/stage.ts`). That comparison is a scene identity smuggled in as a literal, and a second scene doubles it.
+Three boundaries were decided in the conversation that produced this entry, recorded so the lab does not drift while waiting:
 
-What a scene would own, on the evidence of the one that exists: its address, the floor it opens, how arriving on it is dressed, which keys it adds, and what the screen shows by default. Five things, five places they currently live, none of them the same place.
+- An instrument wanted on any floor is not a scene. A pathfinding display belongs on the dev overlay beside torch and god mode, available wherever play runs; a scene owns only what is tied to its session.
+- The scene hooks deliberately carry no render hook. FSM target lines or path traces drawn into the 3D picture are a renderer debug-layer question, one level deeper than routing; a render hook is added when the first tool that actually draws exists, not before.
+- The plain testbed stays plain. It is the control group a dressed scene is compared against, and a scene never keys off a map name — identity lives on the address.
 
-Three questions decide the shape and none is answered. Whether these are more debug routes or a third route class beside the ordinary and debug ones, given that the route resolver today knows exactly two and the production build is defined as everything that is not the second. Whether `sandbox` can mean two things at once — it already names the disposable-experiment source tree entered through the debug hub, and a `/sandbox` scene route would be a second meaning of the same word in the same repository. And whether the play surface can mount under a non-play route at all: its stylesheet locks the document to the viewport and is imported lazily for exactly that reason, so a scene route either is a play route or has to answer what that stylesheet does to it.
+The boss itself is blocked on the rendering decision recorded in `dev/docs/briefs/boss_encounter.brief.md`, and the lab has no subject until the boss has a mind to display.
 
-Related to the entry above, and not the same work: a soundstage with its own address still cannot decline the stairs and the plinth that every floor is built with. Doing this one first buys a place to put a scene's rules; doing that one first buys rules worth putting there.
-
-Not scheduled. What would force it is the second scene of any kind — a testbed, a second stage, or the sandbox wanting a rule the play route does not have.
+Not scheduled. What would force it is boss implementation starting — tuning an FSM blind is the first thing that would hurt.
 
 ### The Difficulty Level Nothing Reads
 
