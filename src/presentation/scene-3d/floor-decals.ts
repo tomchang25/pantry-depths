@@ -16,9 +16,8 @@
  * it is full.
  */
 
-import { extractionShare } from "@/core/extraction";
 import { attackReach, CHARGE_DISTANCE, MELEE_CUT_HALF_ANGLE } from "@/core/enemy-contract";
-import { blocksFlung, ROOM_PAD_HALF } from "@/core/maze";
+import { blocksFlung } from "@/core/maze";
 import { MORTAR_LOCK_SECONDS, SHELL_BLAST_RADIUS, type World } from "@/core/world";
 
 import { SCENE_DECAL_LANE, SCENE_DECAL_RADIAL, SCENE_DECAL_SECTOR, type SceneDecal } from "./scene-lighting";
@@ -26,7 +25,6 @@ import { SCENE_DECAL_LANE, SCENE_DECAL_RADIAL, SCENE_DECAL_SECTOR, type SceneDec
 /** Taken from the interim projection before it was deleted; these are the only copies now. */
 const LANE_HALF_WIDTH = 0.34;
 const RING_THICKNESS = 0.16;
-const PAD_HALF = ROOM_PAD_HALF + 0.5;
 
 const LANE_DIM: readonly [number, number, number] = [128, 30, 34];
 const LANE_HOT: readonly [number, number, number] = [255, 118, 84];
@@ -36,8 +34,6 @@ const CIRCLE_FILL: readonly [number, number, number] = [220, 96, 62];
 const SHELL_INCOMING: readonly [number, number, number] = [255, 146, 78];
 const CUT_DIM: readonly [number, number, number] = [136, 36, 40];
 const CUT_HOT: readonly [number, number, number] = [255, 128, 96];
-const EXTRACT_DIM: readonly [number, number, number] = [46, 108, 40];
-const EXTRACT_HOT: readonly [number, number, number] = [148, 246, 96];
 
 /**
  * How the mark blinks once the shell is committed: flashes at launch, accelerates through the flight,
@@ -165,24 +161,6 @@ function sector(
   };
 }
 
-/**
- * A square of ground, centred and axis-aligned.
- *
- * There is no square in the vocabulary and there does not need to be: a lane is a strip measured
- * forward from its own point, so starting one at the near edge and running it the full width at half
- * that as its half-width is exactly a square.
- */
-function pad(
-  built: SceneDecal[],
-  x: number,
-  y: number,
-  half: number,
-  color: readonly [number, number, number],
-  strength: number,
-): void {
-  built.push(lane(x - half, y, 1, 0, half * 2, half, color, strength));
-}
-
 /** The blast's true edge, at its true width, drawn identically for both phases of a shot. */
 function blastRim(built: SceneDecal[], x: number, y: number, radius: number): void {
   built.push(ring(x, y, radius, RING_THICKNESS, CIRCLE_EDGE, 0.9));
@@ -276,22 +254,10 @@ export function collectFloorDecals(world: World): SceneDecal[] {
     blastRim(built, mortar.aimX, mortar.aimY, SHELL_BLAST_RADIUS);
   }
 
-  for (const room of world.maze.rooms) {
-    if (room.role !== "extraction") {
-      continue;
-    }
-
-    // Painted rather than built, because this is the one fixture that does not already cover its own
-    // ground: the dais and the pool are their pads, and the canister is a post on bare stone.
-    const x = room.center.x + 0.5;
-    const y = room.center.y + 0.5;
-    const holding = extractionShare(world);
-    pad(built, x, y, PAD_HALF, EXTRACT_DIM, 0.5);
-
-    if (holding > 0) {
-      pad(built, x, y, PAD_HALF * holding, EXTRACT_HOT, 0.9);
-    }
-  }
+  // The extraction pad used to be painted here, on the reasoning the shipped game had for painting
+  // it: its canister stood on bare stone. This runtime rebuilds that fixture as a raised pad which
+  // covers the whole three cells, so the mark was drawn underneath something opaque and nobody ever
+  // saw it. Both holds now put their readout on top of the fixture, in `world-structures.ts`.
 
   for (const hazard of world.hazards) {
     if (hazard.kind !== "shell") {

@@ -24,6 +24,7 @@ import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { SKELETON_PICKUP_ASSETS, SKELETON_PICKUP_URLS } from "@/content/enemies/skeleton-pickup-definitions";
 import { attackReach, MELEE_CUT_HALF_ANGLE } from "@/core/enemy-contract";
+import { extractionShare } from "@/core/extraction";
 import { blocksProjectile } from "@/core/maze";
 import type { PropKind } from "@/core/prop-kinds";
 import { projectileHeight, type Enemy, type World } from "@/core/world";
@@ -594,7 +595,10 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
       }
 
       if (room.role === "extraction") {
-        columns.push({ x, y, steam: true, density: 20, color: [136, 238, 78] });
+        // Harder while the hold runs, from all five points at once: the room announces itself with
+        // the plumes and then announces that it is working by venting more of them.
+        const holding = extractionShare(world);
+        columns.push({ x, y, steam: true, density: Math.round(20 + holding * 22), color: [136, 238, 78] });
 
         for (const cornerX of [-1, 1]) {
           for (const cornerY of [-1, 1]) {
@@ -602,7 +606,7 @@ export function createWorldEffects(lighting: SceneLighting): WorldEffects {
               x: x + cornerX * 1.5,
               y: y + cornerY * 1.5,
               steam: true,
-              density: 10,
+              density: Math.round(10 + holding * 12),
               color: [136, 238, 78],
             });
           }

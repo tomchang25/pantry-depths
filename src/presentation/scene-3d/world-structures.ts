@@ -77,6 +77,67 @@ const STAIR_STONE = 0x8fa8b6;
 const PAD_HALF = 1.5;
 
 /**
+ * How high each hold's readout sits, and what it is painted in.
+ *
+ * Both fixtures cover their own ground with a raised pad, so the readout goes on top of the pad
+ * rather than on the floor — which is where the shipped game painted the extraction's, because the
+ * shipped extraction was a canister standing on bare stone. The heights clear the tallest thing
+ * directly underneath: the blessing's raised inlay reaches 0.1 and the extraction's pad 0.08.
+ *
+ * The extraction keeps the exact colours and strengths its floor mark used. The blessing had no mark
+ * to keep — its dais was told by the lighting — so it takes the colour its own light already throws.
+ */
+const BLESSING_READOUT_HEIGHT = 0.105;
+const EXTRACTION_READOUT_HEIGHT = 0.085;
+const BLESSING_READOUT_DIM = 0x565c74;
+const BLESSING_READOUT_HOT = 0xf4f6ff;
+const EXTRACTION_READOUT_DIM = 0x2e6c28;
+const EXTRACTION_READOUT_HOT = 0x94f660;
+const READOUT_BASE_OPACITY = 0.5;
+const READOUT_FILL_OPACITY = 0.9;
+
+/**
+ * How wide the thing standing in the middle of each pad is.
+ *
+ * A fill growing from nothing would spend its first fifth entirely behind the extraction's beacon and
+ * show the player nothing at all while the hold had visibly started. It grows from the beacon's own
+ * width instead, so it emerges from behind it on the first frame and reaches the pad's edge at the
+ * last. The blessing dais has nothing standing above the height its readout sits at, so it grows from
+ * nothing as it looks like it should.
+ */
+const BLESSING_READOUT_CORE = 0;
+const EXTRACTION_READOUT_CORE = 0.6;
+
+/** One room's hold, as the pad it claims and the part of it already earned. */
+type HoldReadout = Readonly<{ base: THREE.Mesh; fill: THREE.Mesh }>;
+
+/**
+ * Puts one hold's pair on its fixture and sizes the fill to the share, or hides both.
+ *
+ * Hidden rather than absent, because a floor without the room still has the meshes: building them
+ * per floor would mean a rebuild path for something that never changes, and leaving a stale one lit
+ * on a floor that has no such room is the failure that path would introduce.
+ */
+function placeReadout(readout: HoldReadout, room: Room | undefined, height: number, core: number, share: number): void {
+  if (!room) {
+    readout.base.visible = false;
+    readout.fill.visible = false;
+    return;
+  }
+
+  const x = room.center.x + 0.5;
+  const y = room.center.y + 0.5;
+  const width = PAD_HALF * 2;
+  const filled = core + (width - core) * share;
+  readout.base.visible = true;
+  readout.base.position.set(x, height, y);
+  readout.base.scale.set(width, 1, width);
+  readout.fill.visible = share > 0;
+  readout.fill.position.set(x, height + 0.002, y);
+  readout.fill.scale.set(filled, 1, filled);
+}
+
+/**
  * The lit top face an overhead light would leave, for the one fitting that authors its own.
  *
  * Only the altar takes this. The other four are shapes rebuilt for a renderer with real lighting
@@ -438,6 +499,36 @@ export function createWorldStructures(lighting: SceneLighting): WorldStructures 
   let signature = "";
   let owned: { dispose(): void }[] = [];
 
+  // One unit square lying flat, shared by all four readout quads and scaled per frame. Kept out of
+  // `owned` along with everything else here: that list is emptied on every rebuild, and these outlive
+  // every rebuild there is.
+  const readoutGeometry = new THREE.PlaneGeometry(1, 1);
+  readoutGeometry.rotateX(-Math.PI / 2);
+  const readoutMaterials: THREE.ShaderMaterial[] = [];
+
+  const readoutQuad = (color: number, opacity: number, order: number): THREE.Mesh => {
+    const material = lighting.mark(color, opacity);
+    readoutMaterials.push(material);
+    const mesh = new THREE.Mesh(readoutGeometry, material);
+    // Stated rather than left to the distance sort: the two quads are two millimetres apart and
+    // neither writes depth, so which one covers the other is otherwise a coin toss per frame.
+    mesh.renderOrder = order;
+    mesh.visible = false;
+    return mesh;
+  };
+
+  const blessingReadout: HoldReadout = {
+    base: readoutQuad(BLESSING_READOUT_DIM, READOUT_BASE_OPACITY, 1),
+    fill: readoutQuad(BLESSING_READOUT_HOT, READOUT_FILL_OPACITY, 2),
+  };
+  const extractionReadout: HoldReadout = {
+    base: readoutQuad(EXTRACTION_READOUT_DIM, READOUT_BASE_OPACITY, 1),
+    fill: readoutQuad(EXTRACTION_READOUT_HOT, READOUT_FILL_OPACITY, 2),
+  };
+  const readouts = new THREE.Group();
+  readouts.add(blessingReadout.base, blessingReadout.fill, extractionReadout.base, extractionReadout.fill);
+  root.add(readouts);
+
   const rebuild = (world: World): void => {
     for (const disposable of owned) {
       disposable.dispose();
@@ -445,6 +536,9 @@ export function createWorldStructures(lighting: SceneLighting): WorldStructures 
 
     owned = [];
     root.clear();
+    // Put straight back, because the clear above takes the readouts with it and they belong to no
+    // floor in particular. Forgetting this loses both holds the first time a wall comes down.
+    root.add(readouts);
 
     // Keyed by the pair rather than by the flat colour: two boxes sharing a side colour and
     // differing at the top are two materials, and merging them would give one of them the other's.
@@ -520,6 +614,33 @@ export function createWorldStructures(lighting: SceneLighting): WorldStructures 
     root,
 
     sync(world) {
+      // Ahead of the signature check, deliberately. A hold moves every frame and the geometry it sits
+      // on almost never does, so a readout updated only on a rebuild would stop the moment the floor
+      // settled — which is the whole of the time somebody is standing on a pad.
+      let blessing: Room | undefined;
+      let extraction: Room | undefined;
+
+      for (const room of world.maze.rooms) {
+        if (room.role === "blessingAltar") {
+          blessing = room;
+        }
+
+        if (room.role === "extraction") {
+          extraction = room;
+        }
+      }
+
+      const progress = world.maze.progress;
+      const held = progress.blessingTaken ? 1 : Math.min(1, progress.heldSeconds / BLESSING_HOLD_SECONDS);
+      placeReadout(blessingReadout, blessing, BLESSING_READOUT_HEIGHT, BLESSING_READOUT_CORE, held);
+      placeReadout(
+        extractionReadout,
+        extraction,
+        EXTRACTION_READOUT_HEIGHT,
+        EXTRACTION_READOUT_CORE,
+        extractionShare(world),
+      );
+
       const next = structureSignature(world);
 
       if (next === signature) {
@@ -608,6 +729,11 @@ export function createWorldStructures(lighting: SceneLighting): WorldStructures 
         disposable.dispose();
       }
 
+      for (const material of readoutMaterials) {
+        material.dispose();
+      }
+
+      readoutGeometry.dispose();
       owned = [];
       root.clear();
     },

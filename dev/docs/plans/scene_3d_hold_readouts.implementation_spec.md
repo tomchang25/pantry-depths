@@ -83,18 +83,21 @@ So both readouts are missing for the same reason in the end. The runtime rebuilt
 
 **Values.** The extraction keeps exactly what its decal used: the dim colour at half strength for the base and the hot one at nine-tenths for the fill, both spanning the pad's own half-width and the fill scaled by the share. The blessing takes the same shape in the colour its own light already throws. The plumes take the shipped game's numbers: the centre plume runs from twenty to forty-two across the hold and each of the four corner plumes from ten to twenty-two.
 
+**What stands in the middle.** The extraction's beacon rises from the pad it shares, so a fill growing from nothing spends its first fifth entirely behind the post and tells the player nothing while the hold has visibly started. The extraction fill therefore grows from the beacon's own width to the pad's, emerging on the first frame of the hold rather than a second into it. The blessing dais has nothing standing above the height its readout sits at, so its fill grows from nothing.
+
 **Ordering.** The quads are updated before the signature check that skips the geometry rebuild, not after it, or they stop moving the moment a floor settles — which is most of the time a player is on a pad.
 
 ## Edge Cases
 
-| Case                                      | Expected Handling                                                        |
-| ----------------------------------------- | ------------------------------------------------------------------------ |
-| Floor has no blessing or extraction room  | That room's quads are hidden, not built and left lit somewhere           |
-| Blessing already taken                    | Fill stays at full width rather than collapsing when the hold resets     |
-| Player steps off a pad mid-hold           | Fill falls back with the hold on the next frame, because the hold resets |
-| Hold at zero                              | Base showing, fill at nothing — the pad reads as present but not running |
-| A wall comes down while standing on a pad | Geometry rebuilds; the readouts survive it and keep their current size   |
-| Player standing on the fill               | Their own body occludes part of it, as it does the extraction's today    |
+| Case                                      | Expected Handling                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------- |
+| Floor has no blessing or extraction room  | That room's quads are hidden, not built and left lit somewhere              |
+| Blessing already taken                    | Fill stays at full width rather than collapsing when the hold resets        |
+| Player steps off a pad mid-hold           | Fill falls back with the hold on the next frame, because the hold resets    |
+| Hold at zero                              | Base showing, fill at nothing — the pad reads as present but not running    |
+| Extraction hold just started              | Fill already showing, emerging from behind the beacon rather than inside it |
+| A wall comes down while standing on a pad | Geometry rebuilds; the readouts survive it and keep their current size      |
+| Player standing on the fill               | Their own body occludes part of it, as it does the extraction's today       |
 
 ## Acceptance Criteria
 

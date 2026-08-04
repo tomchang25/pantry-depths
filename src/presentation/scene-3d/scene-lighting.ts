@@ -435,6 +435,26 @@ const SPRITE_FRAGMENT = fragmentFor(
 );
 
 /**
+ * A readout laid flat on top of a fixture.
+ *
+ * The one surface in the scene with no light term at all, and the omission is the point. Everything
+ * else takes the strongest single light reaching it and clamps the result at one; the player's torch
+ * saturates that clamp across any pad they are standing on, which is why a room light cannot show a
+ * hold filling. A mark that went through the same term would be exactly as invisible.
+ *
+ * It still fogs with distance, because the decal pass it replaces did: a readout that ignored fog
+ * would burn at full strength from across a dark floor, which is a different claim than the one it is
+ * making.
+ */
+const MARK_FRAGMENT = fragmentFor(
+  `
+  vec3 color = mix(uColor, ${FOG_INK}, clamp(vDepth / ${MAX_DEPTH}.0, 0.0, 0.82));
+  gl_FragColor = vec4(color, uOpacity);
+`,
+  "uniform vec3 uColor;\nuniform float uOpacity;",
+);
+
+/**
  * Everything small and numerous.
  *
  * A flat filled circle, which is what the renderer's particle pass literally draws — `arc` and
@@ -697,6 +717,22 @@ export class SceneLighting {
       uniforms: { ...this.shared, uColor: { value: rawColor(color) }, uTopColor: { value: rawColor(topColor) } },
       vertexShader: VERTEX_GLSL,
       fragmentShader: BOX_FRAGMENT,
+    });
+  }
+
+  /**
+   * A flat, unlit mark laid on top of a fixture, for a readout the lighting would otherwise swallow.
+   *
+   * Writes no depth, so a fill stacked over its own base does not fight it. Which of the two lands on
+   * top is the caller's to state, by render order rather than by hoping.
+   */
+  mark(color: number, opacity: number): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+      uniforms: { ...this.shared, uColor: { value: rawColor(color) }, uOpacity: { value: opacity } },
+      vertexShader: VERTEX_GLSL,
+      fragmentShader: MARK_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
     });
   }
 
