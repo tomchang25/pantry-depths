@@ -180,6 +180,132 @@ function hammer(): HTMLCanvasElement {
   return canvas;
 }
 
+/**
+ * The javelin as it lies on the floor; in flight it is a rod, like every other long weapon.
+ *
+ * Bone rather than timber, and longer and thinner than the stake it must never be confused with — the
+ * two are the only props that pierce, and telling them apart on the ground is how a player knows
+ * whether the next throw takes one body or three.
+ */
+function javelin(bent: boolean): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  context.save();
+  context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
+  context.rotate(-0.42);
+
+  if (bent) {
+    // A visible kink at the midpoint, so a shaft with one throw left in it is read off the floor
+    // rather than off a count in the corner of the screen.
+    context.rotate(0.12);
+  }
+
+  context.fillStyle = "#cdbfa2";
+  context.fillRect(-16, -12, 32, 248);
+  context.fillStyle = "#e6dcc4";
+  context.fillRect(-16, -12, 11, 248);
+  context.restore();
+  context.save();
+  context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
+  context.rotate(-0.42);
+  context.fillStyle = "#d8ccb0";
+  context.fillRect(-16, -236, 32, 224);
+  context.fillStyle = "#f0e8d4";
+  context.fillRect(-16, -236, 11, 224);
+  // A barbed bone head: the part that does the running-through.
+  context.fillStyle = "#f4eddc";
+  context.beginPath();
+  context.moveTo(0, -300);
+  context.lineTo(30, -228);
+  context.lineTo(12, -238);
+  context.lineTo(12, -206);
+  context.lineTo(-12, -206);
+  context.lineTo(-12, -238);
+  context.lineTo(-30, -228);
+  context.closePath();
+  context.fill();
+  context.fillStyle = "#8d7f66";
+  context.fillRect(-18, -20, 36, 14);
+  context.restore();
+  return canvas;
+}
+
+/**
+ * A bone crossbow, loaded or spent.
+ *
+ * The loaded one has a bolt lying in the groove and a drawn string; the spent one has neither and its
+ * string hangs slack. That difference is the whole ammunition readout for the weapon — the count in
+ * the corner says how many are left, but which of the two pictures is in the hand says whether there
+ * is anything left at all.
+ */
+function crossbow(spent: boolean): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  context.save();
+  context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
+  context.rotate(-0.32);
+  // Stock.
+  context.fillStyle = spent ? "#8e8471" : "#b0a488";
+  context.fillRect(-24, -140, 48, 300);
+  context.fillStyle = spent ? "#a89d88" : "#cfc4a6";
+  context.fillRect(-24, -140, 16, 300);
+  // Bow arms, swept back.
+  context.strokeStyle = spent ? "#9c9280" : "#c2b696";
+  context.lineWidth = 26;
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(-170, -70);
+  context.quadraticCurveTo(0, -150, 170, -70);
+  context.stroke();
+  // The string: drawn taut across the arms while loaded, sagging once it is spent.
+  context.strokeStyle = spent ? "rgb(228 222 202 / 45%)" : "#efe8d2";
+  context.lineWidth = 7;
+  context.beginPath();
+  context.moveTo(-166, -66);
+
+  if (spent) {
+    context.quadraticCurveTo(0, 30, 166, -66);
+  } else {
+    context.lineTo(166, -66);
+  }
+
+  context.stroke();
+
+  if (!spent) {
+    // A bolt in the groove.
+    context.fillStyle = "#f2ecd8";
+    context.fillRect(-7, -230, 14, 180);
+    context.beginPath();
+    context.moveTo(0, -268);
+    context.lineTo(16, -222);
+    context.lineTo(-16, -222);
+    context.closePath();
+    context.fill();
+  }
+
+  context.fillStyle = spent ? "#6d6455" : "#8d8168";
+  context.fillRect(-30, 96, 60, 22);
+  context.restore();
+  return canvas;
+}
+
+/** One bolt on the floor is never a thing; this is only ever seen in flight, as a rod. */
+function crossbowBolt(): HTMLCanvasElement {
+  const [canvas, context] = surface();
+  context.save();
+  context.translate(SPRITE_SIZE / 2, SPRITE_SIZE / 2);
+  context.rotate(-0.42);
+  context.fillStyle = "#e8e0c8";
+  context.fillRect(-9, -180, 18, 340);
+  context.fillStyle = "#f6f0dc";
+  context.beginPath();
+  context.moveTo(0, -232);
+  context.lineTo(20, -172);
+  context.lineTo(-20, -172);
+  context.closePath();
+  context.fill();
+  context.restore();
+  return canvas;
+}
+
 function spikePile(): HTMLCanvasElement {
   const [canvas, context] = surface();
   context.fillStyle = "#3a2413";
@@ -577,6 +703,11 @@ export type SceneSpriteId =
   | "rock"
   | "bomb"
   | "hammer"
+  | "javelin"
+  | "javelinCracked"
+  | "crossbow"
+  | "crossbowSpent"
+  | "crossbowBolt"
   | "stickPile"
   | "rockPile"
   | "bombPile"
@@ -606,6 +737,11 @@ export function createSceneSprites(): SceneSprites {
     rock: rock(),
     bomb: bomb(),
     hammer: hammer(),
+    javelin: javelin(false),
+    javelinCracked: javelin(true),
+    crossbow: crossbow(false),
+    crossbowSpent: crossbow(true),
+    crossbowBolt: crossbowBolt(),
     stickPile: spikePile(),
     rockPile: rockPile(),
     bombPile: bombPile(),

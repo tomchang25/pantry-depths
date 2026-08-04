@@ -71,11 +71,11 @@ const CARRIED_SPRITES: Readonly<Record<PropKind, SceneSpriteId | "authored">> = 
   skeletonSkull: "authored",
   skeletonFemur: "authored",
   skeletonFemurCracked: "authored",
-  skeletonJavelin: "stick",
-  skeletonJavelinCracked: "stick",
-  crossbow: "hammer",
-  crossbowSpent: "hammer",
-  crossbowBolt: "stick",
+  skeletonJavelin: "javelin",
+  skeletonJavelinCracked: "javelinCracked",
+  crossbow: "crossbow",
+  crossbowSpent: "crossbowSpent",
+  crossbowBolt: "crossbowBolt",
 };
 
 /** How each carried object fills the hand, authored beside how it lies on the floor. */
