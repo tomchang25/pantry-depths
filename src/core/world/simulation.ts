@@ -1,8 +1,6 @@
 /**
- * One tick of the demo world: player, enemies, projectiles, hazards, timers, and the floor change.
- *
- * Fixed-order and mutating. There is no rollback and no determinism guarantee — the demo is played,
- * not replayed.
+ * One tick of the world: player, enemies, projectiles, hazards, timers, and the floor change. Fixed
+ * order and mutating, with no rollback and no determinism guarantee.
  */
 
 import { MELEE_CUT_START } from "@/core/combat/melee-contract";
@@ -86,10 +84,7 @@ export type PlayerInput = Readonly<{
 
 /** How long a corpse animation runs. Exported so a workbench replays a death at its real length. */
 export const DEATH_SECONDS = 0.75;
-/**
- * A thrown object's own reach. The target's footprint is added to it, so a large body is a large
- * thing to hit and a small one has to be aimed at.
- */
+/** A thrown object's own reach. The target's footprint is added, so size decides how easy it is to hit. */
 const PROJECTILE_HIT_RADIUS = 0.45;
 /** What a point weapon adds for landing all of itself in one place, and the shove that comes with it. */
 const STRIKE_DAMAGE_SCALE = 1.6;
@@ -97,38 +92,20 @@ const STRIKE_KNOCKBACK = 6;
 const EXIT_RADIUS = 0.55;
 /** The slowest a throw is allowed to get, however heavy it is. See where drag is applied. */
 const MIN_FLIGHT_SPEED = 4.5;
-/**
- * How fast the weight jolt leaves the view, in units of `world.shake` per second.
- *
- * Fast on purpose: a jolt that fades over a fifth of a second is a thump, and one that lingers is a
- * wobble the player has to look through.
- */
+/** How fast the weight jolt leaves the view. Fast, so it reads as a thump rather than a wobble. */
 const SHAKE_DECAY = 5;
 
 /**
- * The slowest a crowd may leave the player, however many of them there are.
- *
- * Well above a standstill on purpose. A body in the way is meant to cost time, never control: a
- * player who decides to walk through five slimes gets to, and pays for it.
- *
- * Below the hardest single body rather than at it. A red slime is authored to leave a third of pace,
- * and a floor of `0.35` would have quietly clipped that to its own value — so the number the
- * archetype states would have been a number the player never actually felt, and every future body
- * authored past it would have been the same slime wearing a different colour.
+ * The slowest a crowd may leave the player. A crowd costs time, never control. Set below the hardest
+ * single enemy rather than at it, so an authored value is never silently clipped to this one.
  */
 const MIN_CROWD_PACE = 0.25;
 
 /**
- * What wading through bodies costs the player, as a fraction of their pace.
- *
- * This is the slime's whole job, and it is a slowdown rather than a shove. Shoving produced a force
- * pulling against the player's own input every frame, and two forces arguing at sixty frames a
- * second is a body twitching in place — not a crowd being in the way. A slowdown fights nothing:
- * the player goes exactly where they pointed, it just takes the time it should take.
- *
- * It only bites while the player is genuinely inside the drawn body, and a slime holds station short
- * of that on its own, so standing among a crowd is free. Pushing into one is not, and the deeper in
- * they are the more it costs — which is what makes threading a gap different from barging a line.
+ * What wading through enemies costs the player, as a fraction of pace. A slowdown rather than a
+ * shove: two forces arguing every frame produce twitching in place rather than a crowd in the way.
+ * It bites only inside the drawn footprint, and enemies hold station short of that, so standing among
+ * a crowd is free and pushing into one is not.
  */
 function crowdPace(world: World): number {
   let drag = 0;
@@ -182,10 +159,7 @@ function stepPlayer(world: World, input: PlayerInput, deltaSeconds: number): voi
   const length = Math.hypot(moveX, moveY);
 
   if (length > 0.0001) {
-    // Carrying something heavy costs pace. It is the one thing that makes picking a body up a
-    // decision rather than a free upgrade to the next throw. Wading through a crowd costs pace the
-    // same way, and the two multiply: an armful of slime carried through a room of them is slow
-    // twice over, which is exactly what it should feel like.
+    // Carrying and wading both cost pace, and the two multiply.
     const carried = heldWeight(world, world.held)?.carrySlow ?? 1;
     const step = (playerSpeed(world) * carried * crowdPace(world) * deltaSeconds) / length;
     const moved = slideMove(world.maze, world.player, moveX * step, moveY * step, PLAYER_RADIUS, WALKING);
@@ -223,11 +197,8 @@ function stepPlayer(world: World, input: PlayerInput, deltaSeconds: number): voi
 }
 
 /**
- * Puts a thrown body back in the world where it came down, then charges it for the landing.
- *
- * It rejoins the enemy list *before* the damage is applied, so a fatal landing goes through the one
- * ordinary death path — corpse animation in the right place, drop roll, blessing payout — instead of
- * being a second, quieter way to die.
+ * Puts a thrown enemy back in the world where it came down, then charges it for the landing. It
+ * rejoins the list before the damage lands, so a fatal landing runs the one ordinary death path.
  */
 function landThrownEnemy(world: World, projectile: Projectile, hitWall: boolean): void {
   const enemy = projectile.payload;
@@ -240,13 +211,8 @@ function landThrownEnemy(world: World, projectile: Projectile, hitWall: boolean)
   enemy.x = settled.x;
   enemy.y = settled.y;
   world.enemies.push(enemy);
-  // Where it came down gets first claim on it, before what the fall cost it.
-  //
-  // The other order killed bodies thrown into a pool with the landing damage, so a slime went into
-  // the water and played the ordinary deflating-corpse death on the surface of it — the throw won a
-  // race it should never have been in. Resolving the hazard first puts the body under, and a body on
-  // its way down is immune to damage, so the fall silently does nothing to it. The spikes settle the
-  // same way: whatever the cell does to a body arriving in it, it does first and it does all of it.
+  // The cell gets first claim, before the fall does. The other order let landing damage kill a body
+  // thrown into water, which played the wrong death on the surface of it.
   checkHazards(world, enemy);
 
   if (world.enemies.includes(enemy)) {
@@ -260,12 +226,8 @@ function landThrownEnemy(world: World, projectile: Projectile, hitWall: boolean)
 }
 
 /**
- * A point weapon arriving: one body takes all of it.
- *
- * The area impact a rock makes is wrong for a blade or a bone — a thrown sword that shoves everything
- * within a cell and a bit of where it landed reads as a grenade. So this finds the one body the flight
- * actually stopped on, hits it harder than a glancing throw for the concentration, and shoves it
- * along the line the throw was travelling rather than away from a point it is standing on top of.
+ * A point weapon arriving: one enemy takes all of it. A rock's area impact reads as a grenade for a
+ * blade, so this finds the one the flight stopped on and shoves it along the line of travel.
  */
 function strikeWithProp(world: World, projectile: Projectile): void {
   let struck: Enemy | undefined;
@@ -290,7 +252,7 @@ function strikeWithProp(world: World, projectile: Projectile): void {
     return;
   }
 
-  // The same material voice a swing gets: a thrown hit is still a hit on that body.
+  // The same material cue a swing gets: a thrown hit is still a hit on that material.
   raiseSfx(world, isBoned(struck.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: struck.x, y: struck.y });
   knockBack(
     struck,
@@ -306,8 +268,7 @@ function strikeWithProp(world: World, projectile: Projectile): void {
 
 /** What a throw does where it stops, dispatched from the prop's own row rather than its name. */
 function resolveLanding(world: World, projectile: Projectile, landing: PropLanding): void {
-  // Nothing happens where it stops, because everything it does it did on the way: the blades spend
-  // themselves through the bodies they cut. Whether the weapon itself survives is `leaves`, not this.
+  // Nothing happens where it stops, because a blade spends itself on the way. Survival is `leaves`.
   if (landing === "spend") {
     return;
   }
@@ -337,11 +298,8 @@ function resolveLanding(world: World, projectile: Projectile, landing: PropLandi
 }
 
 /**
- * What meeting masonry sounds like, per landing kind.
- *
- * A total map so a landing added later cannot compile without an answer. `burst` and `detonate`
- * already report at their own sites, so their answer here is silence; everything else was a silent
- * thunk — a javelin nailing into a wall made no sound at all, which read as the throw not landing.
+ * What meeting masonry sounds like, per landing kind. A total map, so a landing added later cannot
+ * compile without an answer. `burst` and `detonate` report at their own sites and are silent here.
  */
 const WALL_STOP_CUES: Readonly<Record<PropLanding, SfxCueId | undefined>> = {
   pin: "pinLand",
@@ -352,10 +310,8 @@ const WALL_STOP_CUES: Readonly<Record<PropLanding, SfxCueId | undefined>> = {
 };
 
 /**
- * Resolves where a throw stopped: what it did there, and whether it still exists afterwards.
- *
- * A thrown body is the one throw with no prop row, because what happens to it is decided by whose
- * body it is and what it landed on. Everything else reads its row.
+ * Resolves where a throw stopped and whether it still exists. A thrown enemy is the one throw with no
+ * prop row, because what happens to it depends on what it landed on; everything else reads its row.
  */
 function finishProjectile(world: World, projectile: Projectile, hitWall: boolean): void {
   if (projectile.kind === "enemy") {
@@ -378,18 +334,15 @@ function finishProjectile(world: World, projectile: Projectile, hitWall: boolean
 }
 
 /**
- * The javelin running someone through.
- *
- * Nobody dies here. The body is lifted out of the world and carried on the shaft, and the kill is
- * resolved against whatever the javelin finally buries itself in — which is the point of the weapon:
- * the wall is what does it, not the throw.
+ * The javelin running an enemy through. Nothing dies here: the enemy is lifted out of the world and
+ * carried on the shaft, and the kill resolves against whatever the javelin buries itself in.
  */
 function skewerWithJavelin(world: World, projectile: Projectile): void {
   if (projectile.skewered.length >= throwCapacity(world.catalog, projectile.kind)) {
     return;
   }
 
-  // A shaft flying above head height runs nobody through on the way past.
+  // A shaft above head height runs nothing through on the way past.
   if (projectileHeight(projectile) > 0.6) {
     return;
   }
@@ -419,13 +372,11 @@ function skewerWithJavelin(world: World, projectile: Projectile): void {
 }
 
 /**
- * Cutting through bodies: outright kills whatever it touches, whatever that body had left.
- *
- * A blade stops on the third one. A reaping throw stops on none of them — it announces each and
- * carries on, because what it is spending is the masonry behind them.
+ * Kills whatever it touches outright, whatever health was left. A blade stops on the third; a reaping
+ * throw stops on none, because what it is spending is the masonry behind them.
  */
 function cleaveThrough(world: World, projectile: Projectile, stopsWhenFull: boolean): boolean {
-  // Same head-height rule as everything else in flight: too high, and it passes clean over.
+  // Same head-height rule as everything in flight: too high, and it passes clean over.
   if (projectileHeight(projectile) > 0.6) {
     return false;
   }
@@ -456,11 +407,8 @@ function cleaveThrough(world: World, projectile: Projectile, stopsWhenFull: bool
 }
 
 /**
- * Nails what the javelin was carrying to whatever stopped it, and leaves it there dead.
- *
- * It goes in where the shaft did. The body used to be a corpse slumped around the shaft, which was
- * the best a standing body could do — and a body driven into masonry at that speed is not standing.
- * What is left of it is a mark on the wall; the scene puts that onto the plane itself.
+ * Nails what the javelin was carrying to whatever stopped it, at the point the shaft went in. What is
+ * left is a mark on the wall, which the scene puts onto the plane itself.
  */
 function pinToWall(world: World, projectile: Projectile): void {
   for (const enemy of projectile.skewered) {
@@ -472,12 +420,9 @@ function pinToWall(world: World, projectile: Projectile): void {
   }
 }
 
-/**
- * A thrown body running down whoever it meets. Nobody stops it: each is hit once, then it carries
- * on to the end of its two tiles.
- */
+/** A thrown enemy running down what it meets. Nothing stops it: each is hit once and it carries on. */
 function bargeThrough(world: World, projectile: Projectile): void {
-  // A body lobbed high overhead runs nobody down on the way; it hits whatever it lands on.
+  // One lobbed high overhead runs nothing down on the way; it hits whatever it lands on.
   if (projectileHeight(projectile) > 0.6) {
     return;
   }
@@ -501,8 +446,7 @@ function bargeThrough(world: World, projectile: Projectile): void {
 
 /** Whether anything solid enough to stop a throw sits at the projectile's position. */
 function hitsSomeone(world: World, projectile: Projectile): boolean {
-  // A lob sailing over someone's head is not a hit: the display arc is fake height, but letting a
-  // high bomb detonate on a scalp it visibly cleared reads as a bug, so the arc gates the test.
+  // A lob sailing overhead is not a hit: the arc gates the test, so a bomb cannot detonate on a head it cleared.
   if (projectileHeight(projectile) > 0.6) {
     return false;
   }
@@ -516,12 +460,8 @@ function hitsSomeone(world: World, projectile: Projectile): boolean {
 }
 
 /**
- * What a prop does to a body it reaches while still in the air, and whether that ends the flight.
- *
- * The piercing throws are the reason this is not simply a hit test: a javelin collects bodies and
- * carries them on, a blade kills through them until it is full, and the hammer never fills up at all,
- * so all three keep flying after they have done something. Everything else stops on the first thing
- * it touches.
+ * What a prop does to what it reaches in the air, and whether that ends the flight. Not a plain hit
+ * test, because the piercing throws keep flying after doing something; everything else stops.
  */
 function stoppedInFlight(world: World, projectile: Projectile, flightHit: PropFlightHit): boolean {
   if (flightHit === "skewer") {
@@ -546,11 +486,8 @@ function stoppedInFlight(world: World, projectile: Projectile, flightHit: PropFl
 }
 
 /**
- * Whether this cell is masonry a breaking throw opens and carries on through.
- *
- * Stone and timber only. A barricade, an emplacement, and the outer boundary are all things a throw
- * ends against, and each of them already answers a blow in its own way — the boundary by refusing it
- * out loud.
+ * Whether this cell is masonry a breaking throw opens and carries on through. Stone and timber only:
+ * a barricade, an emplacement, and the boundary are things a throw ends against.
  */
 function spendsWall(world: World, cell: Cell): boolean {
   const tile = tileAt(world.maze, cell.x, cell.y);
@@ -563,8 +500,7 @@ function stepProjectiles(world: World, deltaSeconds: number): void {
     const distance = projectile.speed * deltaSeconds;
     const steps = Math.max(1, Math.ceil(distance / 0.15));
 
-    // Shed forward speed, floored so a heavy throw still arrives: a flight that decayed towards zero
-    // would asymptote short of its range and never resolve.
+    // Floored, so a flight decaying towards zero cannot asymptote short of its range and never resolve.
     if (projectile.drag > 0) {
       projectile.speed = Math.max(MIN_FLIGHT_SPEED, projectile.speed * Math.exp(-projectile.drag * deltaSeconds));
     }
@@ -581,25 +517,20 @@ function stepProjectiles(world: World, deltaSeconds: number): void {
       projectile.travelled += advance;
 
       // A throw that stops where it touches down. Every other weapon flattens against the floor and
-      // carries on to the end of its range, because the height curve is clamped there and produces
-      // no event at all; this is the crossing that clamp hides, and only a weapon aimed downward as
-      // a deliberate act consults it.
+      // carries on, because the height curve is clamped; this is the crossing that clamp hides.
       if (breaksThrough && projectileGrounded(projectile)) {
         finished = true;
         break;
       }
 
-      // Height-aware: the arc is simulation truth, so a lob sailing above a wall's top crosses it
-      // and comes down on the far side. Flat weapons fly at hand height and stop as they always did.
+      // Height-aware: a lob above a wall's top crosses it; flat weapons fly at hand height and stop.
       if (
         blocksProjectileAt(world.maze, Math.floor(projectile.x), Math.floor(projectile.y), projectileHeight(projectile))
       ) {
         const cell = { x: Math.floor(projectile.x), y: Math.floor(projectile.y) };
 
-        // Masonry a reaping throw spends rather than stops against. The wall is opened where it
-        // stands and the flight goes straight on through the hole, so a corridor costs three walls
-        // and one throw. Anything that is not ordinary masonry takes the whole budget: it is
-        // damaged for whatever it is worth, and the throw ends there.
+        // Masonry a reaping throw spends rather than stops against: the wall opens and the flight
+        // continues through the hole. Anything else takes the whole budget and ends the throw.
         if (breaksThrough && spendsWall(world, cell)) {
           damageWall(world, cell, thrownWallDamage(world, projectile.kind));
           projectile.broke += 1;
@@ -613,11 +544,9 @@ function stepProjectiles(world: World, deltaSeconds: number): void {
         }
 
         struckCell = cell;
-        // A barricade is not a wall to a body. It is the thing bodies are meant to be shoved onto,
-        // and stepping this one back out of the cell put it on the floor in front of the iron — so
-        // a slime thrown at the spikes died of the fall, never touched them, and never once played
-        // the death the hazard exists for. A thrown body is left standing in the cell instead, and
-        // the landing finds the spikes it came down on.
+        // A barricade is not a wall to a thrown enemy: stepping back out of the cell would put it on
+        // the floor in front of the iron rather than on it. It stays in the cell, so the landing
+        // finds the spikes.
         const spikes = projectile.kind === "enemy" && isBarricadeCell(world.maze, struckCell.x, struckCell.y);
         stoppedByWall = !spikes;
 
@@ -648,14 +577,12 @@ function stepProjectiles(world: World, deltaSeconds: number): void {
 
     world.projectiles.splice(world.projectiles.indexOf(projectile), 1);
 
-    // The wall is spent before the projectile is: a body that lands where a wall just broke should
-    // land in the opening, not against the wall that is no longer there.
+    // The wall is spent first, so anything landing where it broke lands in the opening.
     if (struckCell) {
       damageWall(world, struckCell, thrownWallDamage(world, projectile.kind));
     }
 
-    // Only masonry counts as a wall here: what it decides is whether the landing is doubled and
-    // whether the body ends as a mark on it, and the spikes answer both of those themselves.
+    // Only masonry counts as a wall here; the spikes answer the landing themselves.
     finishProjectile(world, projectile, stoppedByWall);
   }
 }
@@ -666,10 +593,8 @@ function stepHazards(world: World, deltaSeconds: number): void {
     const steps = Math.max(1, Math.ceil(distance / 0.15));
     let finished = false;
 
-    // A shell is genuinely in the air: it clears the walls it passes over and the heads it passes
-    // above, and concerns nobody at all until it comes down. Running it through the checks below
-    // would stop it in the first wall between the emplacement and its mark, which is the one thing
-    // an arcing shot is for getting past.
+    // A shell is airborne and matters only where it lands. The checks below would stop it in the
+    // first wall between the emplacement and its mark, which is what an arc exists to clear.
     if (hazard.kind === "shell") {
       hazard.x += hazard.directionX * distance;
       hazard.y += hazard.directionY * distance;
@@ -691,8 +616,8 @@ function stepHazards(world: World, deltaSeconds: number): void {
       hazard.y += hazard.directionY * advance;
       hazard.travelled += advance;
 
-      // Enemy fire stops at a barricade but does not wear it down. Letting it would mean the
-      // shooters clear the map's hazards for the player, for free, without being asked.
+      // Enemy fire stops at a barricade without wearing it down, so shooters cannot clear the floor's
+      // hazards for the player.
       if (blocksProjectile(world.maze, Math.floor(hazard.x), Math.floor(hazard.y))) {
         finished = true;
         break;
@@ -700,8 +625,7 @@ function stepHazards(world: World, deltaSeconds: number): void {
 
       if (Math.hypot(world.player.x - hazard.x, world.player.y - hazard.y) <= 0.42) {
         hurtPlayer(world, hazard.damage, hazard.x, hazard.y);
-        // Along the line the shot was travelling, not away from where it happened to stop. A heavy
-        // shaft moves the player off the ground they were holding; a bolt carries none of this.
+        // Along the line of travel, not away from where it stopped. A bolt carries none of this.
         world.player.pushX += hazard.directionX * hazard.knockback;
         world.player.pushY += hazard.directionY * hazard.knockback;
         finished = true;
@@ -741,45 +665,27 @@ function stepVfx(world: World, deltaSeconds: number): void {
 }
 
 /**
- * How high a shell rises — stated as the height it actually reaches, not as a launch slope.
- *
- * The slope this replaces read as a lob and was not one. `flightHeight`'s launch term is not the peak:
- * a shot across six cells topped out at 0.91 of a cell, which is *under* `DEMO_WALL_HEIGHT`, so every
- * shell in the demo crossed the room through the masonry it was supposed to be sailing over rather
- * than above it. The renderer was never the problem — it already shows the part of a sprite that
- * clears a wall top — the trajectory simply never got there.
- *
- * So the peak is the number that is written down, and the launch term is solved for it below. The
- * floor is what makes clearance a guarantee at every range the thing fires at, including the shortest.
- * The per-cell rise and the ceiling are both held down by the frame rather than by taste: the camera
- * sees up to `0.49 * depth + eye` cells at a given distance, and a shell at the top of its curve is
- * about half its range away from whoever is watching it, so anything much steeper than this arrives by
- * leaving the top of the screen and coming back down out of nowhere.
+ * How high a shell rises, stated as the height it reaches rather than as a launch slope, because
+ * `flightHeight`'s launch term is not the peak. The launch term is solved for it below, and the floor
+ * makes wall clearance a guarantee at every range. The ceiling is held by the frame: a shell at the
+ * top of its curve is about half its range away, so a steeper one leaves the top of the screen.
  */
 const SHELL_PEAK_PER_CELL = 0.24;
 const SHELL_MIN_PEAK = DEMO_WALL_HEIGHT * 1.9;
 const SHELL_MAX_PEAK = DEMO_WALL_HEIGHT * 3.4;
 
 /**
- * How long a shell hangs in the air, per cell of range, and the bounds that hold on short and long
- * shots.
- *
- * A high lob that arrives as fast as a bolt reads as a bolt. The hang is what sells the arc and it is
- * also what the mark on the floor is for: there has to be time to see the thing go up, look down, and
- * walk out of the circle. The floor matters most at close range, where a proportional flight would be
- * over in a third of a second.
+ * How long a shell hangs in the air per cell of range, with bounds for short and long shots. The hang
+ * is what the mark on the floor is for: there has to be time to look down and walk out of the circle.
  */
 const SHELL_SECONDS_PER_CELL = 0.31;
 const SHELL_MIN_FLIGHT_SECONDS = 1.6;
 const SHELL_MAX_FLIGHT_SECONDS = 3.2;
 
 /**
- * The launch term that puts the shared flight curve's peak at exactly this height.
- *
- * The curve is `0.5 + arc * s - (arc + 0.5) * s²`, whose maximum works out at `0.5 + arc² / (2 * (2 *
- * arc + 1))`. Setting that equal to the wanted peak and solving for `arc` is the quadratic below.
- * Inverting it here rather than eyeballing a slope is what turns wall clearance into something the
- * numbers promise instead of something that happened to hold at one range.
+ * The launch term that puts the shared flight curve's peak at this height. The curve is
+ * `0.5 + arc * s - (arc + 0.5) * s²`, whose maximum is `0.5 + arc² / (2 * (2 * arc + 1))`; setting
+ * that equal to the wanted peak and solving for `arc` gives the quadratic below.
  */
 function shellArc(peak: number): number {
   const rise = Math.max(0.0001, peak - 0.5);
@@ -787,12 +693,8 @@ function shellArc(peak: number): number {
 }
 
 /**
- * Picks what an emplacement shells next, from everything on the floor that is far enough away.
- *
- * The player is one candidate among the enemies with no weighting of any kind, which is the whole
- * character of the thing: with most of a floor's population being enemies, it spends the bulk of its
- * time thinning them, and being shelled yourself is the uncommon case. It is a hazard to fight beside
- * rather than another thing hunting you.
+ * Picks what an emplacement shells next, from everything far enough away. The player is one candidate
+ * among the enemies with no weighting, so it spends most of its time thinning them.
  */
 function pickMortarTarget(world: World, centreX: number, centreY: number): Cell | undefined {
   const candidates: Cell[] = [];
@@ -829,16 +731,14 @@ function fireShell(world: World, mortar: Mortar, centreX: number, centreY: numbe
     y: centreY,
     directionX: dx / range,
     directionY: dy / range,
-    // Ground speed, derived from the hang rather than fixed: the shell covers its range in the time
-    // the lob is meant to take, so a short shot is a slow high one instead of a quick flat one.
+    // Ground speed derived from the hang, so a short shot is a slow high one rather than a quick flat one.
     speed: range / seconds,
     travelled: 0,
     range,
     damage: SHELL_DAMAGE,
     // A shell knocks the player about through its blast, not by arriving somewhere.
     knockback: 0,
-    // The fall that brings the curve back to the floor exactly where the range runs out, which is
-    // exactly where the circle has been painted for the last five seconds.
+    // Brings the curve back to the floor where the range runs out, which is where the circle is painted.
     arc,
     fall: arc + 0.5,
     plunge: 1,
@@ -847,10 +747,8 @@ function fireShell(world: World, mortar: Mortar, centreX: number, centreY: numbe
 }
 
 /**
- * Runs every emplacement's cycle: hold a mark, fire, stand a moment, pick again.
- *
- * The tiles decide which emplacements exist, so an entry whose cell has been broken open simply
- * leaves. A shell already in the air is not its emplacement's any more and completes regardless.
+ * Runs every emplacement's cycle: hold a mark, fire, wait, pick again. The tiles decide which exist,
+ * so an entry whose cell was broken open leaves; a shell already in the air completes regardless.
  */
 function stepMortars(world: World, deltaSeconds: number): void {
   for (const mortar of world.mortars.slice()) {
@@ -894,7 +792,7 @@ function stepMortars(world: World, deltaSeconds: number): void {
   }
 }
 
-/** Ages the direction marks and drops the ones that have said what they had to say. */
+/** Ages the direction marks and drops the expired ones. */
 function stepDamageMarks(world: World, deltaSeconds: number): void {
   for (const mark of world.damageMarks.slice()) {
     mark.age += deltaSeconds;
@@ -916,19 +814,13 @@ function stepDeaths(world: World, deltaSeconds: number): void {
 }
 
 /**
- * Takes the stairs.
- *
- * Health, hands, and blessings all survive the descent — the floor is what is replaced.
- *
- * Arriving pays nothing. It used to pay a blessing, which made the cheapest run the one that touched
- * as little of each floor as possible; the floor's own tasks pay now, and the descent is only the way
- * out of a floor whose business is finished.
+ * Takes the stairs. Health, hands, and blessings survive; the floor is what is replaced. Arriving
+ * grants nothing, because the floor's own tasks are what a run is rewarded for.
  */
 export function descend(world: World): void {
   world.depth += 1;
-  // A swing in mid-air when the stairs are taken has nothing left to land on: the floor it was aimed
-  // at no longer exists. Dropping it stops the blade arriving on the next floor and cleaving whatever
-  // happened to spawn where the old target stood.
+  // A swing in mid-air has nothing left to land on, so it is dropped rather than arriving on the
+  // next floor and cleaving whatever spawned where the old target stood.
   world.swing = 0;
   world.swingResolved = true;
   world.swingTarget = undefined;
@@ -938,12 +830,8 @@ export function descend(world: World): void {
 }
 
 /**
- * Says so when the floor gets harder, once per step of it.
- *
- * Deliberately not phrased as the player gaining anything. The number rises with the minutes spent
- * and the floors taken, and every one of them is a cost — a card reading "level up" would be telling
- * the player they had been rewarded for the one thing this loop charges them for. What rose is the
- * dungeon's appetite, so that is what the card says.
+ * Reports a rise in difficulty, once per step. Phrased as a cost rather than a gain, because the
+ * number rises with minutes spent and floors taken, both of which the loop charges for.
  */
 function stepRunLevel(world: World): void {
   const level = runLevel(world);
@@ -963,8 +851,7 @@ export function stepWorld(world: World, input: PlayerInput, deltaSeconds: number
   world.swing = Math.max(0, world.swing - step);
   world.impact = Math.max(0, world.impact - step * 6);
 
-  // The blade reaches the target partway through the animation, not on the press. Everything the
-  // swing does to the world happens on this frame, which is the frame the arc is drawn on.
+  // The blade reaches the target partway through the animation, on the frame the arc is drawn.
   if (!world.swingResolved && 1 - world.swing / Math.max(0.0001, world.swingTotal) >= MELEE_CUT_START) {
     world.swingResolved = true;
     resolveSwing(world);
@@ -977,7 +864,7 @@ export function stepWorld(world: World, input: PlayerInput, deltaSeconds: number
   stepDeaths(world, step);
   stepVfx(world, step);
 
-  // Blood marks the floor where it actually falls, so a spray scatters and a body pools.
+  // Blood marks the floor where it lands, so a spray scatters and a corpse pools.
   for (const landing of stepParticles(world.particles, step, (x, y) =>
     blocksProjectile(world.maze, Math.floor(x), Math.floor(y)),
   )) {
@@ -997,17 +884,14 @@ export function stepWorld(world: World, input: PlayerInput, deltaSeconds: number
   stepRunLevel(world);
   stepPlayer(world, input, step);
 
-  // The world freeze is the still frame and stops the enemy pass outright, per-body timers included.
-  // The mind freeze is inside that pass: bodies stop deciding while their timers keep running, which
-  // is what lets a held body flinch and its hit flash fade.
+  // The world freeze stops the enemy pass outright, timers included. The decision freeze is inside
+  // that pass, so a frozen enemy still flinches and its hit flash still fades.
   if (!world.worldFrozen) {
     stepEnemies(world, step);
   }
 
-  // The emplacements are terrain rather than enemies and could defensibly keep running, but a freeze
-  // held to look at something is not much use if a shell lands on you halfway through it. The
-  // reinforcement clock stops under either switch for the same reason a staged floor exists at all:
-  // nothing arrives that was not asked for.
+  // Emplacements are terrain rather than enemies, but a freeze is no use if a shell lands during it.
+  // The reinforcement clock stops under either switch, so nothing arrives that was not asked for.
   if (!world.worldFrozen && !world.mindsFrozen) {
     stepMortars(world, step);
     world.spawnSeconds -= step;
@@ -1017,8 +901,7 @@ export function stepWorld(world: World, input: PlayerInput, deltaSeconds: number
       const wave = crowd.reinforcement;
 
       if (!wave) {
-        // Nothing comes back here. The clock still ticks, because walking one room over changes the
-        // answer and a clock parked on "never" would never notice.
+        // Nothing returns here, but the clock still ticks: walking one room over changes the answer.
         world.spawnSeconds = IDLE_SPAWN_RECHECK_SECONDS;
       } else {
         // Added rather than assigned, so a frame that ran long does not slow the rate it was owed.
@@ -1026,8 +909,7 @@ export function stepWorld(world: World, input: PlayerInput, deltaSeconds: number
         const wanted = roll(wave.count);
         let arrived = 0;
 
-        // Stops early on its own when the cap is full or nowhere is far enough from the player, so a
-        // wave of three into two free places is two — and two is what gets announced.
+        // Stops early when the cap is full or nowhere is far enough, so the count reported is real.
         while (arrived < wanted && spawnReinforcement(world)) {
           arrived += 1;
         }

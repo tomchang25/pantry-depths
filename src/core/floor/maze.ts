@@ -1,22 +1,10 @@
 /**
- * Assembling one floor from one map.
+ * Assembles one floor from one map: the grid starts as boundary tile and each room paints its own
+ * interior onto it, with doorways punched afterwards.
  *
- * A floor is a grid of boundary brick that its rooms paint themselves onto: the main region in the
- * middle, and a room in each side slot the map's draw filled. How a room paints is the room's own
- * declaration — carved by a recursive backtracker and then opened up to the share of itself the room
- * asked to be, so it reads as a dungeon rather than a puzzle; open floor throughout for a room holding
- * one piece of business; or the cells exactly as somebody authored them.
- *
- * **The extent belongs to the floor, not to this module.** A floor carries its own width and height,
- * and the four accessors below are the only code anywhere that turns a coordinate into a flat index
- * or an index back into a coordinate. Nothing outside them multiplies by a stride, which is what lets
- * a floor of another shape be wrong loudly instead of silently. Whatever the rooms do not paint stays
- * boundary brick, which costs a slightly emptier map and buys the whole shape staying in this file.
- *
- * Block rings are boundary brick rather than masonry, so the blocks keep their shape however hard the
- * player swings; the only ways between them are the doorways punched below. Entrance and descent are
- * drawn uniformly from the main region's open cells with no reachability check here — that refusal
- * belongs to the map contract, and it is made once the floor exists rather than while it is built.
+ * The four accessors below are the only code that converts between a coordinate and a flat index, so
+ * a floor whose width and height differ fails loudly rather than silently. Entrance and descent are
+ * drawn without a reachability check here; that refusal belongs to the map contract.
  */
 
 import type { ResolvedMap } from "@/core/floor/map-contract";
@@ -32,70 +20,29 @@ import type {
 } from "@/core/floor/room-contract";
 import type { Cell } from "@/core/grid";
 
-/**
- * How much floor there is, in cells.
- *
- * Two numbers rather than one, because a map that can be authored is a map that can be oblong. Every
- * floor-shaped thing satisfies this — a floor is one — so the accessors below take the floor itself.
- */
+/** Grid size in cells. Every floor-shaped value satisfies this, so the accessors below take the floor. */
 export type GridExtent = Readonly<{ width: number; height: number }>;
-
-/**
- * The tile vocabulary, owned by the content layer and aliased here.
- *
- * One list, not two that have to be kept equal by hand. The content layer may not import the demo, so
- * it declares the kinds and this half — which may import content — takes them as its own. A kind added
- * there without a branch here then fails to compile, which is the whole point of the arrangement.
- */
 
 export type Tile = {
   kind: MapTileKind;
-  /** Remaining hits. Stone starts at 4, wood at 2, border is unbreakable and stays at Infinity. */
+  /** Remaining hits. Stone starts at 4, wood at 2; the boundary is unbreakable at Infinity. */
   hp: number;
   maxHp: number;
-  /**
-   * Bodies that have gone under in this cell. Water only, and the reason a pool is spendable: three
-   * of them close it over into `filled`, which is ground again.
-   */
+  /** Drowned enemies in this cell. Water only: three of them turn it into `filled`, which is walkable. */
   bodies: number;
 };
 
 /** The four sides a room can hang off. */
 export type RoomSide = "north" | "south" | "west" | "east";
 
-/** What business a room holds. Owned by the map contract and aliased here, the same as the tiles. */
-
-/**
- * How many bodies a room holds, and how fast it puts them back.
- *
- * Owned by the room rather than by the floor because a body walks between rooms freely: a floor-wide
- * cap can state a total and can never say what any part of it holds, and that difference is exactly
- * what a boss room or an empty corridor needs to say.
- *
- * Aliased from the content layer rather than copied, the same as the tiles and the roles, so the shape
- * an author writes and the shape the spawn code reads cannot drift apart. What arrives here is the
- * declaration, not one floor's numbers — the rolling happens where the question is asked.
- */
+/** How many enemies a room holds and how fast it replaces them; a floor-wide cap cannot say what a part holds. */
 export type Crowd = MapCrowd;
 
-/**
- * A block of a floor, large or small.
- *
- * The middle of the floor is one of these and so is each room hanging off it. They differ by what
- * they hold and how they are built — a side room hangs off a side, holds one piece of business, and
- * is reached through one doorway; the region everything else hangs off does none of the three — and
- * never by kind, which is what gives anything that varies per region somewhere honest to live.
- */
+/** A block of a floor. The main region and each side room are both this, differing by content rather than type. */
 export type Room = Readonly<{
-  /**
-   * Which room file this was built from.
-   *
-   * Carried because a floor is assembled from a draw, and nothing else on an assembled room can say
-   * which of the pool's rooms landed here — a role is optional and a side says only where. What needs
-   * it is a tool showing an author what one draw did with their pool.
-   */
+  /** Which room file this was built from; which of the pool landed in a slot is decided during assembly. */
   id: string;
-  /** What business this room holds, when it holds any. */
+  /** What fixture this room holds, when it holds any. */
   role?: MapRoomRole;
   /** Which side of the main region it hangs off. The main region hangs off nothing. */
   side?: RoomSide;
@@ -104,27 +51,16 @@ export type Room = Readonly<{
   minY: number;
   maxX: number;
   maxY: number;
-  /** Middle of the interior, which is where the room's business stands. */
+  /** Middle of the interior, where the room's fixture stands. */
   center: Cell;
   /** The interior cell the doorway opens through, on the side facing the main region. */
   doorway?: Cell;
   crowd: Crowd;
-  /**
-   * The bodies this room's file stands at named cells, still in room-local coordinates.
-   *
-   * Carried the way the crowd is, and for the same reason: what populates a floor walks the assembled
-   * rooms and has no other way back to the file each one came from — a drawn side room is not
-   * recoverable by name from the map, because which of the pool landed is decided during assembly.
-   */
+  /** Enemies this room's file places at named cells, in room-local coordinates. Carried like the crowd. */
   cast: readonly MapCastMember[];
 }>;
 
-/**
- * What a floor owes, in one of the units it already counts.
- *
- * Every kind is a running total against a target, because the simulation already keeps all four and a
- * task that needs a new signal is a task the floor cannot actually observe.
- */
+/** A floor objective's unit. Each is a running total the simulation already keeps. */
 export type TaskKind = "kills" | "wallsBroken" | "roomsVisited" | "poolsFilled";
 
 export type Task = {
@@ -136,46 +72,27 @@ export type Task = {
   met: boolean;
 };
 
-/**
- * What this floor has taken and what it still owes.
- *
- * Mutable, and hung off the floor for the same reason a pool counts the bodies it has swallowed: it
- * has exactly the floor's lifetime, and descending is meant to wipe it.
- */
+/** Per-floor counters and objective state. Hung off the floor because descending wipes it. */
 export type FloorProgress = {
   /** Unbroken seconds the player has stood on the blessing altar's pad. */
   heldSeconds: number;
-  /**
-   * Unbroken seconds the player has stood on the extraction pad.
-   *
-   * Floor state rather than run state, and correctly so: stepping off is what cancels it, and a
-   * descent has taken the pad with it. Damage does not touch it — the hold is broken by leaving and
-   * by nothing else, the same rule the blessing altar runs on and for the same reason.
-   */
+  /** Unbroken seconds the player has stood on the extraction pad. Stepping off cancels it; damage does not. */
   extractionSeconds: number;
   blessingTaken: boolean;
-  /** Pools this floor has closed over with bodies. */
+  /** Pools this floor has closed over. */
   poolsFilled: number;
   /** Which side rooms the player has set foot in. */
   roomsVisited: RoomSide[];
-  /**
-   * The run counters as they read when this floor began, so a task counts this floor rather than the
-   * run. Unset until the first step on the floor, because the floor is built before anyone reads it.
-   */
+  /** Run counters as this floor began, so a task counts this floor. Unset until the first step on it. */
   killsAtArrival: number | undefined;
   wallsBrokenAtArrival: number | undefined;
-  /** Met to open the descent, and to reveal where it is. Pays nothing by itself. */
+  /** Met to open the descent and reveal where it is. Grants nothing by itself. */
   main: Task;
-  /** Each pays a blessing the moment it is met. */
+  /** Each grants a blessing the moment it is met. */
   secondary: Task[];
 };
 
-/**
- * What a floor asks for.
- *
- * One main task and three secondaries, the same four every floor. The run's difficulty is a clock,
- * not a rising target list, so a floor asking more at depth would be pricing the same work twice.
- */
+/** One main task and three secondaries on every floor. Difficulty is a clock, not a rising target list. */
 function createFloorProgress(): FloorProgress {
   return {
     heldSeconds: 0,
@@ -202,59 +119,26 @@ export type Maze = Readonly<{
   exit: Cell;
   altar: Cell;
   progress: FloorProgress;
-  /**
-   * Where a run is left with everything it is carrying.
-   *
-   * Open from the first second and marked by nothing, which is the whole of it: leaving stays a
-   * continuous choice, and knowing where to leave from is something a floor charges time for.
-   */
+  /** Where a run is left with everything it is carrying. Open from the first second and unmarked. */
   extraction: Cell;
   rooms: readonly Room[];
 }>;
 
-/**
- * Wall hit points, in the same unit every attack spends.
- *
- * One bare swing costs 1, so a stone wall is still four swings and a wood wall still two. A thrown
- * stick costs 2, which breaks wood outright and stone in a pair; a thrown rock costs 4, which breaks
- * either in one. The numbers are chosen so those statements are all true at once.
- */
+/** Wall hit points, in the unit every attack spends: a bare swing costs 1, a thrown stick 2, a rock 4. */
 export const STONE_WALL_HP = 4;
 export const WOOD_WALL_HP = 2;
-/**
- * Iron caltrops: slow to clear, which is the point.
- *
- * Eight bare swings is deliberately more than any wall, because a barricade is not in your way —
- * you can walk around it — and destroying one is giving up the free kills it would have handed you.
- */
+/** Iron caltrops. Eight swings, more than any wall: a barricade can be walked around rather than opened. */
 export const BARRICADE_HP = 8;
 
-/**
- * The floor's own artillery: a squat mortar on a carriage that shells whatever is standing in the open.
- *
- * As tough as a barricade, and worth the trip for the same reason one is worth avoiding. Its two-tile
- * dead zone means it can never fire at anything standing next to it, so walking up and breaking it
- * down is always available and always safe — which is the counter, and the reason it can afford to
- * range across the whole floor.
- */
+/** Mortar emplacement. It cannot fire inside a two-tile dead zone, which is the counter for its range. */
 export const MORTAR_HP = 8;
 /** How high a thrown thing has to be flying to sail over a mortar rather than into it. */
 const MORTAR_CLEAR_HEIGHT = 0.85;
 
-/**
- * Bodies one water cell swallows before it is ground again.
- *
- * Per cell rather than per pool, which is what makes a wide pool a decision: three bodies buy one
- * square of crossing, and where you put that square is the whole of it.
- */
+/** Drowned enemies one water cell swallows before it is walkable. Per cell, so a wide pool is a choice. */
 export const POOL_FILL_BODIES = 3;
 
-/**
- * The patch of grid one room stands on, wall ring included.
- *
- * Two dimensions rather than one, because a map that can be authored is a map whose rooms can be
- * oblong. Everything below reads the block it was handed rather than a size the module knows.
- */
+/** The patch of grid one room stands on, wall ring included. */
 type Block = Readonly<{ x: number; y: number; width: number; height: number }>;
 
 /** Which way a side room faces the region it hangs off. */
@@ -265,7 +149,7 @@ const SLOT_INWARD: Readonly<Record<RoomSide, Cell>> = {
   east: { x: -1, y: 0 },
 };
 
-/** The cells a room actually holds, wall ring excluded. What every share a room states is taken of. */
+/** The cells a room holds, wall ring excluded. Every share a room states is taken of this. */
 function interiorArea(block: Block): number {
   return (block.width - 2) * (block.height - 2);
 }
@@ -274,14 +158,7 @@ function blockCenter(block: Block): Cell {
   return { x: block.x + Math.floor((block.width - 1) / 2), y: block.y + Math.floor((block.height - 1) / 2) };
 }
 
-/**
- * The four questions anyone can ask about a grid's shape, and the only place a stride is spelled out.
- *
- * A flat index written with the wrong one of two extents type-checks perfectly and is wrong only on a
- * floor that is not square — which is exactly the first interesting floor anybody authors. Keeping the
- * multiplication here means there is one place for that mistake to be made and it has already been
- * made correctly.
- */
+/** The only place a stride is spelled out. A flat index with the wrong extent is wrong only on an oblong floor. */
 export function tileIndex(extent: GridExtent, x: number, y: number): number {
   return y * extent.width + x;
 }
@@ -298,19 +175,12 @@ export function gridArea(extent: GridExtent): number {
   return extent.width * extent.height;
 }
 
-/**
- * A whole number somewhere between two ends, inclusive.
- *
- * **Draws nothing when there is nothing to choose between.** A seeded run reproduces a floor only if
- * every roll happens the same number of times in the same order, so a range whose ends are equal has to
- * cost no randomness — otherwise stating a fixed quantity as a one-value range, which is exactly how an
- * exact number migrates out of code and into a room file, silently moves every later roll.
- */
+/** A whole number between two ends, inclusive. Equal ends draw nothing, so a seeded run stays stable. */
 function between(minimum: number, maximum: number): number {
   return minimum >= maximum ? minimum : minimum + Math.floor(Math.random() * (maximum - minimum + 1));
 }
 
-/** What a quantity a room stated comes to on this particular floor. A bare number costs no randomness. */
+/** What a quantity a room stated comes to on this floor. A bare number costs no randomness. */
 export function roll(quantity: MapQuantity): number {
   return typeof quantity === "number" ? quantity : between(quantity.minimum, quantity.maximum);
 }
@@ -374,8 +244,7 @@ function carve(extent: GridExtent, solid: boolean[], block: Block): void {
   }
 }
 
-/** Floods a few small pools into already-open floor. Pools grow by random adjacency, so none is a
- * neat rectangle and most end up hugging a corridor edge where something can be knocked into them. */
+/** Floods small pools into open floor. Pools grow by random adjacency, so none is a neat rectangle. */
 function floodPools(
   extent: GridExtent,
   tiles: Tile[],
@@ -384,11 +253,9 @@ function floodPools(
   keepClear: ReadonlySet<number>,
   wanted: Readonly<{ share: number; size: MapQuantity }>,
 ): void {
-  // A share of the room rather than a number of pools, so the same declaration reads the same in a
-  // room of any size. Pools of varying size adding to a fixed total still give a different number of
-  // pools in different shapes every floor, which is where the variety comes from now.
+  // A share of the room rather than a count, so the same declaration reads the same in a room of any size.
   const target = Math.round(wanted.share * interiorArea(block));
-  // Bounded on attempts rather than successes: a room whose open cells are nearly all on a way
+  // Bounded on attempts rather than successes: a room whose open cells are nearly all on a route
   // between rooms can never reach its target, and the loop has to give up rather than spin.
   const attempts = target * 4 + 8;
   let wet = 0;
@@ -403,10 +270,8 @@ function floodPools(
     const frontier: Cell[] = [seed];
     const size = Math.min(roll(wanted.size), target - wet);
 
-    // A cell counts against the pool's size only once it is actually wet. The frontier holds the same
-    // cell more than once whenever two of its neighbours reached it, so counting attempts instead
-    // would quietly deliver a pool smaller than the one asked for — which did not matter when the
-    // declaration was a number of pools and does now that it is a number of cells.
+    // A cell counts against the pool's size only once it is wet. The frontier can hold the same cell
+    // twice, so counting attempts would deliver a smaller pool than the one asked for.
     let filled = 0;
 
     while (filled < size && frontier.length > 0) {
@@ -430,8 +295,7 @@ function floodPools(
         const nextX = cell.x + step.x;
         const nextY = cell.y + step.y;
 
-        // Bounded to the block that seeded it, so a pool can never grow out through a doorway and
-        // close the only way into a room.
+        // Bounded to the block that seeded it, so a pool cannot grow out through a doorway and seal a room.
         if (
           nextX > block.x &&
           nextY > block.y &&
@@ -445,13 +309,7 @@ function floodPools(
   }
 }
 
-/**
- * Drops iron barricades into open floor, spread out rather than clustered.
- *
- * Placed by the generator rather than left behind by a broken wall: a hazard you can shove things
- * onto is only interesting where the fighting happens, and where the fighting happens is not where
- * the walls were.
- */
+/** Drops iron barricades into open floor, spread out rather than clustered. */
 function scatterBarricades(extent: GridExtent, tiles: Tile[], open: Cell[], quantity: MapQuantity): void {
   const wanted = roll(quantity);
   const placed: Cell[] = [];
@@ -462,8 +320,8 @@ function scatterBarricades(extent: GridExtent, tiles: Tile[], open: Cell[], quan
       return;
     }
 
-    // Never adjacent to another one: a wall of caltrops blocks a corridor, and these are meant to
-    // be something you fight around rather than something that reroutes you.
+    // Never adjacent to another: a line of caltrops blocks a corridor, and these are meant to be
+    // fought around rather than to reroute the player.
     if (placed.some((other) => Math.abs(other.x - cell.x) <= 1 && Math.abs(other.y - cell.y) <= 1)) {
       continue;
     }
@@ -481,13 +339,7 @@ function scatterBarricades(extent: GridExtent, tiles: Tile[], open: Cell[], quan
   }
 }
 
-/**
- * Drops mortar emplacements into open floor, well apart from each other.
- *
- * Spread harder than the barricades are, because two adjacent mortars would put two circles on the
- * same patch of floor and turn a readable hazard into a coin flip. The floor is small enough that a
- * handful of them reach everywhere between them.
- */
+/** Drops mortars into open floor, spread further than the barricades: two would blanket one patch of floor. */
 function scatterMortars(extent: GridExtent, tiles: Tile[], open: Cell[], quantity: MapQuantity): void {
   const wanted = roll(quantity);
   const placed: Cell[] = [];
@@ -567,14 +419,7 @@ function tileOfKind(kind: MapTileKind): Tile {
   return { kind, hp: 0, maxHp: 0, bodies: 0 };
 }
 
-/**
- * Paints one room onto the floor, the way the room itself says it is built.
- *
- * Only the block's interior is ever written: the ring stays the boundary brick the floor started as,
- * which is what keeps the blocks blocks — the doorways punched afterwards are the only ways between
- * them. This is the whole of what "the main region is a room like the others" buys, and the reason a
- * map can carry an authored room beside a carved one without either knowing the other exists.
- */
+/** Paints one room's interior as the room declares it. The wall ring is never written. */
 function paintRoom(extent: GridExtent, tiles: Tile[], block: Block, room: MapRoom): void {
   if ("authored" in room.structure) {
     for (let y = block.y + 1; y < block.y + block.height - 1; y += 1) {
@@ -600,13 +445,8 @@ function paintRoom(extent: GridExtent, tiles: Tile[], block: Block, room: MapRoo
   const solid: boolean[] = Array.from({ length: gridArea(extent) }, () => true);
   carve(extent, solid, block);
 
-  // Opened up after the carve rather than instead of it: a backtracker leaves exactly one route
-  // between any two cells, and knocking walls out is what turns a puzzle into a dungeon.
-  //
-  // **The room's share is a floor, not a target to land on.** The corridors the carve left are
-  // already the tightest this room can be, so a room asking to be less open than that gets its
-  // corridors — closing one to meet a smaller number would sever the room the carve just guaranteed
-  // was whole.
+  // Opened after the carve, not instead of it: a backtracker leaves one route between any two cells.
+  // The share is a floor rather than a target — closing a corridor to meet a smaller one would sever the room.
   const walls: Cell[] = [];
   let openCells = 0;
 
@@ -633,13 +473,7 @@ function paintRoom(extent: GridExtent, tiles: Tile[], block: Block, room: MapRoo
   }
 }
 
-/**
- * What a room holding nobody spends on bodies.
- *
- * Nothing standing there, room for nothing, and no reinforcement at all — which is a statement rather
- * than a very large number. It used to be a cap of zero paired with an infinite interval, which is the
- * same contradiction an optional crowd exists to avoid, one layer further down.
- */
+/** What a room holding no enemies declares: nothing standing, no room for any, no reinforcement. */
 const NO_CROWD: MapCrowd = { cap: 0, starting: 0 };
 
 /** Where a room stands on the floor, in the terms everything that walks and draws asks in. */
@@ -658,13 +492,8 @@ function roomOn(block: Block, source: MapRoom): Room {
 }
 
 /**
- * Opens one side room's doorway and reports the room.
- *
- * A line of cells from one inside the room's inward edge, through both wall rings and whatever
- * boundary stands between them, to the main region's first interior cell. Every one is forced open and
- * recorded as clear, so neither a carve nor anything scattered afterwards can seal a room the player
- * is promised. For a room as deep as the margin it hangs in — which is every room the shipped map has
- * — that is the same five cells it has always been.
+ * Opens one side room's doorway and returns the assembled room. The line from the room's inward edge
+ * to the main region is forced open and recorded as clear, so nothing scattered afterwards seals it.
  */
 function attachRoom(
   extent: GridExtent,
@@ -700,28 +529,15 @@ function attachRoom(
   return { ...roomOn(block, source), side, doorway };
 }
 
-/** Neither masonry nor boundary: something in the way that a walk cannot pass and a floor still owns. */
+/** Something in the way that a walk cannot pass and that is neither masonry nor boundary. */
 function isHazardKind(kind: MapTileKind): boolean {
   return kind === "water" || kind === "barricade" || kind === "mortar";
 }
 
 /**
- * Clears whatever a scatter dropped across the only walk into a room.
- *
- * A one-cell corridor is severed by one pool, and a room hangs off exactly one doorway, so without
- * this a floor arrives with a room — sometimes the extraction room — that cannot be walked to at all.
- * Masonry is left alone on purpose: a wall in the way is the player's business and they have four
- * ways to open one. A pool is not, because filling one costs bodies the floor may not have yet.
- *
- * **This is why a room gets less of what it scattered than it asked for.** Every route cleared here
- * gives back whatever stood on it, measured at roughly two cells per room attached — so the shipped
- * region pours eighteen cells of water and keeps about thirteen, and its caltrops thin out the same
- * way. Scattering after this pass instead of before it would deliver the declared amount exactly, at
- * the cost of never putting anything on the routes between rooms, and that is a decision about how a
- * floor should feel rather than a defect to be quietly patched here.
- *
- * Searches over floor and hazards together, which always succeeds: the carve leaves every open cell
- * in the main region on one tree, and every doorway was forced open onto it.
+ * Clears whatever a scatter dropped across the only walk into a room: one doorway per room and one
+ * pool severs it. Masonry is left alone, since the player has four ways to open a wall. A room
+ * therefore keeps roughly two cells less of what it scattered per room attached.
  */
 function clearWalkToRooms(extent: GridExtent, tiles: Tile[], from: Cell, rooms: readonly Room[]): void {
   const cameFrom = new Map<number, number>();
@@ -786,25 +602,12 @@ function clearWalkToRooms(extent: GridExtent, tiles: Tile[], from: Cell, rooms: 
 }
 
 /**
- * Opens whatever water has closed a ring around a piece of a floor.
+ * Opens whatever water has closed a ring around a piece of the floor. Repaired rather than refused,
+ * because a refusal is a run that does not start over a roll of the dice; the walk back draws no
+ * random number, so a seeded floor is unchanged unless it needed this.
  *
- * The content layer says which ground nothing can walk to; making it walkable is the business of the
- * thing that put the water there, which is here. **A floor is repaired rather than refused** because a
- * refusal means a run that does not start over a roll of the dice, and that is the worst possible way
- * to spend a guarantee.
- *
- * The walk back stops the moment it meets ground that was already reachable, so the pool that caused
- * the problem loses the cells that were in the way and keeps the rest. Nothing here draws a random
- * number, so a seeded floor is the floor it was unless it genuinely needed this.
- *
- * The whole pass repeats because opening one pool can expose ground still shut in behind another. The
- * bound is a backstop: reaching it leaves the floor stranded, and the refusal that runs afterwards is
- * what turns that into a loud failure rather than a quiet one.
- *
- * **A trench is not this function's business and both of its searches refuse to cross one.** It cannot
- * be opened by anything, so a route through one is not a route, and walking a path back through a cell
- * that will still be there afterwards would report a repair that did not happen. Ground sealed behind
- * a trench is refused when the room file is saved, which is why nothing here has to cope with it.
+ * Both searches refuse to cross a trench, which nothing can open. The pass repeats because opening
+ * one pool can expose ground shut in behind another, and its bound is a backstop for the refusal below.
  */
 function openStrandedGround(extent: GridExtent, tiles: Tile[], from: Cell, authored: ReadonlySet<number>): void {
   const kinds = (): MapTileKind[] => tiles.map((tile) => tile.kind);
@@ -816,8 +619,7 @@ function openStrandedGround(extent: GridExtent, tiles: Tile[], from: Cell, autho
   ];
 
   for (let pass = 0; pass < 16; pass += 1) {
-    // Ground an author sealed off is left exactly as painted: an island in a pool is a design, and
-    // cutting a channel to it would be this pass quietly editing somebody's room.
+    // Ground an author sealed off is left as painted: an island in a pool is a design, not a defect.
     const stranded = strandedGround({
       mapName: "",
       width: extent.width,
@@ -861,9 +663,8 @@ function openStrandedGround(extent: GridExtent, tiles: Tile[], from: Cell, autho
       }
     }
 
-    // The same search again, this time allowed through water — but never through a trench, which no
-    // walk back could open, and never through an author's own cells, which this pass may not edit.
-    // Every stranded cell a generator's water shut in therefore has a route home.
+    // The same search again, allowed through water but never through a trench or an author's own
+    // cells. Every stranded cell a generator's water shut in therefore has a route home.
     const cameFrom = new Map<number, number>();
     const wetQueue: number[] = [tileIndex(extent, from.x, from.y)];
     const wet = new Set<number>(wetQueue);
@@ -910,11 +711,8 @@ function openStrandedGround(extent: GridExtent, tiles: Tile[], from: Cell, autho
 }
 
 /**
- * Where a room stands, given the slot it landed in.
- *
- * The main region sits centred in the grid; a side room sits flush against its own grid edge and
- * centred on the other axis. Both are whole-cell placements, which is what the map contract's at-rest
- * rules were written to guarantee — this function trusts them rather than re-deriving them.
+ * Where a room stands, given the slot it landed in: the main region centred in the grid, a side room
+ * flush against its grid edge. Whole-cell placement is guaranteed by the map contract, not re-derived.
  */
 function blockForSlot(map: ResolvedMap, slot: RoomSide | "main", room: MapRoom, main: MapRoom): Block {
   const mainX = Math.floor((map.width - main.width) / 2);
@@ -952,12 +750,8 @@ function blockForSlot(map: ResolvedMap, slot: RoomSide | "main", room: MapRoom, 
 const SIDE_ORDER: readonly RoomSide[] = ["north", "south", "west", "east"];
 
 /**
- * Assembles one floor from one map, and refuses it if the draw left no way out.
- *
- * The order here is load-bearing in one place that does not look it: the draw happens after the
- * always-present rooms have painted and before the drawn ones do. Moving it earlier would shift every
- * subsequent draw in a seeded run, which is the one cheap piece of evidence this whole change has —
- * the same seed has to produce the same floor it produced before there were maps.
+ * Assembles one floor from one map and refuses it if the draw left no way out. The draw happens after
+ * the always-present rooms paint and before the drawn ones do: moving it shifts every later roll.
  */
 export function buildFloor(map: ResolvedMap): Maze {
   const extent: GridExtent = { width: map.width, height: map.height };
@@ -1000,18 +794,12 @@ export function buildFloor(map: ResolvedMap): Maze {
       source: placed.room,
     }),
   );
-  // The region everything hangs off comes first, so a cell is asked about the block it is actually in
-  // before it is asked about the ones attached to that block.
+  // The main region comes first, so a cell is asked about the block it is in before those attached to it.
   const rooms: readonly Room[] = [roomOn(mainBlock, main), ...sideRooms];
   const byRole = new Map(sideRooms.map((room) => [room.role, room]));
 
-  // Each room is furnished with what it asked for and nothing else, so a room that asked for nothing
-  // draws no random number at all. That a pool in the hot spring or caltrops around an altar is noise
-  // on top of the one thing that room is for is still true — it is now the four side rooms saying so
-  // in their own files rather than this loop saying it for them.
-  //
-  // The main region comes first and each thing is placed over a freshly recomputed list of free cells,
-  // which is the order a seeded floor was drawn in before any of this was authorable.
+  // A room that asked for nothing draws no random number. The main region comes first and each
+  // placement recomputes the free cells, which is the order a seeded floor was drawn in.
   const furnished: readonly Readonly<{ block: Block; room: MapRoom }>[] = [
     { block: mainBlock, room: main },
     ...fixedSides.map((placement) => ({
@@ -1047,9 +835,7 @@ export function buildFloor(map: ResolvedMap): Maze {
     }
   }
 
-  // Which cells a person placed by hand, so the repair below and the refusal after it can tell a design
-  // from a defect. Empty for every floor built out of generated rooms, which is every floor shipped
-  // today — so nothing about how those are assembled or repaired moves.
+  // Which cells a person placed by hand, so the repair below can tell a design from a defect.
   const authoredCells = new Set<number>();
 
   for (const { block, room } of furnished) {
@@ -1064,24 +850,20 @@ export function buildFloor(map: ResolvedMap): Maze {
     }
   }
 
-  // Both the arrival and the descent stand in the main region, because descending is the main
-  // region's business and a room only ever holds one thing.
+  // Both the arrival and the descent stand in the main region, because a side room holds one thing.
   const open = walkableCells(extent, tiles, mainBlock);
   const entrance = pick(open) ?? blockCenter(mainBlock);
   clearWalkToRooms(extent, tiles, entrance, rooms);
-  // After the walks to the rooms, because that pass opens hazards along them and so frees some ground
-  // for nothing. The descent is drawn from cells captured before both, which is safe: neither can turn
-  // open ground into anything else.
+  // After the walks to the rooms, which open hazards along them. The descent is drawn from cells
+  // captured before both, which is safe: neither turns open ground into anything else.
   openStrandedGround(extent, tiles, entrance, authoredCells);
   const away = open.filter((cell) => cell.x !== entrance.x || cell.y !== entrance.y);
   const exit = pick(away) ?? entrance;
   const altar = byRole.get("cursedAltar")?.center ?? entrance;
   const extraction = byRole.get("extraction")?.center ?? entrance;
 
-  // Asked of the finished floor rather than during assembly. Whether a floor is legal is the map
-  // contract's question, and folding it into the builder would leave nothing able to refuse one. Two
-  // questions, because "can the stairs be reached, masonry coming down" and "is any ground cut off by
-  // something that does not come down" are different and a floor has to answer both.
+  // Asked of the finished floor, because whether one is legal is the map contract's question. Two
+  // checks: the stairs reachable with masonry coming down, and no ground cut off by what does not.
   const drawnFloor = {
     mapName: map.name,
     width: extent.width,
@@ -1118,35 +900,21 @@ export function mainRoom(maze: Maze): Room {
   return (maze.rooms.find((room) => room.side === undefined) ?? maze.rooms[0]) as Room;
 }
 
-/**
- * The room a body standing here answers to, which is never nothing.
- *
- * A doorway punches through two wall rings that belong to neither interior, and a body crosses them
- * every time it enters a room. The region everything hangs off owns whatever is between rooms, which
- * is the whole reason it had to become a room before anything could be asked of it.
- */
+/** The room an entity here answers to, never nothing: the main region owns whatever lies between rooms. */
 export function standingRoom(maze: Maze, x: number, y: number): Room {
   return roomAt(maze, x, y) ?? mainRoom(maze);
 }
 
 /**
- * Which room's pad a cell stands on, or nothing.
- *
- * A room is five cells across and its business used to run across all of it, which made the fixture
- * in the middle a decoration rather than the thing being used: you could claim the blessing standing
- * in a doorway, and the spring healed you anywhere in its room. The pad is the three cells around the
- * fixture, so what the room does happens where the room looks like it happens.
- *
- * One definition, read by the two systems that run a pad and by the scene that draws it. Three
- * separate distance checks is how the drawn extent and the working extent drift apart.
+ * Which room's pad a cell stands on: the three cells around the fixture. One definition, read by the
+ * two systems that run a pad and by the scene that draws it, so drawn and working extent agree.
  */
 export const ROOM_PAD_HALF = 1;
 
 export function padRoomAt(maze: Maze, x: number, y: number): Room | undefined {
   return maze.rooms.find(
     (room) =>
-      // A pad is where a room's business stands, so a room holding no business has none. Without this
-      // the main region would report one at its centre that nothing on the floor could ever use.
+      // A room holding no fixture has no pad; without this the main region would report one nothing could use.
       room.role !== undefined &&
       Math.abs(x - room.center.x) <= ROOM_PAD_HALF &&
       Math.abs(y - room.center.y) <= ROOM_PAD_HALF,
@@ -1157,22 +925,7 @@ export function tileAt(maze: Maze, x: number, y: number): Tile | undefined {
   return isInsideGrid(maze, x, y) ? maze.tiles[tileIndex(maze, x, y)] : undefined;
 }
 
-/**
- * The four questions a cell can be asked, and why they are four rather than one.
- *
- * Water and barricades each answer differently to different ones, and that is exactly what makes
- * them interesting: a pool can be seen and thrown across but not walked into, and a barricade can be
- * seen over and walked around but stops anything thrown — while still letting a knocked-back body
- * land on top of it, which is what kills.
- */
-
-/**
- * Ground you can stand on: bare floor, and a pool the bodies have closed over.
- *
- * A filled pool answers every one of the four questions below exactly as open floor does, so it is
- * named once here rather than added to each of them — the whole point of filling one in is that it
- * stops being a hazard and becomes somewhere to walk.
- */
+/** Ground that can be stood on. A filled pool answers all four questions below exactly as open floor does. */
 function isFloorKind(kind: MapTileKind): boolean {
   return kind === "open" || kind === "filled";
 }
@@ -1186,54 +939,25 @@ export function blocksVision(maze: Maze, x: number, y: number): boolean {
   );
 }
 
-/**
- * What stops something thrown, shot, or knocked loose as debris.
- *
- * Barricades count and pools do not, which is what makes a barricade cover: you and whatever is
- * behind it can see each other perfectly well, and neither of you can put anything through it.
- */
+/** What stops something thrown, shot, or knocked loose. Barricades count and pools do not: that is cover. */
 export function blocksProjectile(maze: Maze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
   return tile === undefined || (!isFloorKind(tile.kind) && tile.kind !== "water" && tile.kind !== "trench");
 }
 
-/** What stops a body moving under its own power. Nothing walks into a pool or onto the spikes. */
+/** What stops an entity moving under its own power. Nothing walks into a pool or onto the spikes. */
 export function blocksWalk(maze: Maze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
   return tile === undefined || !isFloorKind(tile.kind);
 }
 
-/**
- * How high a thrown thing has to be flying to clear a barricade.
- *
- * This amends the flat cover contract: a barricade still stops every flat throw — which is what
- * makes it cover — but a deliberate lob arcs over the timbers. Ground-level tactics keep their
- * meaning and aiming upward buys a way past them.
- */
+/** How high a thrown thing has to fly to clear a barricade. Flat throws are stopped; a lob arcs over. */
 const BARRICADE_CLEAR_HEIGHT = 0.7;
 
-/**
- * How tall an interior wall stands, in cells.
- *
- * One storey, everywhere, on every floor. It used to be rolled per floor — one storey or two, with
- * the tall kind growing likelier as you descended — and the roll decided in silence whether a lob
- * could clear an interior wall at all: the same upward throw crossed a wall on one floor and buried
- * itself in it on the next, with nothing on screen to say why. Height also stopped being the thing
- * that gave the place any scale once the roof came off; the open sky and a boundary standing well
- * above everything inside it do that now.
- *
- * Whole storeys only, whatever the number: the wall texture tiles once per cell of height, so a
- * fractional room stretches its last course and reads as low-resolution masonry rather than as tall.
- */
+/** Interior wall height in cells. Whole storeys only: the texture tiles once per cell of height. */
 export const DEMO_WALL_HEIGHT = 1;
 
-/**
- * Whether a projectile flying at this height is stopped by the cell.
- *
- * The height-aware form of `blocksProjectile`, for flights that really have a height: walls stop
- * what flies below their top, the boundary stops everything so the arena stays sealed however hard
- * the throw, and pools stop nothing.
- */
+/** The height-aware form of `blocksProjectile`. The boundary stops everything; pools stop nothing. */
 export function blocksProjectileAt(maze: Maze, x: number, y: number, z: number): boolean {
   const tile = tileAt(maze, x, y);
 
@@ -1249,9 +973,7 @@ export function blocksProjectileAt(maze: Maze, x: number, y: number, z: number):
     return z < BARRICADE_CLEAR_HEIGHT;
   }
 
-  // Stands taller than the caltrops and shorter than a wall, so a flat throw buries itself in the
-  // carriage and a lob still clears the muzzle. Without this branch it would inherit the fallthrough
-  // below and stop nothing at all, which no solid object should.
+  // Taller than the caltrops, shorter than a wall. Without this branch it would stop nothing at all.
   if (tile.kind === "mortar") {
     return z < MORTAR_CLEAR_HEIGHT;
   }
@@ -1259,12 +981,7 @@ export function blocksProjectileAt(maze: Maze, x: number, y: number, z: number):
   return false;
 }
 
-/**
- * What stops a body that is not in control of itself — knocked back, or thrown.
- *
- * Only walls. A barricade must *not* be in here: if it stopped flung bodies they would pile against
- * it and never land on it, and landing on it is the entire point of the thing.
- */
+/** What stops an entity knocked back or thrown. Only walls: a barricade must be landed on, not hit. */
 export function blocksFlung(maze: Maze, x: number, y: number): boolean {
   return blocksVision(maze, x, y);
 }
@@ -1278,25 +995,15 @@ export function isTrenchCell(maze: Maze, x: number, y: number): boolean {
 }
 
 /**
- * Whether spilled blood settles on a cell.
- *
- * Open water washes it away, and a filled pool is already made of what would have spilled — a stain
- * laid over the heap reads as red mud rather than as carnage. A trench takes what falls in it out of
- * sight entirely, so there is nothing on its surface to mark. Asked at both ends, where a stain is
- * recorded and where it is drawn, so the two can never disagree about a cell.
+ * Whether spilled blood settles on a cell. Asked at both ends, where a stain is recorded and where it
+ * is drawn, so the two cannot disagree.
  */
 export function holdsStains(maze: Maze, x: number, y: number): boolean {
   const kind = tileAt(maze, x, y)?.kind;
   return kind !== "water" && kind !== "trench" && kind !== "filled" && kind !== "mortar";
 }
 
-/**
- * A body going under in a pool cell, and the count that closes it.
- *
- * Returns true only for the body that fills the cell, so the caller can say so once rather than
- * every time something drowns. Anything that dies somewhere that is not open water — dry land, a
- * pool already filled in — is not a body the pool swallows and changes nothing.
- */
+/** Records a drowning and reports whether it closed the cell. True only for the one that fills it. */
 export function sinkBody(maze: Maze, x: number, y: number): boolean {
   const tile = tileAt(maze, x, y);
 
@@ -1311,32 +1018,20 @@ export function sinkBody(maze: Maze, x: number, y: number): boolean {
   }
 
   tile.kind = "filled";
-  // Counted where it happens rather than by sweeping for filled cells, which is the only place that
-  // can tell the body that closed a pool from the ones that went in after it.
+  // Counted here, the only place that can tell the drowning that closed a pool from the ones after it.
   maze.progress.poolsFilled += 1;
   return true;
 }
 
-/**
- * A barricade: the timbers a broken wood wall leaves standing.
- *
- * Exactly the water contract — walk around it, see and throw over it, and be flung onto it. That
- * last one is the whole point: it turns every knockback next to one into a kill.
- */
+/** A barricade: walk around it, see and throw over it, be flung onto it. The last turns knockback into a kill. */
 export function isBarricadeCell(maze: Maze, x: number, y: number): boolean {
   return tileAt(maze, x, y)?.kind === "barricade";
 }
 
 /**
- * Somewhere to go, drawn at random from every cell a body could walk to from where it stands.
- *
- * The flood is the whole floor, which is what makes a wander a wander: a body that picks from its
- * immediate surroundings paces, and one that picks from the room it can reach crosses it. Cost is a
- * sweep of the open area, paid once when a target is chosen rather than per frame — a wanderer only
- * asks again when it has arrived.
- *
- * The start cell is never a candidate for itself, and it is not required to be walkable: a body flung
- * onto a barricade still gets asked where it is going, and the answer is somewhere off it.
+ * A random cell reachable on foot from where an entity stands. The flood covers the whole floor, so a
+ * wander crosses the room rather than pacing, and it is paid once per target rather than per frame.
+ * The start cell is never a candidate and need not be walkable.
  */
 export function randomReachableCell(maze: Maze, from: Cell): Cell | undefined {
   const queue: number[] = [tileIndex(maze, from.x, from.y)];
@@ -1383,7 +1078,7 @@ export function randomReachableCell(maze: Maze, from: Cell): Cell | undefined {
   return cellFromIndex(maze, chosen);
 }
 
-/** Open cells reachable from a start cell, ignoring destructibility. Used only by enemy pathing. */
+/** The first step along the shortest walkable route between two cells. Used only by enemy pathing. */
 export function breadthFirstStep(maze: Maze, from: Cell, to: Cell): Cell | undefined {
   if (from.x === to.x && from.y === to.y) {
     return undefined;
@@ -1394,8 +1089,8 @@ export function breadthFirstStep(maze: Maze, from: Cell, to: Cell): Cell | undef
   const goal = tileIndex(maze, to.x, to.y);
   const seen = new Set<number>(queue);
   let found = false;
-  // Read position instead of `shift()`: shifting re-indexes the whole remaining queue, which made
-  // an exhaustive no-path search quadratic in the open area it swept.
+  // Read position instead of `shift()`: shifting re-indexes the queue, which made an exhaustive
+  // no-path search quadratic in the open area it swept.
   let head = 0;
 
   while (head < queue.length && !found) {

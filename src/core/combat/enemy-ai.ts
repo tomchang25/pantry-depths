@@ -1,31 +1,17 @@
 /**
- * Enemy behaviour, as one mind with five states and nothing outside it deciding where a body goes.
+ * Enemy behaviour, as one state machine with five states and nothing outside it deciding where an
+ * enemy goes. Idle counts down; wander draws a reachable cell and walks the grid to it; chase closes
+ * to the archetype's attack range and holds; attack is the committed half, during which the enemy
+ * neither moves nor turns; retreat backs a crowded shooter out to its minimum.
  *
- * **Idle** stands about and counts down. **Wander** draws a cell it can reach and walks the grid to
- * it, then goes back to idling. Those two are the floor's resting condition, and between them they
- * are why a room is somewhere creatures live rather than a set of arrows pointed at wherever the
- * player was standing when the floor was built: what you run into, you ran into.
+ * Two distances govern all five and are the same for every enemy: notice at `SIGHT_RANGE`, forget at
+ * `DISENGAGE_RANGE`, both measured as straight lines through walls. Sight decides only how an enemy
+ * closes — seen, it runs the straight line; unseen, it walks the grid route to the player's cell —
+ * so cover buys time rather than concealment, and nothing grinds into a wall while beelining.
  *
- * **Chase** closes on the player until it is inside the distance its archetype attacks from, then
- * stops and holds. **Attack** is that arrival paid off, and it is the committed half — while a wind-up
- * or a strike is live the body cannot move, cannot turn, and shows which of the two it is in.
- * **Retreat** is the same rule read from the other side: a shooter crowded inside its minimum walks
- * backwards until it has its distance again.
- *
- * Two distances govern all five, and both are the same for every body on the floor: notice at
- * `SIGHT_RANGE`, forget at `DISENGAGE_RANGE`. Both are straight lines measured through walls. Losing
- * sight of a body sheds nothing — it only decides *how* the body closes, which is the one thing sight
- * is read for: seen, it runs straight at the player; unseen, it walks the grid route to their cell.
- * That is what makes cover a way of buying time rather than a way of disappearing, and it is what
- * stopped bodies from grinding into the wall between themselves and a player they were beelining at.
- *
- * A cooldown is not a state. A body between attacks is an ordinary chasing body that happens to be
- * unable to start another one, so what a cooldown costs it is the attack and not the fight. Nor is
- * being stunned, hurt, drowning or carried: each of those interrupts whatever the body was doing and
- * hands it back afterwards, which is a condition layered over a mind rather than a mind of its own.
- *
- * A slime has no attack at all, so two of the five are unreachable for it: it closes to `hold` and
- * stops, and nothing exists that could ever stop it advancing before then.
+ * A cooldown is not a state: an enemy between attacks is an ordinary chasing one that cannot start
+ * another. Stun, hurt, drowning, and being carried are not states either; each interrupts and hands
+ * back. An archetype with no attack reaches only three of the five.
  */
 
 import { damageWall } from "@/core/combat/actions";
@@ -84,7 +70,7 @@ function applyPush(world: World, enemy: Enemy, deltaSeconds: number): void {
     return;
   }
 
-  // Knocked bodies use the flung predicate, so a pool is somewhere they can end up.
+  // Knocked enemies use the flung predicate, so a pool is somewhere they can end up.
   const moved = slideMove(
     world.maze,
     { x: enemy.x, y: enemy.y },
@@ -131,22 +117,16 @@ function separate(world: World, enemy: Enemy): Readonly<{ x: number; y: number }
 }
 
 /**
- * A step's worth of heading along the grid route to a cell, or nothing when there is no route.
- *
- * The two zero answers a caller can get back are deliberately different things. `undefined` means no
- * way there is known — the search failed, and it will not be retried until the cooldown lapses — and
- * a wanderer treats that as its destination being gone. A zero *vector* means the route is fine and
- * this particular waypoint has just been reached, which is a normal frame and not a reason to give up
- * on anything.
+ * A step's worth of heading along the grid route to a cell, or nothing when there is no route. The
+ * two zero answers differ: `undefined` means the search failed and will not retry until the cooldown
+ * lapses, while a zero vector means the current waypoint has just been reached.
  */
 function pathHeading(world: World, enemy: Enemy, goal: Cell): Readonly<{ x: number; y: number }> | undefined {
   const cell = { x: Math.floor(enemy.x), y: Math.floor(enemy.y) };
 
-  // The cooldown alone gates the search. Retrying on an empty waypoint as well meant a player
-  // nothing could reach — sealed behind water or barricades — put every enemy into a full-map
-  // search every frame, because a failed search is precisely the one that leaves no waypoint.
-  // Consuming a waypoint zeroes the cooldown instead, so successful pathing stays as responsive
-  // as it was.
+  // The cooldown alone gates the search. Retrying on an empty waypoint as well put every enemy into
+  // a full-map search every frame when the player was unreachable, because a failed search is the
+  // one that leaves no waypoint. Consuming a waypoint zeroes the cooldown instead.
   if (enemy.repathSeconds <= 0) {
     enemy.waypoint = breadthFirstStep(world.maze, cell, goal);
     enemy.repathSeconds = REPATH_SECONDS;
@@ -177,12 +157,9 @@ function shortestTurn(angle: number): number {
 }
 
 /**
- * Swings a body's facing toward where it wants to go, and answers how much of its pace it keeps.
- *
- * The cosine is what makes this turn-then-move rather than turn-while-moving: a body already pointed
- * the right way keeps all of its speed, one facing across its heading keeps almost none, and one
- * facing backwards pivots on the spot until it is pointed at something. That is the whole mechanism
- * that stops a steered body from ever travelling sideways.
+ * Swings a facing toward where an enemy wants to go, returning how much of its pace it keeps. The
+ * cosine makes this turn-then-move: one facing across its heading keeps almost none, and one facing
+ * backwards pivots on the spot, so a steered enemy never travels sideways.
  */
 function steerToward(enemy: Enemy, desiredAngle: number, turnRate: number, deltaSeconds: number): number {
   const error = shortestTurn(desiredAngle - enemy.facingAngle);
@@ -192,17 +169,9 @@ function steerToward(enemy: Enemy, desiredAngle: number, turnRate: number, delta
 }
 
 /**
- * One step of walking, and the seam where a body with a front differs from one without.
- *
- * A slime is a point that moves in whatever direction the sum of pathing and crowd pressure gives it,
- * which is free because nothing about a blob says which way it is pointed. An eight-way sprite is not
- * free: its walk cycle only depicts travel along its own nose, so the moment the simulation moves it
- * in a direction its facing does not agree with, the picture and the position disagree and it reads
- * as a crab scuttling. Wall sliding, crowd separation and a re-path all produce exactly that.
- *
- * So an archetype that declares a `turnRate` does not get to move freely. It turns toward where it
- * wants to go at a bounded rate and travels along its facing, which is the same constraint a thing
- * with legs has. Everything else keeps the old behaviour.
+ * One step of walking, and the seam between an archetype with a front and one without. An archetype
+ * that declares a `turnRate` turns toward its heading at a bounded rate and travels along its facing,
+ * because its walk cycle only depicts travel along its own nose; anything else moves freely.
  */
 function walk(
   world: World,
@@ -216,8 +185,8 @@ function walk(
   let moveX = headingX * speed + avoid.x * 1.4;
   let moveY = headingY * speed + avoid.y * 1.4;
   const pace = Math.hypot(moveX, moveY);
-  // Wanting to advance is what the walk cycle depicts, not succeeding at it. A body shoved into a
-  // wall keeps walking on the spot, which is what a body does; one standing still does not.
+  // Wanting to advance is what the walk cycle depicts, not succeeding: one shoved into a wall keeps
+  // walking on the spot.
   enemy.moving = pace > 0.0001;
 
   if (enemy.moving) {
@@ -246,17 +215,9 @@ function walk(
 }
 
 /**
- * Commits an enemy to an attack, and to the spot it is aimed at.
- *
- * The aim is taken here and nowhere else. Both attacks used to derive their direction at the moment
- * they resolved, from wherever the player was standing by then, which made them perfectly homing and
- * made every marker drawn during the wind-up a description of the present rather than of what was
- * about to happen. Recording the point up front is what turns the telegraph into a promise: the shot
- * goes where the line was drawn, the charge runs the lane it painted, and stepping aside works.
- *
- * A point rather than a direction, because the drawn warnings need the place — the lane strip and the
- * landing circle are both statements about a spot on the floor — and keeping two representations of
- * one lock is how they come apart.
+ * Commits an enemy to an attack and to the spot it is aimed at. The aim is taken here and nowhere
+ * else, which is what makes the telegraph a promise: the shot goes where the line was drawn and
+ * stepping aside works. A point rather than a direction, because the drawn warnings need the place.
  */
 function beginWindup(world: World, enemy: Enemy, intent: WindupIntent): void {
   enemy.intent = intent;
@@ -264,9 +225,8 @@ function beginWindup(world: World, enemy: Enemy, intent: WindupIntent): void {
   enemy.windupTotal = attackWindup(enemy.archetype);
   enemy.aimX = world.player.x;
   enemy.aimY = world.player.y;
-  // Snapped to the aim, and then held there for the whole telegraph. The drawn body has to agree
-  // with the line on the floor: a shooter that opened fire while facing the way it last walked was
-  // pointing one direction and shooting another, which makes the telegraph unreadable.
+  // Snapped to the aim and held there for the whole telegraph, so the drawn enemy agrees with the
+  // line on the floor.
   enemy.facingAngle = Math.atan2(enemy.aimY - enemy.y, enemy.aimX - enemy.x);
 }
 
@@ -292,7 +252,7 @@ function fireShot(world: World, enemy: Enemy): void {
     range: shot.range,
     damage: shot.damage,
     knockback: shot.knockback,
-    // A shot flies flat and hits what it touches: no curve, and no radius beyond its own body.
+    // A shot flies flat and hits what it touches: no curve, no radius.
     arc: 0,
     fall: 0,
     plunge: 1,
@@ -303,11 +263,8 @@ function fireShot(world: World, enemy: Enemy): void {
 }
 
 /**
- * Sends a charge down the lane it committed to.
- *
- * The locked point only sets the direction. Distance stays the charger's own, so a charge aimed at
- * something two cells away still runs its full length past it — which is what leaves the charger
- * beyond the player, facing the wrong way, when it misses.
+ * Sends a charge down the lane it committed to. The locked point sets only the direction; distance
+ * stays the charger's own, so a missed charge overruns and ends facing the wrong way.
  */
 function launchCharge(enemy: Enemy): void {
   const dx = enemy.aimX - enemy.x;
@@ -320,22 +277,9 @@ function launchCharge(enemy: Enemy): void {
 }
 
 /**
- * Embers off a charger while it winds itself up, at a rate that climbs as it nears launch.
- *
- * Three seconds is a long time to stand still, and a body that only crouches for it reads as one that
- * has lost interest. The embers are what say it is stoking rather than stalling — and they carry to
- * the edge of the screen, so a charge being prepared behind you is something you can notice.
- *
- * Rate-gated rather than burst every frame: at sixty frames a second a per-frame burst would bury the
- * particle field under one enemy.
- */
-/**
- * Sparks drawn in along a sword's edge while it is being raised, and thrown off it when it goes.
- *
- * The soft bodies say "committed" by changing shape. A skeleton is an authored sheet playing authored
- * frames, so what it has instead is what surrounds it — and gathering is the readable half: particles
- * converging on a body is a wind-up in a way that particles leaving one never is. The release throws
- * them back out along the arc, so the moment the second ends is punctuated rather than merely over.
+ * Sparks drawn in along a sword's edge while it is raised, and thrown off when it goes. Converging
+ * particles read as a wind-up in a way that departing ones do not. Rate-gated rather than burst every
+ * frame, because at sixty frames a second one enemy would bury the particle field.
  */
 function honeBlade(world: World, enemy: Enemy, deltaSeconds: number): void {
   if (enemy.intent !== "melee") {
@@ -348,7 +292,7 @@ function honeBlade(world: World, enemy: Enemy, deltaSeconds: number): void {
     return;
   }
 
-  // Started out on the arc and aimed back at the body, so they close on the blade as it is raised.
+  // Started out on the arc and aimed inward, so they close on the blade as it is raised.
   const angle = enemy.facingAngle + (Math.random() * 2 - 1) * MELEE_CUT_HALF_ANGLE;
   const reach = attackReach(enemy.archetype) * (1.1 + Math.random() * 0.35);
   burst(world.particles, "ember", enemy.x + Math.cos(angle) * reach, enemy.y + Math.sin(angle) * reach, 0.62, 1, {
@@ -418,8 +362,7 @@ function stepCharge(world: World, enemy: Enemy, deltaSeconds: number): void {
 
   if (Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y) <= 0.95) {
     hurtPlayer(world, CHARGE_DAMAGE, enemy.x, enemy.y);
-    // The shove is most of what a connected charge costs you: it puts you somewhere you did not
-    // choose, which in a room with a pool in it is the actual threat.
+    // The shove is most of what a connected charge costs: it puts the player somewhere unchosen.
     world.player.pushX += enemy.chargeX * CHARGE_KNOCKBACK;
     world.player.pushY += enemy.chargeY * CHARGE_KNOCKBACK;
     enemy.chargeSeconds = 0;
@@ -430,10 +373,8 @@ function stepCharge(world: World, enemy: Enemy, deltaSeconds: number): void {
   const stalled = Math.hypot(enemy.x - before.x, enemy.y - before.y) < CHARGE_SPEED * deltaSeconds * 0.5;
 
   if (stalled) {
-    // Whatever it just failed to get through, at full speed. The cell is probed a body's width along
-    // the lane rather than under the charger, because a stalled body is stopped just short of what
-    // stopped it. Spending the wall before the stun matters: a charge that breaks through should
-    // leave the charger lying in the opening, not against masonry that is no longer there.
+    // The cell is probed a width along the lane rather than underfoot, because a stall stops just
+    // short of what caused it. The wall is spent before the stun, so a breakthrough ends in the opening.
     const cell = {
       x: Math.floor(enemy.x + enemy.chargeX * (ENEMY_RADIUS + 0.3)),
       y: Math.floor(enemy.y + enemy.chargeY * (ENEMY_RADIUS + 0.3)),
@@ -461,19 +402,15 @@ function stepCharge(world: World, enemy: Enemy, deltaSeconds: number): void {
 }
 
 /**
- * Applies damage to the player, letting a held enemy eat a frontal hit when that blessing is held.
- *
- * Exported because the hazard step needs the same rule: a shot arriving from the front is exactly
- * the case the hostage is for.
+ * Applies damage to the player, letting a held enemy take a frontal hit when that blessing is held.
+ * Exported because the hazard step needs the same rule.
  */
 export function hurtPlayer(world: World, amount: number, fromX?: number, fromY?: number): void {
   world.hitFlash = 1;
-  // Flat, not positional: this one happened to the player, so it is not somewhere across the room.
+  // Flat rather than positional: this happened to the player, not somewhere across the room.
   raiseSfx(world, "playerHurt");
 
-  // Beside the flash, and for the same reasons it is here rather than further down: this fires for a
-  // hit the hostage eats and for one god mode pays for, because in both cases something out there
-  // just took a shot at you and the direction is the useful half of knowing that.
+  // Above the two exits below, so a hit the hostage takes and one god mode absorbs both leave a mark.
   if (fromX !== undefined && fromY !== undefined) {
     markDamageFrom(world, amount, fromX, fromY);
   }
@@ -515,8 +452,7 @@ export function hurtPlayer(world: World, amount: number, fromX?: number, fromY?:
     return;
   }
 
-  // The only place the player loses points, which is why one gate is the whole cheat. Everything
-  // above this line has already happened: the hit reads exactly as it would without it.
+  // The only place the player loses points, so one gate is the whole cheat and the hit still reads.
   if (world.godMode) {
     return;
   }
@@ -530,15 +466,10 @@ export function hurtPlayer(world: World, amount: number, fromX?: number, fromY?:
 }
 
 /**
- * One pass over every body, in two halves the mind freeze cuts between.
- *
- * The head is what happened *to* the body: its timers count down, whatever shoved it carries it, and
- * it settles out of any geometry it ended up inside. The tail is what the body decided — a committed
- * charge, a committed wind-up, and everything downstream of choosing where to go.
- *
- * The freeze returns between the two rather than skipping the pass, and that is the whole point of
- * there being two switches. Skipping it wholesale is what the world freeze does, and it leaves a
- * struck body lit white forever, because the hit flash is a timer in the head of this loop.
+ * One pass over every enemy, in two halves the decision freeze cuts between. The head is what
+ * happened to the enemy: timers, knockback, settling out of geometry. The tail is what it decided.
+ * The freeze returns between the two rather than skipping the pass, which is what the world freeze
+ * does instead — and why a struck enemy under that one stays lit.
  */
 export function stepEnemies(world: World, deltaSeconds: number): void {
   const frozen = world.mindsFrozen;
@@ -569,13 +500,9 @@ export function stepEnemies(world: World, deltaSeconds: number): void {
       continue;
     }
 
-    // The committed half, and the only thing that holds a body where it stands. Neither branch
-    // reaches `walk`, which is what makes a telegraph a promise about a piece of ground rather than
-    // a decoration following whoever it was aimed at.
-    //
-    // The cooldown is deliberately not here. A body between attacks keeps chasing — losing the
-    // attack is what the cooldown costs it, and standing still for it as well turned every fight
-    // into a room of statues.
+    // The committed half. Neither branch reaches `walk`, which is what makes a telegraph a promise
+    // about a piece of ground. The cooldown is deliberately not here: an enemy between attacks keeps
+    // chasing, because standing still for it as well turns a fight into a room of statues.
     if (enemy.windupSeconds > 0) {
       stepWindup(world, enemy, deltaSeconds);
       continue;
@@ -595,11 +522,8 @@ export function stepEnemies(world: World, deltaSeconds: number): void {
 function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
   stokeCharge(world, enemy, deltaSeconds);
   honeBlade(world, enemy, deltaSeconds);
-  // Committed means committed: a body winding up neither moves nor turns. It used to keep tracking
-  // the player at its walking turn rate, which over a full second is most of a circle — so the cut
-  // would follow whoever it was aimed at and the arc drawn on the floor would sweep around after
-  // them, describing nothing. Locking the facing here is what makes that arc a claim about a piece
-  // of ground rather than a decoration attached to a body.
+  // An enemy winding up neither moves nor turns, so the arc drawn on the floor stays a claim about a
+  // piece of ground rather than sweeping after whoever it was aimed at.
   enemy.windupSeconds -= deltaSeconds;
 
   if (enemy.windupSeconds > 0) {
@@ -623,10 +547,8 @@ function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
     const toX = world.player.x - enemy.x;
     const toY = world.player.y - enemy.y;
     const distance = Math.hypot(toX, toY);
-    // Both halves of the shape the floor is showing. Distance alone made a cut a full circle, which
-    // is why walking round a swordsman never used to work; with the facing locked at the start of
-    // the wind-up, the cone is fixed in the world for the whole second and stepping out of it is
-    // exactly as reliable as the mark says it is.
+    // Both halves of the shape the floor is showing. Distance alone would make a cut a full circle;
+    // with the facing locked, the cone is fixed in the world and stepping out of it works.
     const offBearing = Math.abs(shortestTurn(Math.atan2(toY, toX) - enemy.facingAngle));
     releaseBlade(world, enemy);
 
@@ -649,26 +571,17 @@ function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
 }
 
 /**
- * One frame of whatever this body is currently doing, and the only place a mind changes.
+ * One frame of whatever this enemy is doing, and the only place its state changes. A transition sets
+ * the field and returns rather than running the state it entered, so no state is entered from inside
+ * another and no chain of states can loop.
  *
- * A transition sets the field and returns rather than running the state it just entered. The frame it
- * costs is invisible at sixty of them a second, and what it buys is that no state can be entered from
- * inside another one — which is the failure this shape exists to prevent, because a chain of states
- * calling each other is a chain that can loop.
+ * Chase and retreat are the exception, because they share a threshold and want opposite things at the
+ * same distance: handing off through a dropped frame each way would visibly quarter a shooter's pace.
+ * The hand-off terminates because each condition is the negation of the other.
  *
- * Chase and retreat are the one exception, and they earn it by sharing a threshold. Everywhere else
- * the two states either side of a boundary want the body to do different things at distances that do
- * not overlap, so a dropped frame is a body pausing imperceptibly. Those two want opposite things at
- * the same distance: a shooter walked down by the player would spend one frame deciding to back off,
- * one backing off, one deciding to stop, and one stopped — visibly retreating at a quarter of its
- * pace. They hand off directly, which terminates because the condition that sends a body one way is
- * the exact negation of the one that sends it back.
- *
- * Attack is handled by coercion rather than by a branch. Reaching this function at all means no
- * wind-up, strike or charge is live, since every one of those is caught upstream and stops the frame
- * there; so a body still holding the attack mind here is one whose attack has just ended — or one
- * whose attack was cut short by a stun. Treating both as "back to chasing" is what keeps a stunned
- * charger from waking up in a state nothing will ever leave.
+ * Attack is coerced rather than branched on. Reaching here means no wind-up, strike, or charge is
+ * live, so an enemy still holding it has just finished or been stunned out of one; treating both as
+ * chasing keeps a stunned charger from waking in a state nothing leaves.
  */
 function stepMind(world: World, enemy: Enemy, distance: number, sighted: boolean, deltaSeconds: number): void {
   const mind = enemy.mind === "attack" ? "chase" : enemy.mind;
@@ -698,7 +611,7 @@ function stepMind(world: World, enemy: Enemy, distance: number, sighted: boolean
   throw new Error("unknown enemy mind");
 }
 
-/** Sends a body back to standing about, with a fresh pause and no errand left over. */
+/** Returns an enemy to idle with a fresh pause and no destination left over. */
 function rest(enemy: Enemy): void {
   enemy.mind = "idle";
   enemy.idleSeconds = rollIdleSeconds();
@@ -706,12 +619,8 @@ function rest(enemy: Enemy): void {
 }
 
 /**
- * Standing about, until either the player turns up or the body thinks of somewhere to be.
- *
- * It still walks, at a heading of nothing. That looks like a contradiction and is the point: the crowd
- * separation lives inside `walk`, so a body that skips it is a body that can be stood inside. Bodies
- * arrive at their pauses in groups — a wave that lost the player, a doorway three of them came through
- * — and without this they would spend the whole pause occupying one square.
+ * Waiting, until the player arrives or the pause runs out. It still walks, at a heading of nothing,
+ * because crowd separation lives inside `walk` and enemies reach their pauses in groups.
  */
 function stepIdle(world: World, enemy: Enemy, distance: number, deltaSeconds: number): void {
   if (distance <= SIGHT_RANGE) {
@@ -730,22 +639,13 @@ function stepIdle(world: World, enemy: Enemy, distance: number, deltaSeconds: nu
 }
 
 /**
- * Walking somewhere of its own choosing.
+ * Walking to a cell of its own choosing, drawn from everything reachable rather than the eight
+ * directions around it, so a wander crosses rooms and goes through doorways. Arrival is standing in
+ * the cell rather than within a radius of its middle, which would disagree with the grid the route
+ * was drawn on.
  *
- * A cell rather than a heading, and drawn from everything it can actually reach rather than from the
- * eight directions around it. Both halves matter: a re-rolled heading produces a body shivering on one
- * square, and a heading held for a while produces one walking into a wall until the timer says
- * otherwise. Committing to a destination and pathing to it along the grid means a wandering slime
- * crosses rooms, goes through doorways, and ends up somewhere the player did not put it.
- *
- * Arrival is standing in the cell rather than being some distance from its middle. A radius would have
- * been a second number disagreeing with the grid the route was drawn on: too small and a body that has
- * plainly got there keeps shuffling toward a point, too large and it gives up a cell early.
- *
- * Every way a trip can end sends the body back to idling, including the two failures. That is not
- * tidiness — a body sealed in with nowhere to go used to hold no destination and therefore ask for a
- * new one, which is a flood of the whole open floor, every frame, forever. Resting on failure is what
- * bounds that search to once a pause.
+ * Every way a trip can end returns to idle, the two failures included: an enemy sealed in with
+ * nowhere to go would otherwise ask for a new destination every frame, flooding the whole open floor.
  */
 function stepWander(world: World, enemy: Enemy, distance: number, deltaSeconds: number): void {
   if (distance <= SIGHT_RANGE) {
@@ -765,7 +665,7 @@ function stepWander(world: World, enemy: Enemy, distance: number, deltaSeconds: 
 
   const goal = enemy.wanderCell;
 
-  // Sealed in with nothing walkable next to it.
+  // Sealed in with nothing walkable adjacent.
   if (goal === undefined) {
     rest(enemy);
     return;
@@ -778,8 +678,7 @@ function stepWander(world: World, enemy: Enemy, distance: number, deltaSeconds: 
 
   const heading = pathHeading(world, enemy, goal);
 
-  // No route left to somewhere that had one when it was drawn: the body has been knocked elsewhere
-  // since. Standing about and drawing a fresh destination from where it is now is the whole recovery.
+  // No route left to a destination that had one when drawn, so the enemy has been moved since.
   if (heading === undefined) {
     rest(enemy);
     return;
@@ -789,18 +688,12 @@ function stepWander(world: World, enemy: Enemy, distance: number, deltaSeconds: 
 }
 
 /**
- * Closing on the player until this body is standing where it can attack from, and holding there.
+ * Closing on the player to attack range and holding there. Sight decides only how it closes: seen, it
+ * runs the straight line; unseen, it walks the grid route. The waypoint is dropped on every sighted
+ * frame so the first unsighted one searches immediately rather than hesitating at a corner.
  *
- * Sight decides how it closes and nothing else. Seen, it runs the straight line; unseen, it walks the
- * grid route to the player's cell — which is the same body pursuing the same target, differing only in
- * whether it has to go round. The waypoint is dropped on every sighted frame so that the first unsighted
- * one searches immediately rather than standing through the rest of a path cooldown, which is exactly
- * the frame a body rounds a corner and would otherwise be seen to hesitate on it.
- *
- * Reaching the attack range ends the closing whether or not an attack actually starts. A body on
- * cooldown holds its ground rather than walking further in: where it stops is where it strikes from,
- * and a charger that crept closer between charges would be launching from somewhere its own telegraph
- * had not described.
+ * Reaching attack range ends the closing whether or not an attack starts, so an enemy on cooldown
+ * strikes from where it stopped rather than creeping closer than its telegraph described.
  */
 function stepChase(world: World, enemy: Enemy, distance: number, sighted: boolean, deltaSeconds: number): void {
   if (distance > DISENGAGE_RANGE) {
@@ -813,8 +706,8 @@ function stepChase(world: World, enemy: Enemy, distance: number, sighted: boolea
   const towardY = (world.player.y - enemy.y) / distance;
 
   if (attack !== undefined && sighted) {
-    // Crowded, and it can see what is crowding it. Backing off a player it cannot see would have it
-    // pace at the edge of its own minimum while trying to walk round a wall to reach them.
+    // Crowded, and it can see what is crowding it. Backing off an unseen player would pace at the
+    // edge of its own minimum while trying to walk round a wall.
     if (distance < attack.min) {
       enemy.mind = "retreat";
       stepRetreat(world, enemy, distance, sighted, deltaSeconds);
@@ -832,7 +725,7 @@ function stepChase(world: World, enemy: Enemy, distance: number, sighted: boolea
     }
   }
 
-  // What a body with no attack has instead: somewhere it stops, and nothing to do when it gets there.
+  // What an archetype with no attack has instead: somewhere it stops.
   const hold = enemy.archetype.hold;
 
   if (hold !== undefined && distance <= hold) {
@@ -849,18 +742,14 @@ function stepChase(world: World, enemy: Enemy, distance: number, sighted: boolea
   }
 
   const goal = { x: Math.floor(world.player.x), y: Math.floor(world.player.y) };
-  // A body with no route to the player still walks: the separation in `walk` is what keeps a stalled
-  // crowd from stacking into one point, and it was the old behaviour of a failed search too.
+  // One with no route still walks: the separation in `walk` keeps a stalled crowd from stacking.
   const heading = pathHeading(world, enemy, goal) ?? { x: 0, y: 0 };
   walk(world, enemy, heading.x, heading.y, enemy.archetype.speed, deltaSeconds);
 }
 
 /**
- * Backing away from a player who has closed inside the distance this body needs.
- *
- * A straight line rather than a route, because fleeing is the one thing a body does not need to plan:
- * it wants to be further away, and every direction that achieves that is equally good. Cornered, it
- * presses into the wall, which is the honest picture of a shooter that has been run down.
+ * Backing away from a player who has closed inside this archetype's minimum. A straight line rather
+ * than a route, because every direction that increases the distance is equally good.
  */
 function stepRetreat(world: World, enemy: Enemy, distance: number, sighted: boolean, deltaSeconds: number): void {
   const attack = enemy.archetype.attack;
@@ -877,19 +766,16 @@ function stepRetreat(world: World, enemy: Enemy, distance: number, sighted: bool
 }
 
 /**
- * Standing where it wants to be, still being jostled, and turning to keep the player in front.
- *
- * The walk comes first and the facing second on purpose. Walking at a heading of nothing still applies
- * crowd separation and still points the body wherever that shove sent it, so a body that turned first
- * would end the frame facing whichever neighbour last pushed it — which is how a shooter ends up
- * aiming at its own flank.
+ * Holding position while still being jostled, and turning to keep the player in front. The walk comes
+ * first: it applies crowd separation and points the facing wherever the shove went, so turning first
+ * would end the frame facing whichever neighbour last pushed.
  */
 function holdGround(world: World, enemy: Enemy, towardX: number, towardY: number, deltaSeconds: number): void {
   walk(world, enemy, 0, 0, enemy.archetype.speed, deltaSeconds);
   faceThePlayer(enemy, Math.atan2(towardY, towardX), deltaSeconds);
 }
 
-/** Swings a standing body's facing toward the player, at its own turn rate if it has one. */
+/** Swings a standing enemy's facing toward the player, at its own turn rate if it has one. */
 function faceThePlayer(enemy: Enemy, desiredAngle: number, deltaSeconds: number): void {
   const turnRate = enemy.archetype.turnRate;
 
@@ -902,15 +788,10 @@ function faceThePlayer(enemy: Enemy, desiredAngle: number, deltaSeconds: number)
 }
 
 /**
- * Opens an attack, if this body has one and is free to start it. Answers whether one began.
- *
- * The distance and the line of sight are the caller's to check and are not rechecked here. That is the
- * whole gain from folding the standoff band and the attack trigger into one range: a body attacks from
- * exactly where it decided to stop, so there is no second opinion about the geometry that could
- * disagree with the first. What is left here is only what differs between the three kinds of attack.
- *
- * The cooldown stays here rather than upstream, because a body on cooldown is still an ordinary
- * chasing body — the false answer is what tells the caller to hold its ground instead of striking.
+ * Opens an attack, if this archetype has one and is free to start it, and reports whether one began.
+ * Distance and line of sight are the caller's and are not rechecked, so an enemy attacks from exactly
+ * where it stopped. The cooldown stays here, because the false answer is what tells the caller to
+ * hold ground instead of striking.
  */
 function beginAttack(world: World, enemy: Enemy): boolean {
   const intent = enemy.archetype.windupIntent;
@@ -920,7 +801,7 @@ function beginAttack(world: World, enemy: Enemy): boolean {
   }
 
   if (intent === "melee") {
-    // The one row that lands on touch instead of committing has nothing to open.
+    // A row that lands on touch rather than committing has nothing to open.
     if (enemy.archetype.meleeWindup !== true) {
       return false;
     }

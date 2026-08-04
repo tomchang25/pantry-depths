@@ -1,10 +1,8 @@
 /**
- * The world: the run's whole mutable state, and the operations every rule reaches it through.
- *
- * Real time, continuous coordinates, mutable, random — the declared deviation from the platform's
- * determinism expectation, recorded in the structure addendum. The world also carries the game
- * catalog it was created with, so every authored number the rules read arrives by injection rather
- * than by import.
+ * The run's whole mutable state, and the operations every rule reaches it through. Real time,
+ * continuous coordinates, mutable, random — the declared deviation from the platform's determinism
+ * expectation, recorded in the structure addendum. The world carries the catalog it was created with,
+ * so every authored number the rules read arrives by injection rather than by import.
  */
 
 import type { EnemyAppearanceId } from "@/core/combat/enemy-contract";
@@ -34,27 +32,14 @@ import { createParticleField, type ParticleField } from "@/core/combat/particles
 import type { ThrowKind } from "@/core/prop-contract";
 import type { PropKind } from "@/core/prop-kinds";
 
-/**
- * What an enemy is currently committed to. A wind-up is visible to the player before it resolves.
- *
- * Built from the archetype's own declaration rather than listed again here, so an archetype that gains
- * a new kind of wind-up cannot end up with an intent no telegraph knows how to draw.
- */
+/** What an enemy is committed to. Built from the archetype, so no intent exists that a telegraph cannot draw. */
 export type Intent = "none" | WindupIntent;
 
 /**
- * What a body is currently doing about the player, as one of five mutually exclusive answers.
- *
- * The five are exclusive because each one wants the body somewhere different: idling holds ground,
- * wandering walks away on an errand of its own, chasing closes, attacking is committed and cannot
- * move at all, and retreating backs off. A body cannot be doing two of those, which is why this is one
- * field rather than a set of flags — the flags version drifts into a body that is both chasing and
- * wandering and moves at the average of the two.
- *
- * Being stunned, hurt, drowning, or held is deliberately *not* in here. Those interrupt whatever the
- * body was doing and hand it back afterwards, so they are conditions layered over a mind rather than
- * minds of their own; encoding one here would mean storing what it was doing before, which is the same
- * field twice and two chances to disagree.
+ * What an enemy is doing about the player, as one of five exclusive answers: each wants the enemy
+ * somewhere different, so a flag set would produce one both chasing and wandering at the average of
+ * the two. Stun, hurt, drowning, and being held stay out: they interrupt and hand back, so storing
+ * one here would mean storing the prior state as well, which is the same field twice.
  */
 export type EnemyMind = "idle" | "wander" | "chase" | "attack" | "retreat";
 
@@ -74,46 +59,26 @@ export type Enemy = {
   pushY: number;
   repathSeconds: number;
   waypoint: Cell | undefined;
-  /** What this body is doing about the player. Every movement decision is dispatched on it. */
+  /** What this enemy is doing about the player. Every movement decision is dispatched on it. */
   mind: EnemyMind;
-  /**
-   * How long an idling body has left before it goes looking for somewhere to be.
-   *
-   * Drawn from a range rather than fixed, and that is not decoration. A floor's bodies are created in
-   * one pass and would otherwise share a phase forever: the whole room stops, waits, and sets off
-   * again in step, which reads as a single mechanism rather than as a dozen creatures each minding its
-   * own business.
-   */
+  /** How long an idling enemy has left. A range, because one pass of creation would otherwise hold phase. */
   idleSeconds: number;
-  /**
-   * Where a wandering body is walking, or nothing when it has not chosen yet.
-   *
-   * A cell rather than a heading. A re-rolled heading produces a body shivering on one square and a
-   * held heading produces one walking into a wall until a timer says otherwise; committing to a
-   * destination and pathing to it means a wandering body crosses rooms and goes through doorways.
-   */
+  /** Where a wandering enemy is walking. A cell rather than a heading, which shivers or walks into a wall. */
   wanderCell: Cell | undefined;
   /** Counts down through the telegraph; while above zero the enemy is committed and visibly winding up. */
   windupSeconds: number;
   windupTotal: number;
   intent: Intent;
   /**
-   * Where the current wind-up is aimed, taken when it began and never revised.
-   *
-   * The whole reason a telegraph can be trusted. Both committed attacks used to read the player's
-   * live position at the moment they resolved, so a wind-up was a pause before an unavoidable hit and
-   * anything drawn during it described where the player happened to be, not where the attack was
-   * going. Written only by the wind-up entry point; every resolution and every drawn warning reads it.
+   * Where the wind-up is aimed, taken when it began and never revised. Reading the live position at
+   * resolution would make a wind-up a pause before an unavoidable hit.
    */
   aimX: number;
   aimY: number;
   chargeSeconds: number;
   chargeX: number;
   chargeY: number;
-  /**
-   * Above zero while the body is going under — a pool or a trench, which sink a body alike. It stops
-   * acting, stops being a target, and dies when this expires.
-   */
+  /** Above zero while drowning in a pool or a trench. The enemy stops acting, stops being a target, and dies. */
   drowningSeconds: number;
   /** World-space direction the authored eight-way sprite faces. */
   facingAngle: number;
@@ -121,13 +86,7 @@ export type Enemy = {
   moving: boolean;
 };
 
-/**
- * A pickup lying on the floor, carrying however many uses it holds.
- *
- * Replaces the rubble piles, which were a thing you stood next to and pulled three times. A stack is
- * taken in one grab and spent one throw at a time, so the decision is at the moment you pick it up
- * rather than repeated three times at the same spot.
- */
+/** A pickup lying on the floor. A stack is taken in one grab and spent one throw at a time. */
 export type Prop = {
   id: string;
   kind: PropKind;
@@ -145,61 +104,31 @@ export type Projectile = {
   directionY: number;
   travelled: number;
   range: number;
-  /**
-   * Current forward speed in cells per second, and the floor it decays towards.
-   *
-   * Speed used to be a constant read off the kind. Carrying it lets a throw shed it as it flies,
-   * which is most of what tells a body apart from a stone; the floor is what guarantees a heavy
-   * throw still reaches the end of its range instead of creeping towards it forever.
-   */
+  /** Current forward speed in cells per second, and the floor it decays towards. */
   speed: number;
   drag: number;
   /** How much steeper the drop is than the rise; one is a symmetric arc. See `projectileHeight`. */
   plunge: number;
   /** What the arrival is worth: dust, camera, and how hard it barges through a crowd on the way. */
   thud: number;
-  /**
-   * Total unbent rise over the whole flight, in cells: the throw departs along the aim line, so
-   * this is the aim slope times the range, negative when aimed down. The flight itself is still
-   * two-dimensional; the height it implies is what collision consults.
-   */
+  /** Total unbent rise over the flight, in cells: the aim slope times the range, negative when aimed down. */
   arc: number;
-  /**
-   * How much of that rise gravity takes back, quadratically. Lobbed throws set it so the curve
-   * lands exactly at the end of the range; line-flying weapons — the javelin and the hammer — leave
-   * it at zero and simply fly where they were pointed.
-   */
+  /** How much of that rise gravity takes back. The javelin and the hammer leave it at zero and fly straight. */
   fall: number;
-  /** The body of a thrown enemy, so it can land and keep fighting if it survives the flight. */
+  /** A thrown enemy, so it can land and keep fighting if it survives the flight. */
   payload: Enemy | undefined;
   struck: Set<string>;
   /** Recent positions, newest last. Presentation only — the trail is drawn from it. */
   trail: { x: number; y: number; z: number }[];
-  /**
-   * The bodies a piercing throw is carrying, up to that prop's own capacity — one for a stake, three
-   * for a javelin. Each leaves the world the moment it is run through and comes back only as a corpse,
-   * at the wall: being skewered is not a state anything is expected to survive. The shaft is drawn
-   * from this list, which is why it is a list even when only one thing can be on it.
-   */
+  /** Enemies a piercing throw carries. Each leaves the world when run through and returns as a corpse. */
   skewered: Enemy[];
   /** Victims a cleaving throw has already taken, which is what limits a blade to three. */
   cleaved: number;
-  /**
-   * Walls a reaping throw has already opened, which is what limits the hammer to three.
-   *
-   * Its own counter rather than a second use of `cleaved`: the hammer counts both, and only one of
-   * them is what ends its flight.
-   */
+  /** Walls a reaping throw has opened. Its own counter: the hammer counts both, and only this ends its flight. */
   broke: number;
 };
 
-/**
- * Incoming fire, and what kind of thing is arriving.
- *
- * A bolt is a shooter's flat spit: it stops at the first thing in its way and hurts whoever it hits
- * on the way past. A shell is the emplacement's, and behaves like nothing else in the demo — it is
- * genuinely airborne, so it passes over walls and over heads and concerns nobody until it lands.
- */
+/** Incoming fire. A bolt is flat and stops at the first obstacle; a shell is airborne until it lands. */
 export type HazardKind = "bolt" | "shell";
 
 export type Hazard = {
@@ -213,13 +142,7 @@ export type Hazard = {
   travelled: number;
   range: number;
   damage: number;
-  /**
-   * How hard the arrival shoves the player, in the direction it was travelling.
-   *
-   * A javelin has one and a bolt does not. It is a small push — enough to cost the player the ground
-   * they were standing on and nowhere near enough to take control away — and it is what makes a
-   * three-second telegraph worth respecting rather than merely surviving.
-   */
+  /** How hard the arrival shoves the player along its heading. A javelin has one, a bolt does not. */
   knockback: number;
   /** Flight curve, for a shell. A bolt leaves these flat and never consults them. */
   arc: number;
@@ -229,21 +152,10 @@ export type Hazard = {
   blastRadius: number;
 };
 
-/**
- * What an emplacement is doing right now.
- *
- * Two beats and nothing else: holding a locked mark while the fuse burns, or standing between shots.
- * Which one it is decides everything drawn on the floor around it.
- */
+/** What an emplacement is doing: holding a locked mark while the fuse burns, or waiting between shots. */
 export type MortarPhase = "idle" | "locked";
 
-/**
- * The floor's own artillery, as a behaviour.
- *
- * Deliberately not the same object as the block it stands on. The maze tile owns whether an
- * emplacement exists, how solid it is, and how much breaking it has left in it; this owns only what
- * it is doing about it. Merging the two would put a firing timer on every tile in the dungeon.
- */
+/** What one emplacement is doing. Kept off the tile, which would put a firing timer on every tile. */
 export type Mortar = {
   cellX: number;
   cellY: number;
@@ -255,12 +167,7 @@ export type Mortar = {
   aimY: number;
 };
 
-/**
- * A transient world-space effect, described without an identity.
- *
- * Kept separate from the identified form so `addVfx` can take a plain description: `Omit` over a
- * union distributes into something no literal satisfies, which made every call site fight the type.
- */
+/** A transient effect without an identity: `Omit` over a union distributes into an unsatisfiable type. */
 export type VfxSpec =
   | { kind: "blast"; x: number; y: number; radius: number; age: number; life: number }
   | { kind: "arc"; fromX: number; fromY: number; toX: number; toY: number; age: number; life: number };
@@ -268,19 +175,9 @@ export type VfxSpec =
 export type Vfx = VfxSpec & { id: string };
 
 /**
- * How an enemy died, which is what its body does next.
- *
- * The corpse animation is picked by cause, not by damage source bookkeeping: a cleave splits the
- * body, a blast leaves pieces of it across the floor, and the spikes empty it where it fell.
- * Everything without a signature of its own — rocks, falls, lightning — deflates as "slain".
- *
- * `splattered` is the wall: a javelin that nailed it there and a throw that slammed it in are the
- * same statement about the body, and it is not a statement about a corpse — what is left is a mark
- * on the masonry, so both come through one cause rather than two that render alike.
- *
- * `swallowed` is the trench and `drowned` is the pool. They end the same way — a body going down
- * with nothing thrown off it — and they are still two causes rather than one, because a body that
- * drowned in a dry cut in the rock is a thing the record would be saying that never happened.
+ * How an enemy died, which picks the corpse animation. Causes with no signature arrive as `slain`,
+ * and `splattered` covers both ways of ending against a wall. `swallowed` and `drowned` animate
+ * alike but stay separate, because a record naming the wrong one would be false.
  */
 export type DeathCause = "slain" | "cleaved" | "drowned" | "swallowed" | "splattered" | "blasted" | "impaled";
 
@@ -305,14 +202,7 @@ export type Player = {
   x: number;
   y: number;
   angle: number;
-  /**
-   * Vertical look, in radians above the horizontal.
-   *
-   * It was a fraction of screen height while the game was drawn by a column raycaster, which cannot
-   * rotate a camera and sheared its horizon by this instead. The renderer that replaced it turns a
-   * real camera, so the number is an angle. The old reading survives only in the raycaster itself,
-   * which no longer draws a run and is left every floor it still draws at level.
-   */
+  /** Vertical look, in radians above the horizontal. */
   pitch: number;
   /** Momentum the player is not in control of — currently only what a charger leaves behind. */
   pushX: number;
@@ -324,42 +214,18 @@ export type Player = {
 /** Which arm animation a press started: one of the eight cuts, or the throw, which is not a cut. */
 export type SwingKind = MeleeAttackId | "throw";
 
-/**
- * How long one swing holds the arm.
- *
- * Owned by the drawing, not by this file, and that direction is the point. The eight cuts are a
- * three-pose illusion tuned at this pace; playing them faster does not make a fast attack, it makes
- * an unreadable one. So the world takes the animation's number rather than the animation being
- * squeezed into the world's.
- *
- * The bill is real and worth writing down: a swing was 0.32s and could be mashed as fast as a mouse
- * allows, so the same damage now lands at a little over half the old rate. Melee damage itself is
- * untouched — one knob, `BASE_MELEE_DAMAGE` in `actions.ts`, closes that gap whenever it is judged to
- * matter.
- */
+/** How long one swing holds the arm. Owned by the drawing: the cuts are unreadable played faster. */
 export const SWING_SECONDS = MELEE_SWING_SECONDS;
 
-/**
- * A throw is shorter, because a throw is the other hand's.
- *
- * The sword arm has no cut to play for it — it only dips out of the way — and holding the player for
- * three quarters of a second to watch that would be charging swing money for a shrug.
- */
+/** A throw is shorter, because the sword arm only dips out of the way rather than playing a cut. */
 export const THROW_SWING_SECONDS = 0.26;
 
 /** Where in the world a swing was aimed, so the arc can be drawn through it. */
 export type SwingTarget = { x: number; y: number; z: number; connected: boolean } | undefined;
 
 /**
- * A hit the player took, remembered long enough to point at where it came from.
- *
- * The world position is the whole design. Storing the screen angle instead would nail the mark to the
- * frame, so turning to face the attacker would drag the warning around with the view and leave it
- * pointing somewhere the threat is not — which is worse than drawing nothing, because it answers the
- * question wrongly rather than leaving it open.
- *
- * Severity scales how loud the mark is and never how long it lasts. A heavy hit should be louder, not
- * still on screen after the thing that landed it has been dealt with.
+ * A hit the player took, remembered long enough to point at where it came from. A world position, not
+ * a screen angle, which would drag as the player turns. Severity scales loudness, never duration.
  */
 export type DamageMark = {
   x: number;
@@ -385,13 +251,7 @@ export type Altar = {
   y: number;
 };
 
-/**
- * One sound a tick decided to make: which cue, and where in the world if it happened somewhere.
- *
- * An event rather than a call, because the rules half may not reach the audio stack: it reports what
- * happened, and the surface that ran the tick plays the report. The two fields are exactly the two
- * arguments the player takes, so draining is a hand-over rather than a translation.
- */
+/** One sound a tick decided to make. An event, not a call: the rules layer may not reach the audio stack. */
 export type SfxEvent = Readonly<{ id: SfxCueId; at?: Readonly<{ x: number; y: number }> }>;
 
 export type World = {
@@ -414,105 +274,46 @@ export type World = {
   mortars: Mortar[];
   vfx: Vfx[];
   particles: ParticleField;
-  /**
-   * How bloodied each cell's floor is, indexed like the maze. Accumulates over a floor and is wiped
-   * when a new one is generated, so a hard-fought room stays visibly hard-fought.
-   */
+  /** How bloodied each cell is, indexed like the maze. Accumulates over a floor and is wiped with it. */
   stains: Float32Array;
   /** Bumped whenever `stains` changes, so the scene's overlay list can be reused between kills. */
   stainsVersion: number;
   deaths: Death[];
-  /**
-   * Bumped whenever the terrain or the altar changes.
-   *
-   * The scene's walls, floor materials and structures are derived from those and nothing else, so
-   * they only need rebuilding when this moves — which is a few times a minute rather than sixty
-   * times a second.
-   */
+  /** Bumped when the terrain or altar changes; the scene's walls and structures rebuild only then. */
   terrainVersion: number;
   held: Held;
   /**
-   * Debug: stops what a body decided — where to go, moving, turning, a wind-up or charge it committed
-   * to — along with reinforcements arriving and the floor's artillery. Toggled by the P key.
-   *
-   * What it deliberately does not stop is everything that is a consequence of what the player did:
-   * the per-body timers keep counting down, knockback still carries, and a killed body plays its
-   * death through. A body that will not flinch when struck is what made the one switch this replaces
-   * useless for looking at a body while hitting it.
+   * Debug: stops every enemy decision, reinforcements, and artillery, but not the consequences of
+   * what the player did — timers run, knockback carries, deaths play through. Toggled by the P key.
    */
   mindsFrozen: boolean;
-  /**
-   * Debug: stops the whole enemy pass, timers included. Toggled by the O key.
-   *
-   * The still frame, as distinct from the held body above. A hit flash stuck lit under this one is
-   * correct rather than a defect — time is stopped, and a flash is a timer.
-   */
+  /** Debug: stops the whole enemy pass, timers included. A hit flash stuck lit is correct. Toggled by O. */
   worldFrozen: boolean;
-  /**
-   * Debug: the player still takes every hit and shows it, and simply does not lose the points.
-   *
-   * The flash, the shove, and the announcement all fire, because a run spent invulnerable has to
-   * still tell you what would have killed you. Toggled by the G key.
-   */
+  /** Debug: the player takes every hit and shows it, and does not lose the points. Toggled by G. */
   godMode: boolean;
   status: RunStatus;
   elapsedSeconds: number;
-  /**
-   * Where the run's clock stopped, or unset while it is still running.
-   *
-   * `elapsedSeconds` cannot be that clock on its own: it drives the torch's flicker, the walk bob, and
-   * every drifting plume, so freezing it would freeze the picture behind the end screen. It keeps
-   * running and this records the moment the run stopped counting — which is what the level, the
-   * readout, and the ending's own Time stat are actually asking for.
-   */
+  /** Where the run's clock stopped. `elapsedSeconds` keeps running, since the picture depends on it. */
   finishedSeconds: number | undefined;
-  /**
-   * Seconds left of the animation, counting down from `swingTotal`. Presentation reads these two.
-   *
-   * Also the whole of the input gate: a press while this is above zero is ignored outright. There is
-   * no queue and no buffer, because there is no chain to be early for — eight cuts, each its own
-   * press, and the one thing a player can do wrong is press during a swing, which costs them nothing.
-   */
+  /** Seconds left of the animation. Also the whole input gate: a press above zero is ignored, unqueued. */
   swing: number;
   swingTotal: number;
   swingKind: SwingKind;
-  /**
-   * Whether this swing has already reached the thing it was aimed at.
-   *
-   * A cut lands at `MELEE_CUT_START` through the animation rather than on the press. Without that the
-   * enemy dies while the sword is still going up, and the three quarters of a second that follows is
-   * a picture drawn over something already settled.
-   */
+  /** Whether the swing has landed. A cut resolves at `MELEE_CUT_START`, not on the press. */
   swingResolved: boolean;
   swingTarget: SwingTarget;
   /** Rises when a swing connects, decays fast. Drives the impact hitch on the arm and the camera. */
   impact: number;
-  /**
-   * A jolt of the view left by weight: a heavy throw leaving the hand, or a body arriving.
-   *
-   * Separate from `impact`, which the arm reads — this one is the camera's, and like the blast kick
-   * it is applied to pitch only, so shaking it can never cost the player a shot.
-   */
+  /** A jolt of the view left by weight. The camera's, applied to pitch only, so it cannot cost a shot. */
   shake: number;
   spawnSeconds: number;
   hitFlash: number;
   /** Recent hits with a known origin, newest last. Presentation points at them; nothing else reads them. */
   damageMarks: DamageMark[];
   walkBob: number;
-  /**
-   * Unbroken seconds the player has stood on the hot spring's pad.
-   *
-   * Presentation reads it and nothing else does: the healing is applied per step from the step's own
-   * length, so this is here to drive the green edge the screen answers a soak with — the counterpart
-   * of the red arcs a hit leaves. Zeroed the moment the pad is left.
-   */
+  /** Unbroken seconds on the hot spring's pad. Presentation only; healing is applied per step. */
   soakSeconds: number;
-  /**
-   * The difficulty level the run has already told the player about.
-   *
-   * The level itself is derived from the clock and the depth and is never stored; this is only the
-   * last value that was announced, so a rise can be noticed exactly once.
-   */
+  /** The last difficulty level announced. The level is derived, so this is what makes a rise noticeable once. */
   announcedLevel: number;
   message: string;
   messageSeconds: number;
@@ -521,33 +322,16 @@ export type World = {
   nextId: number;
   kills: number;
   wallsBroken: number;
-  /**
-   * Sealed rewards this run is holding.
-   *
-   * Run state, not floor state: `populateFloor` deliberately leaves it alone, so it survives every
-   * descent and is lost only with the run itself.
-   */
+  /** Sealed rewards this run holds. Run state: `populateFloor` leaves it alone, so it survives a descent. */
   carried: SealedReward[];
 };
 
 /**
- * How close the player can get to anything solid.
- *
- * Also the only cheap answer to the near-field distortion at a wall. A wall column is projected as
- * its height over the depth, so its top climbs with the *square* of how close you are: at 0.26 cells
- * the top of a one-storey wall sweeps about seven screen-heights per cell of approach, which is what
- * reads as the wall suddenly growing as you walk into it. Standing a little further off cuts that
- * rate by a third for a sixth of a cell of clearance, and a one-cell corridor still has room to spare.
+ * How close the player can get to anything solid. Also the cheap answer to near-field distortion: a
+ * wall's projected top climbs with the square of how close the camera is.
  */
 export const PLAYER_RADIUS = 0.32;
-/**
- * Wall clearance for every body on the floor, and nothing else.
- *
- * One number on purpose. A body sized for the corridor is a body that fits through the doorway it is
- * meant to be standing in; giving the large slime a large clearance would wedge it in corners and
- * leave it unable to block the thing it exists to block. How much floor a body takes up against the
- * player and against a thrown weapon is its `footprint`, which is a different circle.
- */
+/** Wall clearance for every enemy. One number, so each fits the doorway it must stand in. See `footprint`. */
 export const ENEMY_RADIUS = 0.3;
 export const PLAYER_SPEED = 3.4;
 export const REACH = 1.45;
@@ -558,22 +342,10 @@ export const PLAYER_BASE_MAX_HP = 150;
 /** How far from the player a reinforcement must appear, so nothing pops into an occupied corridor. */
 const SPAWN_CLEARANCE = 7;
 
-/**
- * How long the spawn clock waits before asking again, while the player stands where nothing arrives.
- *
- * Not infinity, which is the obvious answer and the wrong one: the crowd in force is the one belonging
- * to the room the player is standing in, so an answer of "never" stops being true the moment they walk
- * out of that room. A short re-check costs one comparison a second and is always right.
- */
+/** How long the spawn clock waits before asking again. Not infinity: the crowd belongs to a room. */
 export const IDLE_SPAWN_RECHECK_SECONDS = 1;
 
-/**
- * The crowd numbers in force where the player is standing.
- *
- * How many walk at once and how fast they come back are the room's, not the floor's: a body walks
- * between rooms freely, so the only honest answer to "how many" is the one belonging to where the
- * question is being asked from.
- */
+/** The crowd numbers where the player stands. The room's rather than the floor's, since enemies walk. */
 export function crowdHere(world: World): Crowd {
   return standingRoom(world.maze, Math.floor(world.player.x), Math.floor(world.player.y)).crowd;
 }
@@ -584,13 +356,7 @@ export function randomAmmo(): PropKind {
   return AMMO_KINDS[Math.floor(Math.random() * AMMO_KINDS.length)] ?? "rock";
 }
 
-/**
- * How long a body stands about before deciding where to go next.
- *
- * A range, rolled per body per pause. The point of the pause is that a floor reads as somewhere
- * creatures live rather than a set of patrols, and a fixed length would defeat that on its own: bodies
- * created in one pass stay in phase forever, so the whole room would stop and start together.
- */
+/** How long an enemy waits before choosing where to go. A range, so a room does not move in phase. */
 export function rollIdleSeconds(): number {
   return 2 + Math.random() * 2;
 }
@@ -623,26 +389,20 @@ function takeRandom<T>(pool: T[]): T | undefined {
   return pool.splice(index, 1)[0];
 }
 
-/** How much floor a body takes up, against the player and against anything thrown at it. */
+/** How much floor an enemy takes up, against the player and against anything thrown at it. */
 export function bodyFootprint(archetype: EnemyArchetype): number {
   return archetype.footprint ?? ENEMY_RADIUS;
 }
 
-/** Two thirds of a floor comes after you; the rest of it is simply in the way. */
+/** Share of a floor that is obstacle rather than attacker. */
 const SLIME_SHARE = 0.4;
 
 const SLIME_KINDS: readonly MapCastKind[] = ["slimeGreen", "slimeBlue", "slimeRed"];
 
-/** Everything with an attack, in even shares: four bodies that stop, commit, and can be read. */
+/** Everything with an attack, in even shares. */
 const HUNTER_KINDS: readonly MapCastKind[] = ["swordsman", "hammerman", "javelineer", "crossbowman"];
 
-/**
- * Two rolls rather than one ladder: what kind of thing this is, then which of them.
- *
- * The colours split their share evenly because they are three sizes of one entity and no one of them
- * is the ordinary case. Keeping the two rolls apart is what lets a type be added to either list
- * without silently taking floor space away from the other.
- */
+/** Two rolls rather than one ladder, so adding to either list does not take floor space from the other. */
 function pickArchetype(catalog: GameCatalog): EnemyArchetype {
   const pool = Math.random() < SLIME_SHARE ? SLIME_KINDS : HUNTER_KINDS;
   const picked = pool[Math.floor(Math.random() * pool.length)];
@@ -652,23 +412,13 @@ function pickArchetype(catalog: GameCatalog): EnemyArchetype {
 /** How long an emplacement holds a mark before firing, and how long it stands between shots. */
 export const MORTAR_LOCK_SECONDS = 5;
 export const MORTAR_IDLE_SECONDS = 3;
-/**
- * How close to an emplacement a body has to be for it to be unable to fire at it.
- *
- * The counter to the whole thing, and the reason it can afford to range across the entire floor:
- * walking up to one is always safe, so smashing it is always available.
- */
+/** How close to an emplacement something has to be for it to be unable to fire. This is the counter. */
 export const MORTAR_DEAD_ZONE = 2;
 export const SHELL_DAMAGE = 24;
 /** Three tiles across: the radius is half of that. */
 export const SHELL_BLAST_RADIUS = 1.5;
 
-/**
- * Finds every emplacement standing on a floor and gives each one a cycle to run.
- *
- * The tiles are the authority on which exist; this list only carries what they are doing. Staggering
- * the opening idle means a fresh floor does not fire every mortar it has on the same beat.
- */
+/** Gives every emplacement tile a cycle to run, with the opening idle staggered across the floor. */
 export function collectMortars(maze: Maze): Mortar[] {
   const built: Mortar[] = [];
 
@@ -710,8 +460,7 @@ export function createEnemy(world: World, x: number, y: number, archetype?: Enem
     pushY: 0,
     repathSeconds: 0,
     waypoint: undefined,
-    // Idling rather than wandering, so a body that spawns inside the player's notice takes them up on
-    // its first frame instead of turning away to run an errand first.
+    // Idling rather than wandering, so one spawning within notice engages on its first frame.
     mind: "idle",
     idleSeconds: rollIdleSeconds(),
     wanderCell: undefined,
@@ -730,19 +479,10 @@ export function createEnemy(world: World, x: number, y: number, archetype?: Enem
 }
 
 /**
- * Stands every room's authored cast where its file says, and answers how many the player's own room
- * stood — which is what the random count below has to be told about, since the cap counts both.
- *
- * The override replaces every body's kind while leaving every body's cell alone, which is what a
- * person filming a reel of one creature after another asks for. It is a parameter rather than
- * anything this module holds: which body is being filmed is not a fact about a floor.
- *
- * A cast cell is written in the room's own space, where the wall ring is zero and the first interior
- * cell is 1,1 — the same space its authored cells use. The room's minimum corner is that first
- * interior cell on the floor, so the ring is what the subtraction below takes off.
- *
- * Nothing here asks whether a cell is walkable. A body on masonry settles out of it on its first
- * frame the way any shoved body does, and a body in water drowns, which is a thing to author.
+ * Stands every room's authored cast where its file says, returning how many the player's own room
+ * stood, since the cap counts those too. The override replaces every kind and leaves every cell
+ * alone, for filming one creature at a time. A cast cell is in room space, first interior cell 1,1.
+ * Walkability is not checked: an enemy on masonry settles out, and one in water drowns.
  */
 export function standCast(world: World, override?: MapCastKind): number {
   const standing = standingRoom(world.maze, Math.floor(world.player.x), Math.floor(world.player.y));
@@ -768,12 +508,7 @@ export function standCast(world: World, override?: MapCastKind): number {
   return here;
 }
 
-/**
- * Fills a freshly generated maze with everything that is not the player.
- *
- * Used both for a new run and for arriving on the next floor down, which is why it takes the world
- * rather than building one: descending keeps health, hands, and blessings and replaces only this.
- */
+/** Fills a new maze with everything but the player. Descending keeps health, hands, and blessings. */
 export function populateFloor(world: World): void {
   const maze = world.maze;
   world.enemies = [];
@@ -782,7 +517,7 @@ export function populateFloor(world: World): void {
   world.hazards = [];
   world.vfx = [];
   world.mortars = collectMortars(maze);
-  // Pointing at a body on the floor above is worse than pointing nowhere.
+  // Pointing at something on the floor above is worse than pointing nowhere.
   world.damageMarks = [];
   world.particles = createParticleField();
   world.stains = new Float32Array(gridArea(maze));
@@ -794,22 +529,20 @@ export function populateFloor(world: World): void {
   world.player.y = maze.entrance.y + 0.5;
   world.player.pitch = 0;
 
-  // Read after the player has been put on the entrance, because the room the numbers come from is the
-  // one they are standing in.
+  // Read after the player is placed, because the numbers come from the room they are standing in.
   const crowd = crowdHere(world);
   world.spawnSeconds = crowd.reinforcement ? roll(crowd.reinforcement.every) : IDLE_SPAWN_RECHECK_SECONDS;
 
-  // The authored bodies first, and exactly where they say. They ignore the distance rule below on
-  // purpose: that rule stops a floor nobody authored from opening with a swing, and standing a body
-  // at arm's reach is the entire point of authoring one.
+  // The authored cast first, exactly where it says. It ignores the distance rule below, because
+  // standing an enemy at arm's reach is the point of authoring one.
   const staged = standCast(world);
 
-  // Far enough that the first thing a floor does is look around rather than swing.
+  // Far enough that a floor opens with looking around rather than a swing.
   const spawnPool = walkableCells(maze).filter(
     (cell) => Math.hypot(cell.x + 0.5 - world.player.x, cell.y + 0.5 - world.player.y) > 6.5,
   );
-  // What the cast already stands is subtracted rather than clamped afterwards, because the cap is the
-  // room's promise about how many bodies are in it, and an authored body is one of them.
+  // Subtracted rather than clamped afterwards: the cap is the room's promise about how many are in
+  // it, and an authored enemy is one of them.
   const count = Math.min(crowd.cap - staged, roll(crowd.starting) + world.depth - 1);
 
   for (let index = 0; index < count; index += 1) {
@@ -822,9 +555,8 @@ export function populateFloor(world: World): void {
     world.enemies.push(createEnemy(world, cell.x + 0.5, cell.y + 0.5));
   }
 
-  // Kit is the floor's rather than any one room's: it lands anywhere walkable, side rooms included. So
-  // the room standing in the main slot is what declares it — that is the one room every map has, and
-  // the alternative, a share per room, would move every piece on every floor a seed has ever drawn.
+  // Kit is the floor's rather than any one room's, so the main slot declares it: that is the one room
+  // every map has, and a share per room would move every piece on every floor a seed has drawn.
   const kit = world.map.fixed.find((placement) => placement.slot === "main")?.room.scatter?.props;
 
   if (!kit) {
@@ -856,8 +588,8 @@ export function populateFloor(world: World): void {
 
 export function createWorld(map: ResolvedMap, catalog: GameCatalog): World {
   const maze = buildFloor(map);
-  // A cursed core can roll health downward, so the floor of one is what a run starts with rather than
-  // the base: a bad roll makes a run harder, never unplayable before it begins.
+  // A cursed core can roll health downward, so a floor is applied: a bad roll makes a run harder,
+  // never unplayable before it begins.
   const startingMaxHp = Math.max(50, PLAYER_BASE_MAX_HP + coreBonus("maxHp"));
   const world: World = {
     map,
@@ -872,8 +604,7 @@ export function createWorld(map: ResolvedMap, catalog: GameCatalog): World {
       pushX: 0,
       pushY: 0,
       hp: startingMaxHp,
-      // A core carried out of an earlier run changes what this one starts with. It is the one axis a
-      // core moves that is stored rather than read, so it is applied where the run is built.
+      // The one axis a core moves that is stored rather than read, so it is applied where the run is built.
       maxHp: startingMaxHp,
     },
     altar: { hp: ALTAR_HITS, maxHp: ALTAR_HITS, x: maze.altar.x + 0.5, y: maze.altar.y + 0.5 },
@@ -925,11 +656,8 @@ export function createWorld(map: ResolvedMap, catalog: GameCatalog): World {
 }
 
 /**
- * Knocks every wall out of the current floor, for the T key on the demo surface.
- *
- * Walls only: pools and barricades stay, deliberately — they are what `blocksWalk` still refuses to
- * cross, so the pathfinding worst case (a player nothing can reach) stays reproducible on the
- * flattened floor. Enemy count is topped up to the cap so every sprite is on screen at once.
+ * Knocks every wall out of the current floor, for the T key. Pools and barricades stay, so the
+ * pathfinding worst case stays reproducible; the enemy count is topped up to the cap.
  */
 export function flattenFloorForTesting(world: World): void {
   for (let y = 1; y < world.maze.height - 1; y += 1) {
@@ -977,17 +705,7 @@ export function spawnReinforcement(world: World): boolean {
   return true;
 }
 
-/**
- * Awards one blessing and queues its card.
- *
- * Both sources — smashing an altar and taking the stairs down — come through here, so the card and
- * the bar can never drift apart between them.
- */
-/**
- * Reports one sound. The event carries its position only when it has one, because the queue's type —
- * like the player's contract it mirrors — treats "flat interface-adjacent sound" as the absence of a
- * place rather than a place of zeroes.
- */
+/** Reports one sound. The event carries a position only when it has one; a flat sound has none. */
 export function raiseSfx(world: World, id: SfxCueId, at?: Readonly<{ x: number; y: number }>): void {
   world.sfxCues.push(at ? { id, at } : { id });
 }
@@ -1003,13 +721,7 @@ export function awardBless(world: World): void {
   announce(world, `Blessing gained: ${granted.name}`, 3);
 }
 
-/**
- * Ends the run, whichever way it ended.
- *
- * One door out of `playing`, so the things that have to happen on the way through it cannot be done by
- * one exit and forgotten by the other: the clock stops, and any pad the player was standing on stops
- * paying into the screen.
- */
+/** Ends the run. One door out of `playing`, so the clock and any pad cannot be released by only one exit. */
 export function endRun(world: World, status: "dead" | "extracted"): void {
   if (status === "dead") {
     raiseSfx(world, "playerDeath");
@@ -1028,8 +740,7 @@ export function runClockSeconds(world: World): number {
 export function announce(world: World, message: string, seconds = 2.2): void {
   world.message = message;
   world.messageSeconds = seconds;
-  // Deliberately silent. The line changes constantly — a sound on it was the most frequent noise in
-  // the game, and it marked nothing the text was not already saying.
+  // Deliberately silent: the line changes constantly, and a sound on it marked nothing new.
 }
 
 /** Ceiling on how dark one cell can get, so a long fight does not end in a solid red floor. */
@@ -1043,8 +754,7 @@ export function stainFloor(world: World, x: number, y: number, amount: number): 
     return;
   }
 
-  // Nothing settles on a pool, filled or not. Recorded here as well as skipped at draw time, so a
-  // cell that some future change opens up does not reveal blood that was never visible on it.
+  // Refused here as well as at draw time, so a cell opened later does not reveal blood never visible on it.
   if (!holdsStains(world.maze, cellX, cellY)) {
     return;
   }
@@ -1055,8 +765,7 @@ export function stainFloor(world: World, x: number, y: number, amount: number): 
 }
 
 export function addVfx(world: World, effect: VfxSpec): void {
-  // Silent on purpose: the blast that matters already announces itself at its own site, and an arc is
-  // one hop in a cascade — a sound per hop turned one lightning strike into a drum roll.
+  // Silent on purpose: a blast makes its own sound at its site, and one per arc hop is a drum roll.
   world.vfx.push({ ...effect, id: nextId(world, "vfx") });
 }
 
@@ -1076,16 +785,8 @@ export function markDamageFrom(world: World, amount: number, fromX: number, from
 }
 
 /**
- * Puts one loose prop on the floor, at the point asked for or the nearest side of it that is not
- * masonry.
- *
- * A throw that ends against a wall ends *in* the cell it struck, so a prop that survives its landing
- * has to be walked back out of the stonework before it can be picked up again — otherwise the thing
- * you were promised you could retrieve is embedded in a wall a step out of reach.
- *
- * `count` is how many uses the stack holds, which for everything a throw leaves behind is one. It is
- * a parameter because a pile put down deliberately — a crossbow with shots still in it — is the same
- * placement problem and should not need a second function to get the wall nudge right.
+ * Puts one loose prop on the floor, at the point asked for or the nearest side that is not masonry.
+ * A throw ends inside the cell it struck, so a surviving prop is nudged back out to stay retrievable.
  */
 export function dropProp(world: World, kind: PropKind, x: number, y: number, count = 1): void {
   let placedX = x;
@@ -1107,25 +808,14 @@ export function dropProp(world: World, kind: PropKind, x: number, y: number, cou
   world.props.push({ id: nextId(world, "prop"), kind, count, x: placedX, y: placedY });
 }
 
-/**
- * The one flight curve in the demo, shared by everything that leaves the ground.
- *
- * Split out of the throw so the emplacement's shell can use it rather than growing a second version
- * that starts identical and drifts. The mortar case is exactly what the `fall` term was written for:
- * given a range, choose a fall that brings the curve back to the floor precisely at the end of it.
- */
+/** The one flight curve, shared by everything airborne. `fall` returns it to the floor at the range's end. */
 export function flightHeight(travelled: number, range: number, arc: number, fall: number, plunge: number): number {
   return Math.max(0, flightDepth(travelled, range, arc, fall, plunge));
 }
 
 /**
- * The same curve without the floor under it, which is the only way to notice a throw aimed into it.
- *
- * `flightHeight` clamps at zero, so a throw pointed down flattens against the ground and carries on
- * to the end of its range as though nothing happened — there is no landing event anywhere in the
- * flight because height can never go negative. The clamp stays exactly as it is, because every
- * lobbed throw in the demo depends on it; a weapon that is meant to stop where it touches down reads
- * this instead and watches for the crossing.
+ * The same curve unclamped, which is the only way to notice a throw aimed into the ground:
+ * `flightHeight` clamps at zero, so a downward throw would flatten and carry on with no landing.
  */
 export function flightDepth(travelled: number, range: number, arc: number, fall: number, plunge: number): number {
   const s = Math.min(1, Math.max(0, travelled / Math.max(0.0001, range)));
@@ -1133,19 +823,9 @@ export function flightDepth(travelled: number, range: number, arc: number, fall:
 }
 
 /**
- * Height of a projectile above the floor, in cells — simulation truth, not decoration.
- *
- * Every throw leaves the hand *along the aim line*, which is what makes an upward throw read as
- * flying up rather than shrinking away. Lobbed things then bend down under `fall` to touch the
- * ground exactly where the range runs out; line-flying weapons keep the launch slope the whole
- * way. An earlier version fixed the peak instead of the launch direction, and a skyward throw
- * departed almost level, crawling off under the crosshair.
- *
- * `plunge` bends that curve without moving either end of it. The fall term is raised to a power, and
- * since the flown fraction is one at the landing point the throw still touches down exactly where it
- * always did — what changes is where it spends the flight. Below one it tops out early and is on its
- * way down for most of the throw, which is a body; above one it carries flat and drops at the end,
- * which is a stone.
+ * Height of a projectile above the floor, in cells; collision reads it. Every throw leaves the hand
+ * along the aim line. `plunge` bends the curve without moving either end, because the flown fraction
+ * is one at the landing point: below one it descends for most of the flight, above one it drops late.
  */
 export function projectileHeight(projectile: Projectile): number {
   return flightHeight(projectile.travelled, projectile.range, projectile.arc, projectile.fall, projectile.plunge);
@@ -1161,14 +841,9 @@ export function hazardHeight(hazard: Hazard): number {
   return flightHeight(hazard.travelled, hazard.range, hazard.arc, hazard.fall, hazard.plunge);
 }
 
-/** True when the straight segment between two points crosses no wall. Water does not block. */
 /**
- * Whether an attack can be made along this line.
- *
- * Asks the projectile question, not the vision one, and the difference matters: a shooter that can
- * *see* you over a barricade but cannot *shoot* through it would happily line up, fire, and bury
- * every shot in the timbers forever. Using the same predicate the shot itself uses means it simply
- * does not take the shot, and walks until it has an angle — which is what cover is supposed to do.
+ * Whether an attack can be made along this line. Asks the projectile question rather than the vision
+ * one, so a shooter behind a barricade holds fire and walks until it has an angle.
  */
 export function hasLineOfSight(maze: Maze, fromX: number, fromY: number, toX: number, toY: number): boolean {
   const distance = Math.hypot(toX - fromX, toY - fromY);
