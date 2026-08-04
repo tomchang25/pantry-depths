@@ -50,9 +50,12 @@ The scratch file is not a project artifact. Do not write it inside the working t
 - a second line that is not blank, which is how a displaced subject announces itself;
 - a subject that is not in conventional commit form;
 - an authorship or generator trailer, which the Limits section bans and an agent's own defaults supply anyway;
-- a subject of 40 words or more, or a message of 400 or more.
+- a subject of 40 words or more, or a message of 400 or more;
+- any word on the fiction-vocabulary denylist the hook carries, matched case-insensitively at word boundaries across the whole message.
 
-It checks structure only. Register — whether a bullet is a changelog entry or a piece of narration — is a judgement no hook can make, and the sections above remain the contract for it. Passing the hook is not evidence that a message is acceptable.
+The denylist is the only register rule the hook enforces, and it enforces it because a word list is a match rather than a judgement. Everything else about register — whether a bullet is a changelog entry or a piece of narration — is a judgement no hook can make, and the sections above remain the contract for it. Passing the hook is not evidence that a message is acceptable.
+
+The list lives in the hook rather than here, so the rule and its enforcement cannot drift apart. It starts conservative and changes on evidence: a rejection is answered by rewording, and an entry that keeps blocking legitimate technical phrasing is deleted from the list.
 
 Git locates the hook through per-clone configuration, so a fresh clone installs it once with `git config core.hooksPath dev/tools/githooks`.
 

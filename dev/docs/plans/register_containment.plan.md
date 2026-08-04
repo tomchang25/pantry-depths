@@ -56,10 +56,10 @@ Case-insensitive, word-boundary matched, applied to the whole message:
 
 ### Child overview
 
-| Child | Focus                       | Form                       |
-| ----- | --------------------------- | -------------------------- |
-| 2     | Commit hook denylist        | This plan, Execution below |
-| 3     | Rules-layer comment rewrite | This plan, Execution below |
+| Child | Focus                       | Form                                                           |
+| ----- | --------------------------- | -------------------------------------------------------------- |
+| 2     | Commit hook denylist        | `register_containment_02_hook_denylist.implementation_spec.md` |
+| 3     | Rules-layer comment rewrite | This plan, Execution below                                     |
 
 Landing order: 2, 3. Child 1 has shipped; the register contract it added is the one child 3 cites.
 

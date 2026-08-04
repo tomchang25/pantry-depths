@@ -1,11 +1,13 @@
 #!/bin/sh
 #
-# commit-msg — structural gate for Pantry Depths commit messages.
+# commit-msg — structural and vocabulary gate for Pantry Depths commit messages.
 #
-# Register is a human judgement and lives in dev/agent_rules/git_operations.md; this
-# hook never tries to make it. What it catches is damage no reader would have written
-# on purpose: a message mangled by shell quoting, a subject that is not a subject, and
-# the attribution trailers the project bans but an agent's defaults keep supplying.
+# Two kinds of check. The structural ones catch damage no reader would have written on
+# purpose: a message mangled by shell quoting, a subject that is not a subject, and the
+# attribution trailers the project bans but an agent's defaults keep supplying. The
+# denylist below catches the game's fiction vocabulary, which is a match rather than a
+# judgement. Whether a bullet reads as a changelog entry is still a judgement no hook
+# can make, and dev/agent_rules/git_operations.md remains the contract for it.
 #
 # Installed once per clone:
 #   git config core.hooksPath dev/tools/githooks
@@ -15,6 +17,24 @@ set -eu
 TYPES='build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test'
 SUBJECT_WORD_LIMIT=40
 MESSAGE_WORD_LIMIT=400
+
+# Fiction vocabulary, one entry per line so multi-word entries survive the split.
+# Changing the list is a one-line diff on purpose: an entry that keeps blocking
+# legitimate technical phrasing is removed rather than worked around.
+DENYLIST='body
+bodies
+mind
+minds
+owes
+pays
+paid
+errand
+crawls
+stirs
+goes under
+as themselves
+announces
+breathes'
 
 message=$(grep -v '^#' "$1" || true)
 subject=$(printf '%s\n' "$message" | sed -n '1p')
@@ -71,6 +91,20 @@ if printf '%s\n' "$message" | grep -Eqi '^[^a-z0-9]*generated with'; then
 	reject 'the message names the tool that produced the change'
 fi
 
+# The loop runs in the current shell, not a pipeline subshell: a subshell would discard
+# the reject() assignment and the message would commit.
+saved_ifs=$IFS
+IFS='
+'
+denied=0
+for entry in $DENYLIST; do
+	if printf '%s\n' "$message" | grep -Eqi "(^|[^[:alnum:]])${entry}([^[:alnum:]]|\$)"; then
+		reject "the message carries the fiction word \"${entry}\"; name the mechanism instead"
+		denied=1
+	fi
+done
+IFS=$saved_ifs
+
 message_words=$(words "$message")
 if [ "$message_words" -ge "$MESSAGE_WORD_LIMIT" ]; then
 	reject "the message is ${message_words} words; the limit is ${MESSAGE_WORD_LIMIT}"
@@ -78,6 +112,10 @@ fi
 
 if [ "$failed" -ne 0 ]; then
 	printf '\n' >&2
+	if [ "$denied" -ne 0 ]; then
+		printf 'Register is governed by the Commit Messages section of\n' >&2
+		printf 'dev/agent_rules/git_operations.md. Reword the message; never bypass the hook.\n' >&2
+	fi
 	printf 'Deliver the message as a file — git commit -F <path> — never as -m or a\n' >&2
 	printf 'multi-line string built in the shell. See dev/agent_rules/git_operations.md.\n' >&2
 	printf 'The rejected message is preserved in .git/COMMIT_EDITMSG\n' >&2
