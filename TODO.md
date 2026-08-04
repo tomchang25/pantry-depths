@@ -25,6 +25,8 @@ A brief lives here too and is the one kind of line `/implement` cannot take: it 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
 - [humanoid_block_bodies] Draft plan for one rig, one clip set and one part vocabulary across every humanoid, with death clips first - [ref plans/humanoid_block_bodies.plan.md]
 - [slime_bodies] Draft plan for what a slime is made of, blocked on choosing between a fluid body and a hopping block one - [ref plans/slime_bodies.plan.md]
+- [register_containment] Contain the prose register with an always-loaded contract, a commit-hook denylist, and a rules-layer comment rewrite - [ref plans/register_containment.plan.md]
+- [enemy_behavior_split] Split the enemy AI into a shared chassis and one module per attack family - [ref plans/enemy_behavior_split.plan.md]
 
 ---
 
