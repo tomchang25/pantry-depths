@@ -56,12 +56,11 @@ Case-insensitive, word-boundary matched, applied to the whole message:
 
 ### Child overview
 
-| Child | Focus                       | Form                                                           |
-| ----- | --------------------------- | -------------------------------------------------------------- |
-| 2     | Commit hook denylist        | `register_containment_02_hook_denylist.implementation_spec.md` |
-| 3     | Rules-layer comment rewrite | This plan, Execution below                                     |
+| Child | Focus                       | Form                       |
+| ----- | --------------------------- | -------------------------- |
+| 3     | Rules-layer comment rewrite | This plan, Execution below |
 
-Landing order: 2, 3. Child 1 has shipped; the register contract it added is the one child 3 cites.
+Children 1 and 2 have shipped. The register contract they added is the one this rewrite cites, and the hook now rejects the fiction vocabulary in every commit message the rewrite makes.
 
 ## Non-Goals
 
@@ -81,14 +80,6 @@ Landing order: 2, 3. Child 1 has shipped; the register contract it added is the 
 ## Execution
 
 Perishable coordinates, recorded 2026-08-04 at commit b8ad8d5. Re-check against live code before executing. Conflicts resolve in favor of the conceptual half.
-
-Required reading before executing child 2: `dev/foundation/core/standards/governance_structure_standard.md` and `dev/foundation/core/standards/consumer_operations_standard.md` (both trigger on governance/contract edits). Governance edits require `npm run check:governance` per `dev/workflows/commands/commit.md` step 5.
-
-### Child 2 — hook denylist
-
-File: `dev/tools/githooks/commit-msg` (shell script; current checks: empty subject, non-blank second line, conventional-commit subject shape, authorship trailers, 40-word subject / 400-word message limits).
-
-Add a case-insensitive, word-boundary grep over the full message for the Design table's entries. Multi-word entries match as phrases. On hit: reject, print the matched word and a pointer to the Commit Messages section of `dev/agent_rules/git_operations.md`. Keep the list as a plain variable in the script so a change to it is a one-line diff. Update the hook's descriptive comment block and the "Message Structure Is Machine-Checked" list in `dev/agent_rules/git_operations.md` in the same change (it enumerates what the hook rejects).
 
 ### Child 3 — rules-layer comment rewrite
 
