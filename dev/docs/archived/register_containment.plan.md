@@ -56,11 +56,7 @@ Case-insensitive, word-boundary matched, applied to the whole message:
 
 ### Child overview
 
-| Child | Focus                       | Form                       |
-| ----- | --------------------------- | -------------------------- |
-| 3     | Rules-layer comment rewrite | This plan, Execution below |
-
-Children 1 and 2 have shipped. The register contract they added is the one this rewrite cites, and the hook now rejects the fiction vocabulary in every commit message the rewrite makes.
+All three children have shipped. Child 3 landed the four largest modules and was closed there by decision on 2026-08-04; `CHANGELOG.md` records what that left, and the tracker carries the remaining modules as a chore.
 
 ## Non-Goals
 
@@ -79,16 +75,4 @@ Children 1 and 2 have shipped. The register contract they added is the one this 
 
 ## Execution
 
-Perishable coordinates, recorded 2026-08-04 at commit b8ad8d5. Re-check against live code before executing. Conflicts resolve in favor of the conceptual half.
-
-### Child 3 — rules-layer comment rewrite
-
-Scope: all 26 modules under `src/core/`. Baseline measurement (32%):
-
-```bash
-total=$(find src/core -name '*.ts' | xargs cat | wc -l); comments=$(find src/core -name '*.ts' | xargs cat | grep -cE '^\s*(/\*|\*|//)'); echo "$comments/$total"
-```
-
-Suggested order: one commit per file for the four large files — `src/core/floor/maze.ts` (1448 lines), `src/core/world/world.ts` (1188), `src/core/world/simulation.ts` (1055), `src/core/combat/enemy-ai.ts` (944) — then the remaining 22 modules batched by domain directory. Coordination: if the enemy behavior split plan (`dev/docs/plans/enemy_behavior_split.plan.md`) is executing concurrently, leave `enemy-ai.ts` to that plan — it rewrites the comments of everything it moves — and sweep only what remains of the file afterwards.
-
-Each commit: comments only, `npm run verify` before delivery. Commit subjects in the new register, e.g. `docs(core): rewrite floor assembly comments to plain register`.
+Spent. Every child's subsection was cut as it shipped.
