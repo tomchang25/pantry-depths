@@ -61,7 +61,7 @@ Soft bodies. A slime has no rig, no limbs and no clips to share, and every requi
 2. No procedural part generation. The part vocabulary is drawn by a person; the record chooses and proportions it.
 3. No skinning, deformation or added joints. The absence of an elbow is what keeps a table a sufficient author.
 4. No renderer work beyond playing what the pipeline produces.
-5. No retirement of the sprite atlases. Eighty-one megabytes of skeleton artwork still ships because the raycaster still reads it, and it dies with that renderer under the graduation plan, not here.
+5. No sprite atlas work of any kind. The eighty-one megabytes of baked skeleton artwork this once had to wait behind went out with the ray-marched renderer on 2026-08-04; nothing in the roster is drawn from a sprite atlas any more, and this plan starts from a rig.
 
 ## Acceptance Criteria
 

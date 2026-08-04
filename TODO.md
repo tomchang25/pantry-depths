@@ -23,10 +23,6 @@ Forward work that no plan owns, each with a sketch in `dev/docs/plans/`. A line 
 A brief lives here too and is the one kind of line `/implement` cannot take: it is format-free material handed to a later session, it authorizes nothing, and it is spent once it has seeded a real artifact. `dev/standards/work_lifecycle.addendum.md` owns its rules.
 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
-- [three_scene_graduation] Make the Three.js runtime the game's renderer and delete both the interim projection and the ray-marched one - [ref plans/three_scene_graduation.plan.md]
-- [three_scene_demolition] Rebuild the entity workbench from the block viewer, retire the preview and scene tools, and delete the interim projection with the ray-marched renderer - [ref plans/three_scene_demolition.implementation_spec.md]
-- [scene_3d_hold_readouts] Put the blessing and extraction hold readouts on top of the fixtures that cover them, and vent the extraction plumes with the share - [ref plans/scene_3d_hold_readouts.implementation_spec.md]
-- [scene_3d_prop_pictures] Draw the crossbow and the javelin as themselves in the hand and on the floor instead of the hammer and the stick - [ref plans/scene_3d_prop_pictures.implementation_spec.md]
 - [humanoid_block_bodies] Draft plan for one rig, one clip set and one part vocabulary across every humanoid, with death clips first - [ref plans/humanoid_block_bodies.plan.md]
 - [slime_bodies] Draft plan for what a slime is made of, blocked on choosing between a fluid body and a hopping block one - [ref plans/slime_bodies.plan.md]
 
@@ -208,3 +204,13 @@ The report at `dev/docs/reports/pantry_depths_architecture.html` is hand-written
 Six of the twenty-one cues were chosen by tags rather than by ear, and the review record carries them as `trial` rather than `shipped`: the two wall breaks, the interface voice, the throw release, and the two thrown-weapon landings. The wall breaks are generic crash takes from the bangs pack — the first candidates auditioned from it, not the best of it. The shared explosive take behind the detonation and the shell landing still runs a long tail, and that same pack remains the likeliest source of a short report. The interface voice is the old card chime serving every moment now, which may wear thin.
 
 Not scheduled, and not really tracker work any more: the verdicts belong in `src/content/sfx/sfx-review.json`, judged on the SFX workbench and exported to the library with `npm run sfx:export`. `dev/skills/sfx_sourcing.md` owns the loop. This entry stays only so the six unheard takes are a list rather than a memory.
+
+### What A Pickup Is Made Of
+
+Every carryable object is drawn at runtime: canvas paths executed once per consumer at startup, producing a square picture that is then shown as a billboard on the floor, composited into the hand, and turned over in the air. It works and it is what the shipped renderer did, but nothing about it is authored — the objects are code, so their look is edited by editing drawing commands, and a picture nobody can open in a paint program is a picture nobody will improve.
+
+Two answers, and choosing between them is the decision. Bake the same pictures into image assets, which keeps everything else about how a pickup is drawn and moves the artwork into files somebody can author and iterate on. Or give a pickup a model and stop drawing it flat at all, which is the direction the bodies and the fittings already went and would end the billboard's remaining tells: a flat object lit as a card, an object that turns in one plane because a billboard has no other axis, and a hand that composites a square rather than holding a thing.
+
+The second is the larger change and it does not stop at the floor. The object in the hand is drawn into a 2D canvas over the scene, so a modelled pickup either brings that surface into the 3D scene or leaves the hand on a different pipeline from everything else. The weapon models the skeletons carry are evidence for the direction and not a shortcut to it — they are rigged to an armature and serve an enemy's hand, not a pickup standing on stone.
+
+Not scheduled. What would force it is the first pickup somebody wants to redraw.
