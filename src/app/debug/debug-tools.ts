@@ -1,5 +1,3 @@
-import { mountSandboxExperiment } from "@/app/debug/sandbox-tool";
-
 export type DebugToolRenderer = {
   render(mount: HTMLElement): void;
 };
@@ -15,43 +13,25 @@ export type DebugTool = {
 /** The single registry for future development tools. */
 export const DEBUG_TOOLS: readonly DebugTool[] = [
   {
-    id: "three-scene",
-    path: "/debug/three-scene",
-    title: "Three.js Floor",
-    description:
-      "Walk a real authored floor drawn with Three.js, and judge whether the masonry, the night sky, the fog and the torch survive the move off the raycaster.",
-    load: () => import("@/app/debug/three-scene").then(({ renderThreeScene }) => ({ render: renderThreeScene })),
-  },
-  {
-    id: "three-block",
-    path: "/debug/three-block",
-    title: "Block Skeleton",
-    description:
-      "Judge a blocky enemy at sprite size: eight headings, the bake's own camera, and clips driven by numeric tables.",
-    load: () =>
-      import("@/sandbox/three-block/three-block").then(({ THREE_BLOCK_EXPERIMENT }) => ({
-        render: mountSandboxExperiment(THREE_BLOCK_EXPERIMENT),
-      })),
-  },
-  {
-    id: "three-preview",
-    path: "/debug/three-preview",
-    title: "Three.js Preview",
-    description:
-      "Preview skeletal posing, destructive animation, procedural models, and ballistic effects in isolation.",
-    load: () =>
-      import("@/sandbox/three-preview/three-preview").then(({ THREE_PREVIEW_EXPERIMENT }) => ({
-        render: mountSandboxExperiment(THREE_PREVIEW_EXPERIMENT),
-      })),
-  },
-  {
     id: "entity-workbench",
     path: "/debug/entity-workbench",
     title: "Entity Workbench",
-    description: "Scrub entity clips, reproduce death states, and tune authored display numbers.",
+    description:
+      "One body on a turntable: every weapon, every clip, scrubbed frame by frame, and the two ways it comes apart.",
     load: () =>
-      import("@/app/debug/entity-workbench").then(({ renderEntityWorkbench }) => ({
+      import("@/app/debug/entity-workbench/entity-workbench").then(({ renderEntityWorkbench }) => ({
         render: renderEntityWorkbench,
+      })),
+  },
+  {
+    id: "placement-workbench",
+    path: "/debug/placement-workbench",
+    title: "Placement Workbench",
+    description:
+      "How a body and a pickup sit on an authored floor, at the distance the game draws them — the surface the size, height and marker numbers are tuned against.",
+    load: () =>
+      import("@/app/debug/placement-workbench").then(({ renderPlacementWorkbench }) => ({
+        render: renderPlacementWorkbench,
       })),
   },
   {

@@ -16,7 +16,11 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 
 import entityDisplayJson from "@/content/enemies/entity-display.json";
-import { entityDisplaysByAppearance, parseEntityDisplays } from "@/content/enemies/entity-display-schema";
+import {
+  entityDisplaysByAppearance,
+  parseEntityDisplays,
+  type EntityDisplay,
+} from "@/content/enemies/entity-display-schema";
 import { attackCooldown, isBoned, STRIKE_SECONDS, type EnemyAppearanceId } from "@/core/enemy-contract";
 import { bodyFootprint, projectileHeight, type Death, type Enemy, type World } from "@/core/world";
 
@@ -45,6 +49,29 @@ const APPEARANCE_WEAPONS: Readonly<Partial<Record<EnemyAppearanceId, BlockWeapon
 const DISPLAYS = entityDisplaysByAppearance(parseEntityDisplays(entityDisplayJson));
 
 /**
+ * Numbers being tuned but not yet written to that table.
+ *
+ * The workbench that authors those four numbers has to be able to see the body it is authoring, and
+ * the body it is authoring is not the one the file describes yet. Nothing but that workbench sets
+ * this, and it holds one entry per appearance rather than a whole second table — an override that
+ * could shadow every body would be a second owner rather than a preview.
+ */
+const displayOverrides = new Map<EnemyAppearanceId, EntityDisplay>();
+
+export function setEntityDisplayOverride(appearance: EnemyAppearanceId, display: EntityDisplay | undefined): void {
+  if (display) {
+    displayOverrides.set(appearance, display);
+    return;
+  }
+
+  displayOverrides.delete(appearance);
+}
+
+function displayFor(appearance: EnemyAppearanceId): EntityDisplay | undefined {
+  return displayOverrides.get(appearance) ?? DISPLAYS[appearance];
+}
+
+/**
  * What colour each soft body is.
  *
  * Monotonic with the authored heights beside them: the colour tells the player the size and the size
@@ -64,7 +91,7 @@ const FALLBACK_SLIME_COLOR = 0xa0a0a0;
 
 function slimeProfile(appearance: EnemyAppearanceId): Readonly<{ height: number; color: number }> {
   return {
-    height: DISPLAYS[appearance]?.bodyScale ?? 0.46,
+    height: displayFor(appearance)?.bodyScale ?? 0.46,
     color: SLIME_COLORS[appearance] ?? FALLBACK_SLIME_COLOR,
   };
 }
@@ -248,7 +275,7 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
       }
     }
 
-    instance.scale.setScalar((DISPLAYS[enemy.appearance]?.bodyScale ?? 0.755) / templateHeight);
+    instance.scale.setScalar((displayFor(enemy.appearance)?.bodyScale ?? 0.755) / templateHeight);
 
     const body: BonedBody = {
       root: instance,
@@ -336,6 +363,10 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
           // sinks, which is what the rules describe happening to it.
           const sink = enemy.drowningSeconds > 0 ? Math.min(1, 1 - enemy.drowningSeconds / 1.6) * 1.2 : 0;
           body.root.position.set(enemy.x, -sink, enemy.y);
+          // Re-applied every frame rather than only at spawn, so the workbench's unsaved height moves
+          // a body that is already standing. It is one multiply against a number that almost never
+          // changes, and the alternative is rebuilding the body to see a slider.
+          body.root.scale.setScalar((displayFor(enemy.appearance)?.bodyScale ?? 0.755) / templateHeight);
           // Half a turn away from the camera's own formula, and that distinction was a real defect:
           // the camera looks down its local −Z while this armature was turned to face +Z, so reusing
           // the yaw the camera uses pointed every body exactly backwards.
@@ -521,7 +552,7 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
     const present = new Set<string>();
 
     for (const enemy of world.enemies) {
-      const display = DISPLAYS[enemy.appearance];
+      const display = displayFor(enemy.appearance);
       const crown = isBoned(enemy.archetype) ? (display?.bodyScale ?? 0.755) : slimeProfile(enemy.appearance).height;
 
       if (enemy.stunSeconds > 0) {

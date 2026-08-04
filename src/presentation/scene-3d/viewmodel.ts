@@ -31,6 +31,7 @@ import {
   MELEE_IDLE_POSE,
   MELEE_VIEW_HEIGHT,
   MELEE_VIEW_WIDTH,
+  type MeleeAttackDefinition,
 } from "@/content/viewmodel/melee-viewmodel";
 import type { EnemyAppearanceId } from "@/core/enemy-contract";
 import type { PropKind } from "@/core/prop-kinds";
@@ -102,6 +103,13 @@ const SOAK_EDGES: readonly Readonly<{ far: boolean; vertical: boolean }>[] = [
 
 export type Viewmodel = Readonly<{
   overlay: HTMLCanvasElement;
+  /**
+   * Draws this attack instead of the one the swing names, or nothing to draw the authored one.
+   *
+   * The workbench that authors a cut has to be able to see the cut it is authoring, and the cut it
+   * is authoring is not yet the one in the table. Nothing but that workbench ever sets it.
+   */
+  setAttackOverride(attack: MeleeAttackDefinition | undefined): void;
   setKind(kind: ViewmodelKind): void;
   sync(world: World): void;
   resize(width: number, height: number): void;
@@ -124,11 +132,16 @@ export function createViewmodel(): Viewmodel {
   }
 
   let kind: ViewmodelKind = "authored";
+  let attackOverride: MeleeAttackDefinition | undefined;
   let width = 1;
   let height = 1;
 
   return {
     overlay,
+
+    setAttackOverride(attack) {
+      attackOverride = attack;
+    },
 
     setKind(next) {
       kind = next;
@@ -188,7 +201,7 @@ export function createViewmodel(): Viewmodel {
     const progress = world.swing > 0 ? 1 - world.swing / total : 0;
 
     if (world.swing > 0 && world.swingKind !== "throw") {
-      const attack = MELEE_ATTACKS_BY_ID[world.swingKind];
+      const attack = attackOverride ?? MELEE_ATTACKS_BY_ID[world.swingKind];
       const connected = world.swingTarget?.connected ?? false;
       drawMeleeAttack(target, attack, progress, {
         // No aim: chasing the point a swing landed on needs the renderer's own projection wired

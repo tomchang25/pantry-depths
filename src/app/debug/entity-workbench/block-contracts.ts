@@ -1,41 +1,14 @@
 /**
- * The names shared with the Blender build script.
+ * What the workbench knows about the rig that the renderer does not need to.
  *
- * These strings are a contract across a file boundary that no compiler checks: `blocky_build.py`
- * names its NLA tracks and its weapon meshes, and this module selects by those names. A rename on
- * either side has to be a rename on both, and the failure mode if it is not is a clip that silently
- * does not exist rather than an error anybody sees.
+ * The weapon and clip names live in `@/presentation/scene-3d/block-clips`, which is the single owner
+ * of the rig's vocabulary and the contract with the Blender build script. What stays here is the
+ * bake's camera and lights, the bone names this tool reaches for by hand, and the rules about a
+ * thrown weapon and a swing arc — none of which the shipped renderer asks about, because it draws a
+ * body the simulation is driving rather than a body somebody is scrubbing.
  */
 
-export const BLOCK_WEAPONS = ["sword", "hammer", "javelin", "crossbow"] as const;
-export type BlockWeapon = (typeof BLOCK_WEAPONS)[number];
-
-export const BLOCK_CLIPS = ["idle", "walk", "windup", "strike", "recovery", "crossbowAim", "crossbowReload"] as const;
-export type BlockClip = (typeof BLOCK_CLIPS)[number];
-
-/**
- * Which clips each weapon plays.
- *
- * Sword, hammer and javelin share one set, which is the experiment's own claim: a javelin throw is
- * the same overhead arc as a chop, because what leaves the hand is the simulation's projectile and
- * not something the sprite has to draw. The crossbow is the exception, and its reload is a pose the
- * game's design notes already want a visible window for.
- */
-export const WEAPON_CLIPS: Readonly<Record<BlockWeapon, readonly BlockClip[]>> = {
-  sword: ["idle", "walk", "windup", "strike", "recovery"],
-  hammer: ["idle", "walk", "windup", "strike", "recovery"],
-  javelin: ["idle", "walk", "windup", "strike", "recovery"],
-  crossbow: ["idle", "walk", "crossbowAim", "crossbowReload"],
-};
-
-/** Clips that hold their last frame rather than looping, because the simulation owns their length. */
-export const HOLDING_CLIPS: ReadonlySet<BlockClip> = new Set<BlockClip>([
-  "windup",
-  "strike",
-  "recovery",
-  "crossbowAim",
-  "crossbowReload",
-]);
+import type { BlockClip, BlockWeapon } from "@/presentation/scene-3d/block-clips";
 
 /** The one clip the swing arc is drawn over. */
 export const ARC_CLIP: BlockClip = "strike";
@@ -43,7 +16,7 @@ export const ARC_CLIP: BlockClip = "strike";
 /**
  * Weapons that leave the hand when they are used.
  *
- * A javelin's strike is a throw, so the sprite has to stop holding it — what flies is the
+ * A javelin's strike is a throw, so the figure has to stop holding it — what flies is the
  * simulation's projectile, not something the animation carries. Hiding it is the presentation's job
  * for the same reason the swing arc is: the clip describes a body, and one shared melee clip serves
  * all three melee weapons precisely because it does not know which one is in the hand.

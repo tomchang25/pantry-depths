@@ -13,23 +13,13 @@
 
 import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createDebugPanel } from "@/app/debug/debug-shell";
-import { createRenderPanel } from "@/app/debug/render-panel";
+import { createRenderPanel, createWorkbenchStage } from "@/app/debug/render-panel";
+import { dropProp } from "@/core/world";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind, type PropDisplay } from "@/content/presentation/prop-display-schema";
 import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
 import { PROP_LABELS } from "@/core/actions";
-import { propPickupSprites } from "@/demo/demo-scene";
-import type {
-  CameraPose,
-  RenderFloorPatch,
-  RenderScene,
-  RenderSprite,
-  RenderSurface,
-} from "@/presentation/render-scene";
 
-const ROOM_SIZE = 9;
-const ROOM_CENTRE = 4.5;
-const PROP_Y = 4.25;
 /** Matched to the entity workbench, so a pickup and a body are compared on the same floor. */
 const DEFAULT_BACK = 2.6;
 
@@ -48,84 +38,6 @@ type PropWorkbenchState = {
   floorScale: number;
   floorAnchor: number;
 };
-
-function roomSurfaces(): RenderSurface[] {
-  const surfaces: RenderSurface[] = [];
-
-  for (let index = 0; index < ROOM_SIZE; index += 1) {
-    surfaces.push({ cell: { x: index, y: 0 }, material: "demoFoundation", height: 2.4 });
-    surfaces.push({ cell: { x: index, y: ROOM_SIZE - 1 }, material: "demoFoundation", height: 2.4 });
-
-    if (index > 0 && index < ROOM_SIZE - 1) {
-      surfaces.push({ cell: { x: 0, y: index }, material: "demoFoundation", height: 2.4 });
-      surfaces.push({ cell: { x: ROOM_SIZE - 1, y: index }, material: "demoFoundation", height: 2.4 });
-    }
-  }
-
-  return surfaces;
-}
-
-function roomFloor(): RenderFloorPatch[] {
-  const built: RenderFloorPatch[] = [];
-
-  for (let y = 0; y < ROOM_SIZE; y += 1) {
-    for (let x = 0; x < ROOM_SIZE; x += 1) {
-      built.push({ cell: { x, y }, material: "demoFlagstone" });
-    }
-  }
-
-  return built;
-}
-
-const ROOM_SURFACES = roomSurfaces();
-const ROOM_FLOOR = roomFloor();
-const ROOM_TILES = Array.from({ length: ROOM_SIZE }, (_rowValue, y) =>
-  Array.from({ length: ROOM_SIZE }, (_columnValue, x) =>
-    x === 0 || y === 0 || x === ROOM_SIZE - 1 || y === ROOM_SIZE - 1 ? "#" : ".",
-  ).join(""),
-);
-
-/**
- * The pickup exactly as the demo lays one down, because it is the demo laying one down.
- *
- * This used to be a hand-copy of the prop loop's arithmetic, with a comment asking whoever moved
- * either to remember the other. Nobody did: the game learned that a stack of charges is one object
- * and this tab went on fanning out three crossbows. The unsaved slider values go in as the display
- * override, which is the same seam the entity workbench tunes a body through.
- */
-function pickupSprites(state: PropWorkbenchState): RenderSprite[] {
-  return propPickupSprites({
-    id: "pickup",
-    kind: state.kind,
-    count: state.count,
-    x: ROOM_CENTRE,
-    y: PROP_Y,
-    display: { floorScale: state.floorScale, floorAnchor: state.floorAnchor },
-  });
-}
-
-function previewScene(state: PropWorkbenchState): RenderScene {
-  const camera: CameraPose = { x: ROOM_CENTRE, y: PROP_Y + state.cameraBack, angle: -Math.PI / 2 };
-  return {
-    floorId: "prop-workbench",
-    theme: "demo",
-    width: ROOM_SIZE,
-    height: ROOM_SIZE,
-    tiles: ROOM_TILES,
-    camera,
-    ambient: [0.24, 0.2, 0.3],
-    wallHeight: 1.4,
-    eyeHeight: 0.5,
-    surfaces: ROOM_SURFACES,
-    floorPatches: ROOM_FLOOR,
-    blobs: [],
-    sprites: pickupSprites(state),
-    lights: [
-      { id: "inspection-light", x: ROOM_CENTRE, y: PROP_Y + 1, radius: 5, color: [255, 178, 112], intensity: 1 },
-    ],
-    emitters: [],
-  };
-}
 
 function createRange(
   id: string,
@@ -175,7 +87,10 @@ export function createPropWorkbench(): HTMLElement {
     "Floor pickups",
     "How a loose object is drawn where it lies. Flight and in-hand are separate contexts with their own numbers; this tab does not speak for them.",
   );
-  const previewPanel = createDebugPanel("Preview", "The same shadow, glow, fan and per-copy lift the demo lays down.");
+  const previewPanel = createDebugPanel(
+    "Preview",
+    "The pickup as the rules lay it down, drawn by the renderer the game draws through.",
+  );
   const grid = document.createElement("div");
   const actions = document.createElement("div");
   const status = document.createElement("p");
@@ -319,9 +234,31 @@ export function createPropWorkbench(): HTMLElement {
       });
   });
 
+  // One pickup lying on the authored empty room, looked at from the distance the controls choose.
+  // Dropped through the rules rather than placed as a picture, so what is judged is the thing the
+  // game makes. The pickup moves along the eye's own line rather than the eye moving, which is what
+  // keeps the distance slider from backing the camera into masonry.
+  const { world, eye } = createWorkbenchStage();
+
   const preview = createRenderPanel({
     ariaLabel: "Prop workbench live preview",
-    frame: () => ({ scene: previewScene(state), preferences: { grade: true } }),
+    frame: (_timing, renderer) => {
+      // No arm: a pickup lying on the ground is a small thing at the bottom of the frame, which is
+      // exactly where the first-person layer is.
+      renderer.setViewmodel("none");
+      world.props.length = 0;
+      dropProp(
+        world,
+        state.kind,
+        eye.x + Math.cos(eye.angle) * state.cameraBack,
+        eye.y + Math.sin(eye.angle) * state.cameraBack,
+        state.count,
+      );
+      world.player.x = eye.x;
+      world.player.y = eye.y;
+      world.player.angle = eye.angle;
+      return { world };
+    },
   });
 
   grid.append(kindField, cameraBack.field, stack.field, floorScale.field, floorAnchor.field);

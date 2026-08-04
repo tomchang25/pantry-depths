@@ -24,10 +24,14 @@ import { buildFloorMeshes, triangleCount, type FloorMeshes } from "./floor-meshe
 import { createFloorStains, type FloorStains } from "./floor-stains";
 import { buildSky, type Sky } from "./sky";
 import { createSceneTextures, type SceneTextureSet } from "./scene-textures";
-import { createWorldBodies, type WorldBodies } from "./world-bodies";
+import { createWorldBodies, setEntityDisplayOverride, type WorldBodies } from "./world-bodies";
 import { createWorldEffects, type WorldEffects } from "./world-effects";
 import { createWorldStructures, type WorldStructures } from "./world-structures";
 import { SceneLighting, type SceneLight } from "./scene-lighting";
+import type { MeleeAttackDefinition } from "@/content/viewmodel/melee-viewmodel";
+import type { EntityDisplay } from "@/content/enemies/entity-display-schema";
+import type { EnemyAppearanceId } from "@/core/enemy-contract";
+
 import { createViewmodel, type Viewmodel, type ViewmodelKind } from "./viewmodel";
 
 import "./scene-3d.css";
@@ -198,6 +202,16 @@ export class SceneRenderer {
   /** Which pair of hands is on screen, or neither. */
   setViewmodel(kind: ViewmodelKind): void {
     this.viewmodel.setKind(kind);
+  }
+
+  /** Draws an attack the table does not hold yet, for the surface that authors one. */
+  setAttackOverride(attack: MeleeAttackDefinition | undefined): void {
+    this.viewmodel.setAttackOverride(attack);
+  }
+
+  /** Draws one appearance at display numbers the table does not hold yet, for the same reason. */
+  setDisplayOverride(appearance: EnemyAppearanceId, display: EntityDisplay | undefined): void {
+    setEntityDisplayOverride(appearance, display);
   }
 
   setTorchEnabled(enabled: boolean): void {

@@ -14,60 +14,13 @@
 
 import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createDebugPanel } from "@/app/debug/debug-shell";
-import { createRenderPanel } from "@/app/debug/render-panel";
+import { createRenderPanel, createWorkbenchStage } from "@/app/debug/render-panel";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind, type PropDisplay } from "@/content/presentation/prop-display-schema";
 import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
-import { MELEE_SWING_SECONDS } from "@/core/melee-contract";
 import { PROP_LABELS } from "@/core/actions";
-import { drawDemoViewmodel, type DemoViewmodelModel } from "@/demo/demo-viewmodel";
-import type { CameraPose, RenderScene, RenderSurface } from "@/presentation/render-scene";
-
-const ROOM_SIZE = 9;
-const CAMERA: CameraPose = { x: 4.5, y: 7.1, angle: -Math.PI / 2 };
 
 const displays: Record<PropKind, PropDisplay> = { ...propDisplaysByKind(parsePropDisplays(propDisplayJson)) };
-
-function roomSurfaces(): RenderSurface[] {
-  const surfaces: RenderSurface[] = [];
-
-  for (let index = 0; index < ROOM_SIZE; index += 1) {
-    surfaces.push({ cell: { x: index, y: 0 }, material: "demoFoundation", height: 2.4 });
-    surfaces.push({ cell: { x: index, y: ROOM_SIZE - 1 }, material: "demoFoundation", height: 2.4 });
-
-    if (index > 0 && index < ROOM_SIZE - 1) {
-      surfaces.push({ cell: { x: 0, y: index }, material: "demoFoundation", height: 2.4 });
-      surfaces.push({ cell: { x: ROOM_SIZE - 1, y: index }, material: "demoFoundation", height: 2.4 });
-    }
-  }
-
-  return surfaces;
-}
-
-const ROOM_SURFACES = roomSurfaces();
-const ROOM_TILES = Array.from({ length: ROOM_SIZE }, (_row, y) =>
-  Array.from({ length: ROOM_SIZE }, (_column, x) =>
-    x === 0 || y === 0 || x === ROOM_SIZE - 1 || y === ROOM_SIZE - 1 ? "#" : ".",
-  ).join(""),
-);
-
-function roomScene(): RenderScene {
-  return {
-    floorId: "carried-workbench",
-    theme: "demo",
-    width: ROOM_SIZE,
-    height: ROOM_SIZE,
-    tiles: ROOM_TILES,
-    camera: CAMERA,
-    surfaces: ROOM_SURFACES,
-    sprites: [],
-    lights: [{ id: "workbench-light", x: 4.5, y: 5.1, radius: 5, color: [255, 169, 93], intensity: 0.88 }],
-    emitters: [],
-    ambient: [0.18, 0.15, 0.24],
-    wallHeight: 2.4,
-    eyeHeight: 0.5,
-  };
-}
 
 function createRange(
   id: string,
@@ -237,32 +190,25 @@ export function createCarriedWorkbench(): HTMLElement {
       });
   });
 
+  // A real floor, stood on and looked at from a fixed spot. The arm and whatever is in the other
+  // hand are drawn by the renderer's own first-person layer, so posing the world is the whole of what
+  // this panel does — there is no second copy of the viewmodel here any more.
+  const { world } = createWorkbenchStage();
+
   const preview = createRenderPanel({
     ariaLabel: "Carried object preview",
     frame: (timing) => {
       elapsedSeconds += timing.frameSeconds;
-      const model: DemoViewmodelModel = {
-        damageMarks: [],
-        // Dry, so the preview never wears the spring's green edge. Nothing here is standing in one.
-        soakSeconds: 0,
-        player: { ...CAMERA, pitch: 0, pushX: 0, pushY: 0, hp: 1, maxHp: 1 },
-        elapsedSeconds,
-        held: { kind: "prop", prop: kind, count },
-        impact: 0,
-        // Idle on purpose. A throw no longer animates the carried object out of the corner of the
-        // screen — what says a throw happened is the throw's own effects in the world — so there is
-        // nothing about a swing for this tab to show.
-        swing: 0,
-        swingKind: "throw",
-        swingTarget: undefined,
-        swingTotal: MELEE_SWING_SECONDS,
-        walkBob: 0,
-      };
-
-      return {
-        scene: roomScene(),
-        afterRender: (context, images) => drawDemoViewmodel(context, images, model),
-      };
+      world.elapsedSeconds = elapsedSeconds;
+      world.held = { kind: "prop", prop: kind, count };
+      // Idle and dry on purpose: a throw no longer animates the carried object out of the corner of
+      // the screen, and nothing here is standing in the spring, so neither the swing nor the soak
+      // edge has anything to show.
+      world.swing = 0;
+      world.soakSeconds = 0;
+      world.damageMarks.length = 0;
+      world.walkBob = 0;
+      return { world };
     },
   });
 

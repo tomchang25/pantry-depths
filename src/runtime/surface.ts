@@ -30,7 +30,7 @@ import {
   type HudTask,
 } from "@/ui/hud";
 import type { MapCastKind } from "@/core/room-contract";
-import { mapNamed } from "@/runtime/maps";
+import { mapNamed, stepMap } from "@/runtime/maps";
 import { POOL_FILL_BODIES, padRoomAt, type TaskKind } from "@/core/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/core/run-level";
@@ -544,7 +544,8 @@ function createHudModel(
  * route function keeps answering only the first.
  */
 export async function mountGame(mount: HTMLElement, mapName?: string): Promise<MountedGame> {
-  const map = mapNamed(mapName);
+  // Not a constant any more: the instrument panel can step it, and a run is rebuilt on the new one.
+  let map = mapNamed(mapName);
   const surface = document.createElement("main");
   // A viewport rather than a canvas: the renderer stacks three layers of its own inside whatever
   // element it is handed — the picture, the finishing pass, and the arm — and owns the rules that
@@ -572,6 +573,16 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
   // network, and a run that opens on a room whose occupants have not loaded has lied about what is
   // in it. The floor itself, the fittings and every effect are built synchronously and need no wait.
   await renderer.ready;
+
+  /**
+   * The three renderer switches, held here because the renderer answers about now rather than about
+   * what was asked for, and the instrument panel has to draw the state of a switch.
+   *
+   * Their defaults are what the renderer starts at, so nothing is pushed at it on mount.
+   */
+  let armVisible = true;
+  let grainEnabled = true;
+  let torchEnabled = true;
 
   let world = createWorld(map, GAME_CATALOG);
   dressStage(world);
@@ -685,6 +696,10 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
       worldFrozen: world.worldFrozen,
       fps: smoothedFps,
       godMode: world.godMode,
+      arm: armVisible,
+      grain: grainEnabled,
+      torch: torchEnabled,
+      map: map.name,
       // Omitted rather than sent empty off the stage: the row is drawn only where restaging means
       // something, and an absent choice is a different statement from a choice of nothing.
       ...(isStage(world) ? { nextCast: stageChoiceName() } : {}),
@@ -1018,6 +1033,45 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
     if (key === "g") {
       event.preventDefault();
       toggleGodMode();
+      return;
+    }
+
+    // The three renderer switches. Each says what it did, because two of them change the picture in
+    // ways that are easy to mistake for something having gone wrong with it.
+    if (key === "f") {
+      event.preventDefault();
+      torchEnabled = !torchEnabled;
+      renderer.setTorchEnabled(torchEnabled);
+      announce(world, torchEnabled ? "Torch on" : "Torch off (F to bring it back)", 2.5);
+      refreshDev();
+      return;
+    }
+
+    if (key === "v") {
+      event.preventDefault();
+      grainEnabled = !grainEnabled;
+      renderer.setGrain(grainEnabled);
+      announce(world, grainEnabled ? "Grain on" : "Grain off (V to bring it back)", 2.5);
+      refreshDev();
+      return;
+    }
+
+    if (key === "j") {
+      event.preventDefault();
+      armVisible = !armVisible;
+      renderer.setViewmodel(armVisible ? "authored" : "none");
+      refreshDev();
+      return;
+    }
+
+    // Steps to another map and starts it. Restarting is not optional: a map is what a floor is built
+    // from, so there is no arrangement in which the run being played carries on into a different one.
+    if (key === "," || key === ".") {
+      event.preventDefault();
+      map = stepMap(map, key === "." ? 1 : -1);
+      restart();
+      announce(world, `Playing ${map.name}`, 2.5);
+      refreshDev();
       return;
     }
 

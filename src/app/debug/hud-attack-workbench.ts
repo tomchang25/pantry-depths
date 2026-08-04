@@ -1,7 +1,7 @@
 import { loadCanonical, saveCanonical } from "@/app/debug/authoring-client";
 import { createCarriedWorkbench } from "@/app/debug/carried-workbench";
 import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
-import { createRenderPanel } from "@/app/debug/render-panel";
+import { createRenderPanel, createWorkbenchStage } from "@/app/debug/render-panel";
 import { parseMeleeAttacks } from "@/content/viewmodel/melee-attack-schema";
 import {
   MELEE_ATTACKS,
@@ -12,104 +12,29 @@ import { MELEE_CUT_START, MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core
 import { MELEE_HALF_ANGLE } from "@/core/actions";
 import { mountDevOverlay, type DevOverlayModel } from "@/runtime/dev-overlay";
 import { mountHud, type HudModel, type HudOverlayRosterEntry } from "@/ui/hud";
-import { demoMeleeImpactPitch } from "@/demo/demo-scene";
-import { drawDemoViewmodel, type DemoViewmodelModel } from "@/demo/demo-viewmodel";
-import type { CameraPose, RenderBeam, RenderBox, RenderScene, RenderSurface } from "@/presentation/render-scene";
 
 type WorkbenchTab = "hud" | "attack" | "carried";
 type PoseName = "windup" | "follow";
 
-const ROOM_SIZE = 9;
-const CAMERA: CameraPose = { x: 4.5, y: 7.1, angle: -Math.PI / 2 };
 const TARGET_OFFSETS = [-1.08, -0.7, 0, 0.7, 1.08] as const;
 
-function roomSurfaces(): RenderSurface[] {
-  const surfaces: RenderSurface[] = [];
+/** How far out the candidate targets stand, and how far out the reach arc is drawn. */
+const TARGET_REACH = 1.7;
+const ARC_REACH = 1.45;
 
-  for (let index = 0; index < ROOM_SIZE; index += 1) {
-    surfaces.push({ cell: { x: index, y: 0 }, material: "demoFoundation", height: 2.4 });
-    surfaces.push({ cell: { x: index, y: ROOM_SIZE - 1 }, material: "demoFoundation", height: 2.4 });
-
-    if (index > 0 && index < ROOM_SIZE - 1) {
-      surfaces.push({ cell: { x: 0, y: index }, material: "demoFoundation", height: 2.4 });
-      surfaces.push({ cell: { x: ROOM_SIZE - 1, y: index }, material: "demoFoundation", height: 2.4 });
-    }
-  }
-
-  return surfaces;
-}
-
-const ROOM_SURFACES = roomSurfaces();
-const ROOM_TILES = Array.from({ length: ROOM_SIZE }, (_row, y) =>
-  Array.from({ length: ROOM_SIZE }, (_column, x) =>
-    x === 0 || y === 0 || x === ROOM_SIZE - 1 || y === ROOM_SIZE - 1 ? "#" : ".",
-  ).join(""),
-);
-
-function targetPoint(offset: number): Readonly<{ x: number; y: number }> {
-  const angle = CAMERA.angle + offset;
-  return { x: CAMERA.x + Math.cos(angle) * 1.7, y: CAMERA.y + Math.sin(angle) * 1.7 };
-}
-
-function targetBoxes(selectedTarget: number): RenderBox[] {
-  return TARGET_OFFSETS.map((offset, index) => {
-    const point = targetPoint(offset);
-    const connected = Math.abs(offset) <= MELEE_HALF_ANGLE;
-    return {
-      id: `attack-target-${index}`,
-      x: point.x,
-      y: point.y,
-      halfX: index === selectedTarget ? 0.17 : 0.13,
-      halfY: index === selectedTarget ? 0.17 : 0.13,
-      bottom: 0,
-      top: 0.9,
-      color: connected ? ([74, 189, 116] as const) : ([181, 66, 82] as const),
-      ...(index === selectedTarget ? { topColor: [255, 216, 104] as const } : {}),
-    };
-  });
-}
-
-function attackArc(): RenderBeam[] {
-  const beams: RenderBeam[] = [];
-  const segments = 14;
-
-  for (let index = 0; index < segments; index += 1) {
-    const fromAngle = CAMERA.angle - MELEE_HALF_ANGLE + (MELEE_HALF_ANGLE * 2 * index) / segments;
-    const toAngle = CAMERA.angle - MELEE_HALF_ANGLE + (MELEE_HALF_ANGLE * 2 * (index + 1)) / segments;
-    beams.push({
-      id: `attack-arc-${index}`,
-      from: { x: CAMERA.x + Math.cos(fromAngle) * 1.45, y: CAMERA.y + Math.sin(fromAngle) * 1.45, z: 0.035 },
-      to: { x: CAMERA.x + Math.cos(toAngle) * 1.45, y: CAMERA.y + Math.sin(toAngle) * 1.45, z: 0.035 },
-      width: 0.025,
-      color: [245, 196, 81],
-    });
-  }
-
-  return beams;
-}
-
-function roomScene(
-  camera: CameraPose,
-  boxes: readonly RenderBox[] = [],
-  beams: readonly RenderBeam[] = [],
-): RenderScene {
-  return {
-    floorId: "hud-attack-workbench",
-    theme: "demo",
-    width: ROOM_SIZE,
-    height: ROOM_SIZE,
-    tiles: ROOM_TILES,
-    camera,
-    surfaces: ROOM_SURFACES,
-    boxes,
-    beams,
-    sprites: [],
-    lights: [{ id: "workbench-light", x: 4.5, y: 5.1, radius: 5, color: [255, 169, 93], intensity: 0.88 }],
-    emitters: [],
-    ambient: [0.18, 0.15, 0.24],
-    wallHeight: 2.4,
-    eyeHeight: 0.5,
-  };
+/**
+ * Where one candidate target stands, relative to the eye.
+ *
+ * Taken from the eye rather than from a constant pose, and that was a real defect: the marks were
+ * computed against a hardcoded cell while the world stood the player somewhere else, so what the
+ * swing was aimed at and what the overlay drew a ring around were two different points.
+ */
+function targetPoint(
+  eye: Readonly<{ x: number; y: number; angle: number }>,
+  offset: number,
+): Readonly<{ x: number; y: number }> {
+  const angle = eye.angle + offset;
+  return { x: eye.x + Math.cos(angle) * TARGET_REACH, y: eye.y + Math.sin(angle) * TARGET_REACH };
 }
 
 function defaultHudModel(): HudModel {
@@ -420,7 +345,16 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
    */
   // No stage behind this preview, so no cast row: the panel draws the row only where restaging means
   // something, and this tab owns no world to restage.
-  let devModel: DevOverlayModel = { mindsFrozen: false, worldFrozen: false, fps: 60, godMode: false };
+  let devModel: DevOverlayModel = {
+    mindsFrozen: false,
+    worldFrozen: false,
+    fps: 60,
+    godMode: false,
+    arm: true,
+    grain: true,
+    torch: true,
+    map: "pantry-depths",
+  };
   const refreshDev = (): void => dev.update(devModel);
 
   for (const [label, key] of [
@@ -531,9 +465,13 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   }
 
   hudControls.body.append(hudGrid);
+  // A real floor to hang the readouts over, stood on and never walked. What this tab judges is the
+  // interface, and the picture behind it only has to be the picture the game draws.
+  const { world: hudWorld } = createWorkbenchStage();
+
   const hudRender = createRenderPanel({
     ariaLabel: "HUD preview dungeon",
-    frame: () => ({ scene: roomScene(CAMERA) }),
+    frame: () => ({ world: hudWorld }),
   });
   hudRender.element.append(hud.element, dev.element);
   hudSection.append(hudControls.panel, hudRender.element);
@@ -630,7 +568,7 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   };
 
   const selectedPoint = (): Readonly<{ x: number; y: number; z: number; connected: boolean }> => {
-    const point = targetPoint(TARGET_OFFSETS[selectedTarget] ?? 0);
+    const point = targetPoint(attackEye, TARGET_OFFSETS[selectedTarget] ?? 0);
     return { ...point, z: 0.62, connected: Math.abs(TARGET_OFFSETS[selectedTarget] ?? 0) <= MELEE_HALF_ANGLE };
   };
 
@@ -703,9 +641,19 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
   );
   attackControls.body.append(attackGrid, poseGrid, attackStatus);
 
+  // The arm and its cut are drawn by the renderer's own first-person layer, so this panel poses a
+  // world and hands over the attack being authored. The targets and the reach arc are not things in
+  // the room — they are measurements — so they go on the overlay, pinned to world points through the
+  // renderer's own projection and drawn to look like a ruler.
+  const { world: attackWorld, eye: attackEye } = createWorkbenchStage();
+
   const attackRender = createRenderPanel({
     ariaLabel: "Attack hit arc preview dungeon",
     frame: (timing, renderer) => {
+      // The attack being authored, not the one in the file. Everything on the sliders is unsaved
+      // until the button is pressed, and a panel drawing the saved cut would be answering a question
+      // nobody asked.
+      renderer.setAttackOverride(currentAttack());
       const wasProgress = swingRemaining > 0 ? 1 - swingRemaining / MELEE_SWING_SECONDS : 0;
       swingRemaining = Math.max(0, swingRemaining - timing.frameSeconds);
       const progress = swingRemaining > 0 ? 1 - swingRemaining / MELEE_SWING_SECONDS : 0;
@@ -723,41 +671,76 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
       }
 
       impact = Math.max(0, impact - timing.frameSeconds * 5.5);
-      const scene = roomScene(
-        { ...CAMERA, pitch: demoMeleeImpactPitch(impact) },
-        targetBoxes(selectedTarget),
-        attackArc(),
-      );
-      const projected = renderer.project(scene, target);
-      const model: DemoViewmodelModel = {
-        // The workbench previews the arm, not being hit: no marks, and a pose the bearing maths can
-        // read without meaning anything, since nothing here ever records a hit to point at.
-        damageMarks: [],
-        soakSeconds: 0,
-        player: { ...CAMERA, pitch: 0, pushX: 0, pushY: 0, hp: 1, maxHp: 1 },
-        elapsedSeconds: timing.elapsedSeconds,
-        held: undefined,
-        impact,
-        swing: swingRemaining,
-        swingKind: selectedAttackId,
-        swingTarget: swingRemaining > 0 ? target : undefined,
-        swingTotal: MELEE_SWING_SECONDS,
-        walkBob: 0,
-      };
+      attackWorld.elapsedSeconds = timing.elapsedSeconds;
+      attackWorld.impact = impact;
+      attackWorld.swing = swingRemaining;
+      attackWorld.swingKind = selectedAttackId;
+      attackWorld.swingTotal = MELEE_SWING_SECONDS;
+      attackWorld.swingTarget = swingRemaining > 0 ? target : undefined;
 
       return {
-        scene,
-        afterRender: (context, images) =>
-          drawDemoViewmodel(
-            context,
-            images,
-            model,
-            projected ? { x: projected.screenX, y: projected.screenY } : undefined,
-            currentAttack(),
-          ),
+        world: attackWorld,
+        overlay: (context, project) => {
+          // The reach arc, as a run of short segments at ankle height.
+          context.strokeStyle = "rgba(245, 196, 81, 0.85)";
+          context.lineWidth = 2;
+          context.beginPath();
+          let started = false;
+
+          for (let step = 0; step <= 24; step += 1) {
+            const angle = attackEye.angle - MELEE_HALF_ANGLE + (MELEE_HALF_ANGLE * 2 * step) / 24;
+            const point = project({
+              x: attackEye.x + Math.cos(angle) * ARC_REACH,
+              y: attackEye.y + Math.sin(angle) * ARC_REACH,
+              z: 0.035,
+            });
+
+            if (!point) {
+              started = false;
+              continue;
+            }
+
+            if (started) {
+              context.lineTo(point.screenX, point.screenY);
+            } else {
+              context.moveTo(point.screenX, point.screenY);
+              started = true;
+            }
+          }
+
+          context.stroke();
+
+          // One ring per candidate: green inside the cut, red outside, and the chosen one filled.
+          TARGET_OFFSETS.forEach((offset, index) => {
+            const angle = attackEye.angle + offset;
+            const point = project({
+              x: attackEye.x + Math.cos(angle) * TARGET_REACH,
+              y: attackEye.y + Math.sin(angle) * TARGET_REACH,
+              z: 0.45,
+            });
+
+            if (!point) {
+              return;
+            }
+
+            const connected = Math.abs(offset) <= MELEE_HALF_ANGLE;
+            const chosen = index === selectedTarget;
+            context.beginPath();
+            context.arc(point.screenX, point.screenY, chosen ? 11 : 7, 0, Math.PI * 2);
+            context.strokeStyle = connected ? "rgb(74, 189, 116)" : "rgb(181, 66, 82)";
+            context.lineWidth = chosen ? 3 : 2;
+            context.stroke();
+
+            if (chosen) {
+              context.fillStyle = "rgba(255, 216, 104, 0.55)";
+              context.fill();
+            }
+          });
+        },
       };
     },
   });
+
   attackSection.append(attackControls.panel, attackRender.element);
 
   carriedSection.append(createCarriedWorkbench());

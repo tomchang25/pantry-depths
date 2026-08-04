@@ -21,6 +21,18 @@ export type DevOverlayModel = Readonly<{
   fps: number;
   godMode: boolean;
   /**
+   * The three knobs on the renderer, and which map is playing.
+   *
+   * They arrived here when the Three.js debug tool that held them was deleted: it existed to host the
+   * renderer before the game drew through it, and once the game did, everything left on it was a
+   * switch that belonged where the other switches are. A knob reachable only from a route nobody
+   * opens any more is a knob nobody has.
+   */
+  arm: boolean;
+  grain: boolean;
+  torch: boolean;
+  map: string;
+  /**
    * What the next restaging would stand up, on a floor that has a cast to restage.
    *
    * Absent means this floor is not a stage and the row is not drawn at all — a row naming a choice
@@ -66,6 +78,10 @@ export function mountDevOverlay(actions: DevOverlayActions): MountedDemoDevOverl
   const minds = document.createElement("span");
   const world = document.createElement("span");
   const cast = document.createElement("span");
+  const torch = document.createElement("span");
+  const grain = document.createElement("span");
+  const arm = document.createElement("span");
+  const map = document.createElement("span");
   element.className = "demo-dev";
   fps.className = "demo-dev__fps";
   // One chip shape for every row, so the panel reads as a column of states and commands rather than
@@ -75,6 +91,10 @@ export function mountDevOverlay(actions: DevOverlayActions): MountedDemoDevOverl
   minds.className = "demo-dev__chip";
   world.className = "demo-dev__chip";
   cast.className = "demo-dev__chip";
+  torch.className = "demo-dev__chip";
+  grain.className = "demo-dev__chip";
+  arm.className = "demo-dev__chip";
+  map.className = "demo-dev__chip";
 
   /**
    * A momentary command, as distinct from a switch.
@@ -108,6 +128,10 @@ export function mountDevOverlay(actions: DevOverlayActions): MountedDemoDevOverl
     minds,
     world,
     cast,
+    torch,
+    grain,
+    arm,
+    map,
     command("Restage cast · C", actions.restageCast),
     command("Test arena · T", actions.testArena),
     command("Kill all · K", actions.killAll),
@@ -139,6 +163,21 @@ export function mountDevOverlay(actions: DevOverlayActions): MountedDemoDevOverl
     // and it sits with the commands, which is also what keeps this line inside the panel's width.
     cast.hidden = model.nextCast === undefined;
     cast.textContent = `Cast · ${model.nextCast ?? ""} · Q E`;
+    // The three renderer switches are named after the switch like the freezes above, but they light
+    // up **inverted**, and that is the point of the panel rather than an inconsistency: the loud state
+    // is the surprising one. A cheat that is on is surprising; a torch that is on is how the game
+    // looks. What wants finding at a glance here is the switch somebody left off — which is exactly
+    // the half hour that goes into wondering why the floor turned flat and grey.
+    torch.textContent = `Torch · ${model.torch ? "on" : "off"} · F`;
+    torch.dataset.active = String(!model.torch);
+    grain.textContent = `Grain · ${model.grain ? "on" : "off"} · V`;
+    grain.dataset.active = String(!model.grain);
+    arm.textContent = `Arm · ${model.arm ? "on" : "off"} · J`;
+    arm.dataset.active = String(!model.arm);
+    // A choice among the maps found on disk, stepped by the pair of keys on the row. Changing it
+    // starts that map, because a map is what a run is built from rather than something it can be
+    // moved onto — the same reason R exists at all.
+    map.textContent = `Map · ${model.map} · , .`;
   };
 
   // The command buttons' listeners go with the nodes they are on, which are removed with the panel.

@@ -8,10 +8,8 @@
  * cannot drift onto different draws.
  */
 
-import { createRenderPanel, type RenderPanel } from "@/app/debug/render-panel";
+import { createRenderPanel, openHeading, type RenderPanel } from "@/app/debug/render-panel";
 import type { MapCastKind, MapTileKind } from "@/core/room-contract";
-import { createDemoScene } from "@/demo/demo-scene";
-import { blocksVision } from "@/core/maze";
 import type { World } from "@/core/world";
 
 /**
@@ -59,50 +57,6 @@ export const CAST_COLOURS: Readonly<Record<MapCastKind, string>> = {
 /** The largest a diagram cell is drawn, so a small floor does not fill the window with squares. */
 const MAX_CELL = 14;
 const DIAGRAM_WIDTH = 620;
-
-/** How many headings the shot below is chosen from. Fine enough to find a corridor, coarse enough to be free. */
-const VIEW_HEADINGS = 64;
-const VIEW_REACH = 24;
-
-/**
- * The heading with the most floor in front of it.
- *
- * A run starts facing a random way, which is right for a run and useless as a preview: a carved region
- * is a maze, so from a cell picked at random almost every heading is a wall one step away, and four
- * times in five the preview would open on brickwork. Looking down the longest clear line instead puts
- * the floor on screen, which is the thing being judged.
- *
- * It asks the game's own question about what stops a look, so a heading this calls clear is one the
- * renderer will also draw as clear. Only the heading is chosen — where the run arrives, and everything
- * drawn from there, stays the assembler's.
- */
-function longestView(world: World): number {
-  let best = world.player.angle;
-  let bestReach = -1;
-
-  for (let step = 0; step < VIEW_HEADINGS; step += 1) {
-    const angle = (step / VIEW_HEADINGS) * Math.PI * 2;
-    let reach = 0;
-
-    while (reach < VIEW_REACH) {
-      const x = world.player.x + Math.cos(angle) * (reach + 1);
-      const y = world.player.y + Math.sin(angle) * (reach + 1);
-
-      if (blocksVision(world.maze, Math.floor(x), Math.floor(y))) {
-        break;
-      }
-
-      reach += 1;
-    }
-
-    if (reach > bestReach) {
-      bestReach = reach;
-      best = angle;
-    }
-  }
-
-  return best;
-}
 
 /**
  * Draws one assembled floor from above.
@@ -199,7 +153,7 @@ export function createFloorPreview(): FloorPreview {
     show: (world, label) => {
       // The heading is chosen once per floor rather than per frame: recomputing it every frame would
       // make the camera twitch as bodies walked through the line it measured.
-      world.player.angle = longestView(world);
+      world.player.angle = openHeading(world);
       shown = world;
       drawDiagram(diagram, world);
       diagram.setAttribute("aria-label", `${label}, ${world.maze.width} by ${world.maze.height} cells`);
@@ -211,7 +165,7 @@ export function createFloorPreview(): FloorPreview {
         renderer = createRenderPanel({
           ariaLabel: "The assembled floor, from where the run arrives",
           // Never cleared once set, so this cannot fail after the panel exists.
-          frame: () => ({ scene: createDemoScene(shown as World) }),
+          frame: () => ({ world: shown as World }),
         });
         element.append(renderer.element);
       }

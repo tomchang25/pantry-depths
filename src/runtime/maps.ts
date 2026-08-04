@@ -34,6 +34,18 @@ export const DEFAULT_MAP: ResolvedMap = defaultMap();
  * A name nobody recognises falls back rather than failing: a mistyped address should start the game
  * and say so, because the alternative is a blank screen that looks like the build is broken.
  */
+/**
+ * The next map along, wrapping at either end.
+ *
+ * Here rather than on the surface because which maps exist and what order they are in is this
+ * module's question, and the surface's is only what to do when the answer changes.
+ */
+export function stepMap(current: ResolvedMap, delta: number): ResolvedMap {
+  const at = MAPS.findIndex((map) => map.name === current.name);
+  const next = MAPS[((at < 0 ? 0 : at) + delta + MAPS.length) % MAPS.length];
+  return next ?? current;
+}
+
 export function mapNamed(name: string | undefined): ResolvedMap {
   if (name === undefined || name.length === 0) {
     return DEFAULT_MAP;
