@@ -21,8 +21,12 @@ errors: list[str] = []
 
 # relativePath -> load-bearing pointer strings the file must contain.
 CONTRACTS: dict[str, list[str]] = {
-    "AGENTS.md": ["foundation_startup.md", "platform_startup.md", "dev/agent_rules/agent_startup.md"],
-    "CLAUDE.md": ["foundation_startup.md", "platform_startup.md", "dev/agent_rules/agent_startup.md"],
+    # The register section is the one rule the root entry points own rather than route to, and it
+    # is the only placement that reaches a session with no read step. Dropped from either file, it
+    # fails nothing else and the register regenerates from the corpus.
+    "AGENTS.md": ["foundation_startup.md", "platform_startup.md", "dev/agent_rules/agent_startup.md", "## Register"],
+    "CLAUDE.md": ["foundation_startup.md", "platform_startup.md", "dev/agent_rules/agent_startup.md", "## Register"],
+    "dev/standards/code_style.addendum.md": ["## Comment Register"],
     "dev/README.md": ["foundation_startup.md", "work_lifecycle.md", "dev/agent_rules/git_operations.md"],
     "dev/agent_rules/agent_startup.md": [
         "git_operations.md",

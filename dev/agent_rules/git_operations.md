@@ -26,6 +26,8 @@ A commit message is a changelog entry: it records what changed in the game or it
 - Describe the conceptual change, not the code: no file paths, no symbol or variable names, no recitation of the diff.
 - No reasoning, no prior behaviour, no trailing full stops. Reasoning, alternatives, and verification narrative belong in the plan, spec, or change report.
 - Self-check each line as someone who has not read the plan: if they must learn the feature's vocabulary before they can tell what kind of thing changed, rewrite it with neutral nouns.
+- Register governs every word of the message, subject noun phrases included. The game's fiction vocabulary — body, mind, owes, pays, goes under, and the like — names the mechanism instead: enemy, AI state, drowning.
+- The hook rejects a denylist of those words. A rejection is rewritten, never bypassed; a word that keeps blocking legitimate technical phrasing is removed from the list instead.
 
 ### Limits
 

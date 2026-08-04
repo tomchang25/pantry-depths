@@ -56,11 +56,11 @@ Case-insensitive, word-boundary matched, applied to the whole message:
 
 ### Child overview
 
-| Child | Focus                                                                           | Form                       |
-| ----- | ------------------------------------------------------------------------------- | -------------------------- |
-| 1     | Register contract: always-loaded section, addendum section, commit-rule closure | This plan, Execution below |
-| 2     | Commit hook denylist                                                            | This plan, Execution below |
-| 3     | Rules-layer comment rewrite                                                     | This plan, Execution below |
+| Child | Focus                                                                           | Form                                                               |
+| ----- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 1     | Register contract: always-loaded section, addendum section, commit-rule closure | `register_containment_01_register_contract.implementation_spec.md` |
+| 2     | Commit hook denylist                                                            | This plan, Execution below                                         |
+| 3     | Rules-layer comment rewrite                                                     | This plan, Execution below                                         |
 
 Landing order: 1, 2, 3. Children 1 and 2 are independent of 3; 3 benefits from 1 existing first so the rewrite has a citable contract.
 
