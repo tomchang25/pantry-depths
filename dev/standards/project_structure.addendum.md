@@ -69,6 +69,8 @@ The tree has no residents at the moment, and the directory is therefore not ther
 
 Placement inside the tree follows the same test as the source layers. Content schema and structural validation belong in `src/content/` and are imported, not reimplemented. What legitimately remains in `dev/tools/` is what no game layer may own: offline authoring algorithms that must not ship, artifact serialization, filesystem access, argument parsing, exit status, and development-server request handling.
 
+One resident is not tooling the project runs but tooling Git runs. `dev/tools/githooks/` holds the Git hooks, one file per hook name, and it is the single exception to the entry-versus-implementation signal above: a hook is an entrypoint that still may not sit directly under `dev/tools/`, because `core.hooksPath` claims a whole directory as a hook namespace and aiming it at the tooling tree would silently promote any future file that happened to share a hook's name. The hooks are version-controlled but their installation is not, since Git finds the directory through per-clone configuration; `dev/agent_rules/git_operations.md` owns what they enforce and how to install them.
+
 Import directions, machine-checked by the boundary rules:
 
 - `dev/tools/` imports `src/core/` and `src/content/` through the `@/` alias. It never imports `src/app/` or a renderer; a tool that needs those is a debug tool and belongs in `src/app/debug/`.

@@ -4,7 +4,9 @@ Stage and commit the current work with a message that satisfies the project's co
 
 ## Authorization
 
-Invoking this command is the user's explicit authorization for exactly two mutations: staging the changes named or clearly implied by the conversation, and one `git commit`. It authorizes nothing else — no push, no amend, no history rewrite, no branch or remote change.
+Invoking this command is the user's explicit authorization for exactly two mutations: staging the changes named or clearly implied by the conversation, and one `git commit`. It authorizes nothing else — no push, no history rewrite, no branch or remote change.
+
+The one amend it carries is the narrow message correction defined under Amending in `dev/agent_rules/git_operations.md`: same session, still `HEAD`, never pushed, message only. Any other amend is outside this command.
 
 ## Steps
 
@@ -14,4 +16,5 @@ Invoking this command is the user's explicit authorization for exactly two mutat
 4. If the changes bundle unrelated work, propose a split before committing anything.
 5. Choose verification per `dev/agent_rules/test_operations.md` — `npm run verify` before delivering a change, plus `npm run check:governance` when a governance, startup, or planning document changed — and report what ran.
 6. Compose the message, then self-check every line against the Subject, Body, and Limits rules before running the commit.
-7. Commit, then confirm with `git log -1` and `git status`, and report both.
+7. Write the message to a scratch file outside the repository and commit with `git commit -F <path>`, per Delivering The Message. Never pass it with `-m` and never assemble it in a shell — the message goes through no quoting on the way to Git.
+8. Read the subject back with `git log -1 --pretty=format:'%s'` and confirm it is the single line intended. Printing `git log -1` is not this check; the check is looking at what came back. Then report `git log -1` and `git status`.

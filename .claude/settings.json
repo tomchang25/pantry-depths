@@ -22,6 +22,12 @@
             "command": "if git submodule status 2>/dev/null | grep -q '^-'; then git submodule update --init --recursive >/dev/null 2>&1 && echo '{\"systemMessage\":\"Initialized git submodules (dev/foundation).\"}' || echo '{\"systemMessage\":\"Submodule init FAILED — run: git submodule update --init --recursive\"}'; fi",
             "statusMessage": "Checking dev/foundation submodule...",
             "timeout": 300
+          },
+          {
+            "type": "command",
+            "command": "if [ \"$(git config core.hooksPath 2>/dev/null)\" != 'dev/tools/githooks' ]; then git config core.hooksPath dev/tools/githooks >/dev/null 2>&1 && echo '{\"systemMessage\":\"Installed the commit-msg hook (core.hooksPath -> dev/tools/githooks).\"}' || echo '{\"systemMessage\":\"commit-msg hook NOT installed — run: git config core.hooksPath dev/tools/githooks\"}'; fi",
+            "statusMessage": "Checking the commit-msg hook...",
+            "timeout": 30
           }
         ]
       }

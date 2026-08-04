@@ -60,7 +60,14 @@ CONTRACTS: dict[str, list[str]] = {
         "dev/agent_rules/implement_operations.md",
         "dev/standards/work_lifecycle.addendum.md",
     ],
-    "dev/agent_rules/git_operations.md": ["dev/foundation/core/agent_rules/git_operations.md"],
+    # The hook path is configuration, not an import: nothing breaks in the tree when the script is
+    # renamed out from under core.hooksPath, and the next bad message commits silently instead.
+    "dev/agent_rules/git_operations.md": [
+        "dev/foundation/core/agent_rules/git_operations.md",
+        "dev/tools/githooks/commit-msg",
+        "## Amending",
+    ],
+    "dev/workflows/commands/commit.md": ["git commit -F", "dev/agent_rules/git_operations.md"],
     "dev/agent_rules/test_operations.md": ["# Test Operations"],
     "dev/standards/frozen_reference_directories.md": [
         "# Frozen Reference Directories",
