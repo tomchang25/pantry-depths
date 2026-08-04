@@ -1,10 +1,10 @@
 /**
- * The procedural artwork the floor is dressed with, copied into the experiment.
+ * The procedural artwork the floor is dressed with.
  *
- * A copy for the same reason the textures are: these live in the interim projection layer, which a
- * sandbox experiment may not import, and drawing an approximation instead is exactly how the first
- * build lost the atmosphere. Every drawing below is the shipped one, at the shipped size, so a puff
- * of dust here is the puff of dust the game draws.
+ * These were copied out of the interim projection layer when a sandbox experiment could not import
+ * it, and drawing an approximation instead is exactly how the first build lost the atmosphere. That
+ * layer is deleted and these are the originals now; every drawing below is still the shipped one at
+ * the shipped size, because that is what it was copied to be.
  *
  * Cut down to what an assembled floor actually raises: the soft blobs every particle is made of, the
  * three wind-up markers, the pickups, the few glows, and what a fight adds to them — the fireball, the
@@ -24,7 +24,7 @@ function surface(width = SPRITE_SIZE): readonly [HTMLCanvasElement, CanvasRender
   const context = canvas.getContext("2d");
 
   if (!context) {
-    throw new Error("three-scene: Canvas 2D is unavailable, and every sprite is drawn with it");
+    throw new Error("scene-3d: Canvas 2D is unavailable, and every sprite is drawn with it");
   }
 
   return [canvas, context];

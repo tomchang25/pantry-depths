@@ -1,14 +1,15 @@
 /**
- * The floor's procedural textures, copied into the experiment.
+ * The floor's procedural textures.
  *
- * A copy, and deliberately so: a sandbox experiment may not import the presentation layer, so the
- * generators the Canvas renderer draws with cannot be reached from here. Cut down to the materials an
- * assembled floor actually emits — the shipped game's brick, bars, doors and breakable stone are
- * never authored by these maps and are left behind. If this experiment graduates, the copy dies and
- * the originals are imported instead; until then, changing one of these here changes nothing there.
+ * These began as a copy of the ray-marched renderer's generators, taken because a sandbox experiment
+ * could not import the presentation layer it was going to replace. Both the experiment and that
+ * renderer are gone and this is the only set left, so the note that used to sit here — change one and
+ * the other is unchanged — no longer describes anything. Still cut down to the materials an assembled
+ * floor actually emits: the brick, bars, doors and breakable stone the baked floors authored were
+ * never emitted by these maps and died with the renderer that drew them.
  */
 
-/** The wall materials an assembled floor emits, named locally because the union lives in presentation. */
+/** The wall materials an assembled floor emits. */
 export type SceneWallMaterial =
   | "foundation"
   | "ashlar"
@@ -43,7 +44,7 @@ function canvas(): readonly [HTMLCanvasElement, CanvasRenderingContext2D] {
   const context = surface.getContext("2d");
 
   if (!context) {
-    throw new Error("three-scene: Canvas 2D is unavailable, and the textures are drawn with it");
+    throw new Error("scene-3d: Canvas 2D is unavailable, and the textures are drawn with it");
   }
 
   return [surface, context];

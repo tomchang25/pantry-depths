@@ -89,9 +89,9 @@ module.exports = {
       name: "runtime-imports-its-declared-set",
       severity: "error",
       comment:
-        "src/runtime orchestrates: it runs the tick, drains the cue and picture queues, and mounts the interface. It may reach core, content, presentation, ui (the declared no-React deviation - the frame loop pushes view models into the DOM interface directly), and the interim demo projection tree, whose edge dies with that tree.",
+        "src/runtime orchestrates: it runs the tick, drains the cue and picture queues, and mounts the interface. It may reach core, content, presentation, and ui (the declared no-React deviation - the frame loop pushes view models into the DOM interface directly), and nothing else.",
       from: { path: "^src/runtime/" },
-      to: { path: "^src/", pathNot: "^src/(runtime|core|content|presentation|ui|demo)/" },
+      to: { path: "^src/", pathNot: "^src/(runtime|core|content|presentation|ui)/" },
     },
     {
       name: "only-the-app-imports-runtime",
@@ -114,23 +114,6 @@ module.exports = {
       comment: "The interface is mounted by the surface (declared deviation) and by the workbenches that preview it.",
       from: { path: "^src/", pathNot: "^src/(ui|runtime|app)/" },
       to: { path: "^src/ui/" },
-    },
-
-    {
-      name: "demo-imports-only-demo-presentation-content-core",
-      severity: "error",
-      comment:
-        "The demo tree is down to the interim projection half - scene building, sprite loading, the viewmodel - held in place until the 3D runtime decision (migration archived at dev/docs/archived/demo_migration.plan.md). It may reach the projection stack and the two data layers, and nothing else.",
-      from: { path: "^src/demo/" },
-      to: { path: "^src/", pathNot: "^src/(demo|presentation|content|core)/" },
-    },
-    {
-      name: "only-app-and-runtime-import-demo",
-      severity: "error",
-      comment:
-        "The projection half is driven by the runtime surface and inspected by the debug workbenches; no other layer may grow a dependency on a tree scheduled to disappear.",
-      from: { path: "^src/", pathNot: "^src/(demo|app|runtime)/" },
-      to: { path: "^src/demo/" },
     },
 
     {

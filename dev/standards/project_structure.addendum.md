@@ -30,7 +30,7 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 | `src/app/`          | Present   | Route boundary, bootstrap, and the debug tool surface. The ordinary route mounts the demo surface.                                                                                                     |
 | `src/core/`         | Present   | The rules: contracts and vocabulary, floor assembly, the world and its tick, the minds, actions, impacts, extraction, progression state. Reads authored tables only through the injected game catalog. |
 | `src/content/`      | Present   | Authored data by feature: maps, rooms, enemies, combat tables, sfx, presentation assets, viewmodel definitions.                                                                                        |
-| `src/presentation/` | Present   | Earned by the renderer port: the Canvas 2D raycaster, procedural textures, the image loader, the audio stack, and the Three.js runtime in `scene-3d/` that is replacing the raycaster.                 |
+| `src/presentation/` | Present   | Earned by the renderer port: the audio stack, and the Three.js runtime in `scene-3d/` that draws the game.                                                                                             |
 | `src/runtime/`      | Present   | The frame loop, input, mounting, the cue drain, the stage dressing, and the address-bar map question.                                                                                                  |
 | `src/ui/`           | Present   | The plain-DOM HUD, its icons, and its stylesheet — see the No React deviation above.                                                                                                                   |
 | `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                                                                                                                |
@@ -38,22 +38,11 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 
 A scaffolded empty directory is not a claim that the layer is earned. It carries a `.gitkeep` and nothing else; the first real module in it is still the change that has to justify the placement.
 
-## The Demo Tree
+## One Renderer
 
-`src/demo/` is down to the interim projection half: scene building, sprite loading, and the viewmodel. It is declared here because the vocabulary does not name it. The demo migration (archived at `dev/docs/archived/demo_migration.plan.md`) moved everything else into the formal layers; what remains is held in place until the 3D runtime decision replaces it.
+`src/presentation/` held two for a while — the Canvas 2D raycaster the game drew through, and the Three.js runtime in `src/presentation/scene-3d/` that was replacing it — each with its own procedural surfaces and its own artwork. That is over. The raycaster, the interim projection tree at `src/demo/` that fed it, the shared image pipeline, and the baked enemy atlases only they read were deleted on 2026-08-04, and `scene-3d/` is the only thing that draws the game.
 
-Import directions, machine-checked by the boundary rules:
-
-- `src/demo/` imports itself, `src/presentation/`, `src/content/`, and `src/core/`, and nothing else in `src/`.
-- Nothing imports `src/demo/` except `src/runtime/`, which draws through it, and `src/app/`'s debug workbenches, which inspect it.
-
-The declaration and the rules retire with the tree itself. That is now scheduled rather than hypothetical: the 3D runtime decision came back viable on 2026-08-03, and the graduation plan deletes this tree once the surface draws through the new runtime and the workbenches that inspect this one have moved.
-
-## Two Renderers, Briefly
-
-`src/presentation/` holds two renderers at once while the graduation runs: the Canvas 2D raycaster the game still draws through, and the Three.js runtime in `src/presentation/scene-3d/` that will replace it. Each brings its own procedural surfaces and its own artwork, and both sets stay until the renderer that reads them is deleted — retiring either earlier would change the picture of whichever renderer lost its textures, which the graduation is not allowed to do between children.
-
-This is a declared temporary duplication with a scheduled end, not a commons. Neither renderer imports the other, and no third module may reach for whichever texture generator is nearer: the pairing of a renderer with the surfaces it was tuned against is the thing being kept intact.
+The declarations those two trees needed are gone with them, and so are their boundary rules. What is worth keeping is the reason they existed: the surfaces a renderer was tuned against belong to that renderer. A second renderer arriving here would bring its own again, and it would be a declared temporary duplication with a scheduled end rather than a commons.
 
 ## The Sandbox Tree
 
@@ -63,7 +52,7 @@ This is a declared temporary duplication with a scheduled end, not a commons. Ne
 - **Import directions, machine-checked by the boundary rules:** an experiment imports its own folder, `src/core/`, and `src/content/`, and nothing else in `src/`. Nothing imports `src/sandbox/` except `src/app/debug/`. Experiments never import each other — a module two experiments want is evidence the code wants to graduate, not grounds for a sandbox commons.
 - **Graduation is a move, never an in-place promotion.** An experiment that earns permanence moves into the layer that owns the behavior, arriving as formal-track work under the full ceremony; its sandbox folder is deleted in the same change. The other normal ending is deleting the folder outright. What never happens is the import boundary opening so the rest of `src/` can reach into the sandbox.
 
-The tree's first two residents, `three-block` and `three-preview`, moved here from `src/app/debug/` when it was created. Both are kept as reference for a rewritten 3D block viewer rather than as code with a future of its own, which is what the sandbox track is for; the rewrite will be a new experiment beside them, not an edit to either.
+The tree has no residents at the moment, and the directory is therefore not there — it comes back with the next experiment. Its first two, `three-block` and `three-preview`, moved here from `src/app/debug/` when it was created and both ended on 2026-08-04: the block viewer graduated into `src/app/debug/entity-workbench/` and became the entity workbench, and the preview experiment was deleted after two of its showcases were rebuilt against the rig that ships. Those are the two normal endings, one each. The rules above stay declared and machine-checked against an absent tree, because what they describe is what the next experiment gets, not what these two had.
 
 `src/app/debug/` follows the shared development-tool route surface without a routing deviation. Pantry's ordinary policy currently renders the game placeholder for every non-debug development path and every production path, including the `/debug` namespace. Debug navigation uses native full-document anchors.
 
@@ -82,7 +71,7 @@ Placement inside the tree follows the same test as the source layers. Content sc
 
 Import directions, machine-checked by the boundary rules:
 
-- `dev/tools/` imports `src/core/` and `src/content/` through the `@/` alias. It never imports `src/app/`, `src/demo/`, or a renderer; a tool that needs those is a debug tool and belongs in `src/app/debug/`.
+- `dev/tools/` imports `src/core/` and `src/content/` through the `@/` alias. It never imports `src/app/` or a renderer; a tool that needs those is a debug tool and belongs in `src/app/debug/`.
 - `src/` never imports `dev/`. The shipped module graph must not depend on development-time tooling.
 
 The development authoring endpoint namespace is declared once in the tooling tree. The workbench client keeps its own literal because client code must not import `dev/`; a unit test holds that one copy equal to the declaration. Editor tasks invoke existing npm scripts and own no parameters, defaults, or behavior of their own — a prompt-driven flag surface belongs to the CLI or to the workbench, not to a third entry point.

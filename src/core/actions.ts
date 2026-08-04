@@ -42,7 +42,7 @@ const MELEE_ARC = Math.cos(MELEE_HALF_ANGLE);
 const GRAB_ARC = Math.cos(1);
 
 /**
- * What each way of hitting a wall costs it, against the hit points in `@/demo/maze`.
+ * What each way of hitting a wall costs it, against the hit points in `@/core/maze`.
  *
  * A bare swing is the unit, so the swing counts are unchanged: two for wood, four for stone. What a
  * thrown prop is worth is its own row in `propBehaviour`; a thrown body is the one throw with no prop

@@ -33,7 +33,7 @@ function gradientTexture(): THREE.CanvasTexture {
   const context = surface.getContext("2d");
 
   if (!context) {
-    throw new Error("three-scene: Canvas 2D is unavailable, and the sky gradient is drawn with it");
+    throw new Error("scene-3d: Canvas 2D is unavailable, and the sky gradient is drawn with it");
   }
 
   const gradient = context.createLinearGradient(0, 0, 0, 256);

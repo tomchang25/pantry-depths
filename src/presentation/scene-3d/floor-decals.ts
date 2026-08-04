@@ -23,7 +23,7 @@ import { MORTAR_LOCK_SECONDS, SHELL_BLAST_RADIUS, type World } from "@/core/worl
 
 import { SCENE_DECAL_LANE, SCENE_DECAL_RADIAL, SCENE_DECAL_SECTOR, type SceneDecal } from "./scene-lighting";
 
-/** Copied from the interim projection, which a sandbox experiment may not import. */
+/** Taken from the interim projection before it was deleted; these are the only copies now. */
 const LANE_HALF_WIDTH = 0.34;
 const RING_THICKNESS = 0.16;
 const PAD_HALF = ROOM_PAD_HALF + 0.5;

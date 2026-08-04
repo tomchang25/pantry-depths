@@ -6,8 +6,9 @@
  * against a recording of the real game it came out too dark and too cold, and the reason turned out
  * not to be calibration. **The Canvas renderer has no physical model to approximate.** It has four
  * short analytic formulas, one per surface class, and they are the look. So this module runs those
- * formulas rather than something that resembles them, and every constant below is quoted from
- * `src/presentation/canvas-gameplay-renderer.ts` rather than chosen.
+ * formulas rather than something that resembles them, and every constant below was quoted from that
+ * renderer rather than chosen. It has since been deleted, so these numbers are no longer a quotation
+ * of anything — they are the look, and changing one is changing how the game is lit.
  *
  * Three consequences worth stating, because all three are surprising and all three are deliberate:
  *

@@ -107,7 +107,7 @@ export type PropBehaviour = Readonly<{
    */
   capacity: number;
   landing: PropLanding;
-  /** Against the hit points in `@/demo/maze`: a bare swing is one, and a rock opens either wall. */
+  /** Against the hit points in `@/core/maze`: a bare swing is one, and a rock opens either wall. */
   wallDamage: number;
   /**
    * What lies on the floor where it stopped, or nothing if the throw spent it.
