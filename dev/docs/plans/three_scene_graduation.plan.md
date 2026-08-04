@@ -40,22 +40,24 @@ This plan originally intended to close the first of those and discovered, when i
 
 ### What the survey recorded and this plan does not close
 
-The porting survey separated absent from reduced. Everything absent is the spike's to build before the verdict. Of what is reduced, the last child closes five: the structures' weathering and debris, the room lights that grow while a hold runs, the swing arc chasing what it hit, the waterline cut on a body going under, and the wall material family the baked floors need. Anything else the survey noted — and the soft bodies above all — is accepted as it stands, and the acceptance is recorded rather than left as an omission.
+The porting survey separated absent from reduced. Everything absent is the spike's to build before the verdict. Of what is reduced, the last child closes four: the structures' weathering and debris, the room lights that grow while a hold runs, the swing arc chasing what it hit, and the waterline cut on a body going under. A fifth was listed — the wall material family the baked floors need — and it turned out not to be needed at all: the two tools that would have wanted it hand the runtime a world, and the runtime builds its walls from the map's own tile kinds. Anything else the survey noted — and the soft bodies above all — is accepted as it stands, and the acceptance is recorded rather than left as an omission.
 
 ### Children
 
-| #   | Child                          | Focus                                                                                                                 | Form                                                                         |
-| --- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 1   | The move                       | The experiment folder becomes a presentation-layer module; the armature becomes content; boundary rules follow it     | `three_scene_graduation_01_the_move.implementation_spec.md`                  |
-| 2   | The runtime stops owning play  | Frame loop, input and world ownership leave the runtime; it becomes something handed a world and a step               | `three_scene_graduation_02_runtime_stops_owning_play.implementation_spec.md` |
-| 3   | The seam                       | The four drawing calls swap; the surface's own halves are rewired to the new renderer                                 | `three_scene_graduation_03_the_seam.implementation_spec.md`                  |
-| 4   | Who owns the bodies            | The body work is scoped into its own plans and handed over; nothing about a body is built here                        | Shipped 2026-08-04 — the two plans it produced                               |
-| 5   | The workbenches and demolition | Six development surfaces migrate or retire; the interim projection and the ray-marched renderer are deleted           | Execution below                                                              |
-| 6   | The fidelity tail              | Structure detail, hold-driven room lights, swing aim, the waterline cut, and the wall materials the baked floors need | Execution below                                                              |
+| #   | Child                          | Focus                                                                                                             | Form                                                                         |
+| --- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 1   | The move                       | The experiment folder becomes a presentation-layer module; the armature becomes content; boundary rules follow it | `three_scene_graduation_01_the_move.implementation_spec.md`                  |
+| 2   | The runtime stops owning play  | Frame loop, input and world ownership leave the runtime; it becomes something handed a world and a step           | `three_scene_graduation_02_runtime_stops_owning_play.implementation_spec.md` |
+| 3   | The seam                       | The four drawing calls swap; the surface's own halves are rewired to the new renderer                             | `three_scene_graduation_03_the_seam.implementation_spec.md`                  |
+| 4   | Who owns the bodies            | The body work is scoped into its own plans and handed over; nothing about a body is built here                    | Shipped 2026-08-04 — the two plans it produced                               |
+| 5   | The workbenches and demolition | Six development surfaces migrate or retire; the interim projection and the ray-marched renderer are deleted       | Cancelled 2026-08-04 — `three_scene_demolition.implementation_spec.md`       |
+| 6   | The fidelity tail              | Structure detail, hold-driven room lights, swing aim, and the waterline cut                                       | Execution below                                                              |
 
-Landing order is the table order, and 6 may precede 5. Child 2 must precede 3 because the seam has nothing to call otherwise, and 5 must follow 3 because it deletes the path the game would otherwise fall back to.
+Landing order is the table order. Child 2 must precede 3 because the seam has nothing to call otherwise, and the cancelled child's work must still follow 3 for the reason it always did: it deletes the path the game would otherwise fall back to.
 
-This plan does not declare itself goal-executable. Child 3 changes the whole picture and child 5 deletes eight thousand lines; both are decisions a person should see land before the next one starts, and child 5 additionally holds a question — what becomes of the scene vocabulary the baked-floor tools read — that its own execution has to answer in conversation rather than from this document.
+Child 5 was cancelled on 2026-08-04 and its work handed to a standalone spec, because both of its assumptions turned out wrong. The entity workbench is deleted rather than rewired onto the runtime, and the question the child was holding open — what becomes of the scene vocabulary the baked-floor tools read — answered itself when those tools moved onto worlds instead of onto projections. Requirements 4, 5 and 6 and acceptance criteria 3 and 4 stay this plan's and are delivered by that spec.
+
+This plan does not declare itself goal-executable. Child 3 changes the whole picture, and that is a decision a person should see land before the next one starts.
 
 ## Non-Goals
 
@@ -71,7 +73,7 @@ This plan does not declare itself goal-executable. Child 3 changes the whole pic
 
 1. After every child, the game plays the same as it did at the commit before it — confirmed by a playtest covering the surface that child touched — and the aggregate verification gate passes.
 2. After the seam child, a whole floor plays from the ordinary address through the new runtime, with sound, readouts, pause, damage feedback, death, restart and descent all behaving as before.
-3. After the demolition child, exactly one renderer exists in the repository, nothing imports the interim projection layer, and that layer no longer exists.
+3. After the demolition, exactly one renderer exists in the repository, nothing imports the interim projection layer, and that layer no longer exists.
 4. Each of the six development surfaces that inspected the interim projection is either working against the new runtime or recorded as retired with its reason.
 5. The production build succeeds, the game opens in a browser, and a full floor is playable at a frame rate no worse than the one the spike measured.
 6. Every gap the porting survey recorded is, by the end, either closed or carrying a recorded decision to accept it — with the soft bodies named explicitly as accepted and pointed at the modelling plan.
@@ -87,10 +89,9 @@ Perishable coordinates, first recorded 2026-08-03 against `57dd494` and left as 
 
 - Source today: `src/sandbox/three-scene/`, 14 modules, ~5,200 lines plus `assets/skeleton-blocky.glb` and `three-scene.css`.
 - The four seam calls are all in `src/runtime/surface.ts`: imports at `:33-35`, used at `:566` (`loadDemoImages`), `:871` (`createDemoScene`), `:872` (`createDemoEffects`) and `:880` (`drawDemoViewmodel`), with `renderer.project(scene, target)` at `:879` feeding the last one.
-- What gets deleted at the end: `src/demo/` (`demo-scene.ts` 3,353, `demo-sprites.ts` 914, `demo-viewmodel.ts` 429) and `src/presentation/canvas-gameplay-renderer.ts` (3,385). `src/presentation/render-scene.ts` (405) is types only and its fate is child 5's open question — `floor-preview` and `render-panel` both read it.
-- The six importers of `@/demo/*`: `src/app/debug/entity-workbench.ts`, `prop-workbench.ts`, `hud-attack-workbench.ts`, `carried-workbench.ts`, `floor-preview.ts`, `render-panel.ts`.
+- What the deletion covers, and the six surfaces that have to move before it, belong to `three_scene_demolition.implementation_spec.md` and are recorded there against live code.
 - Gate: `npm run verify`. Governance changes additionally run `npm run check:governance`. Three.js is already a dependency but is currently reachable only from the debug namespace; after child 3 it is in the production bundle for the first time. The baseline to compare against, measured 2026-08-03: the play chunk is 233.78 kB raw / 76.15 kB gzipped, and its stylesheet 24.81 kB / 5.21 kB.
-- The other two sandbox experiments, `src/sandbox/three-block/` and `src/sandbox/three-preview/`, are unaffected and stay. Their status as reference-only is recorded in `dev/standards/project_structure.addendum.md:60`.
+- The other two sandbox experiments, `src/sandbox/three-block/` and `src/sandbox/three-preview/`, were expected to be unaffected and are not: `three_scene_demolition.implementation_spec.md` graduates the first into the debug layer and deletes the second, which leaves `src/sandbox/` empty. Nothing in this plan's remaining child reads either.
 
 ### Child 1 — The move
 
@@ -134,18 +135,9 @@ Shipped 2026-08-04. What it found, kept here because children 5 and 6 read it:
 - `src/content/enemies/assets/` holds 81 MB of skeleton sprite atlases still shipping because the raycaster still reads them. They die in child 5, not in a body plan.
 - Corpses stay one settling shape until `humanoid_block_bodies.plan.md` lands. The tracker carries a chore for the cheap half of that — handing a dying body's own armature to its corpse so a dead skeleton is at least that skeleton — which throws nothing away when the real clips arrive.
 
-### Child 5 — The workbenches and demolition
-
-- Per-workbench, what it imports today: `entity-workbench` pulls seven symbols from `demo-scene` including `projectDemoEnemy`, `projectDemoDeath`, `projectCarriedDemoEnemy`; `prop-workbench` pulls `propPickupSprites`; `hud-attack-workbench` pulls `demoMeleeImpactPitch` and `drawDemoViewmodel`; `carried-workbench` pulls `drawDemoViewmodel` and `DemoViewmodelModel`; `floor-preview` pulls `createDemoScene`; `render-panel` pulls `loadDemoImages` and the renderer's own types.
-- `floor-preview` and `render-panel` are the hard pair: both render **baked** floors through `RenderScene`, which needs wall materials the experiment never copied (`stoneWall`, `oldBrickWall`, `ironBarWall`, `doorRed`/`Blue`/`Yellow`, `breakableWall`) and a ceiling, which the experiment has no concept of — it is sky-only. Either the new runtime learns them (child 6 carries the materials), or these two are retired. That decision is this child's and it is a stop.
-- Deletions, in this order: rewire the six, then delete `src/demo/`, then delete `canvas-gameplay-renderer.ts`, then settle `render-scene.ts`.
-- `src/presentation/presentation-image-loader.ts` (93) and `src/content/presentation/presentation-asset-definitions.ts` (78) are the image pipeline the old renderer used; check for surviving readers before deleting either.
-- Governance in the same change: `dev/standards/project_structure.addendum.md` layer table, `.dependency-cruiser.cjs` rules naming `src/demo/`, and any `dev/agent_rules/` sentence that describes the interim projection tree as existing.
-
 ### Child 6 — The fidelity tail
 
 - **Structures.** `altarBoxes` at `demo-scene.ts:1625` (74 lines) against `world-structures.ts:68` (38): missing are `weathered` (`:1603`), `ALTAR_DEBRIS` (`:1597`) and `litFace` (`:1612`). The other four fixtures differ by less.
 - **Room lights.** `roomLights` at `demo-scene.ts:2913`: the blessing light grows with `progress.heldSeconds / BLESSING_HOLD_SECONDS`, the extraction light with `extractionShare(world)` and speeds its flicker with it. `world-structures.ts:487-516` has both at fixed values.
 - **Swing aim.** `surface.ts:878-880` projects `world.swingTarget` and hands the screen point to the first-person layer; `viewmodel.ts:188` records that the experiment has no projection to ask. Child 2 adds the answer; this is where it gets used.
-- **Waterline cut.** `RenderSprite.submerged` (`render-scene.ts:273`) cuts everything below the floor line; `world-bodies.ts:326` and `:386` only sink the body.
-- **Wall materials.** The seven baked-floor materials named in child 5, needed only if that child kept `floor-preview` and `render-panel`. If it retired them, this bullet is cut rather than built.
+- **Waterline cut.** `RenderSprite.submerged` (`render-scene.ts:273`) cuts everything below the floor line; `world-bodies.ts:326` and `:386` only sink the body. Read the coordinate before the demolition spec deletes that file, or read it out of history afterwards.
