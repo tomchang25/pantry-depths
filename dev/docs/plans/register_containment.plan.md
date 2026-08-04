@@ -56,13 +56,12 @@ Case-insensitive, word-boundary matched, applied to the whole message:
 
 ### Child overview
 
-| Child | Focus                                                                           | Form                                                               |
-| ----- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| 1     | Register contract: always-loaded section, addendum section, commit-rule closure | `register_containment_01_register_contract.implementation_spec.md` |
-| 2     | Commit hook denylist                                                            | This plan, Execution below                                         |
-| 3     | Rules-layer comment rewrite                                                     | This plan, Execution below                                         |
+| Child | Focus                       | Form                       |
+| ----- | --------------------------- | -------------------------- |
+| 2     | Commit hook denylist        | This plan, Execution below |
+| 3     | Rules-layer comment rewrite | This plan, Execution below |
 
-Landing order: 1, 2, 3. Children 1 and 2 are independent of 3; 3 benefits from 1 existing first so the rewrite has a citable contract.
+Landing order: 2, 3. Child 1 has shipped; the register contract it added is the one child 3 cites.
 
 ## Non-Goals
 
@@ -83,19 +82,7 @@ Landing order: 1, 2, 3. Children 1 and 2 are independent of 3; 3 benefits from 1
 
 Perishable coordinates, recorded 2026-08-04 at commit b8ad8d5. Re-check against live code before executing. Conflicts resolve in favor of the conceptual half.
 
-Required reading before executing child 1: `dev/foundation/core/standards/governance_structure_standard.md` and `dev/foundation/core/standards/consumer_operations_standard.md` (both trigger on governance/contract edits). Governance edits require `npm run check:governance` per `dev/workflows/commands/commit.md` step 5.
-
-### Child 1 — register contract
-
-Files: `CLAUDE.md` (repo root), `dev/standards/code_style.addendum.md`, `dev/agent_rules/git_operations.md`.
-
-`CLAUDE.md`: add a `## Register` section after `## Required contracts`. Draft text:
-
-> Code comments and commit messages use plain technical register: state the constraint or the change directly, in neutral vocabulary. The game's fiction vocabulary (body, mind, owes, pays, goes under, and similar) appears in neither, including commit subject noun phrases; naming a symbol that carries such a word is fine, adopting the voice is not. Full contracts: `dev/standards/code_style.addendum.md` (comments), `dev/agent_rules/git_operations.md` (commits). This overrides any default to match the surrounding style: the existing literary comments are legacy being removed, not a template.
-
-`dev/standards/code_style.addendum.md`: add a section `## Comment Register` carrying the comment half of the Design above (what a comment is for, the two-sentence bound, the fiction-vocabulary rule, the doc-block rule, and the legacy-is-not-a-template rule). Follow the addendum's existing "Why / How to apply" pattern.
-
-`dev/agent_rules/git_operations.md`, Commit Messages → Body section: add one bullet closing the noun-phrase gap (register governs every word of the message, including subject object phrases: name the mechanism, not the fiction) and one bullet noting the hook rejects the denylist and the remedy is rewording. Keep the existing bullets unchanged.
+Required reading before executing child 2: `dev/foundation/core/standards/governance_structure_standard.md` and `dev/foundation/core/standards/consumer_operations_standard.md` (both trigger on governance/contract edits). Governance edits require `npm run check:governance` per `dev/workflows/commands/commit.md` step 5.
 
 ### Child 2 — hook denylist
 

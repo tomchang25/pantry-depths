@@ -16,6 +16,7 @@ Turned the single-file browser prototype into a governed TypeScript project. No 
 - Declared `port-ref/` as a project-owned root tree holding the original prototype as read-only reference material.
 - Recorded the V1 lifecycle reduction in `dev/docs/README.md`: the design document is the draft, and work goes straight to standalone implementation specs.
 - 2026-07-27 — [code_style] Added `dev/standards/code_style.addendum.md`: a branch chain over a closed enumeration ends in a compiler-proved exception branch, never an unguarded fallthrough yielding one of the members. TypeScript is the only enforcement, because the linter runs without type information.
+- 2026-08-04 — [register_containment] Code comments and commit messages are now governed by a plain technical register, stated in the root agent instructions so every session loads it with no trigger to fire. The section explicitly overrides the harness default to imitate surrounding style, because the existing literary comments were the template agents were matching. The full comment contract lives in `dev/standards/code_style.addendum.md`; the commit half in `dev/agent_rules/git_operations.md` now governs subject noun phrases rather than only verbs, which is the gap fiction vocabulary was passing through.
 
 ### Toolchain
 
