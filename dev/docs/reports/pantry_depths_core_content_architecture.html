@@ -1,0 +1,1270 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pantry Depths — core 與 content 的職責與依賴</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f5f2;
+        --panel: #ffffff;
+        --panel-alt: #f0ece6;
+        --ink: #1c1a18;
+        --ink-soft: #5c554d;
+        --line: #ddd6cc;
+        --accent: #8a4b2a;
+        --accent-soft: #f3e4d8;
+        --core: #2f6b62;
+        --content: #a8632c;
+        --warn: #9a3b2f;
+        --warn-soft: #fbeae7;
+        --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Consolas", monospace;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #17151a;
+          --panel: #201d24;
+          --panel-alt: #26222b;
+          --ink: #ece7f0;
+          --ink-soft: #a49bab;
+          --line: #3a3441;
+          --accent: #e0a27a;
+          --accent-soft: #35272a;
+          --core: #79c8bb;
+          --content: #e0a27a;
+          --warn: #e5836f;
+          --warn-soft: #2e1a16;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0 1.25rem 6rem;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+        line-height: 1.7;
+        font-size: 16px;
+      }
+
+      main {
+        max-width: 68rem;
+        margin: 0 auto;
+      }
+
+      header.masthead {
+        padding: 3rem 0 1.5rem;
+        border-bottom: 3px double var(--line);
+        margin-bottom: 2rem;
+      }
+
+      header.masthead h1 {
+        margin: 0 0 0.35rem;
+        font-size: clamp(1.7rem, 4.5vw, 2.6rem);
+        letter-spacing: -0.01em;
+      }
+
+      header.masthead p {
+        margin: 0;
+        color: var(--ink-soft);
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem 1.5rem;
+        margin-top: 1rem;
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+        font-family: var(--mono);
+      }
+
+      h2 {
+        margin: 3.5rem 0 0.5rem;
+        font-size: 1.5rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h3 {
+        margin: 2.25rem 0 0.5rem;
+        font-size: 1.12rem;
+        color: var(--accent);
+      }
+
+      h4 {
+        margin: 1.5rem 0 0.4rem;
+        font-size: 0.98rem;
+      }
+
+      p {
+        margin: 0.6rem 0;
+      }
+
+      code,
+      .mono {
+        font-family: var(--mono);
+        font-size: 0.86em;
+        background: var(--panel-alt);
+        padding: 0.08em 0.35em;
+        border-radius: 3px;
+      }
+
+      a {
+        color: var(--accent);
+      }
+
+      ul,
+      ol {
+        margin: 0.6rem 0;
+        padding-left: 1.4rem;
+      }
+
+      li {
+        margin: 0.3rem 0;
+      }
+
+      nav.toc {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 1rem 1.25rem 1rem 2.5rem;
+        margin-bottom: 1rem;
+      }
+
+      nav.toc ol {
+        margin: 0;
+        padding-left: 0.5rem;
+      }
+
+      .note {
+        background: var(--panel);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+        padding: 0.9rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+
+      .note.warn {
+        border-left-color: var(--warn);
+        background: var(--warn-soft);
+      }
+
+      .chain {
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        line-height: 1.55;
+        white-space: pre;
+        overflow-x: auto;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 1.1rem 1.25rem;
+        margin: 1.25rem 0;
+      }
+
+      .scroll {
+        overflow-x: auto;
+        margin: 1rem 0;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.88rem;
+      }
+
+      caption {
+        text-align: left;
+        color: var(--ink-soft);
+        font-size: 0.84rem;
+        padding-bottom: 0.5rem;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 0.45rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--ink-soft);
+        font-weight: 600;
+        font-size: 0.8rem;
+        border-bottom: 2px solid var(--line);
+        white-space: nowrap;
+      }
+
+      td.id,
+      td.num {
+        font-family: var(--mono);
+        font-size: 0.82rem;
+      }
+
+      td.num {
+        text-align: right;
+        color: var(--ink-soft);
+      }
+
+      tbody tr:hover {
+        background: var(--panel);
+      }
+
+      .tag {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-family: var(--mono);
+        padding: 0.1em 0.45em;
+        border-radius: 3px;
+        border: 1px solid currentColor;
+        white-space: nowrap;
+      }
+
+      .tag.core {
+        color: var(--core);
+      }
+
+      .tag.content {
+        color: var(--content);
+      }
+
+      .tag.box {
+        color: var(--ink-soft);
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+        gap: 0.9rem;
+        margin: 1.25rem 0;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0.9rem 1.05rem;
+      }
+
+      .card h4 {
+        margin: 0 0 0.35rem;
+      }
+
+      .card p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: var(--ink-soft);
+      }
+
+      .card.core {
+        border-top: 3px solid var(--core);
+      }
+
+      .card.content {
+        border-top: 3px solid var(--content);
+      }
+
+      footer {
+        margin-top: 4rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--line);
+        color: var(--ink-soft);
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="masthead">
+        <h1>Pantry Depths — core 與 content 的職責與依賴</h1>
+        <p>規則層與資料層的模組級盤點：各自的用途、彼此的牽扯、以及機器強制的依賴路徑。</p>
+        <div class="meta">
+          <span>快照日期：2026-08-04</span>
+          <span>基準 commit：b8ad8d5</span>
+          <span>資料來源：<code>src/core/</code>、<code>src/content/</code></span>
+          <span>presentation：黑盒子</span>
+        </div>
+      </header>
+
+      <div class="note">
+        <strong>這份文件的效力。</strong>
+        全部內容都是從 <code>src/</code> 逐檔讀出的當日快照——依賴邊是從每個檔的 import 敘述機械抽取的，模組用途取自各檔自己的
+        檔頭註解，行數是 <code>wc -l</code> 的實數。程式一動它就過期。依專案的凍結目錄規則，日後<em>不要</em>回頭改這份檔案讓它跟程式一致；
+        需要新的就寫新的一份。要問「現在到底怎麼接的」，權威永遠是程式碼。
+      </div>
+
+      <nav class="toc">
+        <ol>
+          <li><a href="#supersedes">這份文件取代了什麼</a></li>
+          <li><a href="#split">兩層的分工</a></li>
+          <li><a href="#bands">core 的依賴分層</a></li>
+          <li><a href="#domains">core 四個領域與根層契約</a></li>
+          <li><a href="#cycle">契約與 catalog 的型別限定環</a></li>
+          <li><a href="#content">content 的兩條出路</a></li>
+          <li><a href="#paths">三條跨領域路徑</a></li>
+          <li><a href="#enforced">邊界如何被機器強制</a></li>
+          <li><a href="#index">導覽索引</a></li>
+        </ol>
+      </nav>
+
+      <h2 id="supersedes">1. 這份文件取代了什麼</h2>
+
+      <p>
+        <code>dev/docs/reports/</code> 裡原有兩份描述架構的文件。兩份都已失效，且失效的方式不同——這是重寫而非續寫的理由。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>兩份前作的現況</caption>
+          <thead>
+            <tr>
+              <th>文件</th>
+              <th>日期</th>
+              <th>失效原因</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">pantry_depths_architecture.html</td>
+              <td class="id">2026-07-25</td>
+              <td>
+                描述的是回合制、確定性戰鬥、Canvas 2D raycaster 與 <code>src/harness/</code>。它點名的
+                <code>src/core/combat.ts</code>、<code>src/core/turn.ts</code>、<code>src/content/enemies.ts</code>、
+                <code>src/harness/</code>、<code>port-ref/</code> 現在全部不存在。六節中四節是未填的「待補」卡片。
+              </td>
+            </tr>
+            <tr>
+              <td class="id">pantry_depths_structure_inventory.html</td>
+              <td class="id">2026-07-31</td>
+              <td>
+                資料本身紮實，但整份建立在 <code>src/demo/</code> 這一層之上。demo 遷移已於 2026-08-03 完成，
+                raycaster 與 <code>src/demo/</code> 於 2026-08-04 刪除，因此它的依賴圖、權威檔案路徑、以及
+                「專案裡沒有 mesh、沒有 glTF」這個核心論斷都已翻盤。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <strong>兩份前作已於本次變更刪除，由本文件取代。</strong>
+        兩者都不曾被改寫成與現況一致——凍結目錄規則禁止那種修補，因為那會抹掉紀錄而不增加任何東西。此處是整份移除：
+        專案擁有者裁定兩份文件的內容已失效到不值得留存，本文件接手前者第 ⑥ 節「原始碼導覽入口」的職責（見第 9 節），
+        並以現況重建後者的層與依賴敘述。兩份原文仍可從本次變更之前的 Git 歷史取回。
+      </div>
+
+      <h2 id="split">2. 兩層的分工</h2>
+
+      <div class="cards">
+        <div class="card core">
+          <h4><span class="tag core">src/core/</span> 規則</h4>
+          <p>
+            26 個 TypeScript 檔、8285 行。定義世界是什麼形狀、每幀怎麼變。不 import <code>src/</code> 裡的任何其他層，
+            包含 content。
+          </p>
+        </div>
+        <div class="card content">
+          <h4><span class="tag content">src/content/</span> 資料</h4>
+          <p>
+            19 個 TypeScript 檔（3038 行）＋ 19 個 JSON。作者決定的數字與表，全部透過 core 的契約定型。只能 import
+            content 與 core。
+          </p>
+        </div>
+      </div>
+
+      <p>
+        兩層的關係可以壓成一句：<strong>core 說「表長什麼樣」，content 說「表裡是什麼」，而把值遞過去的是第三者。</strong>
+        core 從不 import content——它要讀作者的數字，一律從被注入的 <code>GameCatalog</code> 拿，那個值由
+        <code>src/runtime/</code> 在 <code>createWorld(map, GAME_CATALOG)</code> 那一刻交進來，並由世界自己攜帶
+        （<code>world.catalog</code>）。
+      </p>
+
+      <p>
+        這不是慣例，是機器強制的（第 8 節）。它換來的具體能力是：規則可以在沒有任何資產、沒有瀏覽器的情況下被建構與步進，
+        這是 <code>src/app/debug/</code> 底下的工作台能直接建一個世界來玩、以及 <code>dev/tools/</code> 能離線跑內容驗證的原因。
+      </p>
+
+      <h2 id="bands">3. core 的依賴分層</h2>
+
+      <p>
+        把 26 個模組的 import 邊做拓樸排序，得到七個依賴帶。箭頭方向是「上面的 import 下面的」，沒有任何一條反向邊
+        （<code>no-circular</code> 規則保證，唯一的例外是第 5 節那個刻意的型別限定環）。
+      </p>
+
+      <div class="chain">L6  world/simulation.ts ....................... 一幀的固定順序，core 內部無人 import
+      ▲
+L5  combat/actions   combat/death   combat/impacts   combat/enemy-ai
+    floor/rooms      world/extraction               world/tasks
+      ▲              帶內順序：death ← actions ← impacts ← enemy-ai
+      │                        extraction ← tasks、extraction ← actions
+L4  world/world.ts ............................. 樞紐：狀態本體＋每個規則共用的操作
+      ▲
+L3  floor/maze.ts ← floor/movement.ts ........... 樓層組裝與連續碰撞
+      ▲
+L2  progression/bless   progression/sealed ← progression/modifiers
+      ▲                                        （純葉領域，不知道地板與戰鬥存在）
+L1  core/catalog ⇄ prop-contract · enemy-contract · room-contract
+                   map-contract · progression-contract    ← 型別限定環，見第 5 節
+      ▲
+L0  grid   prop-kinds   sfx-cues   combat/melee-contract
+    combat/particles    world/run-level ......... 無任何 core 內部 import</div>
+
+      <div class="scroll">
+        <table>
+          <caption>各帶的角色與成員行數</caption>
+          <thead>
+            <tr>
+              <th>帶</th>
+              <th>角色</th>
+              <th>成員（行數）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">L0</td>
+              <td>葉子詞彙：只宣告名詞與純函式，誰都不依賴</td>
+              <td class="id">
+                grid(15)、prop-kinds(27)、sfx-cues(34)、melee-contract(58)、particles(193)、run-level(37)
+              </td>
+            </tr>
+            <tr>
+              <td class="id">L1</td>
+              <td>契約：宣告記錄的形狀與存取函式，authored 的內容不在這裡</td>
+              <td class="id">
+                catalog(34)、room-contract(228)、map-contract(217)、enemy-contract(265)、prop-contract(164)、
+                progression-contract(110)
+              </td>
+            </tr>
+            <tr>
+              <td class="id">L2</td>
+              <td>進度狀態：一次 run 的祝福與封印獎勵</td>
+              <td class="id">bless(96)、sealed(135)、modifiers(37)</td>
+            </tr>
+            <tr>
+              <td class="id">L3</td>
+              <td>樓層：從一張地圖組出一層樓，以及貼著格子走的移動</td>
+              <td class="id">maze(1448)、movement(93)</td>
+            </tr>
+            <tr>
+              <td class="id">L4</td>
+              <td>世界：整個 run 的可變狀態，加上每個規則都會用到的共用操作</td>
+              <td class="id">world(1188)</td>
+            </tr>
+            <tr>
+              <td class="id">L5</td>
+              <td>規則：對世界做事的七個模組，各自被 tick 呼叫</td>
+              <td class="id">
+                enemy-ai(944)、actions(834)、impacts(464)、death(275)、rooms(118)、tasks(118)、extraction(98)
+              </td>
+            </tr>
+            <tr>
+              <td class="id">L6</td>
+              <td>tick：把 L5 排成一個固定順序</td>
+              <td class="id">simulation(1055)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        兩個數字值得記住。<code>world/world.ts</code> 有 13 條對內 import、被 8 個模組 import，是全 core 唯一的樞紐；
+        <code>world/simulation.ts</code> 有 17 條對內 import 而 core 內部無人 import 它——它是頂點，只有
+        <code>src/runtime/</code> 與除錯工作台從外面呼叫。
+      </p>
+
+      <h2 id="domains">4. core 四個領域與根層契約</h2>
+
+      <h3>4.1 根層：不屬於任何領域的五個檔</h3>
+
+      <p>
+        <code>src/core/</code> 根目錄下的檔案是被兩個以上領域共用的詞彙。放在根層不是懶得分類，而是分類到任一領域都會製造
+        一條跨領域依賴。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>根層模組</caption>
+          <thead>
+            <tr>
+              <th>檔案</th>
+              <th class="num">行</th>
+              <th>用途</th>
+              <th>被誰 import（core 內）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">catalog.ts</td>
+              <td class="num">34</td>
+              <td>
+                所有 authored 資料的注入形狀。只有型別，沒有值——值住在 <code>src/content/catalog.ts</code>
+              </td>
+              <td class="id">bless、modifiers、sealed、progression-contract、prop-contract、world</td>
+            </tr>
+            <tr>
+              <td class="id">prop-kinds.ts</td>
+              <td class="num">27</td>
+              <td>有哪幾種可撿的鬆散物件。每一層都講這份清單</td>
+              <td class="id">catalog、actions、death、room-contract、prop-contract、world</td>
+            </tr>
+            <tr>
+              <td class="id">prop-contract.ts</td>
+              <td class="num">164</td>
+              <td>投擲物的重量與行為記錄形狀，加上規則解析一次投擲要用的查表函式</td>
+              <td class="id">catalog、actions、enemy-contract、simulation、world</td>
+            </tr>
+            <tr>
+              <td class="id">grid.ts</td>
+              <td class="num">15</td>
+              <td>四方朝向與整數格座標。回合制時代留下的殘餘，現在只剩這兩個名詞</td>
+              <td class="id">actions、death、enemy-ai、maze、simulation、world</td>
+            </tr>
+            <tr>
+              <td class="id">sfx-cues.ts</td>
+              <td class="num">34</td>
+              <td>語意化音效 id 的清單。規則只報告 id，不知道有沒有聲音檔</td>
+              <td class="id">simulation、world</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>4.2 <code>floor/</code> — 幾何，幾乎是葉領域</h3>
+
+      <p>
+        負責「一層樓是什麼、長什麼樣、能不能走過去」。這個領域最值得注意的性質是：<strong>五個模組裡有四個完全不知道
+        <code>World</code> 的存在</strong>，可以在沒有 run 的情況下被建構與檢查。這正是地圖與房間工作台能直接產出一層樓來看的原因。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>floor/ 模組</caption>
+          <thead>
+            <tr>
+              <th>檔案</th>
+              <th class="num">行</th>
+              <th>用途</th>
+              <th>對外依賴</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">room-contract.ts</td>
+              <td class="num">228</td>
+              <td>一個房間自身是什麼：tile 種類、角色、cast、crowd、scatter</td>
+              <td class="id">prop-kinds</td>
+            </tr>
+            <tr>
+              <td class="id">map-contract.ts</td>
+              <td class="num">217</td>
+              <td>一張地圖解析後長什麼樣，以及只有「蓋好的樓層」才回答得了的那些拒絕條件</td>
+              <td class="id">room-contract</td>
+            </tr>
+            <tr>
+              <td class="id">maze.ts</td>
+              <td class="num">1448</td>
+              <td>
+                從一張地圖蓋出一層樓：主區域＋四個側槽，房間各自把自己畫上去。全 core 最大的檔，也是唯一把座標轉成扁平索引的地方
+              </td>
+              <td class="id">map-contract、room-contract、grid</td>
+            </tr>
+            <tr>
+              <td class="id">movement.ts</td>
+              <td class="num">93</td>
+              <td>連續座標對著格子的碰撞。分軸解算，所以斜走撞牆會滑而不是卡住</td>
+              <td class="id">maze</td>
+            </tr>
+            <tr>
+              <td class="id">rooms.ts</td>
+              <td class="num">118</td>
+              <td>
+                <strong>領域裡唯一的例外</strong>：三個側房間的每幀行為（祝福祭壇站五秒、溫泉每秒回 10 血）。這是行為不是幾何，所以它往上抓了
+                <code>world</code>
+              </td>
+              <td class="id">maze、world、particles</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <strong>為什麼 <code>rooms.ts</code> 放在 <code>floor/</code> 而不是 <code>world/</code>。</strong>
+        它處理的三個房間是由 <code>maze</code> 蓋出來的、靠 <code>padRoomAt</code> 的踏板範圍認定的，
+        所以它跟樓層的耦合遠強於跟世界的。代價是這個領域不再是純葉——讀 <code>floor/</code> 時要知道有這一個檔的依賴方向跟其他四個不同。
+      </div>
+
+      <h3>4.3 <code>combat/</code> — 牽扯最深的領域</h3>
+
+      <p>
+        負責玩家的兩個滑鼠鍵、敵人的腦、命中與死亡。它向下抓 <code>floor/</code>、向旁抓 <code>progression/</code>、
+        向上抓 <code>world/</code>，是四個領域裡唯一同時碰到其他三個的。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>combat/ 模組</caption>
+          <thead>
+            <tr>
+              <th>檔案</th>
+              <th class="num">行</th>
+              <th>用途</th>
+              <th>對外依賴</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">melee-contract.ts</td>
+              <td class="num">58</td>
+              <td>近戰詞彙：有哪幾刀、一刀在動畫的第幾成生效。畫出來的姿勢住在 content</td>
+              <td class="id">（無）</td>
+            </tr>
+            <tr>
+              <td class="id">particles.ts</td>
+              <td class="num">193</td>
+              <td>純表演的粒子場。<strong>模擬不讀它</strong>——每一束都是已經發生的事的回聲，整包丟掉不影響規則</td>
+              <td class="id">（無）</td>
+            </tr>
+            <tr>
+              <td class="id">enemy-contract.ts</td>
+              <td class="num">265</td>
+              <td>一隻敵人是什麼：archetype 記錄的形狀，加上每具身體都遵守的規則數字。七列 authored 資料在 content</td>
+              <td class="id">room-contract、prop-contract</td>
+            </tr>
+            <tr>
+              <td class="id">death.ts</td>
+              <td class="num">275</td>
+              <td>
+                敵人離開世界的唯一出口。每一次擊殺都走 <code>killEnemy</code>，掉落判定與祝福給付因此不可能被某條路徑漏掉
+              </td>
+              <td class="id">enemy-contract、particles、maze、grid、bless、prop-kinds、world</td>
+            </tr>
+            <tr>
+              <td class="id">actions.ts</td>
+              <td class="num">834</td>
+              <td>
+                左鍵與右鍵，以及它們能打到的一切。左鍵是攻擊或投擲、右鍵是抓取或放下，兩者都只看手上有沒有東西，所以不需要修飾鍵
+              </td>
+              <td class="id">death、particles、maze、grid、bless、sealed、extraction、prop-contract、world</td>
+            </tr>
+            <tr>
+              <td class="id">impacts.ts</td>
+              <td class="num">464</td>
+              <td>丟出去的東西落地時發生什麼：爆散、擊退、串刺、把身體釘上牆</td>
+              <td class="id">actions、death、particles、maze、bless、world</td>
+            </tr>
+            <tr>
+              <td class="id">enemy-ai.ts</td>
+              <td class="num">944</td>
+              <td>
+                敵人行為：五種心智（idle / wander / chase / attack / retreat）的單一狀態機，沒有任何外部模組決定一具身體往哪走
+              </td>
+              <td class="id">actions、death、impacts、particles、maze、movement、grid、bless、world</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <strong>領域內部的方向也是單向的。</strong>
+        <code>death ← actions ← impacts ← enemy-ai</code>：AI 用得到落地效果與玩家動作的計算，落地效果用得到玩家動作的傷害公式，
+        而所有致命結果最後都收斂到 <code>death</code>。反向邊一條都沒有——<code>death.ts</code> 不 import
+        <code>actions.ts</code>，這是「唯一出口」能成立的前提。
+      </div>
+
+      <h3>4.4 <code>progression/</code> — 純葉領域</h3>
+
+      <p>
+        負責一次 run 累積了什麼。這是四個領域裡結構最乾淨的一個：<strong>它只 import <code>core/catalog</code>
+        與自己的契約，從不 import <code>floor/</code>、<code>combat/</code> 或 <code>world/</code>。</strong>
+        祝福與封印獎勵完全不知道地板長什麼樣、也不知道有人在打架；是打架的那一半反過來伸手進來領獎。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>progression/ 模組</caption>
+          <thead>
+            <tr>
+              <th>檔案</th>
+              <th class="num">行</th>
+              <th>用途</th>
+              <th>被誰 import</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">progression-contract.ts</td>
+              <td class="num">110</td>
+              <td>詞綴軸、近戰核心、兩層祝福的記錄形狀</td>
+              <td class="id">catalog、bless、modifiers、sealed</td>
+            </tr>
+            <tr>
+              <td class="id">bless.ts</td>
+              <td class="num">96</td>
+              <td>run 的祝福狀態與授予它的操作。目錄與量值從 catalog 來</td>
+              <td class="id">actions、death、enemy-ai、impacts、world</td>
+            </tr>
+            <tr>
+              <td class="id">modifiers.ts</td>
+              <td class="num">37</td>
+              <td>核心的擲骰：詞綴目錄裡唯一隨機的那一半</td>
+              <td class="id">sealed</td>
+            </tr>
+            <tr>
+              <td class="id">sealed.ts</td>
+              <td class="num">135</td>
+              <td>
+                封印獎勵：樓層付出的、玩家看不到內容的東西。它<em>是</em>什麼在撤離的那一刻才決定
+              </td>
+              <td class="id">actions、extraction、world</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <strong>唯一活在 <code>World</code> 之外的狀態。</strong>
+        <code>sealed.ts</code> 用模組層級變數存著跨 run 的銀行（<code>bankReward</code> / <code>bankedRewards</code> /
+        <code>equippedCore</code>）。run 內攜帶的封印獎勵在 <code>world.carried</code>，死了就沒；撤離成功才結算進銀行。
+        因為沒有存檔系統，這個「銀行」的壽命就是這個分頁的壽命。這是全 core 唯一一處狀態不在 <code>World</code> 裡的地方。
+      </div>
+
+      <h3>4.5 <code>world/</code> — 狀態與 tick</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>world/ 模組</caption>
+          <thead>
+            <tr>
+              <th>檔案</th>
+              <th class="num">行</th>
+              <th>用途</th>
+              <th>對外依賴</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">run-level.ts</td>
+              <td class="num">37</td>
+              <td>
+                run 的單一難度數字。由「花掉的時間」與「下過的樓層」推導，<strong>從不儲存</strong>，所以數字與來源不可能失聯
+              </td>
+              <td class="id">（無）</td>
+            </tr>
+            <tr>
+              <td class="id">world.ts</td>
+              <td class="num">1188</td>
+              <td>
+                run 的全部可變狀態，加上每條規則都經過的共用操作（<code>nextId</code>、<code>announce</code>、
+                <code>raiseSfx</code>、<code>addVfx</code>、<code>stainFloor</code>、<code>dropProp</code>、
+                <code>awardBless</code>、<code>endRun</code>）
+              </td>
+              <td class="id">catalog、enemy-contract、melee-contract、particles、map-contract、maze、room-contract、grid、bless、sealed、prop-contract、prop-kinds、sfx-cues</td>
+            </tr>
+            <tr>
+              <td class="id">extraction.ts</td>
+              <td class="num">98</td>
+              <td>離開，以及離開值多少。踏板上不中斷站滿五秒就結束 run 並開箱</td>
+              <td class="id">maze、sealed、world</td>
+            </tr>
+            <tr>
+              <td class="id">tasks.ts</td>
+              <td class="num">118</td>
+              <td>
+                一層樓欠什麼、付什麼。一個主任務（開樓梯、付一個封印獎勵）＋三個副任務（各付一個祝福）。
+                每個條件都是模擬本來就在數的總數，所以不需要任何事件訂閱
+              </td>
+              <td class="id">maze、extraction、world</td>
+            </tr>
+            <tr>
+              <td class="id">simulation.ts</td>
+              <td class="num">1055</td>
+              <td>一幀：玩家、敵人、投擲物、砲火、計時器、換樓層。固定順序、直接改狀態、不保證可重播</td>
+              <td class="id">L5 全部＋ maze、movement、grid、contracts、run-level</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="cycle">5. 契約與 catalog 的型別限定環</h2>
+
+      <p>
+        第 3 節的分層裡 L1 標了一個環，那是刻意的，也是整個注入機制成立的關鍵。方向是這樣的：
+      </p>
+
+      <div class="chain">core/catalog.ts
+    import type { EnemyArchetype }        from core/combat/enemy-contract
+    import type { PropBehaviour }         from core/prop-contract
+    import type { BlessDefinition, ... }  from core/progression/progression-contract
+    ↓ 用這些型別組出 GameCatalog 的欄位形狀
+
+core/prop-contract.ts
+    import type { GameCatalog } from core/catalog     ← 反向邊
+    export function propBehaviour(catalog: GameCatalog, kind: PropKind): PropBehaviour
+
+core/progression/progression-contract.ts
+    import type { GameCatalog } from core/catalog     ← 反向邊
+    export function findBless(catalog: GameCatalog, id: BlessId): BlessDefinition | undefined</div>
+
+      <p>
+        兩個方向都存在，所以這在圖上是一個環。它被允許，是因為
+        <code>.dependency-cruiser.cjs</code> 的 <code>no-circular</code> 規則寫著
+        <code>dependencyTypesNot: ["type-only"]</code>——型別限定的環在編譯後不存在，不會讓模組初始化順序變成有意義的東西。
+      </p>
+
+      <p>這個安排換到的是三件事：</p>
+
+      <ul>
+        <li>
+          <strong>契約可以自己提供存取函式。</strong><code>propBehaviour(world.catalog, kind)</code> 住在契約旁邊，
+          而不是逼每個呼叫端自己去 catalog 上挖欄位。
+        </li>
+        <li>
+          <strong>catalog 的形狀由領域決定，不是由 catalog 自己編。</strong>
+          新增一種敵人屬性，只改 <code>enemy-contract.ts</code>，catalog 的型別自動跟上。
+        </li>
+        <li>
+          <strong>content 有唯一一個必須填滿的目標。</strong>
+          <code>src/content/catalog.ts</code> 整個檔只有 27 行，就是把四個目錄的表組成一個
+          <code>GameCatalog</code>；少一個欄位就編不過。
+        </li>
+      </ul>
+
+      <h2 id="content">6. content 的兩條出路</h2>
+
+      <p>
+        content 的每個模組都恰好透過一個 core 契約定型——這是層規則的直接後果（它只能 import content 與 core）。
+        但定型之後，資料有兩條完全不同的出門路徑，看懂這一點是看懂 content 的關鍵。
+      </p>
+
+      <h3>6.1 第一條路：組進 <code>GAME_CATALOG</code>，注入給規則</h3>
+
+      <p>
+        全專案唯一的組裝點是 <code>src/content/catalog.ts</code>，27 行：
+      </p>
+
+      <div class="chain">export const GAME_CATALOG: GameCatalog = {
+  archetypes:           ENEMY_ARCHETYPES,
+  propWeights:          PROP_WEIGHTS,
+  propBehaviours:       PROP_BEHAVIOURS,
+  defaultBodyWeight:    DEFAULT_BODY_WEIGHT,
+  blessCatalog:         BLESS_CATALOG,
+  blessStackingCatalog: BLESS_STACKING_CATALOG,
+  modifierCatalog:      MODIFIER_CATALOG,
+  coreCatalog:          CORE_CATALOG,
+  coreShare:            CORE_SHARE,
+  fragmentEffects:      FRAGMENT_EFFECTS,
+};</div>
+
+      <div class="scroll">
+        <table>
+          <caption>進 catalog 的五個模組——只有這些是規則會拿來做判定的數字</caption>
+          <thead>
+            <tr>
+              <th>content 模組</th>
+              <th class="num">行</th>
+              <th>對應 core 契約</th>
+              <th>填進的 catalog 欄位</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">enemies/enemy-archetypes.ts</td>
+              <td class="num">261</td>
+              <td class="id">combat/enemy-contract</td>
+              <td class="id">archetypes</td>
+            </tr>
+            <tr>
+              <td class="id">props/prop-definitions.ts</td>
+              <td class="num">349</td>
+              <td class="id">prop-contract</td>
+              <td class="id">propWeights、propBehaviours、defaultBodyWeight</td>
+            </tr>
+            <tr>
+              <td class="id">progression/bless-definitions.ts</td>
+              <td class="num">81</td>
+              <td class="id">progression/progression-contract</td>
+              <td class="id">blessCatalog、blessStackingCatalog</td>
+            </tr>
+            <tr>
+              <td class="id">progression/modifier-definitions.ts</td>
+              <td class="num">81</td>
+              <td class="id">progression/progression-contract</td>
+              <td class="id">modifierCatalog、coreCatalog</td>
+            </tr>
+            <tr>
+              <td class="id">progression/sealed-reward-definitions.ts</td>
+              <td class="num">19</td>
+              <td class="id">progression/progression-contract</td>
+              <td class="id">coreShare、fragmentEffects</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        <code>enemy-archetypes.ts</code> 是唯一一個 import 別的 content 模組的表：它從
+        <code>props/prop-definitions.ts</code> 取 <code>DEFAULT_BODY_WEIGHT</code>，因為一具身體被丟出去時的重量
+        跟一塊石頭的重量是同一種記錄。
+      </p>
+
+      <h3>6.2 第二條路：不進 catalog，各自直供消費者</h3>
+
+      <div class="scroll">
+        <table>
+          <caption>不進 catalog 的資料——影響「看」與「聽」，規則不讀</caption>
+          <thead>
+            <tr>
+              <th>content 目錄</th>
+              <th>模組（行）</th>
+              <th>對應 core 契約</th>
+              <th>誰消費</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">rooms/</td>
+              <td class="id">room-schema(415)、room-library(43)＋8 個 <code>*.room.json</code></td>
+              <td class="id">floor/room-contract</td>
+              <td><code>maps/map-resolver</code></td>
+            </tr>
+            <tr>
+              <td class="id">maps/</td>
+              <td class="id">map-schema(165)、map-resolver(131)、map-library(39)＋5 個 <code>*.map.json</code></td>
+              <td class="id">floor/map-contract、room-contract</td>
+              <td><code>src/runtime/maps.ts</code> → <code>createWorld</code></td>
+            </tr>
+            <tr>
+              <td class="id">sfx/</td>
+              <td class="id">cue-schema(300)、cue-definitions(86)、review-schema(140)＋2 JSON＋18 個 wav</td>
+              <td class="id">sfx-cues</td>
+              <td><span class="tag box">黑盒子</span> 音效層</td>
+            </tr>
+            <tr>
+              <td class="id">viewmodel/</td>
+              <td class="id">melee-attack-schema(106)、melee-viewmodel(505)＋<code>melee-attacks.json</code></td>
+              <td class="id">combat/melee-contract</td>
+              <td><span class="tag box">黑盒子</span></td>
+            </tr>
+            <tr>
+              <td class="id">presentation/</td>
+              <td class="id">prop-display-schema(115)＋<code>prop-display.json</code></td>
+              <td class="id">prop-kinds</td>
+              <td><span class="tag box">黑盒子</span></td>
+            </tr>
+            <tr>
+              <td class="id">enemies/</td>
+              <td class="id">entity-display-schema(159)、skeleton-pickup-definitions(16)＋<code>entity-display.json</code>＋資產</td>
+              <td class="id">combat/enemy-contract</td>
+              <td><span class="tag box">黑盒子</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        判斷一筆資料走哪條路的規則很簡單：<strong>規則會拿來做判定的走 catalog，只影響看與聽的直供消費者。</strong>
+        同一個概念可以同時有兩列——敵人的血量與攻擊節奏在 <code>enemy-archetypes.ts</code>（走 catalog），
+        牠的 sprite 縮放與錨點在 <code>entity-display.json</code>（直供黑盒子），兩者靠
+        <code>EnemyAppearanceId</code> 這個 core 詞彙串起來。
+      </p>
+
+      <div class="note">
+        <strong>地圖與房間是「找到的」不是「列出來的」。</strong>
+        <code>room-library.ts</code> 與 <code>map-library.ts</code> 都用 <code>import.meta.glob(..., { eager: true })</code>
+        掃整個目錄，載入時逐檔解析並驗證，而且強制檔名等於檔案內宣告的 <code>name</code>／<code>id</code>，不等就直接拋。
+        代價是啟動時全部解析，換到的是丟一個 JSON 進目錄就能玩，不必去改一份清單。
+      </div>
+
+      <h2 id="paths">7. 三條跨領域路徑</h2>
+
+      <p>前面的表說了誰依賴誰，這一節說那些依賴實際上被用來做什麼。三條都是完整的、可以照著讀程式的路徑。</p>
+
+      <h3>7.1 一次揮劍：跨 combat → world → progression → floor</h3>
+
+      <div class="chain">runtime  滑鼠左鍵 → combat/actions.primaryAction(world)
+         │  手是空的 → 選一把不同於上一刀的 cut，raiseSfx("meleeSwing")
+         │  只設定 world.swing / swingTotal / swingResolved = false，此時尚未有任何傷害
+         ▼
+core     world/simulation.stepWorld  每幀檢查動畫進度
+         │  到達 melee-contract.MELEE_CUT_START（動畫的第幾成）才呼叫
+         ▼
+combat/actions.resolveSwing(world)
+         │  meleeReach / meleeDamage 讀 progression/bless 與 sealed 的加成
+         │  掃描 world.enemies，命中 → combat/death.damageEnemy
+         │  沒打到人但前方有牆 → actions.damageWall → floor/maze 的 tile.hp
+         ▼
+combat/death.killEnemy   唯一出口：屍體動畫、掉落判定、world.kills += 1
+         │                          祝福給付走 world.awardBless → progression/bless.grantBless
+         ▼
+world/tasks.stepTasks    下一幀讀 world.kills，副任務達標就再付一個祝福</div>
+
+      <p>
+        這條路徑說明了為什麼 <code>combat/</code> 非碰其他三個領域不可：傷害數字要問 progression、命中判定要問 floor、
+        結算結果要寫進 world，而傷害發生的<em>時機</em>由 melee 契約的一個常數決定。
+      </p>
+
+      <h3>7.2 一次撿起並丟出：手上那一格狀態的所有權轉移</h3>
+
+      <div class="chain">滑鼠右鍵 → combat/actions.grabAction(world)
+    手上有東西 → dropHeld
+    否則找前方可搬的敵人 → 從 world.enemies 移除，放進 world.held = { kind:"enemy", enemy }
+    否則找前方的掉落物  → 從 world.props   移除，放進 world.held = { kind:"prop", ... }
+
+滑鼠左鍵 → combat/actions.primaryAction(world)
+    world.held 存在 → swingKind = "throw"
+    prop-contract.propBehaviour(world.catalog, kind).use === "shoot" ? shootHeld : throwHeld
+    → 物件離開 world.held，成為 world.projectiles 裡的一筆（敵人放在 projectile.payload）
+
+world/simulation.stepProjectiles  每幀推進
+    撞牆 → actions.damageWall → floor/maze
+    撞人 → combat/impacts（爆散、串刺、釘牆）
+    落地 → 敵人 payload 經 impacts.checkHazards 後放回 world.enemies</div>
+
+      <p>
+        整條路徑沒有任何生命週期管理——被搬運的敵人只是一個物件在三個陣列之間換位置。這是「World 是純資料」買到的最大一筆便宜。
+      </p>
+
+      <h3>7.3 一次撤離：progression 的兌現時刻</h3>
+
+      <div class="chain">world/tasks.stepTasks     主任務達標 → extraction.takeSealed(world, "clean")
+                          → world.carried.push({ source })       ← 此時只知道來源，不知道是什麼
+                          → world.terrainVersion += 1（樓梯的封印解除，幾何要重建）
+
+world/simulation.stepExtraction → extraction.stepExtraction
+                          玩家站在 extraction 房間的踏板上 → progress.extractionSeconds += dt
+                          離開踏板 → 歸零（傷害不中斷，只有離開會）
+                          滿 5 秒 → extract(world)
+
+extraction.extract        world.carried.map(reward =>
+                            progression/sealed.resolveReward(world.catalog, reward))
+                          ← 是碎片還是核心、核心擲出什麼詞綴，全在這一刻才決定
+                          → sealed.bankReward 進跨 run 的銀行
+                          → world.endRun(world, "extracted")</div>
+
+      <p>
+        這是 <code>progression/</code> 身為葉領域的證明：<code>sealed.ts</code> 提供
+        <code>resolveReward</code> 與 <code>bankReward</code> 兩個純粹的操作，完全不知道有踏板、有房間、有五秒。
+        那些全是 <code>world/extraction.ts</code> 的事。
+      </p>
+
+      <h2 id="enforced">8. 邊界如何被機器強制</h2>
+
+      <p>
+        本文件描述的所有依賴方向都不是口頭約定。<code>.dependency-cruiser.cjs</code> 把它們寫成規則，
+        <code>npm run check:boundaries</code> 檢查，而該指令是 <code>npm run verify</code> 的一環
+        （<code>format:check → typecheck → lint → check:boundaries → test → build</code>）。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <caption>與這兩層直接相關的規則（severity 全為 error）</caption>
+          <thead>
+            <tr>
+              <th>規則</th>
+              <th>內容</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="id">core-imports-only-core</td>
+              <td>
+                <code>src/core/</code> 不得 import <code>src/</code> 底下任何非 core 的路徑。authored 表只能經注入抵達，
+                不能經 import
+              </td>
+            </tr>
+            <tr>
+              <td class="id">content-imports-only-content-and-core</td>
+              <td><code>src/content/</code> 只能 import <code>src/content/</code> 與 <code>src/core/</code></td>
+            </tr>
+            <tr>
+              <td class="id">no-circular</td>
+              <td>
+                禁止執行期循環依賴，<code>dependencyTypesNot: ["type-only"]</code> —— 這是第 5 節那個契約環被允許的依據
+              </td>
+            </tr>
+            <tr>
+              <td class="id">no-orphan-modules</td>
+              <td>沒有人 import 的模組會被報出來（<code>src/app/main.ts</code> 與 <code>dev/tools/</code> 的進入點除外）</td>
+            </tr>
+            <tr>
+              <td class="id">game-layer-does-not-import-tooling</td>
+              <td><code>src/</code> 不得 import <code>dev/</code>；反向則允許 <code>dev/tools/</code> 讀 core 與 content</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        違反邊界的意思是程式碼放錯位置，修法是移動程式碼而不是放寬規則。這句話在
+        <code>.dependency-cruiser.cjs</code> 的檔頭與專案結構標準裡各寫了一次。
+      </p>
+
+      <h2 id="index">9. 導覽索引</h2>
+
+      <p>接手前作第 ⑥ 節的職責，內容以本快照的實際路徑重建。</p>
+
+      <div class="scroll">
+        <table>
+          <caption>想改什麼 → 從哪個檔下手</caption>
+          <thead>
+            <tr>
+              <th>想找／想改</th>
+              <th>檔案</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>一幀之內發生什麼、順序為何</td>
+              <td class="id">src/core/world/simulation.ts</td>
+            </tr>
+            <tr>
+              <td>世界有哪些狀態欄位</td>
+              <td class="id">src/core/world/world.ts</td>
+            </tr>
+            <tr>
+              <td>近戰傷害、範圍、投擲傷害</td>
+              <td class="id">src/core/combat/actions.ts</td>
+            </tr>
+            <tr>
+              <td>敵人怎麼決定要往哪走</td>
+              <td class="id">src/core/combat/enemy-ai.ts</td>
+            </tr>
+            <tr>
+              <td>擊殺後發生什麼（屍體、掉落、給付）</td>
+              <td class="id">src/core/combat/death.ts</td>
+            </tr>
+            <tr>
+              <td>丟出去的東西落地做什麼</td>
+              <td class="id">src/core/combat/impacts.ts</td>
+            </tr>
+            <tr>
+              <td>一層樓怎麼從地圖蓋出來</td>
+              <td class="id">src/core/floor/maze.ts</td>
+            </tr>
+            <tr>
+              <td>側房間（祭壇、溫泉）的行為</td>
+              <td class="id">src/core/floor/rooms.ts</td>
+            </tr>
+            <tr>
+              <td>樓層任務的條件與給付</td>
+              <td class="id">src/core/world/tasks.ts</td>
+            </tr>
+            <tr>
+              <td>撤離與開箱</td>
+              <td class="id">src/core/world/extraction.ts</td>
+            </tr>
+            <tr>
+              <td>難度隨時間上升的公式</td>
+              <td class="id">src/core/world/run-level.ts</td>
+            </tr>
+            <tr>
+              <td>敵人數值（血量、速度、節奏）</td>
+              <td class="id">src/content/enemies/enemy-archetypes.ts</td>
+            </tr>
+            <tr>
+              <td>投擲物行為與重量</td>
+              <td class="id">src/content/props/prop-definitions.ts</td>
+            </tr>
+            <tr>
+              <td>祝福的種類與量值</td>
+              <td class="id">src/content/progression/bless-definitions.ts</td>
+            </tr>
+            <tr>
+              <td>詞綴軸與近戰核心</td>
+              <td class="id">src/content/progression/modifier-definitions.ts</td>
+            </tr>
+            <tr>
+              <td>地圖與房間的幾何</td>
+              <td class="id">src/content/maps/*.map.json、src/content/rooms/*.room.json</td>
+            </tr>
+            <tr>
+              <td>音效配方</td>
+              <td class="id">src/content/sfx/sfx-cues.json</td>
+            </tr>
+            <tr>
+              <td>sprite 縮放與錨點</td>
+              <td class="id">src/content/enemies/entity-display.json</td>
+            </tr>
+            <tr>
+              <td>邊界規則本身</td>
+              <td class="id">.dependency-cruiser.cjs</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>9.1 新增一種東西要動哪幾個檔</h3>
+
+      <p>
+        這一節是前作第 ④、⑤ 兩節始終沒填的內容。清單由第 5 節的契約環直接決定——漏掉任何一列都是編譯錯誤，不是執行期驚喜。
+      </p>
+
+      <h4>新增一種敵人</h4>
+      <p>
+        「行為」與「長相」是兩個獨立的 union，所以這裡分兩種情況。沿用既有外觀的新敵人只需要前三步。
+      </p>
+      <ol>
+        <li>
+          <code>src/core/floor/room-contract.ts</code> — 在 <code>MapCastKind</code> 加入這個 id。
+          <code>catalog.archetypes</code> 是 <code>Record&lt;MapCastKind, EnemyArchetype&gt;</code>，所以這一步立刻讓下一步變成強制的
+        </li>
+        <li>
+          <code>src/content/enemies/enemy-archetypes.ts</code> — 補上 archetype 那一列（血量、速度、攻擊節奏，以及要用哪個
+          <code>appearance</code>）
+        </li>
+        <li>
+          <code>src/runtime/surface.ts</code> — <code>ENEMY_DOT_COLORS</code> 是
+          <code>Record&lt;MapCastKind, string&gt;</code> 的 total map，少一列編不過（小地圖上的顏色）
+        </li>
+        <li>
+          <em>只有需要新長相時：</em><code>src/core/combat/enemy-contract.ts</code> 的
+          <code>EnemyAppearanceId</code> 加一個 id，並在
+          <code>src/content/enemies/entity-display.json</code> 補上以 <code>appearanceId</code> 為鍵的那一列
+          （<code>bodyScale</code>、錨點與標記數值）
+        </li>
+      </ol>
+
+      <h4>新增一種掉落物</h4>
+      <ol>
+        <li><code>src/core/prop-kinds.ts</code> — 在 <code>PropKind</code> 加入這個 id</li>
+        <li><code>src/content/props/prop-definitions.ts</code> — 補上重量與行為兩列</li>
+        <li><code>src/content/presentation/prop-display.json</code> — 補上顯示那一列</li>
+        <li><code>src/runtime/surface.ts</code> — <code>PROP_GLYPHS</code> 與 <code>PROP_COLORS</code> 兩張 total map</li>
+      </ol>
+
+      <h4>新增一層樓（一張地圖）</h4>
+      <ol>
+        <li>
+          <code>src/content/rooms/&lt;id&gt;.room.json</code> — 需要新房間才寫；檔名必須等於檔內的 <code>id</code>
+        </li>
+        <li>
+          <code>src/content/maps/&lt;name&gt;.map.json</code> — 檔名必須等於檔內的 <code>name</code>
+        </li>
+        <li>
+          不必登記。兩個 library 都用 eager glob 掃目錄，放進去就會被找到，開發時可由
+          <code>/testbed/&lt;map name&gt;</code> 直接進入
+        </li>
+      </ol>
+
+      <footer>
+        <p>
+          快照於 2026-08-04，基準 commit <code>b8ad8d5</code>。依賴邊由各檔 import 敘述機械抽取；模組用途取自各檔檔頭註解；
+          行數為 <code>wc -l</code> 實數。<code>src/presentation/</code> 依委託範圍以黑盒子處理，只在 content 餵給它時點名。
+        </p>
+        <p>
+          本檔取代並刪除了
+          <code>pantry_depths_architecture.html</code> 與 <code>pantry_depths_structure_inventory.html</code>，
+          兩者的原文可從本次變更之前的 Git 歷史取回。
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>
