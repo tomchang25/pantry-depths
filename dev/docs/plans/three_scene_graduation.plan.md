@@ -51,7 +51,7 @@ The porting survey separated absent from reduced. Everything absent is the spike
 | 3   | The seam                       | The four drawing calls swap; the surface's own halves are rewired to the new renderer                             | `three_scene_graduation_03_the_seam.implementation_spec.md`                  |
 | 4   | Who owns the bodies            | The body work is scoped into its own plans and handed over; nothing about a body is built here                    | Shipped 2026-08-04 — the two plans it produced                               |
 | 5   | The workbenches and demolition | Six development surfaces migrate or retire; the interim projection and the ray-marched renderer are deleted       | Cancelled 2026-08-04 — `three_scene_demolition.implementation_spec.md`       |
-| 6   | The fidelity tail              | Structure detail, hold-driven room lights, swing aim, and the waterline cut                                       | Execution below                                                              |
+| 6   | The fidelity tail              | Structure detail, hold-driven room lights, swing aim, and the waterline cut                                       | `three_scene_graduation_06_the_fidelity_tail.implementation_spec.md`         |
 
 Landing order is the table order. Child 2 must precede 3 because the seam has nothing to call otherwise, and the cancelled child's work must still follow 3 for the reason it always did: it deletes the path the game would otherwise fall back to.
 

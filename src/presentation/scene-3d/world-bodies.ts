@@ -22,6 +22,7 @@ import {
   type EntityDisplay,
 } from "@/content/enemies/entity-display-schema";
 import { attackCooldown, isBoned, STRIKE_SECONDS, type EnemyAppearanceId } from "@/core/enemy-contract";
+import { DROWN_SECONDS } from "@/core/impacts";
 import { bodyFootprint, projectileHeight, type Death, type Enemy, type World } from "@/core/world";
 
 import type { SceneLighting } from "./scene-lighting";
@@ -94,6 +95,31 @@ function slimeProfile(appearance: EnemyAppearanceId): Readonly<{ height: number;
     height: displayFor(appearance)?.bodyScale ?? 0.46,
     color: SLIME_COLORS[appearance] ?? FALLBACK_SLIME_COLOR,
   };
+}
+
+/** How tall a skeleton stands when the display table has nothing to say about it. */
+const FALLBACK_BONED_HEIGHT = 0.755;
+
+/** How far under a body has gone by the time it finally drowns. The rest of the sink is the corpse's. */
+const DROWN_STAGE_AT_DEATH = 0.72;
+
+/**
+ * How far under a body is, as a fraction of its own height.
+ *
+ * The rules own how long drowning takes and this owns how deep it looks, which is why the duration is
+ * read from them rather than restated here — restating it is what put a body a third of the way under
+ * the instant it landed in the water. It stops short of one while the body is alive, because a thing
+ * that has vanished before it has died reads as one that fell through the floor rather than drowned.
+ *
+ * Nothing cuts the picture at the waterline: the water is an opaque plane at ground level and the
+ * bodies write depth, so the part that has gone under is already not drawn.
+ */
+function drownStage(enemy: Enemy): number {
+  if (enemy.drowningSeconds <= 0) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, 1 - enemy.drowningSeconds / DROWN_SECONDS)) * DROWN_STAGE_AT_DEATH;
 }
 
 /** How long a wind-up or recovery takes to reach its final pose, whatever the state's own length. */
@@ -360,13 +386,14 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
           }
 
           // Going under is the one state with no clip: the body keeps whatever it was playing and
-          // sinks, which is what the rules describe happening to it.
-          const sink = enemy.drowningSeconds > 0 ? Math.min(1, 1 - enemy.drowningSeconds / 1.6) * 1.2 : 0;
-          body.root.position.set(enemy.x, -sink, enemy.y);
+          // sinks, which is what the rules describe happening to it. The extra tenth is what makes a
+          // full stage clear the surface rather than leave a sliver of skull floating on it.
+          const standing = displayFor(enemy.appearance)?.bodyScale ?? FALLBACK_BONED_HEIGHT;
+          body.root.position.set(enemy.x, -drownStage(enemy) * (standing + 0.1), enemy.y);
           // Re-applied every frame rather than only at spawn, so the workbench's unsaved height moves
           // a body that is already standing. It is one multiply against a number that almost never
           // changes, and the alternative is rebuilding the body to see a slider.
-          body.root.scale.setScalar((displayFor(enemy.appearance)?.bodyScale ?? 0.755) / templateHeight);
+          body.root.scale.setScalar(standing / templateHeight);
           // Half a turn away from the camera's own formula, and that distinction was a real defect:
           // the camera looks down its local −Z while this armature was turned to face +Z, so reusing
           // the yaw the camera uses pointed every body exactly backwards.
@@ -425,9 +452,8 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
           squash = 0.78;
         }
 
-        const sink = enemy.drowningSeconds > 0 ? Math.min(1, 1 - enemy.drowningSeconds / 1.6) : 0;
         const height = profile.height * squash;
-        blob.mesh.position.set(enemy.x, height / 2 - sink * (height + 0.1), enemy.y);
+        blob.mesh.position.set(enemy.x, height / 2 - drownStage(enemy) * (height + 0.1), enemy.y);
         blob.mesh.scale.set(footprint * 2, height, footprint * 2);
         const flash = enemy.hurtSeconds > 0 ? Math.min(1, enemy.hurtSeconds / 0.16) : 0;
         blob.mesh.material.uniforms.uFlash!.value = flash;

@@ -226,14 +226,8 @@ export function createRenderPanel(options: RenderPanelOptions): RenderPanel {
       return;
     }
 
-    // The renderer answers in its own backing store, which is coarser than this canvas, so an aim
-    // is scaled back up: a mark pinned to a world point lands where the point looks like it is.
-    const scaleX = width / Math.max(1, live.canvas.width);
-    const scaleY = height / Math.max(1, live.canvas.height);
-    frame.overlay(context, (point) => {
-      const projected = live.project(point);
-      return projected && { screenX: projected.screenX * scaleX, screenY: projected.screenY * scaleY };
-    });
+    // No scaling: the renderer answers in viewport pixels, which is the size this canvas already is.
+    frame.overlay(context, (point) => live.project(point));
   };
 
   // Waited on for the same reason the game waits: bodies are cloned from an armature that arrives

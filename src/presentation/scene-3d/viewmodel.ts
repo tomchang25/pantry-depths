@@ -42,6 +42,15 @@ import { createSceneSprites, type SceneSpriteId } from "./scene-sprites";
 export type ViewmodelKind = "authored" | "none";
 
 /**
+ * Where the swing landed, in this overlay's own pixels.
+ *
+ * Declared here rather than taken from the renderer because this layer has no camera and never asks
+ * for one: it is handed the point during the render that placed the camera, and owning the shape it
+ * accepts is what keeps the arrow pointing that way.
+ */
+export type ViewmodelAim = Readonly<{ screenX: number; screenY: number }>;
+
+/**
  * How much of the frame the authored stage covers, and where its bottom edge sits.
  *
  * Anchored bottom-centre and scaled off its width, so the arm keeps the proportions it was drawn
@@ -111,7 +120,7 @@ export type Viewmodel = Readonly<{
    */
   setAttackOverride(attack: MeleeAttackDefinition | undefined): void;
   setKind(kind: ViewmodelKind): void;
-  sync(world: World): void;
+  sync(world: World, aim: ViewmodelAim | undefined): void;
   resize(width: number, height: number): void;
   dispose(): void;
 }>;
@@ -159,7 +168,7 @@ export function createViewmodel(): Viewmodel {
       overlay.height = height;
     },
 
-    sync(world) {
+    sync(world, aim) {
       if (kind !== "authored" || !context) {
         return;
       }
@@ -167,7 +176,7 @@ export function createViewmodel(): Viewmodel {
       context.clearRect(0, 0, width, height);
       const viewSize = Math.min(width * STAGE_WIDTH_FRACTION, height * STAGE_HEIGHT_FRACTION);
       const bob = Math.sin(world.elapsedSeconds * 2.2) * height * 0.006 + world.walkBob * height * 0.017;
-      drawArm(context, world, viewSize, bob);
+      drawArm(context, world, viewSize, bob, aim);
       drawCarried(context, world, viewSize, bob);
       drawCarriedLight(context, world.elapsedSeconds);
       // Under the damage marks, deliberately. Being healed is good news and news you can wait a
@@ -190,10 +199,21 @@ export function createViewmodel(): Viewmodel {
    * happens to be roughly square and puts the hand in the middle of the screen on one that is twice
    * as wide as it is tall.
    */
-  function drawArm(target: CanvasRenderingContext2D, world: World, viewSize: number, bob: number): void {
+  function drawArm(
+    target: CanvasRenderingContext2D,
+    world: World,
+    viewSize: number,
+    bob: number,
+    aim: ViewmodelAim | undefined,
+  ): void {
     const scale = viewSize / MELEE_VIEW_WIDTH;
+    // Kept rather than only applied, because the arc is aimed at a point measured in screen pixels and
+    // the stage is the three transforms below. The bob is part of it: an aim converted without it
+    // drifts up and down the frame as the player walks.
+    const originX = width * 0.5;
+    const originY = height + bob;
     target.save();
-    target.translate(width * 0.5, height + bob);
+    target.translate(originX, originY);
     target.scale(scale, scale);
     target.translate(-MELEE_VIEW_WIDTH * 0.5, -MELEE_VIEW_HEIGHT);
 
@@ -204,9 +224,13 @@ export function createViewmodel(): Viewmodel {
       const attack = attackOverride ?? MELEE_ATTACKS_BY_ID[world.swingKind];
       const connected = world.swingTarget?.connected ?? false;
       drawMeleeAttack(target, attack, progress, {
-        // No aim: chasing the point a swing landed on needs the renderer's own projection wired
-        // through, and the arc stays where it was authored instead — the same place the workbench
-        // judges it.
+        // The inverse of the stage transform above. Nothing to aim at — a swing at air, or a target
+        // behind the eye — leaves the arc where it was authored, which is the same place the
+        // workbench judges it.
+        aim: aim && {
+          x: (aim.screenX - originX) / scale + MELEE_VIEW_WIDTH * 0.5,
+          y: (aim.screenY - originY) / scale + MELEE_VIEW_HEIGHT,
+        },
         connected,
         strength: connected ? 1 : 0.55,
       });

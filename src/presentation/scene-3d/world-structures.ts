@@ -14,7 +14,9 @@
 
 import * as THREE from "three";
 
+import { extractionShare } from "@/core/extraction";
 import { BARRICADE_HP, isBarricadeCell, MORTAR_HP, tileIndex, type Room, type Tile } from "@/core/maze";
+import { BLESSING_HOLD_SECONDS } from "@/core/rooms";
 import { MORTAR_LOCK_SECONDS, type World } from "@/core/world";
 
 import type { SceneLighting } from "./scene-lighting";
@@ -42,6 +44,16 @@ function brighten(hex: number): number {
   return pack(((hex >> 16) & 255) * 1.28, ((hex >> 8) & 255) * 1.28, (hex & 255) * 1.28);
 }
 
+/** Blends two packed colours channel by channel, for a fitting that changes colour as it is used up. */
+function mix(from: number, to: number, amount: number): number {
+  const blend = (shift: number): number => {
+    const start = (from >> shift) & 255;
+    return start + (((to >> shift) & 255) - start) * amount;
+  };
+
+  return pack(blend(16), blend(8), blend(0));
+}
+
 /** Every light a floor's fittings throw, in the scene builder's own colours and radii. */
 export type StructureLight = Readonly<{
   x: number;
@@ -64,12 +76,43 @@ const STAIR_STONE = 0x8fa8b6;
 /** Half the width of a room's business pad, matching the pad the rules test the player's feet against. */
 const PAD_HALF = 1.5;
 
-/** The cursed altar, weathering as it is broken open. */
+/**
+ * The lit top face an overhead light would leave, for the one fitting that authors its own.
+ *
+ * Only the altar takes this. The other four are shapes rebuilt for a renderer with real lighting
+ * rather than ports of the raycaster's, and giving them a hand-brightened top as well would be
+ * paying twice for the same cue.
+ */
+function litFace(hex: number): number {
+  return pack(((hex >> 16) & 255) * 1.58, ((hex >> 8) & 255) * 1.56, (hex & 255) * 1.5);
+}
+
+/**
+ * Where each piece knocked off the altar comes to rest, in cells from its centre.
+ *
+ * Fixed rather than rolled. Structure geometry is rebuilt whenever anything on the floor changes, so
+ * a random scatter would pick new places for the same rubble every time a wall came down.
+ */
+const ALTAR_DEBRIS = [
+  { x: 0.54, y: -0.28, half: 0.11, top: 0.09 },
+  { x: -0.42, y: 0.48, half: 0.09, top: 0.07 },
+  { x: 0.08, y: 0.6, half: 0.13, top: 0.11 },
+] as const;
+
+/**
+ * The cursed altar, one shape per swing it has taken.
+ *
+ * A plinth that stood identical through two of its three hits and then became rubble told the player
+ * nothing until it was over. This is the same ladder the walls and the caltrops already climb: the
+ * capstone is knocked further off true and loses more of itself with every blow, the shaft is shorter
+ * under it, the stone darkens, and each piece that comes off is still lying on the floor afterwards —
+ * so how much of an altar somebody has already spent is legible from across the room and from behind.
+ */
 function altarBoxes(world: World): Box[] {
   const altar = world.altar;
-  const damage = Math.max(0, altar.maxHp - altar.hp);
+  const damage = Math.min(altar.maxHp, Math.max(0, altar.maxHp - altar.hp));
   const spent = altar.hp <= 0;
-  const stone = spent ? ALTAR_SPENT : ALTAR_STONE;
+  const stone = mix(ALTAR_STONE, ALTAR_SPENT, altar.maxHp > 0 ? damage / altar.maxHp : 0);
   const shaftTop = 0.5 - damage * 0.05;
   const built: Box[] = [
     { x: altar.x, y: altar.y, halfX: 0.34, halfY: 0.34, bottom: 0, top: 0.16, color: stone },
@@ -96,6 +139,39 @@ function altarBoxes(world: World): Box[] {
       bottom: shaftTop,
       top: shaftTop + 0.12 - damage * 0.02,
       color: stone,
+      topColor: litFace(stone),
+    });
+  } else {
+    // Spent: the top is gone and what is left is the snapped shaft, too low to be mistaken for one
+    // still worth swinging at.
+    built.push({
+      x: altar.x,
+      y: altar.y,
+      halfX: 0.27,
+      halfY: 0.27,
+      bottom: shaftTop,
+      top: shaftTop + 0.05,
+      color: stone,
+      topColor: litFace(stone),
+    });
+  }
+
+  for (let index = 0; index < damage; index += 1) {
+    const piece = ALTAR_DEBRIS[index];
+
+    if (!piece) {
+      continue;
+    }
+
+    built.push({
+      x: altar.x + piece.x,
+      y: altar.y + piece.y,
+      halfX: piece.half,
+      halfY: piece.half * 0.78,
+      bottom: 0,
+      top: piece.top,
+      color: stone,
+      topColor: litFace(stone),
     });
   }
 
@@ -489,7 +565,14 @@ export function createWorldStructures(lighting: SceneLighting): WorldStructures 
         const y = room.center.y + 0.5;
 
         if (room.role === "blessingAltar") {
-          built.push({ x, y, radius: 2.6, intensity: 0.5, color: 0xf4f6ff });
+          // The five-second claim is told here rather than by the posts rising: structure geometry is
+          // cached against the floor, so making them move would rebuild every fitting on it every
+          // frame. Leaving the pad drops the light back on the next frame, because the hold itself
+          // resets — the readout is the state, not a copy of it.
+          const held = world.maze.progress.blessingTaken
+            ? 1
+            : Math.min(1, world.maze.progress.heldSeconds / BLESSING_HOLD_SECONDS);
+          built.push({ x, y, radius: 2.6 + held * 3.4, intensity: 0.5 + held * 1.1, color: 0xf4f6ff });
         }
 
         if (room.role === "hotSpring") {
@@ -505,11 +588,13 @@ export function createWorldStructures(lighting: SceneLighting): WorldStructures 
         if (room.role === "extraction") {
           // Loud, because the way out was the one thing on a floor a player could walk past without
           // noticing, and a room only worth finding has to be recognisable the moment it is found.
+          // Louder, wider and faster while the hold runs, which is the only readout it has.
+          const holding = extractionShare(world);
           built.push({
             x,
             y,
-            radius: 6,
-            intensity: 1.05 + Math.sin(elapsedSeconds * 2.4) * 0.2,
+            radius: 6 + holding * 3,
+            intensity: 1.05 + holding * 0.9 + Math.sin(elapsedSeconds * (2.4 + holding * 9)) * (0.2 + holding * 0.2),
             color: 0x82f04a,
           });
         }

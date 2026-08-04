@@ -90,7 +90,14 @@ export type SceneFrame = Readonly<{
 /** What the renderer cost to draw the last frame, for whoever is showing a diagnostic readout. */
 export type SceneMetrics = Readonly<{ drawCalls: number; triangles: number }>;
 
-/** Where a world point landed on screen, in the canvas's own pixels. */
+/**
+ * Where a world point landed on screen, in viewport pixels.
+ *
+ * Viewport rather than backing-store pixels because everything that asks draws into an overlay at the
+ * viewport's own size, and the backing store is half that whenever the grain is on. The renderer owns
+ * the grain, so the renderer owns the conversion; a caller that scaled it itself would be a second
+ * owner of a number only one of them can see change.
+ */
 export type ScenePoint = Readonly<{ screenX: number; screenY: number }>;
 
 export class SceneRenderer {
@@ -116,6 +123,9 @@ export class SceneRenderer {
   private floorExtent = "";
   private torchEnabled = true;
   private readonly viewmodel: Viewmodel;
+  /** The viewport's last measured size, so a projection costs no layout read. */
+  private viewWidth = 1;
+  private viewHeight = 1;
 
   constructor(private readonly viewport: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -229,8 +239,9 @@ export class SceneRenderer {
    * Where a point in the world lands on screen, or nothing when it is behind the eye.
    *
    * Answered from the camera the last frame left in place, so a caller asks after rendering rather
-   * than before. The one thing that wants this is the first-person layer, which aims the arc of a
-   * swing at the point the swing actually reached.
+   * than before — the matrices this reads are refreshed inside the draw, not by placing the camera.
+   * The first-person layer does not call it at all: it has no camera and should not acquire one, so
+   * the frame's aim is projected here and handed to it.
    */
   project(point: Readonly<{ x: number; y: number; z: number }>): ScenePoint | undefined {
     PROJECTED.set(point.x, point.z, point.y).project(this.camera);
@@ -240,8 +251,8 @@ export class SceneRenderer {
     }
 
     return {
-      screenX: (PROJECTED.x * 0.5 + 0.5) * this.renderer.domElement.width,
-      screenY: (-PROJECTED.y * 0.5 + 0.5) * this.renderer.domElement.height,
+      screenX: (PROJECTED.x * 0.5 + 0.5) * this.viewWidth,
+      screenY: (-PROJECTED.y * 0.5 + 0.5) * this.viewHeight,
     };
   }
 
@@ -284,7 +295,6 @@ export class SceneRenderer {
     this.bodies.sync(world, elapsed, frame.deltaSeconds);
     this.structures.sync(world);
     this.effects.sync(world);
-    this.viewmodel.sync(world);
 
     this.finishing.draw({
       cameraAngle: player.angle,
@@ -301,6 +311,12 @@ export class SceneRenderer {
     this.exitMarker.rotation.y = elapsed * 0.9;
 
     this.renderer.render(this.scene, this.camera);
+
+    // Last, because the aim it is given has to be projected through camera matrices that Three only
+    // refreshes inside the call above: asked for any earlier, the arc chases where the view was a
+    // frame ago, which is exactly when a swing is most likely to be turning. Drawing the arm after
+    // the picture rather than before costs nothing — it is its own stacked canvas either way.
+    this.viewmodel.sync(world, world.swingTarget ? this.project(world.swingTarget) : undefined);
   }
 
   private rebuildFloor(world: World): void {
@@ -468,6 +484,8 @@ export class SceneRenderer {
   private resize(): void {
     const width = Math.max(1, this.viewport.clientWidth);
     const height = Math.max(1, this.viewport.clientHeight);
+    this.viewWidth = width;
+    this.viewHeight = height;
     // The backing store is the small one; the element keeps its full CSS size and the browser
     // blows the pixels up. That is what makes the grain honest — the pixels really are that big.
     const scale = this.grain ? GRAIN_SCALE : 1;
