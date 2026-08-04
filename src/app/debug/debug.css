@@ -349,16 +349,28 @@ textarea {
   line-height: 1.6;
 }
 
-.debug-page li + li {
+/* Prose lists only. A card grid spaces itself with its own gap, and this margin would land on every
+   card but the first, so the row's top edges would disagree by a third of a line. */
+.debug-page li + li:not(.debug-card-grid__item) {
   margin-top: 0.35rem;
 }
 
 .debug-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+
+  /* Every row as tall as the tallest card in the grid, so a wrapped grid stays a grid. */
+  grid-auto-rows: 1fr;
   gap: 1rem;
   padding: 0;
   list-style: none;
+}
+
+/* For a group that may hold fewer cards than a row fits. The tracks stay where they are instead of
+   collapsing, so one entry is a card rather than a banner spanning the page — which is what the
+   scene index's named-scene group would otherwise be while the soundstage is the only scene. */
+.debug-card-grid--fill {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
 }
 
 .debug-card-grid__item {
@@ -367,6 +379,9 @@ textarea {
 
 .debug-tool-card {
   display: grid;
+
+  /* The grid stretches the list item; the card is what is drawn, so it has to follow it up. */
+  height: 100%;
   min-height: 11rem;
   box-sizing: border-box;
   grid-template-rows: auto 1fr auto;

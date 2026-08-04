@@ -24,6 +24,7 @@ import { actionButton, field, numberInput } from "@/app/debug/debug-form";
 import { createDebugPage, createDebugPanel } from "@/app/debug/debug-shell";
 import { createFloorPreview } from "@/app/debug/floor-preview";
 import { createRoomSurface } from "@/app/debug/room-workbench";
+import { testbedPath } from "@/app/scene/scene-router";
 import { resolveMap } from "@/content/maps/map-resolver";
 import { parseMapSource, type MapSource } from "@/content/maps/map-schema";
 import { MAP_SLOTS, type MapSlot } from "@/core/map-contract";
@@ -404,7 +405,7 @@ function createMapSurface(): HTMLElement {
     );
   });
   playButton.addEventListener("click", () => {
-    window.open(`/testbed/${encodeURIComponent(draft.name)}`, "_blank", "noopener");
+    window.open(testbedPath(draft.name), "_blank", "noopener");
   });
 
   // Which file is open is a different question from what it says, so the file operations sit in their

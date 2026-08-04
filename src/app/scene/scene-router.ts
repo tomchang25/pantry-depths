@@ -20,28 +20,49 @@
 import type { MountGameOptions } from "@/runtime/surface";
 import type { SceneHooks } from "@/runtime/scene-hooks";
 
-type SceneEntry = Readonly<{
+export type SceneEntry = Readonly<{
   id: string;
   /** Matched exactly. A scene is one address, not a namespace; testbeds are the namespace case below. */
   path: string;
   /** The floor it opens. Named here rather than inside the scene, so an address and its floor are read together. */
   mapName: string;
+  /** What a listing calls it. Here rather than in the listing, so a scene is named in one place. */
+  title: string;
+  /** What the session is for. Not a restatement of the address — a reader can already see that. */
+  description: string;
   load: () => Promise<SceneHooks>;
 }>;
 
 /**
  * Every named scene. Adding one is this list plus a hooks module, and nothing in the play surface.
+ *
+ * Exported because the development console's scene index renders from it. That listing reads the
+ * plain fields only and never calls `load` — a directory that loaded every scene's rules to print
+ * their names would make the deferral here decorative.
  */
-const SCENES: readonly SceneEntry[] = [
+export const SCENES: readonly SceneEntry[] = [
   {
     id: "soundstage",
     path: "/soundstage",
     mapName: "stage",
+    title: "Soundstage",
+    description:
+      "The filming stage: arrival fixed, descent and plinth offstage, minds frozen, instruments hidden, and a cast stepped and restaged from the keys.",
     load: () => import("@/app/scene/soundstage").then(({ SOUNDSTAGE }) => SOUNDSTAGE),
   },
 ];
 
 const TESTBED_PREFIX = "/testbed";
+
+/**
+ * The address that opens one map as a plain testbed.
+ *
+ * The inverse of `testbedMapName` below, and it lives beside it so the prefix and the escaping are
+ * decided once. A caller building this string itself is a second owner of the address form.
+ */
+export function testbedPath(mapName: string): string {
+  return `${TESTBED_PREFIX}/${encodeURIComponent(mapName)}`;
+}
 
 /**
  * The map named by a testbed address, if it names one.

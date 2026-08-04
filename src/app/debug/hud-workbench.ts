@@ -264,7 +264,7 @@ function poseInput(label: string, value: number, onInput: (value: number) => voi
 }
 
 /** Renders the pure HUD model and the authored melee geometry against real renderer panels. */
-export function renderHudAttackWorkbench(mount: HTMLElement): void {
+export function renderHudWorkbench(mount: HTMLElement): void {
   const { page, content } = createDebugPage({
     title: "HUD Workbench",
     description:

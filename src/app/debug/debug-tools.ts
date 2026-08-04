@@ -13,6 +13,17 @@ export type DebugTool = {
 /** The single registry for future development tools. */
 export const DEBUG_TOOLS: readonly DebugTool[] = [
   {
+    id: "scene-index",
+    path: "/debug/scene-index",
+    title: "Scene Index",
+    description:
+      "Every address a development build opens the game at: the dressed scenes, the plain map testbeds, and ordinary play.",
+    load: () =>
+      import("@/app/debug/scene-index").then(({ renderSceneIndex }) => ({
+        render: renderSceneIndex,
+      })),
+  },
+  {
     id: "entity-workbench",
     path: "/debug/entity-workbench",
     title: "Entity Workbench",
@@ -35,13 +46,13 @@ export const DEBUG_TOOLS: readonly DebugTool[] = [
       })),
   },
   {
-    id: "hud-attack-workbench",
-    path: "/debug/hud-attack-workbench",
+    id: "hud-workbench",
+    path: "/debug/hud-workbench",
     title: "HUD Workbench",
     description: "Tune pure HUD states and authored attacks against real dungeon renderer panels.",
     load: () =>
-      import("@/app/debug/hud-attack-workbench").then(({ renderHudAttackWorkbench }) => ({
-        render: renderHudAttackWorkbench,
+      import("@/app/debug/hud-workbench").then(({ renderHudWorkbench }) => ({
+        render: renderHudWorkbench,
       })),
   },
   {
