@@ -10,8 +10,8 @@
  * whole difficulty knob, and the damage barely matters next to them.
  */
 
-import type { EnemyArchetype } from "@/core/enemy-contract";
-import type { MapCastKind } from "@/core/room-contract";
+import type { EnemyArchetype } from "@/core/combat/enemy-contract";
+import type { MapCastKind } from "@/core/floor/room-contract";
 import type { ThrowWeight } from "@/core/prop-contract";
 import { DEFAULT_BODY_WEIGHT } from "@/content/props/prop-definitions";
 

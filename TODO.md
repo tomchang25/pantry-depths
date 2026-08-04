@@ -104,7 +104,7 @@ Not scheduled. What would force it is an eighth fitting, or the first time someb
 
 ### What A Fight Writes On The Floor
 
-Blood reaches the floor through exactly two of the paths that hurt a body — the player's swing and the spikes. A thrown rock, a hammer, a bomb's blast, a chain of lightning: every one of them runs through the one damage funnel in `src/core/world.ts`, and the funnel raises nothing — the spray is hung on individual call sites, and nearly all of them never hung one. So a body hurt at range shows its flash and no blood, and pays the whole debt only on the kill. The kill path already learned this lesson: its bones, its dust and its sound are raised centrally so that no route out of the world can be the one that forgot, and the hurt path wants the same shape — spray raised beside the damage, scaled by it, with the call sites out of the decision.
+Blood reaches the floor through exactly two of the paths that hurt a body — the player's swing and the spikes. A thrown rock, a hammer, a bomb's blast, a chain of lightning: every one of them runs through the one damage funnel in `src/core/world/world.ts`, and the funnel raises nothing — the spray is hung on individual call sites, and nearly all of them never hung one. So a body hurt at range shows its flash and no blood, and pays the whole debt only on the kill. The kill path already learned this lesson: its bones, its dust and its sound are raised centrally so that no route out of the world can be the one that forgot, and the hurt path wants the same shape — spray raised beside the damage, scaled by it, with the call sites out of the decision.
 
 What sprays is the second half, and today it is a hardcoded material test: the boned check decides bone and dust against red. The right owner is per-body authored content — what a body sprays when hurt, and what it leaves on the ground when it dies — in the direction the entity display table and the one-enemy-one-record entry already point, so that a third answer is a row rather than a new branch.
 
@@ -167,14 +167,6 @@ What a tile kind is is scattered the same way an enemy is: whether it can be wal
 The fix is the tile version of the enemy record above: one kind becomes one record of its answers, read by the questions instead of enumerated inside them, with exhaustiveness the compiler can check. It waits for the same reason and behind the same gate — a behaviour-preserving refactor is proven by playing, so it queues with the enemy record behind a supervised playtest rather than jumping the line.
 
 Not scheduled. What would force it is the next tile kind, or the next silent wrong default found in play.
-
-### Grouping Core Rides With The Records
-
-The rules layer is twenty-five flat files, and its internal dependency graph already shows five natural clusters: contracts and vocabulary (ten files, ~1,150 lines), floor assembly (`maze`, `rooms`, `movement`), the world and its tick (`world`, `simulation`, `tasks`, `extraction`, `run-level`), combat (`actions`, `enemy-ai`, `impacts`, `particles`), and progression (`bless`, `modifiers`, `sealed`). The subdirectory shape is sitting there, surveyed on 2026-08-03 — and cutting it now would still be premature, because the weight is not in the layout: five files (`maze` 1,448, `world` 1,412, `simulation` 1,056, `enemy-ai` 944, `actions` 835) carry two thirds of the layer's lines, and what is wrong with them is what the two record entries above describe, not where they sit. Both records will redraw file boundaries when they land; a directory layout chosen before them is import churn paid twice.
-
-So the grouping rides with the records: whichever record lands first settles its cluster's layout in the same change, and the layer is not resliced before then. One aside recorded so nobody rediscovers it as a bug: the contract modules and the catalog import each other's types — a type-only cycle the boundary rules deliberately exempt; it vanishes at compile time and needs no fix.
-
-Not scheduled. It waits behind the enemy and tile records above, and moves with them rather than before them.
 
 ### What Remains Of The Core Design
 

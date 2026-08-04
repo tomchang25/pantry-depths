@@ -11,7 +11,7 @@
 
 import * as THREE from "three";
 
-import { tileIndex, type Maze, type Tile } from "@/core/maze";
+import { tileIndex, type Maze, type Tile } from "@/core/floor/maze";
 
 import type { SceneLighting } from "./scene-lighting";
 import type { SceneFloorMaterial, SceneTextureSet, SceneWallMaterial } from "./scene-textures";

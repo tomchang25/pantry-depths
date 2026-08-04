@@ -5,16 +5,16 @@
  * only on whether the hands are full, so neither button ever needs a modifier.
  */
 
-import { chooseMeleeAttackId } from "@/core/melee-contract";
-import { blessBonus, hasBless } from "@/core/bless";
-import { canCarry, isBoned } from "@/core/enemy-contract";
+import { chooseMeleeAttackId } from "@/core/combat/melee-contract";
+import { blessBonus, hasBless } from "@/core/progression/bless";
+import { canCarry, isBoned } from "@/core/combat/enemy-contract";
 
-import { takeSealed } from "@/core/extraction";
-import { blocksProjectile, tileAt, type Tile } from "@/core/maze";
+import { takeSealed } from "@/core/world/extraction";
+import { blocksProjectile, tileAt, type Tile } from "@/core/floor/maze";
 import type { Cell } from "@/core/grid";
 import type { PropKind } from "@/core/prop-kinds";
-import { burst } from "@/core/particles";
-import { coreBase, coreBonus } from "@/core/sealed";
+import { burst } from "@/core/combat/particles";
+import { coreBase, coreBonus } from "@/core/progression/sealed";
 import { propBehaviour, propWeight, throwWeight, type ThrowKind, type ThrowWeight } from "@/core/prop-contract";
 import {
   announce,
@@ -30,7 +30,7 @@ import {
   type Prop,
   type World,
   raiseSfx,
-} from "@/core/world";
+} from "@/core/world/world";
 
 const BASE_MELEE_DAMAGE = 25;
 const HEAVY_MELEE_DAMAGE = 45;

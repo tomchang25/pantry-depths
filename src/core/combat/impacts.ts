@@ -9,12 +9,12 @@
  * itself for the landing, doubled into a wall. You are spending that enemy, not shooting with it.
  */
 
-import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/core/actions";
-import { hasBless } from "@/core/bless";
-import { isBarricadeCell, isTrenchCell, isWaterCell, tileIndex } from "@/core/maze";
-import { burst } from "@/core/particles";
+import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/core/combat/actions";
+import { hasBless } from "@/core/progression/bless";
+import { isBarricadeCell, isTrenchCell, isWaterCell, tileIndex } from "@/core/floor/maze";
+import { burst } from "@/core/combat/particles";
 
-import { addVfx, damageEnemy, killEnemy, raiseSfx, stunEnemy, type Enemy, type World } from "@/core/world";
+import { addVfx, damageEnemy, killEnemy, raiseSfx, stunEnemy, type Enemy, type World } from "@/core/world/world";
 
 /** How wide "near the impact" is for a rock or a thrown body. */
 export const IMPACT_RADIUS = 1.2;

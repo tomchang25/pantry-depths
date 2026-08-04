@@ -7,7 +7,7 @@
  * where somebody is looking, rather than on the frame the floor was going to be built.
  */
 
-import type { ResolvedMap } from "@/core/map-contract";
+import type { ResolvedMap } from "@/core/floor/map-contract";
 import { resolveMap } from "./map-resolver";
 import { parseMapSource } from "./map-schema";
 import { ROOM_LIBRARY } from "@/content/rooms/room-library";

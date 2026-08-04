@@ -14,9 +14,9 @@
  * their counters, so the message line stays available for events that actually happened in play.
  */
 
-import { takeSealed } from "@/core/extraction";
-import { roomAt, type FloorProgress, type Task, type TaskKind } from "@/core/maze";
-import { announce, awardBless, type World } from "@/core/world";
+import { takeSealed } from "@/core/world/extraction";
+import { roomAt, type FloorProgress, type Task, type TaskKind } from "@/core/floor/maze";
+import { announce, awardBless, type World } from "@/core/world/world";
 
 /** How each task reads on the message line and in the panel. Second person, because it is being asked of the player. */
 export const TASK_LABELS: Readonly<Record<TaskKind, string>> = {

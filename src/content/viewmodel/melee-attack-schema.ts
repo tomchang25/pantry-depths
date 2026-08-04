@@ -1,4 +1,4 @@
-import { MELEE_ATTACK_IDS, type MeleeAttackId } from "@/core/melee-contract";
+import { MELEE_ATTACK_IDS, type MeleeAttackId } from "@/core/combat/melee-contract";
 
 export type MeleeViewmodelPose = Readonly<{
   angle: number;

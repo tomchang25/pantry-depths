@@ -8,7 +8,7 @@
  * stranded ground a generator produced, and a route from the arrival to the way out.
  */
 
-import { UNFILLABLE_GROUND, type MapRoom, type MapTileKind } from "@/core/room-contract";
+import { UNFILLABLE_GROUND, type MapRoom, type MapTileKind } from "@/core/floor/room-contract";
 
 /**
  * Where a room stands on the map.

@@ -9,7 +9,7 @@
  * hazard instead of scenery.
  */
 
-import { blocksFlung, blocksWalk, type Maze } from "@/core/maze";
+import { blocksFlung, blocksWalk, type Maze } from "@/core/floor/maze";
 
 export type Point = Readonly<{ x: number; y: number }>;
 export type Blocker = (maze: Maze, x: number, y: number) => boolean;

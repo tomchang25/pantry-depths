@@ -16,7 +16,7 @@
  */
 
 import type { GameCatalog } from "@/core/catalog";
-import { rollCoreModifiers } from "@/core/modifiers";
+import { rollCoreModifiers } from "@/core/progression/modifiers";
 import {
   findCore,
   type BlessId,
@@ -25,7 +25,7 @@ import {
   type ModifierAxis,
   type ModifierRolls,
   type StackingBlessId,
-} from "@/core/progression-contract";
+} from "@/core/progression/progression-contract";
 
 export type SealedReward = Readonly<{ source: CoreCurse }>;
 

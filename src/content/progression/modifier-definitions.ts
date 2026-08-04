@@ -8,7 +8,7 @@
  * carrying different bounds in the two places. Both tables reach the rules through the game catalog.
  */
 
-import type { CoreDefinition, ModifierDefinition } from "@/core/progression-contract";
+import type { CoreDefinition, ModifierDefinition } from "@/core/progression/progression-contract";
 
 export const MODIFIER_CATALOG: readonly ModifierDefinition[] = [
   {

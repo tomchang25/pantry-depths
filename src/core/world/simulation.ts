@@ -5,7 +5,7 @@
  * not replayed.
  */
 
-import { MELEE_CUT_START } from "@/core/melee-contract";
+import { MELEE_CUT_START } from "@/core/combat/melee-contract";
 import type { SfxCueId } from "@/core/sfx-cues";
 import {
   damageWall,
@@ -14,10 +14,10 @@ import {
   resolveSwing,
   thrownImpactDamage,
   thrownWallDamage,
-} from "@/core/actions";
-import { isBoned } from "@/core/enemy-contract";
-import { hurtPlayer, stepEnemies } from "@/core/enemy-ai";
-import { stepExtraction } from "@/core/extraction";
+} from "@/core/combat/actions";
+import { isBoned } from "@/core/combat/enemy-contract";
+import { hurtPlayer, stepEnemies } from "@/core/combat/enemy-ai";
+import { stepExtraction } from "@/core/world/extraction";
 import {
   bargeInto,
   bodyLanding,
@@ -27,7 +27,7 @@ import {
   rockImpact,
   shellImpact,
   stepDrowning,
-} from "@/core/impacts";
+} from "@/core/combat/impacts";
 import {
   blocksProjectile,
   blocksProjectileAt,
@@ -36,13 +36,13 @@ import {
   isBarricadeCell,
   roll,
   tileAt,
-} from "@/core/maze";
-import { FLUNG, slideMove, unstick, WALKING } from "@/core/movement";
-import { stepParticles } from "@/core/particles";
-import { stepRooms } from "@/core/rooms";
-import { LEVEL_CARD_PREFIX, runLevel } from "@/core/run-level";
+} from "@/core/floor/maze";
+import { FLUNG, slideMove, unstick, WALKING } from "@/core/floor/movement";
+import { stepParticles } from "@/core/combat/particles";
+import { stepRooms } from "@/core/floor/rooms";
+import { LEVEL_CARD_PREFIX, runLevel } from "@/core/world/run-level";
 
-import { stepTasks } from "@/core/tasks";
+import { stepTasks } from "@/core/world/tasks";
 import {
   breaksThroughWalls,
   propBehaviour,
@@ -75,7 +75,7 @@ import {
   type Projectile,
   type World,
   raiseSfx,
-} from "@/core/world";
+} from "@/core/world/world";
 import type { Cell } from "@/core/grid";
 
 export type PlayerInput = Readonly<{

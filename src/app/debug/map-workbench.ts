@@ -27,10 +27,10 @@ import { createRoomSurface } from "@/app/debug/room-workbench";
 import { testbedPath } from "@/app/scene/scene-router";
 import { resolveMap } from "@/content/maps/map-resolver";
 import { parseMapSource, type MapSource } from "@/content/maps/map-schema";
-import { MAP_SLOTS, type MapSlot } from "@/core/map-contract";
+import { MAP_SLOTS, type MapSlot } from "@/core/floor/map-contract";
 import { ROOM_LIBRARY } from "@/content/rooms/room-library";
 import { GAME_CATALOG } from "@/content/catalog";
-import { createWorld, type World } from "@/core/world";
+import { createWorld, type World } from "@/core/world/world";
 
 /** What a slot with nothing in it is worth in a select, which cannot hold an absence. */
 const NO_ROOM = "";

@@ -18,7 +18,7 @@ import { createRenderPanel, createWorkbenchStage } from "@/app/debug/render-pane
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind, type PropDisplay } from "@/content/presentation/prop-display-schema";
 import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
-import { PROP_LABELS } from "@/core/actions";
+import { PROP_LABELS } from "@/core/combat/actions";
 
 const displays: Record<PropKind, PropDisplay> = { ...propDisplaysByKind(parsePropDisplays(propDisplayJson)) };
 

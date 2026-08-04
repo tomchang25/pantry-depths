@@ -20,9 +20,9 @@
  * because what stands on a floor is drawn by a module a concurrent rewrite owns.
  */
 
-import { padRoomAt, type Room } from "@/core/maze";
-import { burst } from "@/core/particles";
-import { announce, awardBless, type World } from "@/core/world";
+import { padRoomAt, type Room } from "@/core/floor/maze";
+import { burst } from "@/core/combat/particles";
+import { announce, awardBless, type World } from "@/core/world/world";
 
 /** Unbroken seconds on the dais that claim the blessing. */
 export const BLESSING_HOLD_SECONDS = 5;

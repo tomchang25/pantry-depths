@@ -10,7 +10,7 @@
  * are the numbers they draw against, injected through the game catalog.
  */
 
-import type { CoreCurse } from "@/core/progression-contract";
+import type { CoreCurse } from "@/core/progression/progression-contract";
 
 /** How often a sealed reward turns out to be a core rather than a fragment. */
 export const CORE_SHARE: Readonly<Record<CoreCurse, number>> = { clean: 0.2, cursed: 0.6 };

@@ -6,7 +6,7 @@
  */
 
 import { MAPS } from "@/content/maps/map-library";
-import type { ResolvedMap } from "@/core/map-contract";
+import type { ResolvedMap } from "@/core/floor/map-contract";
 
 /**
  * What a run plays when the address names nothing.

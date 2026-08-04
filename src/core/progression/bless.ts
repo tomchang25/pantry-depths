@@ -13,7 +13,7 @@ import {
   type ModifierAxis,
   type StackingBlessAxis,
   type StackingBlessDefinition,
-} from "@/core/progression-contract";
+} from "@/core/progression/progression-contract";
 
 export type BlessState = {
   owned: BlessId[];

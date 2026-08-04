@@ -11,8 +11,8 @@
  * reader holding either of those would be guessing about a room it cannot see.
  */
 
-import { SIDE_SLOTS, type MapSlot, type ResolvedMap } from "@/core/map-contract";
-import type { MapRoom } from "@/core/room-contract";
+import { SIDE_SLOTS, type MapSlot, type ResolvedMap } from "@/core/floor/map-contract";
+import type { MapRoom } from "@/core/floor/room-contract";
 import type { MapSource } from "./map-schema";
 
 /** Every room a map may name, by the identity it names it with. */

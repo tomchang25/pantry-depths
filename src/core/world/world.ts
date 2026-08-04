@@ -7,10 +7,10 @@
  * than by import.
  */
 
-import type { EnemyAppearanceId } from "@/core/enemy-contract";
-import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/melee-contract";
-import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState } from "@/core/bless";
-import { coreBonus, type SealedReward } from "@/core/sealed";
+import type { EnemyAppearanceId } from "@/core/combat/enemy-contract";
+import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/combat/melee-contract";
+import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState } from "@/core/progression/bless";
+import { coreBonus, type SealedReward } from "@/core/progression/sealed";
 import type { GameCatalog } from "@/core/catalog";
 import {
   attackCooldown,
@@ -18,8 +18,8 @@ import {
   isBoned,
   type EnemyArchetype,
   type WindupIntent,
-} from "@/core/enemy-contract";
-import type { MapCastKind } from "@/core/room-contract";
+} from "@/core/combat/enemy-contract";
+import type { MapCastKind } from "@/core/floor/room-contract";
 import {
   blocksProjectile,
   blocksWalk,
@@ -34,11 +34,11 @@ import {
   tileIndex,
   type Crowd,
   type Maze,
-} from "@/core/maze";
+} from "@/core/floor/maze";
 import type { Cell } from "@/core/grid";
-import type { ResolvedMap } from "@/core/map-contract";
+import type { ResolvedMap } from "@/core/floor/map-contract";
 import type { SfxCueId } from "@/core/sfx-cues";
-import { burst, createParticleField, shatterBones, type ParticleField } from "@/core/particles";
+import { burst, createParticleField, shatterBones, type ParticleField } from "@/core/combat/particles";
 import type { ThrowKind } from "@/core/prop-contract";
 import type { PropKind } from "@/core/prop-kinds";
 

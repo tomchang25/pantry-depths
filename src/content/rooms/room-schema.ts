@@ -26,7 +26,7 @@ import {
   type MapScatter,
   type MapTileKind,
   type MapWallMix,
-} from "@/core/room-contract";
+} from "@/core/floor/room-contract";
 
 /** The smallest room worth declaring: a wall ring with one cell of interior. */
 const MIN_ROOM_EXTENT = 3;

@@ -20,7 +20,7 @@ import {
   type MeleeAttackDefinition,
   type MeleeViewmodelPose,
 } from "@/content/viewmodel/melee-attack-schema";
-import { MELEE_CUT_END, MELEE_CUT_START, type MeleeAttackId } from "@/core/melee-contract";
+import { MELEE_CUT_END, MELEE_CUT_START, type MeleeAttackId } from "@/core/combat/melee-contract";
 
 export type { MeleeAttackDefinition, MeleeViewmodelPose } from "@/content/viewmodel/melee-attack-schema";
 

@@ -1,5 +1,5 @@
-import { strandedGround, validateDrawnFloor, validateDrawnWalk, type DrawnFloor } from "@/core/map-contract";
-import type { MapTileKind } from "@/core/room-contract";
+import { strandedGround, validateDrawnFloor, validateDrawnWalk, type DrawnFloor } from "@/core/floor/map-contract";
+import type { MapTileKind } from "@/core/floor/room-contract";
 import { describe, expect, it } from "vitest";
 
 /**

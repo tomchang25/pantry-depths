@@ -13,7 +13,7 @@ import {
   type ModifierAxis,
   type ModifierRange,
   type ModifierRolls,
-} from "@/core/progression-contract";
+} from "@/core/progression/progression-contract";
 
 function roll(range: ModifierRange, precision: number): number {
   const raw = range.low + Math.random() * (range.high - range.low);

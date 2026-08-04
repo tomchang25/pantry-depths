@@ -23,11 +23,11 @@ import {
   type EntityDisplay,
 } from "@/content/enemies/entity-display-schema";
 import { ENEMY_ARCHETYPES } from "@/content/enemies/enemy-archetypes";
-import type { EnemyAppearanceId } from "@/core/enemy-contract";
-import { attackCooldown, attackWindup, isBoned, STRIKE_SECONDS } from "@/core/enemy-contract";
-import { DROWN_SECONDS } from "@/core/impacts";
-import type { MapCastKind } from "@/core/room-contract";
-import { createEnemy, type Enemy } from "@/core/world";
+import type { EnemyAppearanceId } from "@/core/combat/enemy-contract";
+import { attackCooldown, attackWindup, isBoned, STRIKE_SECONDS } from "@/core/combat/enemy-contract";
+import { DROWN_SECONDS } from "@/core/combat/impacts";
+import type { MapCastKind } from "@/core/floor/room-contract";
+import { createEnemy, type Enemy } from "@/core/world/world";
 
 /**
  * What the body is doing, named the way a person asks for it.

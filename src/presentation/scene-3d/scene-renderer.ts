@@ -16,7 +16,7 @@
 
 import * as THREE from "three";
 
-import type { World } from "@/core/world";
+import type { World } from "@/core/world/world";
 
 import { createFinishingPass, type FinishingPass } from "./finishing-pass";
 import { collectFloorDecals } from "./floor-decals";
@@ -30,7 +30,7 @@ import { createWorldStructures, type WorldStructures } from "./world-structures"
 import { SceneLighting, type SceneLight } from "./scene-lighting";
 import type { MeleeAttackDefinition } from "@/content/viewmodel/melee-viewmodel";
 import type { EntityDisplay } from "@/content/enemies/entity-display-schema";
-import type { EnemyAppearanceId } from "@/core/enemy-contract";
+import type { EnemyAppearanceId } from "@/core/combat/enemy-contract";
 
 import { createViewmodel, type Viewmodel, type ViewmodelKind } from "./viewmodel";
 

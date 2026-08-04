@@ -8,7 +8,7 @@
  * rather than rows — sight and disengagement, the charge geometry, the cut arc, the strike hold.
  */
 
-import type { MapCastKind } from "@/core/room-contract";
+import type { MapCastKind } from "@/core/floor/room-contract";
 import type { ThrowWeight } from "@/core/prop-contract";
 
 /** The archetypes that own baked artwork. Retained creature archetypes borrow the matching slime. */

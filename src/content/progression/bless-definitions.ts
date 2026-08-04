@@ -7,7 +7,7 @@
  * the game catalog.
  */
 
-import type { BlessDefinition, StackingBlessDefinition } from "@/core/progression-contract";
+import type { BlessDefinition, StackingBlessDefinition } from "@/core/progression/progression-contract";
 
 export const BLESS_CATALOG: readonly BlessDefinition[] = [
   {

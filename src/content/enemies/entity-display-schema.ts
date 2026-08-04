@@ -12,7 +12,7 @@
  * the simulation's, and none of them read this file.
  */
 
-import { type EnemyAppearanceId } from "@/core/enemy-contract";
+import { type EnemyAppearanceId } from "@/core/combat/enemy-contract";
 
 const APPEARANCE_IDS: readonly EnemyAppearanceId[] = [
   "greenSlime",

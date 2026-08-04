@@ -23,11 +23,11 @@ import * as THREE from "three";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind } from "@/content/presentation/prop-display-schema";
 import { SKELETON_PICKUP_ASSETS, SKELETON_PICKUP_URLS } from "@/content/enemies/skeleton-pickup-definitions";
-import { attackReach, MELEE_CUT_HALF_ANGLE } from "@/core/enemy-contract";
-import { extractionShare } from "@/core/extraction";
-import { blocksProjectile } from "@/core/maze";
+import { attackReach, MELEE_CUT_HALF_ANGLE } from "@/core/combat/enemy-contract";
+import { extractionShare } from "@/core/world/extraction";
+import { blocksProjectile } from "@/core/floor/maze";
 import type { PropKind } from "@/core/prop-kinds";
-import { projectileHeight, type Enemy, type World } from "@/core/world";
+import { projectileHeight, type Enemy, type World } from "@/core/world/world";
 
 import { WALL_HEIGHT } from "./floor-meshes";
 import { SceneLighting } from "./scene-lighting";

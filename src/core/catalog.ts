@@ -7,8 +7,8 @@
  * an author owns reads it from here.
  */
 
-import type { EnemyArchetype } from "@/core/enemy-contract";
-import type { MapCastKind } from "@/core/room-contract";
+import type { EnemyArchetype } from "@/core/combat/enemy-contract";
+import type { MapCastKind } from "@/core/floor/room-contract";
 import type { PropBehaviour, ThrowWeight } from "@/core/prop-contract";
 import type { PropKind } from "@/core/prop-kinds";
 import type {
@@ -17,7 +17,7 @@ import type {
   CoreDefinition,
   ModifierDefinition,
   StackingBlessDefinition,
-} from "@/core/progression-contract";
+} from "@/core/progression/progression-contract";
 
 export type GameCatalog = Readonly<{
   archetypes: Readonly<Record<MapCastKind, EnemyArchetype>>;

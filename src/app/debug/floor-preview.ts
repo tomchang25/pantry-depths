@@ -9,8 +9,8 @@
  */
 
 import { createRenderPanel, openHeading, type RenderPanel } from "@/app/debug/render-panel";
-import type { MapCastKind, MapTileKind } from "@/core/room-contract";
-import type { World } from "@/core/world";
+import type { MapCastKind, MapTileKind } from "@/core/floor/room-contract";
+import type { World } from "@/core/world/world";
 
 /**
  * One colour per tile kind, chosen to be told apart at four pixels rather than to look like the game.

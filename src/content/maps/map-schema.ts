@@ -17,7 +17,7 @@
  * every refusal that needs to see an extent — belongs to `map-resolver.ts`.
  */
 
-import { MAP_SLOTS, SIDE_SLOTS, type MapSlot } from "@/core/map-contract";
+import { MAP_SLOTS, SIDE_SLOTS, type MapSlot } from "@/core/floor/map-contract";
 
 /**
  * The most floor a map may declare.

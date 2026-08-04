@@ -9,13 +9,23 @@
 import "@/runtime/surface.css";
 
 import { PROP_KINDS } from "@/core/prop-kinds";
-import { grabAction, primaryAction, PROP_LABELS } from "@/core/actions";
+import { grabAction, primaryAction, PROP_LABELS } from "@/core/combat/actions";
 import { BLESS_CATALOG, BLESS_STACKING_CATALOG } from "@/content/progression/bless-definitions";
-import { findBless, findModifier, type BlessDefinition, type ModifierAxis } from "@/core/progression-contract";
-import { blessBonus, blessStackCount, hasBless } from "@/core/bless";
+import {
+  findBless,
+  findModifier,
+  type BlessDefinition,
+  type ModifierAxis,
+} from "@/core/progression/progression-contract";
+import { blessBonus, blessStackCount, hasBless } from "@/core/progression/bless";
 import { mountDevOverlay, type DevOverlayCommand } from "@/runtime/dev-overlay";
 import { GAME_CATALOG } from "@/content/catalog";
-import { EXTRACTION_HOLD_SECONDS, extractionShare, lastExtractedRewards, SEALED_CARD_PREFIX } from "@/core/extraction";
+import {
+  EXTRACTION_HOLD_SECONDS,
+  extractionShare,
+  lastExtractedRewards,
+  SEALED_CARD_PREFIX,
+} from "@/core/world/extraction";
 import {
   mountHud,
   type HudBlessIcon,
@@ -29,14 +39,14 @@ import {
   type HudRun,
   type HudTask,
 } from "@/ui/hud";
-import type { MapCastKind } from "@/core/room-contract";
+import type { MapCastKind } from "@/core/floor/room-contract";
 import { mapNamed, stepMap } from "@/runtime/maps";
-import { POOL_FILL_BODIES, padRoomAt, type TaskKind } from "@/core/maze";
-import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/rooms";
-import { LEVEL_CARD_PREFIX, runLevel } from "@/core/run-level";
-import { bankedRewards, equippedCore, type ResolvedReward } from "@/core/sealed";
+import { POOL_FILL_BODIES, padRoomAt, type TaskKind } from "@/core/floor/maze";
+import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/floor/rooms";
+import { LEVEL_CARD_PREFIX, runLevel } from "@/core/world/run-level";
+import { bankedRewards, equippedCore, type ResolvedReward } from "@/core/progression/sealed";
 import type { SceneHooks } from "@/runtime/scene-hooks";
-import { stepWorld, type PlayerInput } from "@/core/simulation";
+import { stepWorld, type PlayerInput } from "@/core/world/simulation";
 import type { PropKind } from "@/core/prop-kinds";
 import {
   announce,
@@ -49,7 +59,7 @@ import {
   runClockSeconds,
   spawnReinforcement,
   type World,
-} from "@/core/world";
+} from "@/core/world/world";
 import { SceneRenderer } from "@/presentation/scene-3d/scene-renderer";
 import {
   playSfx,

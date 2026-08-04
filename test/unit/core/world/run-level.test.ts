@@ -1,4 +1,4 @@
-import { LEVEL_PER_DESCENT, LEVEL_PER_MINUTE, runLevel } from "@/core/run-level";
+import { LEVEL_PER_DESCENT, LEVEL_PER_MINUTE, runLevel } from "@/core/world/run-level";
 import { describe, expect, it } from "vitest";
 
 /**

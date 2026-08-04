@@ -19,8 +19,8 @@
  * belongs to the map contract, and it is made once the floor exists rather than while it is built.
  */
 
-import type { ResolvedMap } from "@/core/map-contract";
-import { strandedGround, validateDrawnFloor, validateDrawnWalk } from "@/core/map-contract";
+import type { ResolvedMap } from "@/core/floor/map-contract";
+import { strandedGround, validateDrawnFloor, validateDrawnWalk } from "@/core/floor/map-contract";
 import type {
   MapCastMember,
   MapCrowd,
@@ -29,7 +29,7 @@ import type {
   MapRoomRole,
   MapTileKind,
   MapWallMix,
-} from "@/core/room-contract";
+} from "@/core/floor/room-contract";
 import type { Cell } from "@/core/grid";
 
 /**

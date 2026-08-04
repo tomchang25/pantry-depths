@@ -14,10 +14,10 @@
 
 import * as THREE from "three";
 
-import { extractionShare } from "@/core/extraction";
-import { BARRICADE_HP, isBarricadeCell, MORTAR_HP, tileIndex, type Room, type Tile } from "@/core/maze";
-import { BLESSING_HOLD_SECONDS } from "@/core/rooms";
-import { MORTAR_LOCK_SECONDS, type World } from "@/core/world";
+import { extractionShare } from "@/core/world/extraction";
+import { BARRICADE_HP, isBarricadeCell, MORTAR_HP, tileIndex, type Room, type Tile } from "@/core/floor/maze";
+import { BLESSING_HOLD_SECONDS } from "@/core/floor/rooms";
+import { MORTAR_LOCK_SECONDS, type World } from "@/core/world/world";
 
 import type { SceneLighting } from "./scene-lighting";
 

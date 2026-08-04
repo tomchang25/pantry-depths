@@ -21,9 +21,9 @@ import {
   parseEntityDisplays,
   type EntityDisplay,
 } from "@/content/enemies/entity-display-schema";
-import { attackCooldown, isBoned, STRIKE_SECONDS, type EnemyAppearanceId } from "@/core/enemy-contract";
-import { DROWN_SECONDS } from "@/core/impacts";
-import { bodyFootprint, projectileHeight, type Death, type Enemy, type World } from "@/core/world";
+import { attackCooldown, isBoned, STRIKE_SECONDS, type EnemyAppearanceId } from "@/core/combat/enemy-contract";
+import { DROWN_SECONDS } from "@/core/combat/impacts";
+import { bodyFootprint, projectileHeight, type Death, type Enemy, type World } from "@/core/world/world";
 
 import type { SceneLighting } from "./scene-lighting";
 import { createSceneSprites, WARN_BLADE_STEPS, type SceneSpriteId } from "./scene-sprites";

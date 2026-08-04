@@ -13,8 +13,8 @@
  * the rules' per-cell amounts, quantised the way the renderer quantises them, in a texture.
  */
 
-import { holdsStains, tileIndex, type Maze } from "@/core/maze";
-import type { World } from "@/core/world";
+import { holdsStains, tileIndex, type Maze } from "@/core/floor/maze";
+import type { World } from "@/core/world/world";
 
 import * as THREE from "three";
 
