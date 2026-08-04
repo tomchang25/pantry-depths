@@ -10,11 +10,12 @@
  */
 
 import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/core/combat/actions";
+import { damageEnemy, killEnemy, stunEnemy } from "@/core/combat/death";
 import { hasBless } from "@/core/progression/bless";
 import { isBarricadeCell, isTrenchCell, isWaterCell, tileIndex } from "@/core/floor/maze";
 import { burst } from "@/core/combat/particles";
 
-import { addVfx, damageEnemy, killEnemy, raiseSfx, stunEnemy, type Enemy, type World } from "@/core/world/world";
+import { addVfx, raiseSfx, type Enemy, type World } from "@/core/world/world";
 
 /** How wide "near the impact" is for a rock or a thrown body. */
 export const IMPACT_RADIUS = 1.2;
@@ -57,8 +58,12 @@ export function knockBack(enemy: Enemy, fromX: number, fromY: number, force: num
 /**
  * Resolves a body arriving somewhere it did not choose to be.
  *
- * Two hazards, one check, because they are reached the same way: nothing walks into either, so
- * anything standing in one was put there by a knockback, a throw, or a charge that overshot.
+ * Three hazards, one check, because they are reached the same way: nothing walks into any of them,
+ * so anything standing in one was put there by a knockback, a throw, or a charge that overshot.
+ *
+ * Two of the three take the body down rather than killing it where it stands, and they take the same
+ * time to do it — the difference between a pool and a trench is what is on the way in and what the
+ * ground is worth afterwards, not how long a body takes to disappear into it.
  */
 export function checkHazards(world: World, enemy: Enemy): void {
   if (enemy.drowningSeconds > 0) {
@@ -82,13 +87,8 @@ export function checkHazards(world: World, enemy: Enemy): void {
     return;
   }
 
-  enemy.drowningSeconds = DROWN_SECONDS;
+  goUnder(enemy);
   raiseSfx(world, "waterEntry", { x: enemy.x, y: enemy.y });
-  enemy.pushX = 0;
-  enemy.pushY = 0;
-  enemy.intent = "none";
-  enemy.windupSeconds = 0;
-  enemy.chargeSeconds = 0;
   // The moment of going in, wherever it was reached from — thrown, shoved, or a charge that
   // overran. Everything else about a drowning is slow and quiet, so the entry is the only chance
   // there is to show that something just hit the water.
@@ -103,17 +103,35 @@ export function checkHazards(world: World, enemy: Enemy): void {
 }
 
 /**
+ * A body starting the fall it does not come back from.
+ *
+ * Everything it was committing to goes with it: the push that put it there, the errand it was on,
+ * the swing it was halfway through. A body on its way under is also immune to damage — see
+ * `damageEnemy` — so this is the whole of what taking it out of the fight amounts to.
+ */
+function goUnder(enemy: Enemy): void {
+  enemy.drowningSeconds = DROWN_SECONDS;
+  enemy.pushX = 0;
+  enemy.pushY = 0;
+  enemy.intent = "none";
+  enemy.windupSeconds = 0;
+  enemy.chargeSeconds = 0;
+}
+
+/**
  * Anything that goes into a trench is gone, and the trench is exactly as it was.
  *
  * The difference from a pool, and the whole reason the trench exists: a body thrown into water buys
  * a third of a cell of ground, and a body thrown into a trench buys nothing at all. Dust rather than
- * blood, because what would have spilled went down with it and the surface holds no mark.
+ * a splash, because what a cut in the rock throws up is what was lying on its rim.
  *
- * Killed with the ordinary cause, which the death sprites already draw as a collapse. A trench death
- * is a kill like any other everywhere downstream — it counts, it scatters bones, it drops what the
- * body was carrying.
+ * It goes down over the same second a drowning takes rather than dying where it landed. Killing it
+ * on contact put a corpse on the lip of a hole nine tenths of a cell deep and called that a death in
+ * a trench — the body never went anywhere. What it is worth downstream is unchanged: it counts, and
+ * the trench keeps whatever it was carrying.
  */
 function swallow(world: World, enemy: Enemy): void {
+  goUnder(enemy);
   burst(world.particles, "dust", enemy.x, enemy.y, 0.3, 12, {
     speed: 1.6,
     spreadZ: 1.2,
@@ -121,7 +139,6 @@ function swallow(world: World, enemy: Enemy): void {
     size: 0.05,
     life: 0.8,
   });
-  killEnemy(world, enemy, "slain");
 }
 
 /** Anything shoved onto the spikes dies there and then, run through where it landed. */
@@ -424,7 +441,13 @@ export function bodyLanding(world: World, thrown: Enemy, landing: BodyLanding): 
   });
 }
 
-/** Sinks anything already drowning, and finishes it when the water closes over. */
+/**
+ * Sinks anything already going under, and finishes it when the ground closes over.
+ *
+ * The cell decides which death it was rather than whatever put the body in it, because by now that
+ * is the only thing still true about it: a body sinks where it landed, so the cell it went into is
+ * the cell it dies in.
+ */
 export function stepDrowning(world: World, deltaSeconds: number): void {
   for (const enemy of world.enemies.slice()) {
     if (enemy.drowningSeconds <= 0) {
@@ -434,7 +457,8 @@ export function stepDrowning(world: World, deltaSeconds: number): void {
     enemy.drowningSeconds -= deltaSeconds;
 
     if (enemy.drowningSeconds <= 0) {
-      killEnemy(world, enemy, "drowned");
+      const swallowed = isTrenchCell(world.maze, Math.floor(enemy.x), Math.floor(enemy.y));
+      killEnemy(world, enemy, swallowed ? "swallowed" : "drowned");
     }
   }
 }

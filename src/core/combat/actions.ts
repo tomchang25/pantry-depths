@@ -16,13 +16,12 @@ import type { PropKind } from "@/core/prop-kinds";
 import { burst } from "@/core/combat/particles";
 import { coreBase, coreBonus } from "@/core/progression/sealed";
 import { propBehaviour, propWeight, throwWeight, type ThrowKind, type ThrowWeight } from "@/core/prop-contract";
+import { damageEnemy, stunEnemy } from "@/core/combat/death";
 import {
   announce,
-  damageEnemy,
   nextId,
   PLAYER_SPEED,
   REACH,
-  stunEnemy,
   SWING_SECONDS,
   THROW_SWING_SECONDS,
   type Enemy,

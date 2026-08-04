@@ -50,14 +50,13 @@ import {
   type PropFlightHit,
   type PropLanding,
 } from "@/core/prop-contract";
+import { damageEnemy, killEnemy } from "@/core/combat/death";
 import {
   announce,
   bodyFootprint,
   crowdHere,
-  damageEnemy,
   dropProp,
   IDLE_SPAWN_RECHECK_SECONDS,
-  killEnemy,
   MORTAR_DEAD_ZONE,
   MORTAR_IDLE_SECONDS,
   MORTAR_LOCK_SECONDS,

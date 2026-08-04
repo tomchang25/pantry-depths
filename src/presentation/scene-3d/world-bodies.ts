@@ -23,6 +23,7 @@ import {
 } from "@/content/enemies/entity-display-schema";
 import { attackCooldown, isBoned, STRIKE_SECONDS, type EnemyAppearanceId } from "@/core/combat/enemy-contract";
 import { DROWN_SECONDS } from "@/core/combat/impacts";
+import { isTrenchCell } from "@/core/floor/maze";
 import { bodyFootprint, projectileHeight, type Death, type Enemy, type World } from "@/core/world/world";
 
 import type { SceneLighting } from "./scene-lighting";
@@ -104,22 +105,38 @@ const FALLBACK_BONED_HEIGHT = 0.755;
 const DROWN_STAGE_AT_DEATH = 0.72;
 
 /**
+ * The same, for a trench, and it is a whole body rather than most of one.
+ *
+ * A pool hides what has gone under behind an opaque surface, so stopping short of the full height
+ * still reads as gone. A cut in the rock hides nothing — it is open all the way to its floor — so a
+ * body that stopped three quarters of the way down would die with its head above the rim, which is
+ * the shape of the defect this replaced rather than a milder version of it.
+ */
+const TRENCH_STAGE_AT_DEATH = 1;
+
+/**
  * How far under a body is, as a fraction of its own height.
  *
- * The rules own how long drowning takes and this owns how deep it looks, which is why the duration is
- * read from them rather than restated here — restating it is what put a body a third of the way under
- * the instant it landed in the water. It stops short of one while the body is alive, because a thing
- * that has vanished before it has died reads as one that fell through the floor rather than drowned.
+ * The rules own how long going under takes and this owns how deep it looks, which is why the duration
+ * is read from them rather than restated here — restating it is what put a body a third of the way
+ * under the instant it landed in the water. It stops short of one in a pool while the body is alive,
+ * because a thing that has vanished before it has died reads as one that fell through the floor
+ * rather than drowned.
  *
  * Nothing cuts the picture at the waterline: the water is an opaque plane at ground level and the
- * bodies write depth, so the part that has gone under is already not drawn.
+ * bodies write depth, so the part that has gone under is already not drawn. A trench needs no such
+ * help — the ground around it is what hides the body, and the geometry does that on its own.
  */
-function drownStage(enemy: Enemy): number {
+function sinkStage(world: World, enemy: Enemy): number {
   if (enemy.drowningSeconds <= 0) {
     return 0;
   }
 
-  return Math.min(1, Math.max(0, 1 - enemy.drowningSeconds / DROWN_SECONDS)) * DROWN_STAGE_AT_DEATH;
+  const under = isTrenchCell(world.maze, Math.floor(enemy.x), Math.floor(enemy.y))
+    ? TRENCH_STAGE_AT_DEATH
+    : DROWN_STAGE_AT_DEATH;
+
+  return Math.min(1, Math.max(0, 1 - enemy.drowningSeconds / DROWN_SECONDS)) * under;
 }
 
 /** How long a wind-up or recovery takes to reach its final pose, whatever the state's own length. */
@@ -389,7 +406,7 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
           // sinks, which is what the rules describe happening to it. The extra tenth is what makes a
           // full stage clear the surface rather than leave a sliver of skull floating on it.
           const standing = displayFor(enemy.appearance)?.bodyScale ?? FALLBACK_BONED_HEIGHT;
-          body.root.position.set(enemy.x, -drownStage(enemy) * (standing + 0.1), enemy.y);
+          body.root.position.set(enemy.x, -sinkStage(world, enemy) * (standing + 0.1), enemy.y);
           // Re-applied every frame rather than only at spawn, so the workbench's unsaved height moves
           // a body that is already standing. It is one multiply against a number that almost never
           // changes, and the alternative is rebuilding the body to see a slider.
@@ -453,7 +470,7 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
         }
 
         const height = profile.height * squash;
-        blob.mesh.position.set(enemy.x, height / 2 - drownStage(enemy) * (height + 0.1), enemy.y);
+        blob.mesh.position.set(enemy.x, height / 2 - sinkStage(world, enemy) * (height + 0.1), enemy.y);
         blob.mesh.scale.set(footprint * 2, height, footprint * 2);
         const flash = enemy.hurtSeconds > 0 ? Math.min(1, enemy.hurtSeconds / 0.16) : 0;
         blob.mesh.material.uniforms.uFlash!.value = flash;
@@ -660,6 +677,10 @@ export function createWorldBodies(lighting: SceneLighting): WorldBodies {
    * Deliberately the crudest thing in this module: a flattening lump that settles and goes. The
    * Canvas renderer has six deaths with their own animations, and reproducing them is not what the
    * atmosphere question turns on — what it turns on is whether the floor still says a body died here.
+   *
+   * Nothing here has to think about a body that sank. A death in water or a trench records no corpse
+   * at all — the rules drop it, because the body went under before it died — so this draws only the
+   * deaths that ended on ground somebody can see.
    */
   function syncCorpses(world: World): void {
     const present = new Set<string>();

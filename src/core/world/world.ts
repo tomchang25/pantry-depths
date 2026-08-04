@@ -9,16 +9,10 @@
 
 import type { EnemyAppearanceId } from "@/core/combat/enemy-contract";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/combat/melee-contract";
-import { blessMaxHpGain, createBlessState, grantBless, hasBless, type BlessState } from "@/core/progression/bless";
+import { blessMaxHpGain, createBlessState, grantBless, type BlessState } from "@/core/progression/bless";
 import { coreBonus, type SealedReward } from "@/core/progression/sealed";
 import type { GameCatalog } from "@/core/catalog";
-import {
-  attackCooldown,
-  DISENGAGE_RANGE,
-  isBoned,
-  type EnemyArchetype,
-  type WindupIntent,
-} from "@/core/combat/enemy-contract";
+import { attackCooldown, type EnemyArchetype, type WindupIntent } from "@/core/combat/enemy-contract";
 import type { MapCastKind } from "@/core/floor/room-contract";
 import {
   blocksProjectile,
@@ -27,9 +21,7 @@ import {
   gridArea,
   holdsStains,
   isInsideGrid,
-  isWaterCell,
   roll,
-  sinkBody,
   standingRoom,
   tileIndex,
   type Crowd,
@@ -38,7 +30,7 @@ import {
 import type { Cell } from "@/core/grid";
 import type { ResolvedMap } from "@/core/floor/map-contract";
 import type { SfxCueId } from "@/core/sfx-cues";
-import { burst, createParticleField, shatterBones, type ParticleField } from "@/core/combat/particles";
+import { createParticleField, type ParticleField } from "@/core/combat/particles";
 import type { ThrowKind } from "@/core/prop-contract";
 import type { PropKind } from "@/core/prop-kinds";
 
@@ -118,7 +110,10 @@ export type Enemy = {
   chargeSeconds: number;
   chargeX: number;
   chargeY: number;
-  /** Above zero while the body is sinking into a pool; it stops acting and dies when this expires. */
+  /**
+   * Above zero while the body is going under — a pool or a trench, which sink a body alike. It stops
+   * acting, stops being a target, and dies when this expires.
+   */
   drowningSeconds: number;
   /** World-space direction the authored eight-way sprite faces. */
   facingAngle: number;
@@ -282,8 +277,12 @@ export type Vfx = VfxSpec & { id: string };
  * `splattered` is the wall: a javelin that nailed it there and a throw that slammed it in are the
  * same statement about the body, and it is not a statement about a corpse — what is left is a mark
  * on the masonry, so both come through one cause rather than two that render alike.
+ *
+ * `swallowed` is the trench and `drowned` is the pool. They end the same way — a body going down
+ * with nothing thrown off it — and they are still two causes rather than one, because a body that
+ * drowned in a dry cut in the rock is a thing the record would be saying that never happened.
  */
-export type DeathCause = "slain" | "cleaved" | "drowned" | "splattered" | "blasted" | "impaled";
+export type DeathCause = "slain" | "cleaved" | "drowned" | "swallowed" | "splattered" | "blasted" | "impaled";
 
 export type Death = {
   id: string;
@@ -1160,236 +1159,6 @@ export function projectileGrounded(projectile: Projectile): boolean {
 /** Height of a shell above the floor. A bolt's curve is flat, so this answers its fixed carry height. */
 export function hazardHeight(hazard: Hazard): number {
   return flightHeight(hazard.travelled, hazard.range, hazard.arc, hazard.fall, hazard.plunge);
-}
-
-/**
- * What a boned body leaves besides its own bones.
- *
- * The bones themselves are guaranteed and picked by how it died; this is the roll on top of that, and
- * it is what makes crossing a room for a skeleton worth the trip. It is also the only such table
- * left. A slime carries no armoury and now drops nothing at all, which leaves two sources of weapons
- * on a floor: the things that were holding them, and the walls.
- */
-const BONE_DROPS: readonly Readonly<{ kind: PropKind; count: number; upTo: number }>[] = [
-  { kind: "skeletonSkull", count: 1, upTo: 0.3 },
-  { kind: "skeletonFemur", count: 1, upTo: 0.5 },
-];
-
-/**
- * The armoury half of the same roll: what this body was carrying, on the tenth of the table above it.
- *
- * Per appearance rather than per behaviour, because what a body drops is what it is holding and the
- * artwork is the only place that is true. A crossbow arrives with three shots in it and then the
- * stock itself is throwable, which is the behaviour it already has at a different count.
- */
-const SKELETON_ARMOURY: Readonly<Partial<Record<EnemyAppearanceId, Readonly<{ kind: PropKind; count: number }>>>> = {
-  skeletonSwordsman: { kind: "skeletonSword", count: 1 },
-  skeletonHammerman: { kind: "hammer", count: 1 },
-  skeletonJavelineer: { kind: "skeletonJavelin", count: 1 },
-  skeletonCrossbowman: { kind: "crossbow", count: 3 },
-};
-
-/** Above this the roll leaves nothing, which is what four in every ten corpses do. */
-const ARMOURY_UP_TO = 0.6;
-export const LIFESTEAL_HEAL = 12;
-
-/**
- * A body ending its flight in open water, and what the pool does with it.
- *
- * Hung off the single kill exit rather than off drowning, because how the body got into the water is
- * not the pool's business: one shoved in and left to sink, one that died of the landing, and one a
- * bomb dropped in are all the same body in the same water. Every one of them shows on the surface,
- * and the third fills the cell in.
- */
-function swallowIntoPool(world: World, enemy: Enemy): void {
-  const cellX = Math.floor(enemy.x);
-  const cellY = Math.floor(enemy.y);
-
-  if (!isWaterCell(world.maze, cellX, cellY)) {
-    return;
-  }
-
-  const closed = sinkBody(world.maze, cellX, cellY);
-  // Every body changes the surface, not only the one that fills it, so the terrain the scene is
-  // built from is stale after each of them.
-  world.terrainVersion += 1;
-
-  if (closed) {
-    announce(world, "The bodies close the pool over - it can be crossed now", 2.6);
-  }
-}
-
-/**
- * The single exit every enemy leaves the world through.
- *
- * Drowning, a stick through the chest, a bomb — all of them come here, so the drop chance and the
- * blessing payout cannot end up applying to some kill routes and not others.
- */
-/**
- * How hard a death threw the body apart, from a quiet collapse to a bomb.
- *
- * Drowning is the one that scatters nothing: a body going under does not come apart, it sinks, and
- * bones thrown off it would arrive above the water it just disappeared into.
- */
-function deathViolence(cause: DeathCause): number {
-  if (cause === "blasted") {
-    return 1;
-  }
-
-  if (cause === "cleaved" || cause === "splattered") {
-    return 0.65;
-  }
-
-  if (cause === "impaled") {
-    return 0.3;
-  }
-
-  if (cause === "drowned") {
-    return 0;
-  }
-
-  if (cause === "slain") {
-    return 0.25;
-  }
-
-  cause satisfies never;
-  throw new Error("unknown skeleton death cause");
-}
-
-export function killEnemy(world: World, enemy: Enemy, cause: DeathCause = "slain", direction?: Cell): void {
-  const index = world.enemies.indexOf(enemy);
-
-  if (index >= 0) {
-    world.enemies.splice(index, 1);
-  }
-
-  world.deaths.push({
-    id: enemy.id,
-    appearance: enemy.appearance,
-    x: enemy.x,
-    y: enemy.y,
-    progress: 0,
-    cause,
-    directionX: direction?.x ?? 0,
-    directionY: direction?.y ?? 0,
-    archetypeId: enemy.archetype.id,
-    facingAngle: enemy.facingAngle,
-  });
-  world.kills += 1;
-  // The body's material rather than the cause: a skeleton comes apart in bone whatever took it apart,
-  // and per-cause death voices are a decision deferred until somebody wants to author them. Raised
-  // here rather than from each cause, so no route out of the world can be the one that forgot to.
-  raiseSfx(world, isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
-
-  if (isBoned(enemy.archetype)) {
-    // Called here rather than from each cause, so every route out of the world scatters the same
-    // bones and none of them can be forgotten. How hard is the cause's business; what comes off the
-    // body is not.
-    shatterBones(world.particles, enemy.x, enemy.y, deathViolence(cause));
-    burst(world.particles, "dust", enemy.x, enemy.y, 0.55, 5, {
-      speed: 1.1,
-      spreadZ: 1.4,
-      gravity: 2,
-      drag: 2,
-      size: 0.12,
-      life: 0.8,
-    });
-  } else {
-    burst(world.particles, "blood", enemy.x, enemy.y, 0.34, 18, {
-      speed: 2.6,
-      spreadZ: 2.9,
-      gravity: 11,
-      drag: 1.1,
-      size: 0.07,
-      life: 1.4,
-    });
-    // A pool directly under the body as well as the spray, so a kill always marks the spot even when
-    // every droplet happens to fly off somewhere else.
-    stainFloor(world, enemy.x, enemy.y, 0.5);
-  }
-
-  swallowIntoPool(world, enemy);
-
-  if (hasBless(world.bless, "lifesteal")) {
-    world.player.hp = Math.min(world.player.maxHp, world.player.hp + LIFESTEAL_HEAL);
-  }
-
-  if (!isBoned(enemy.archetype) || blocksWalk(world.maze, Math.floor(enemy.x), Math.floor(enemy.y))) {
-    return;
-  }
-
-  const roll = Math.random();
-  const armoury = SKELETON_ARMOURY[enemy.appearance];
-  const drop = BONE_DROPS.find((entry) => roll < entry.upTo) ?? (armoury && roll < ARMOURY_UP_TO ? armoury : undefined);
-
-  if (drop) {
-    world.props.push({ id: nextId(world, "prop"), kind: drop.kind, count: drop.count, x: enemy.x, y: enemy.y });
-  }
-}
-
-/**
- * Puts a body out for a while, and takes whatever it was committing to away from it.
- *
- * The commitment is the point. A stun used to set the timer and nothing else, and because the step
- * loop skips a stunned body before it reaches the wind-up, the wind-up did not run down — it froze.
- * So a skeleton clubbed mid-swing kept its telegraph painted on the floor, waited out the stun, and
- * then finished the attack at the spot the player had been standing when they threw the thing. The
- * interruption cost it time and nothing else, which is the opposite of what landing a hit should
- * buy.
- *
- * Clearing the intent here is also what makes every warning disappear on its own: the head marker,
- * the cut arc, the sight line and the charge lane all read the wind-up directly, so none of them
- * needs to know what a stun is.
- *
- * Longest wins. A body already lying down from a worse hit is not stood back up by a lesser one.
- */
-export function stunEnemy(enemy: Enemy, seconds: number): void {
-  enemy.stunSeconds = Math.max(enemy.stunSeconds, seconds);
-  enemy.windupSeconds = 0;
-  enemy.intent = "none";
-}
-
-export function damageEnemy(
-  world: World,
-  enemy: Enemy,
-  amount: number,
-  cause: DeathCause = "slain",
-  direction?: Cell,
-): void {
-  if (enemy.drowningSeconds > 0) {
-    return;
-  }
-
-  enemy.hp -= amount;
-  enemy.hurtSeconds = 0.28;
-  provoke(world, enemy);
-
-  if (enemy.hp <= 0) {
-    killEnemy(world, enemy, cause, direction);
-  }
-}
-
-/**
- * Turns a body that has just been hit onto the player, if the player is close enough to be blamed.
- *
- * Being shot is the one thing that has to reach a body regardless of what it was doing, because the
- * alternative is a creature standing in the open taking hits and going about its errand — which reads
- * as broken however defensible the distance rule behind it is.
- *
- * Bounded by the same distance that ends a chase, so the rule composes with itself: a body will not be
- * provoked into a pursuit it would abandon on the very next frame. Past that it genuinely does not
- * respond, which is what makes reaching across a floor to soften something a real option rather than
- * a way of summoning it.
- */
-function provoke(world: World, enemy: Enemy): void {
-  if (Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y) > DISENGAGE_RANGE) {
-    return;
-  }
-
-  enemy.mind = "chase";
-  // The errand is off. Keeping it would have the body resume a walk to somewhere it chose before it
-  // was attacked, the moment the player stepped away.
-  enemy.wanderCell = undefined;
 }
 
 /** True when the straight segment between two points crosses no wall. Water does not block. */

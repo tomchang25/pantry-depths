@@ -47,6 +47,7 @@ import {
   type WindupIntent,
 } from "@/core/combat/enemy-contract";
 import { hasBless } from "@/core/progression/bless";
+import { stunEnemy } from "@/core/combat/death";
 import { checkHazards } from "@/core/combat/impacts";
 import { breadthFirstStep, randomReachableCell } from "@/core/floor/maze";
 import type { Cell } from "@/core/grid";
@@ -61,7 +62,6 @@ import {
   markDamageFrom,
   nextId,
   randomAmmo,
-  stunEnemy,
   type Enemy,
   type World,
   raiseSfx,
