@@ -112,7 +112,7 @@ function parseArguments(argv) {
   }
 
   if (options.address === undefined) {
-    throw new Error(`An address is required, such as "/?map=circle-water".\n${USAGE}`);
+    throw new Error(`An address is required, such as "/testbed/circle-water".\n${USAGE}`);
   }
 
   return options;

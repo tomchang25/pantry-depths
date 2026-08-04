@@ -4,32 +4,25 @@
  * Everything here is a statement about a session rather than about a dungeon, which is exactly why
  * none of it is a field on a room or a map. A room describes what stands where; where the run arrives,
  * whether the bodies are held still, and which body the next reset stands up are all facts about the
- * person holding the camera. So the stage is a map name this module knows, and the dressing is applied
- * to a floor the ordinary assembler already built.
+ * person holding the camera. So this is a scene — an address with rules of its own — and the rules are
+ * applied to a floor the ordinary assembler already built.
  *
  * What the dressing fixes is everything an ordinary floor randomises or hides in a room this small:
  * the arrival is drawn from the room's own cells, the plinth lands on the arrival whenever no room on
  * the floor holds one, and the way down sits loose in five cells of floor — where standing near it
  * with the floor's main task met descends. The main task is a body count, and a person filming a fight
  * kills bodies, so that last one is not a cosmetic problem.
+ *
+ * That it has to fix any of this is a workaround wearing the shape of a feature: a floor cannot yet
+ * say it is not a dungeon, so a scene that is not one moves the fixtures out of shot instead. The
+ * tracker holds that as its own decision; this file is what the game does until it is made.
  */
 
 import { ENEMY_ARCHETYPES } from "@/content/enemies/enemy-archetypes";
 import type { MapCastKind } from "@/core/room-contract";
 import { mainRoom } from "@/core/maze";
-import { standCast, type World } from "@/core/world";
-
-/**
- * Which map is the stage.
- *
- * Named rather than inferred from a room's shape or contents, for the same reason the default map is
- * named: a stage is not a kind of room, it is the one this project films in, and a rule that guessed
- * would dress somebody's ordinary floor the day they built a small one.
- *
- * A second stage makes this a list. The dressing on an arbitrary map makes it an address the game is
- * opened at. Neither is built, because neither is wanted yet.
- */
-export const STAGE_MAP_NAME = "stage";
+import type { SceneHooks } from "@/runtime/scene-hooks";
+import { announce, standCast, type World } from "@/core/world";
 
 /**
  * What the next reset stands up: each body as its room declares it, or every body as one chosen kind.
@@ -49,10 +42,6 @@ const CAST_CHOICES = [undefined, ...(Object.keys(ENEMY_ARCHETYPES) as MapCastKin
  */
 let choice = 0;
 
-export function isStage(world: World): boolean {
-  return world.map.name === STAGE_MAP_NAME;
-}
-
 /**
  * What the next reset would stand, short enough for the panel to hold.
  *
@@ -61,14 +50,14 @@ export function isStage(world: World): boolean {
  * "Skeleton Crossbowman" does not fit inside it. The identifiers read perfectly well in a monospace
  * column and every one of them is inside the budget.
  */
-export function stageChoiceName(): string {
+function choiceName(): string {
   return CAST_CHOICES[choice] ?? "as authored";
 }
 
 /** Steps the choice one either way, wrapping, and answers what is now held. */
-export function stepStageChoice(by: number): string {
+function stepChoice(by: number): string {
   choice = (choice + by + CAST_CHOICES.length) % CAST_CHOICES.length;
-  return stageChoiceName();
+  return choiceName();
 }
 
 /**
@@ -82,7 +71,7 @@ export function stepStageChoice(by: number): string {
  * Anything holding a body goes with them. A hand still holding a body that no longer exists, or a
  * javelin still carrying one, is a reference to something the floor has forgotten.
  */
-export function restageCast(world: World): number {
+function restageCast(world: World): number {
   world.enemies = [];
 
   if (world.held?.kind === "enemy") {
@@ -113,16 +102,11 @@ export function restageCast(world: World): number {
 /**
  * Puts one freshly built floor into the state a take starts from.
  *
- * Does nothing off the stage, so it is safe to call wherever a world is built. Reached both at mount
- * and on restart, which is what makes restarting mean "shoot that again" rather than "shoot something
- * else": the cast returns to its cells, the arrival is the arrival, and the bodies are held still
- * whether or not they had been released.
+ * Reached both at mount and on restart, which is what makes restarting mean "shoot that again" rather
+ * than "shoot something else": the cast returns to its cells, the arrival is the arrival, and the
+ * bodies are held still whether or not they had been released.
  */
-export function dressStage(world: World): void {
-  if (!isStage(world)) {
-    return;
-  }
-
+function dress(world: World): void {
   const room = mainRoom(world.maze);
   const arrival = { x: Math.floor((room.minX + room.maxX) / 2), y: room.maxY };
   // Outside every room's interior and never walkable, which is what puts the descent out of reach and
@@ -141,3 +125,34 @@ export function dressStage(world: World): void {
   world.mindsFrozen = true;
   restageCast(world);
 }
+
+function restage(world: World): void {
+  const stood = restageCast(world);
+  announce(world, stood > 0 ? `Cast restaged (${stood})` : "This room stands nobody", 2);
+}
+
+/**
+ * The stage's three keys and one row.
+ *
+ * Choosing does not touch what is already standing — it decides what the next reset stands up — so a
+ * person can step through the list looking for the right body without destroying the shot they are in.
+ */
+export const SOUNDSTAGE: SceneHooks = {
+  dress,
+  instrumentsHidden: true,
+  chips: () => [`Cast · ${choiceName()} · Q E`],
+  commands: [{ label: "Restage cast · C", run: restage }],
+  onKey: (world, key) => {
+    if (key === "q" || key === "e") {
+      announce(world, `Next cast: ${stepChoice(key === "e" ? 1 : -1)}`, 2);
+      return true;
+    }
+
+    if (key === "c") {
+      restage(world);
+      return true;
+    }
+
+    return false;
+  },
+};

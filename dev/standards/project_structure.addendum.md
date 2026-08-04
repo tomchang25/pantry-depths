@@ -27,7 +27,7 @@ The standard names `presentation/` and `shared/` as earned layers that are creat
 
 | Layer               | Directory | Status                                                                                                                                                                                                 |
 | ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/app/`          | Present   | Route boundary, bootstrap, and the debug tool surface. The ordinary route mounts the demo surface.                                                                                                     |
+| `src/app/`          | Present   | Route boundary, bootstrap, the debug tool surface, and the development scene surface. The ordinary route mounts the game.                                                                              |
 | `src/core/`         | Present   | The rules: contracts and vocabulary, floor assembly, the world and its tick, the minds, actions, impacts, extraction, progression state. Reads authored tables only through the injected game catalog. |
 | `src/content/`      | Present   | Authored data by feature: maps, rooms, enemies, combat tables, sfx, presentation assets, viewmodel definitions.                                                                                        |
 | `src/presentation/` | Present   | Earned by the renderer port: the audio stack, and the Three.js runtime in `scene-3d/` that draws the game.                                                                                             |
@@ -54,7 +54,20 @@ The declarations those two trees needed are gone with them, and so are their bou
 
 The tree has no residents at the moment, and the directory is therefore not there — it comes back with the next experiment. Its first two, `three-block` and `three-preview`, moved here from `src/app/debug/` when it was created and both ended on 2026-08-04: the block viewer graduated into `src/app/debug/entity-workbench/` and became the entity workbench, and the preview experiment was deleted after two of its showcases were rebuilt against the rig that ships. Those are the two normal endings, one each. The rules above stay declared and machine-checked against an absent tree, because what they describe is what the next experiment gets, not what these two had.
 
-`src/app/debug/` follows the shared development-tool route surface without a routing deviation. Pantry's ordinary policy currently renders the game placeholder for every non-debug development path and every production path, including the `/debug` namespace. Debug navigation uses native full-document anchors.
+`src/app/debug/` follows the shared development-tool route surface without a routing deviation. Debug navigation uses native full-document anchors. Pantry's ordinary route policy renders the game for every path that is not a development namespace, and for every path at all in a production build.
+
+## Declared Deviation: Development Namespaces Beyond `/debug`
+
+The platform standard names one development namespace, `/debug`, and defines the production surface as everything that is not it. Pantry declares two more, and they are not debug routes: `/soundstage` and `/testbed/<map name>` open the game itself.
+
+`src/app/scene/` is the development-only composition subtree behind them. A **scene** is the real game at an address of its own with a session's worth of rules over it — the room built to film promotional footage in is the one that exists — and the subtree holds the catalog of them plus one module of rules per scene. A **testbed** is the degenerate case with no rules at all: the address names a map and the floor is plain, which is what makes it the control group a dressed scene is read against.
+
+- **Everything the debug boundary promises, a scene namespace promises identically.** Route selection is by pathname; the crossing into the subtree is one compile-time development guard plus a deferred import; a production request to any of these addresses follows the ordinary production route policy without loading a catalog or a scene. Nothing under `src/app/scene/` is production-reachable, and the route resolver returns the ordinary surface for every pathname in a production build.
+- **A scene is a play route, and that is why it is not a debug route.** The play surface's stylesheet locks the document to the viewport; a debug tool's page scrolls. A scene mounts the same surface the shipped game mounts, through the same lazy import, so the stylesheet question never arises. Scenes therefore get no debug hub listing — the hub lists tools, and a scene is not one.
+- **A scene's rules reach the play surface as a value, never as a name.** The runtime declares the hook contract and calls it where its own behaviour has a seam; `src/app/scene/` implements it. The runtime holds no scene vocabulary, and no layer identifies a scene by comparing a map name — scene identity is the address.
+- **The word `sandbox` keeps one meaning.** It names the disposable-experiment track and its source tree (`dev/standards/sandbox_track.md`), entered through the debug hub. No `/sandbox` route exists. Should an experiment ever want a play scene, it registers under `/sandbox/<experiment>` — one namespace per experiment, matching the tree's one-folder-per-experiment rule rather than competing with it.
+
+**Why the platform's single namespace was not enough:** these addresses are the game, and the standard's `/debug` namespace is for surfaces that are not. Before this, every development floor was reached by naming a map in a query on the shipped game's own address, which put development on the product route, gave a scene nothing to own but a map name, and forced the one scene that exists to be recognised by a string comparison inside the runtime. The query parameter is gone; no route reads it in any build.
 
 ## Feature Placement Detail
 

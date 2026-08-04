@@ -33,12 +33,13 @@ export type DevOverlayModel = Readonly<{
   torch: boolean;
   map: string;
   /**
-   * What the next restaging would stand up, on a floor that has a cast to restage.
+   * State rows belonging to the development scene the run was opened at, if any.
    *
-   * Absent means this floor is not a stage and the row is not drawn at all — a row naming a choice
-   * that decides nothing is a control the panel is claiming to have.
+   * Absent or empty means the run is ordinary play and no extra row is drawn — a row naming a control
+   * nothing has is a control the panel is claiming to have. The panel neither knows nor asks what a
+   * given row means; a scene owns its own wording, including which keys it names.
    */
-  nextCast?: string;
+  sceneChips?: readonly string[] | undefined;
 }>;
 
 /**
@@ -55,7 +56,18 @@ export type DevOverlayActions = Readonly<{
   fillCrowd(): void;
   dropKit(): void;
   grantBless(): void;
-  restageCast(): void;
+}>;
+
+/**
+ * A command a development scene contributes, already bound to the run it acts on.
+ *
+ * Deliberately not the runtime's scene command type: the panel is handed a label and something to
+ * run, and stays ignorant of worlds. Binding the world is the surface's job because the surface is
+ * what knows which run is current.
+ */
+export type DevOverlayCommand = Readonly<{
+  label: string;
+  run(): void;
 }>;
 
 export type MountedDemoDevOverlay = Readonly<{
@@ -71,13 +83,15 @@ export type MountedDemoDevOverlay = Readonly<{
  * clicks taken by the thing that re-locks the pointer. Later sibling, later paint, and the buttons are
  * reachable whenever the pointer is free.
  */
-export function mountDevOverlay(actions: DevOverlayActions): MountedDemoDevOverlay {
+export function mountDevOverlay(
+  actions: DevOverlayActions,
+  sceneCommands: readonly DevOverlayCommand[] = [],
+): MountedDemoDevOverlay {
   const element = document.createElement("div");
   const fps = document.createElement("span");
   const godModeButton = document.createElement("button");
   const minds = document.createElement("span");
   const world = document.createElement("span");
-  const cast = document.createElement("span");
   const torch = document.createElement("span");
   const grain = document.createElement("span");
   const arm = document.createElement("span");
@@ -90,7 +104,6 @@ export function mountDevOverlay(actions: DevOverlayActions): MountedDemoDevOverl
   godModeButton.type = "button";
   minds.className = "demo-dev__chip";
   world.className = "demo-dev__chip";
-  cast.className = "demo-dev__chip";
   torch.className = "demo-dev__chip";
   grain.className = "demo-dev__chip";
   arm.className = "demo-dev__chip";
@@ -121,18 +134,43 @@ export function mountDevOverlay(actions: DevOverlayActions): MountedDemoDevOverl
     actions.toggleGodMode();
   };
 
+  /**
+   * The scene's state rows, created on the first update that carries them and never again.
+   *
+   * A scene's row count is fixed for its life, so this grows once and then only sets text. They sit
+   * where the run's own switches end and the renderer's begin, which is where the one scene that
+   * exists used to hardcode its row.
+   */
+  const sceneChips: HTMLSpanElement[] = [];
+
+  const syncSceneChips = (labels: readonly string[]): void => {
+    while (sceneChips.length < labels.length) {
+      const chip = document.createElement("span");
+      chip.className = "demo-dev__chip";
+      sceneChips.push(chip);
+      element.insertBefore(chip, torch);
+    }
+
+    sceneChips.forEach((chip, index) => {
+      const label = labels[index];
+      chip.hidden = label === undefined;
+      chip.textContent = label ?? "";
+    });
+  };
+
   godModeButton.addEventListener("click", handleGodModeClick);
   element.append(
     fps,
     godModeButton,
     minds,
     world,
-    cast,
     torch,
     grain,
     arm,
     map,
-    command("Restage cast · C", actions.restageCast),
+    // A scene's commands lead the column, because a scene is why this run is open at all and its
+    // buttons are the ones being reached for.
+    ...sceneCommands.map((entry) => command(entry.label, entry.run)),
     command("Test arena · T", actions.testArena),
     command("Kill all · K", actions.killAll),
     command("Fill crowd · N", actions.fillCrowd),
@@ -158,11 +196,9 @@ export function mountDevOverlay(actions: DevOverlayActions): MountedDemoDevOverl
     minds.dataset.active = String(model.mindsFrozen);
     world.textContent = `World freeze · ${model.worldFrozen ? "on" : "off"} · O`;
     world.dataset.active = String(model.worldFrozen);
-    // Named rather than switched: what it holds is a choice among eight, and the two keys that step
-    // it are on the row so the pair reads as one control. Restaging is not on it — that is a command
-    // and it sits with the commands, which is also what keeps this line inside the panel's width.
-    cast.hidden = model.nextCast === undefined;
-    cast.textContent = `Cast · ${model.nextCast ?? ""} · Q E`;
+    // Whatever the scene wants said, in the scene's own words. The panel sizes its box to its longest
+    // possible line, so a scene keeps its rows short for the same reason every row here is short.
+    syncSceneChips(model.sceneChips ?? []);
     // The three renderer switches are named after the switch like the freezes above, but they light
     // up **inverted**, and that is the point of the panel rather than an inconsistency: the loud state
     // is the surprising one. A cheat that is on is surprising; a torch that is on is how the game

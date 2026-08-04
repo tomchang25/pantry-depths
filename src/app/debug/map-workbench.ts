@@ -404,7 +404,7 @@ function createMapSurface(): HTMLElement {
     );
   });
   playButton.addEventListener("click", () => {
-    window.open(`/?map=${encodeURIComponent(draft.name)}`, "_blank", "noopener");
+    window.open(`/testbed/${encodeURIComponent(draft.name)}`, "_blank", "noopener");
   });
 
   // Which file is open is a different question from what it says, so the file operations sit in their

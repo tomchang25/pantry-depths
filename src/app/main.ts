@@ -6,7 +6,7 @@
  */
 
 import { resolveAppRoute } from "@/app/app-route";
-import type { MountedGame } from "@/runtime/surface";
+import type { MountedGame, MountGameOptions } from "@/runtime/surface";
 
 const mount = document.querySelector<HTMLDivElement>("#app");
 
@@ -29,33 +29,23 @@ function renderLoadFailure(logLabel: string, message: string, error: unknown): v
 /**
  * The play surface is imported lazily so that its full-viewport stylesheet — which locks
  * `html`, `body`, and `#app` to the viewport and hides their scrollbars — is only injected
- * on the play route and never leaks into a scrollable debug page.
+ * on a play route and never leaks into a scrollable debug page.
  *
  * Mounting is asynchronous because the surface loads its artwork before it draws, so disposal
  * is checked on both sides of the await: the module can be torn down while the images are still
  * in flight, and a surface that arrives after that has to be disposed rather than kept.
+ *
+ * One mount path for the ordinary game and for every scene, because a scene is the game: what
+ * separates them is the options handed in, not how the surface is put on the page.
  */
-function renderOrdinaryPlay(): void {
-  // Which map to play is a query parameter, read here rather than by the route resolver: that
-  // function answers which surface a pathname wants, and a second question in it is a second reason
-  // for it to change.
-  //
-  // Development only, and that is the point rather than a precaution. Every map beside the one a run
-  // opens on is a development subject — an arena, a sandbox, a stage to film in — reachable by typing
-  // a name into the address bar, and until now a production build honoured that address too. A
-  // shipped build plays the map the game is, and the rest live where the rest of the development
-  // surface lives.
-  const mapName = import.meta.env.DEV
-    ? (new URLSearchParams(window.location.search).get("map") ?? undefined)
-    : undefined;
-
+function renderPlay(options: MountGameOptions): void {
   void import("@/runtime/surface")
     .then(async ({ mountGame }) => {
       if (moduleDisposed) {
         return;
       }
 
-      const mounted = await mountGame(appMount, mapName);
+      const mounted = await mountGame(appMount, options);
 
       if (moduleDisposed) {
         mounted.dispose();
@@ -66,6 +56,23 @@ function renderOrdinaryPlay(): void {
     })
     .catch((error: unknown) => {
       renderLoadFailure("play surface failed to load", "The game failed to load. Check the browser console.", error);
+    });
+}
+
+/**
+ * Development scenes, behind the same deferred crossing the debug tools use.
+ *
+ * The catalog and every scene's rules stay out of the production module graph because nothing
+ * production-reachable imports them: this call sits inside the development guard below.
+ */
+function loadSceneRoute(pathname: string): void {
+  void import("@/app/scene/scene-router")
+    .then(({ resolveScene }) => resolveScene(pathname))
+    .then((options) => {
+      renderPlay(options);
+    })
+    .catch((error: unknown) => {
+      renderLoadFailure("scene failed to load", "The scene failed to load. Check the browser console.", error);
     });
 }
 
@@ -88,11 +95,13 @@ if (import.meta.env.DEV) {
 
   if (route === "debug") {
     loadDebugRoute();
+  } else if (route === "scene") {
+    loadSceneRoute(window.location.pathname);
   } else {
-    renderOrdinaryPlay();
+    renderPlay({});
   }
 } else {
-  renderOrdinaryPlay();
+  renderPlay({});
 }
 
 if (import.meta.hot) {

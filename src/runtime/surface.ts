@@ -13,7 +13,7 @@ import { grabAction, primaryAction, PROP_LABELS } from "@/core/actions";
 import { BLESS_CATALOG, BLESS_STACKING_CATALOG } from "@/content/progression/bless-definitions";
 import { findBless, findModifier, type BlessDefinition, type ModifierAxis } from "@/core/progression-contract";
 import { blessBonus, blessStackCount, hasBless } from "@/core/bless";
-import { mountDevOverlay } from "@/runtime/dev-overlay";
+import { mountDevOverlay, type DevOverlayCommand } from "@/runtime/dev-overlay";
 import { GAME_CATALOG } from "@/content/catalog";
 import { EXTRACTION_HOLD_SECONDS, extractionShare, lastExtractedRewards, SEALED_CARD_PREFIX } from "@/core/extraction";
 import {
@@ -35,7 +35,7 @@ import { POOL_FILL_BODIES, padRoomAt, type TaskKind } from "@/core/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/core/run-level";
 import { bankedRewards, equippedCore, type ResolvedReward } from "@/core/sealed";
-import { dressStage, isStage, restageCast, stageChoiceName, stepStageChoice } from "@/runtime/stage";
+import type { SceneHooks } from "@/runtime/scene-hooks";
 import { stepWorld, type PlayerInput } from "@/core/simulation";
 import type { PropKind } from "@/core/prop-kinds";
 import {
@@ -62,6 +62,18 @@ import {
 } from "@/presentation/audio/sfx";
 
 export type MountedGame = Readonly<{ dispose: () => void }>;
+
+/**
+ * What a run is opened with: which map it plays, and the development scene laying rules over it.
+ *
+ * Both optional, and both absent is the shipped game. A scene arrives as a value rather than being
+ * looked up here, because which scene an address means belongs to the route surface and this file
+ * only ever plays what it is handed.
+ */
+export type MountGameOptions = Readonly<{
+  mapName?: string | undefined;
+  scene?: SceneHooks | undefined;
+}>;
 
 /**
  * Capture mode: `?capture` on a development build treats the pointer as locked from the first frame.
@@ -537,13 +549,14 @@ function createHudModel(
 }
 
 /**
- * Mounts the game on a map.
+ * Mounts the game on a map, optionally under a development scene's rules.
  *
- * The name comes from the address the game is already played at, resolved here rather than by the
- * route function: which surface a pathname wants and which map a run plays are two questions, and the
- * route function keeps answering only the first.
+ * Both come from the address the game is opened at, resolved by the route surface rather than here:
+ * which surface a pathname wants, which map it plays and which scene dresses it are questions this
+ * file answers none of. It plays what it is handed.
  */
-export async function mountGame(mount: HTMLElement, mapName?: string): Promise<MountedGame> {
+export async function mountGame(mount: HTMLElement, options: MountGameOptions = {}): Promise<MountedGame> {
+  const { mapName, scene } = options;
   // Not a constant any more: the instrument panel can step it, and a run is rebuilt on the new one.
   let map = mapNamed(mapName);
   const surface = document.createElement("main");
@@ -552,17 +565,28 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
   // size them. What stays this file's is the box they go in and the pointer over it.
   const view = document.createElement("div");
   const hud = mountHud();
+  // Bound to the run rather than to the world they were mounted beside: restarting rebinds `world`,
+  // and a button holding the old one would act on the run before the last.
+  const sceneCommands: readonly DevOverlayCommand[] = (scene?.commands ?? []).map((entry) => ({
+    label: entry.label,
+    run: () => {
+      entry.run(world);
+      refreshDev();
+    },
+  }));
   // After the HUD, never before it: the pause overlay is a full-surface button, and anything
   // painted under it has its clicks taken by the thing that re-locks the pointer.
-  const dev = mountDevOverlay({
-    toggleGodMode: () => toggleGodMode(),
-    testArena: () => testArena(),
-    killAll: () => killAll(),
-    fillCrowd: () => fillCrowd(),
-    dropKit: () => dropKit(),
-    grantBless: () => grantBless(),
-    restageCast: () => restageStage(),
-  });
+  const dev = mountDevOverlay(
+    {
+      toggleGodMode: () => toggleGodMode(),
+      testArena: () => testArena(),
+      killAll: () => killAll(),
+      fillCrowd: () => fillCrowd(),
+      dropKit: () => dropKit(),
+      grantBless: () => grantBless(),
+    },
+    sceneCommands,
+  );
   surface.className = "demo";
   view.className = "demo__view";
   surface.append(view, hud.element, dev.element);
@@ -585,7 +609,7 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
   let torchEnabled = true;
 
   let world = createWorld(map, GAME_CATALOG);
-  dressStage(world);
+  scene?.dress?.(world);
   let objectiveMaze = world.maze;
   let objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
   let disposed = false;
@@ -593,12 +617,12 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
   /**
    * Whether the readouts and the instrument panel are off screen, so a take carries no furniture.
    *
-   * A stage opens with them already off, which is the right way round for the one floor whose purpose
-   * is to be photographed: the alternative was making a dungeon's contract mean something in a room
-   * that is not a dungeon, and it does not — every objective a floor carries is unmeetable in there,
-   * from twelve walls it has none of to four side rooms it will never have.
+   * A scene meant to be photographed opens with them already off, which is the right way round for a
+   * floor whose purpose is to be looked at: the alternative was making a dungeon's contract mean
+   * something in a room that is not a dungeon, and it does not — every objective a floor carries is
+   * unmeetable in there, from twelve walls it has none of to four side rooms it will never have.
    */
-  let instrumentsHidden = isStage(world);
+  let instrumentsHidden = scene?.instrumentsHidden ?? false;
   surface.dataset.bare = String(instrumentsHidden);
   let lastTime: number | undefined;
   let cardTimer: number | undefined;
@@ -700,9 +724,9 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
       grain: grainEnabled,
       torch: torchEnabled,
       map: map.name,
-      // Omitted rather than sent empty off the stage: the row is drawn only where restaging means
-      // something, and an absent choice is a different statement from a choice of nothing.
-      ...(isStage(world) ? { nextCast: stageChoiceName() } : {}),
+      // Asked every frame rather than pushed when it changes, so a scene's row states what is true
+      // now without the scene having to remember to say so.
+      sceneChips: scene?.chips?.(world),
     });
 
   /**
@@ -732,10 +756,10 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
     // useless for exactly the thing it is for: dying repeatedly on purpose.
     const carriedGodMode = world.godMode;
     world = createWorld(map, GAME_CATALOG);
-    // On a stage this is what makes R mean "shoot that again": the cast returns to its cells, the
-    // arrival is the arrival, and the bodies are held still whether or not they had been released.
-    // Deliberately not carried the way god mode is — being frozen belongs to the staged scene.
-    dressStage(world);
+    // Under a scene this is what makes R mean "do that again" rather than "do something else": the
+    // floor comes back arranged the way the scene opened it. Deliberately not carried the way god
+    // mode is — an arrangement belongs to the scene, not to the session.
+    scene?.dress?.(world);
     objectiveMaze = world.maze;
     objectiveSeconds = FLOOR_OBJECTIVE_SECONDS;
     world.godMode = carriedGodMode;
@@ -804,23 +828,6 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
   };
 
   const testArena = (): void => flattenFloorForTesting(world);
-
-  /**
-   * Stands the stage's cast again, and refuses to do anything anywhere else.
-   *
-   * The guard is not tidiness. Off a stage this empties the floor of every body without killing one —
-   * no corpse, no drop, no stain — and then stands a cast no ordinary room declares. That is not a
-   * cheat, it is a floor deleted in silence, so the key says no rather than doing it.
-   */
-  const restageStage = (): void => {
-    if (!isStage(world)) {
-      announce(world, "Restaging is the filming stage's; this floor has no cast to stand", 2.5);
-      return;
-    }
-
-    const stood = restageCast(world);
-    announce(world, stood > 0 ? `Cast restaged (${stood})` : "This room stands nobody", 2);
-  };
 
   /**
    * One blessing, drawn exactly as an altar draws it.
@@ -895,6 +902,19 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
 
   const handleKeyDown = (event: KeyboardEvent): void => {
     const key = event.key.toLowerCase();
+
+    // The scene gets first refusal, so its keys are the scene's own business and this file never
+    // learns what any of them mean. Taking a key redraws the panel, because a key that changes what a
+    // scene's row says would otherwise wait for the next frame to show it.
+    //
+    // First rather than last, which is a real power: a scene could take Escape or Tab and break
+    // pausing. That is a scene's mistake to make and a scene's to not make — every one of them is
+    // development-only and written in this repository.
+    if (scene?.onKey?.(world, key) === true) {
+      event.preventDefault();
+      refreshDev();
+      return;
+    }
 
     // An Escape with the overlay up is a request to go back in — the same thing as clicking it.
     // Guarded by the suppression stamp so the tail of the Escape that opened the overlay is not
@@ -990,22 +1010,6 @@ export async function mountGame(mount: HTMLElement, mapName?: string): Promise<M
       world.mindsFrozen = !world.mindsFrozen;
       announce(world, world.mindsFrozen ? "Minds frozen (P to resume)" : "Enemies thinking again", 2.5);
       refreshDev();
-      return;
-    }
-
-    // The three the stage adds. Choosing does not touch what is already standing — it decides what the
-    // next reset stands up — so a person can step through the list looking for the right body without
-    // destroying the shot they are in.
-    if ((key === "q" || key === "e") && isStage(world)) {
-      event.preventDefault();
-      announce(world, `Next cast: ${stepStageChoice(key === "e" ? 1 : -1)}`, 2);
-      refreshDev();
-      return;
-    }
-
-    if (key === "c") {
-      event.preventDefault();
-      restageStage();
       return;
     }
 

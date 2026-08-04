@@ -334,7 +334,6 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
     fillCrowd: noop,
     dropKit: noop,
     grantBless: noop,
-    restageCast: noop,
   });
   const refreshHud = (): void => hud.update(hudModel);
   /**
@@ -343,8 +342,8 @@ export function renderHudAttackWorkbench(mount: HTMLElement): void {
    * It is a separate module with a separate subject — what the machine is doing — and the only reason
    * it is on this tab at all is that its corner has to be checked against the picture behind it.
    */
-  // No stage behind this preview, so no cast row: the panel draws the row only where restaging means
-  // something, and this tab owns no world to restage.
+  // No scene behind this preview, so no scene rows: those belong to a run opened at a scene's address,
+  // and this tab owns no world at all.
   let devModel: DevOverlayModel = {
     mindsFrozen: false,
     worldFrozen: false,

@@ -1,8 +1,8 @@
 /**
  * The fixed scene set the capture harness shoots, one entry per picture.
  *
- * A scene is a recipe, not an assertion: it drives the demo into a state through the same debug keys
- * a person uses (see the key rows in `src/demo/demo-surface.ts`), and what the resulting frame looks
+ * A scene is a recipe, not an assertion: it drives the game into a state through the same debug keys
+ * a person uses (see the key rows in `src/runtime/surface.ts`), and what the resulting frame looks
  * like is judged by whoever reads the output — never by code. Every scene starts from a fresh page
  * with the same seeded random, so the floor is the same floor on every run and the only thing that
  * changes between two captures of a scene is the change being looked at.
@@ -10,8 +10,8 @@
  * `sampleFps` marks the scenes busy enough to be worth timing; the harness samples them before the
  * screenshot so the number describes the moving picture, not a frozen one.
  *
- * A scene may say where it points and what ready means there. `address` is a path with an optional
- * query — `/?map=circle-water` for a named map, `/debug/map-workbench` for a workbench — and
+ * A scene may say where it points and what ready means there. `address` is a path — `/testbed/<map>`
+ * for a named map, `/soundstage` for the filming stage, `/debug/map-workbench` for a workbench — and
  * defaults to the play surface. `readySelector` is a CSS selector to wait for, and defaults to the
  * development handle only the play surface publishes, so a page that is not the game must give one
  * or the harness waits for something that will never arrive. The capture flag is added by the

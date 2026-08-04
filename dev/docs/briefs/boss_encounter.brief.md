@@ -109,7 +109,7 @@ voxel 資料
 
 ## 跟其他工作的關係
 
-- **不擋 Map 契約，也不被它擋。** 手寫一張 `boss-test` map 的 JSON、用 `?map=boss-test` 走進去，就能在編輯器存在之前做渲染實驗。前提已成立：map 契約已落地（archived at `dev/docs/archived/map_contract_foundation.plan.md`）。`?map=` 現在是純開發用法，production build 會忽略它。
+- **不擋 Map 契約，也不被它擋。** 手寫一張 `boss-test` map 的 JSON、用 `/testbed/boss-test` 走進去，就能在編輯器存在之前做渲染實驗。前提已成立：map 契約已落地（archived at `dev/docs/archived/map_contract_foundation.plan.md`）。testbed 是純開發位址，production build 一律當成普通遊戲。
 - **壕溝的 tile 已經有了。** tile 詞彙現在是 `MAP_TILE_KINDS`（`src/core/room-contract.ts`），九種，`trench` 在列——這條前置已解。
 - **廢樓梯那件事排在 Boss 之後或同期。** 主任務改成開撤離之後，「打贏 Boss」跟「開撤離」的關係要一起想。
 
