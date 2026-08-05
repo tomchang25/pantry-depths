@@ -71,7 +71,6 @@ After this plan, reviewing a change to a hotspot decision means reading the slic
 
 | Child | Focus                                                                    | Form                       |
 | ----- | ------------------------------------------------------------------------ | -------------------------- |
-| 5     | Player verbs dissolved: throw, shoot, carry, input entries, stats        | This plan, Execution below |
 | 6     | Enemy contract, registry, shoot family, second spec file                 | This plan, Execution below |
 | 7     | Charge family                                                            | This plan, Execution below |
 | 8     | Melee family, chassis de-branched                                        | This plan, Execution below |
@@ -106,13 +105,6 @@ Landing order: 1 through 10. Every child ends with the narrow checks its spec na
 Perishable coordinates, recorded 2026-08-04 at commit 0d21f83 on branch `core-ownership-refactor`. Re-check against live code before executing each child; conflicts resolve in favor of the conceptual half. Each child ends with the narrow checks its spec names — `npm run typecheck`, `npm run lint`, `npm run check:boundaries`, `npm run check:ownership` from child 1 onward, and `npm run test` — followed by one commit on the branch following the commit rules. Formatting is kept clean by running the formatter's write mode over the files a child touched, which is a fix rather than a gate. `npm run verify` and `npm run check:governance` run once in child 10, before the branch merge.
 
 Raw-state census baseline (occurrences of the `World` token per module, `rg -c '\bWorld\b' src`): world.ts 20, simulation.ts 25, actions.ts 26, enemy-ai.ts 21, impacts.ts 15, death.ts 5, extraction.ts 6, tasks.ts 5, floor/rooms.ts 4, plus permanent holders outside core (runtime/surface.ts 10, runtime/scene-hooks.ts 5, runtime/dev-overlay.ts 1, app and presentation modules per the current count of 209 across 25 files). The checker records two numbers per file from the live tree: parameter-position uses (`world: World`) and direct mutations in the forms Requirement 2 lists, on paths rooted at the state parameter; child 1 writes the baseline table.
-
-### Child 5 — player verbs dissolved
-
-- New `src/core/player/throw.ts`: `throwHeld`, `shootHeld` (actions.ts:516–571) plus the call-text tables (actions.ts:82–112), consuming `projectile/spawn`.
-- New `src/core/player/carry.ts`: `grabAction`, `dropHeld`, `nearestEnemyAhead`, `nearestPropAhead` (actions.ts:180–255, 777–834).
-- New `src/core/player/input.ts`: `primaryAction` (actions.ts:728) and `resolveSwing`, the two entries the runtime calls; runtime import path updates (surface.ts) are the one permitted runtime edit, import-path-only.
-- The altar strike executor half (particles, extraction call, actions.ts:573–634) lands beside the melee executor. Delete `actions.ts`; census shrinks accordingly.
 
 ### Child 6 — enemy contract, registry, shoot family
 

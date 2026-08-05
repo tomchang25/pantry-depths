@@ -18,7 +18,7 @@ import { dropProp } from "@/core/world/world";
 import propDisplayJson from "@/content/presentation/prop-display.json";
 import { parsePropDisplays, propDisplaysByKind, type PropDisplay } from "@/content/presentation/prop-display-schema";
 import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
-import { PROP_LABELS } from "@/core/combat/actions";
+import { PROP_LABELS } from "@/core/player/carry";
 
 /** Matched to the entity workbench, so a pickup and a body are compared on the same floor. */
 const DEFAULT_BACK = 2.6;

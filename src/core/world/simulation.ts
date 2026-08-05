@@ -4,7 +4,7 @@
  */
 
 import { MELEE_CUT_START } from "@/core/combat/melee-contract";
-import { resolveSwing } from "@/core/combat/actions";
+import { resolveSwing } from "@/core/player/input";
 import { heldWeight, playerSpeed } from "@/core/player/stats";
 import { stepEnemies } from "@/core/combat/enemy-ai";
 import { announce, stainFloor } from "@/core/feedback/run-feedback";

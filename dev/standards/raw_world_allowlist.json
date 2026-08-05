@@ -31,10 +31,6 @@
     "params": 3,
     "mutations": 9
   },
-  "src/core/combat/actions.ts": {
-    "params": 12,
-    "mutations": 23
-  },
   "src/core/combat/enemy-ai.ts": {
     "params": 19,
     "mutations": 3
@@ -67,6 +63,18 @@
     "params": 1,
     "mutations": 4
   },
+  "src/core/player/aim.ts": {
+    "params": 2,
+    "mutations": 0
+  },
+  "src/core/player/carry.ts": {
+    "params": 4,
+    "mutations": 7
+  },
+  "src/core/player/input.ts": {
+    "params": 2,
+    "mutations": 9
+  },
   "src/core/player/melee/execute-melee.ts": {
     "params": 5,
     "mutations": 4
@@ -74,6 +82,14 @@
   "src/core/player/stats.ts": {
     "params": 7,
     "mutations": 0
+  },
+  "src/core/player/throw.ts": {
+    "params": 2,
+    "mutations": 3
+  },
+  "src/core/projectile/spawn.ts": {
+    "params": 2,
+    "mutations": 4
   },
   "src/core/projectile/step-projectiles.ts": {
     "params": 12,

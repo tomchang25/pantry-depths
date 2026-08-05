@@ -9,7 +9,8 @@
 import "@/runtime/surface.css";
 
 import { PROP_KINDS } from "@/core/prop-kinds";
-import { grabAction, primaryAction, PROP_LABELS } from "@/core/combat/actions";
+import { grabAction, PROP_LABELS } from "@/core/player/carry";
+import { primaryAction } from "@/core/player/input";
 import { BLESS_CATALOG, BLESS_STACKING_CATALOG } from "@/content/progression/bless-definitions";
 import {
   findBless,
