@@ -31,10 +31,6 @@
     "params": 3,
     "mutations": 9
   },
-  "src/core/combat/enemy-ai.ts": {
-    "params": 20,
-    "mutations": 3
-  },
   "src/core/damage/area.ts": {
     "params": 13,
     "mutations": 1
@@ -50,6 +46,10 @@
   "src/core/damage/structure-damage.ts": {
     "params": 3,
     "mutations": 5
+  },
+  "src/core/enemy/chassis.ts": {
+    "params": 17,
+    "mutations": 3
   },
   "src/core/floor/rooms.ts": {
     "params": 3,

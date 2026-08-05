@@ -15,17 +15,7 @@
  */
 
 import { damageWall } from "@/core/damage/structure-damage";
-import {
-  DISENGAGE_RANGE,
-  SIGHT_RANGE,
-  attackCooldown,
-  attackDamage,
-  attackReach,
-  attackWindup,
-  MELEE_CUT_HALF_ANGLE,
-  STRIKE_SECONDS,
-  type WindupIntent,
-} from "@/core/combat/enemy-contract";
+import { DISENGAGE_RANGE, SIGHT_RANGE } from "@/core/combat/enemy-contract";
 import { ENEMY_RADIUS, stunEnemy, type Enemy } from "@/core/enemy/enemy-state";
 import { ENEMY_BEHAVIORS } from "@/core/enemy/behaviors/registry";
 import type { EnemyEffect, EnemyView } from "@/core/enemy/behaviors/contract";
@@ -35,7 +25,7 @@ import { breadthFirstStep, randomReachableCell } from "@/core/floor/maze";
 import type { Cell } from "@/core/grid";
 import { burst } from "@/core/combat/particles";
 
-import { FLUNG, slideMove, unstick, WALKING } from "@/core/floor/movement";
+import { FLUNG, shortestTurn, slideMove, unstick, WALKING } from "@/core/floor/movement";
 import { nextId } from "@/core/world/ids";
 import { hasLineOfSight } from "@/core/floor/maze";
 import { rollIdleSeconds, type World } from "@/core/world/world";
@@ -137,11 +127,6 @@ function pathHeading(world: World, enemy: Enemy, goal: Cell): Readonly<{ x: numb
   return { x: toX / length, y: toY / length };
 }
 
-/** Radians wrapped to (-π, π], which is the only form a shortest turn can be measured in. */
-function shortestTurn(angle: number): number {
-  return Math.atan2(Math.sin(angle), Math.cos(angle));
-}
-
 /**
  * Swings a facing toward where an enemy wants to go, returning how much of its pace it keeps. The
  * cosine makes this turn-then-move: one facing across its heading keeps almost none, and one facing
@@ -198,22 +183,6 @@ function walk(
   );
   enemy.x = moved.x;
   enemy.y = moved.y;
-}
-
-/**
- * Commits an enemy to an attack and to the spot it is aimed at. The aim is taken here and nowhere
- * else, which is what makes the telegraph a promise: the shot goes where the line was drawn and
- * stepping aside works. A point rather than a direction, because the drawn warnings need the place.
- */
-function beginWindup(world: World, enemy: Enemy, intent: WindupIntent): void {
-  enemy.intent = intent;
-  enemy.windupSeconds = attackWindup(enemy.archetype);
-  enemy.windupTotal = attackWindup(enemy.archetype);
-  enemy.aimX = world.player.x;
-  enemy.aimY = world.player.y;
-  // Snapped to the aim and held there for the whole telegraph, so the drawn enemy agrees with the
-  // line on the floor.
-  enemy.facingAngle = Math.atan2(enemy.aimY - enemy.y, enemy.aimX - enemy.x);
 }
 
 /**
@@ -288,53 +257,6 @@ function throwSparks(world: World, effect: Extract<EnemyEffect, { kind: "sparks"
 }
 
 /**
- * Sparks drawn in along a sword's edge while it is raised, and thrown off when it goes. Converging
- * particles read as a wind-up in a way that departing ones do not. Rate-gated rather than burst every
- * frame, because at sixty frames a second one enemy would bury the particle field.
- */
-function honeBlade(world: World, enemy: Enemy, deltaSeconds: number): void {
-  if (enemy.intent !== "melee") {
-    return;
-  }
-
-  const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-
-  if (Math.random() > (6 + progress * 22) * deltaSeconds) {
-    return;
-  }
-
-  // Started out on the arc and aimed inward, so they close on the blade as it is raised.
-  const angle = enemy.facingAngle + (Math.random() * 2 - 1) * MELEE_CUT_HALF_ANGLE;
-  const reach = attackReach(enemy.archetype) * (1.1 + Math.random() * 0.35);
-  burst(world.particles, "ember", enemy.x + Math.cos(angle) * reach, enemy.y + Math.sin(angle) * reach, 0.62, 1, {
-    speed: 1.4 + progress * 1.8,
-    spreadZ: 0.5,
-    gravity: -0.4,
-    drag: 2.4,
-    directionX: -Math.cos(angle),
-    directionY: -Math.sin(angle),
-    focus: 0.85,
-    size: 0.04,
-    life: 0.34,
-  });
-}
-
-/** The blade going, thrown outward along the arc it just swept. */
-function releaseBlade(world: World, enemy: Enemy): void {
-  burst(world.particles, "ember", enemy.x, enemy.y, 0.62, 12, {
-    speed: 5.5,
-    spreadZ: 0.7,
-    gravity: 1.2,
-    drag: 2.8,
-    directionX: Math.cos(enemy.facingAngle),
-    directionY: Math.sin(enemy.facingAngle),
-    focus: 0.45,
-    size: 0.05,
-    life: 0.3,
-  });
-}
-
-/**
  * One pass over every enemy, in two halves the decision freeze cuts between. The head is what
  * happened to the enemy: timers, knockback, settling out of geometry. The tail is what it decided.
  * The freeze returns between the two rather than skipping the pass, which is what the world freeze
@@ -361,7 +283,7 @@ export function stepEnemies(world: World, deltaSeconds: number): void {
     }
 
     if (enemy.chargeSeconds > 0) {
-      applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.charge?.liveStep(enemy, viewOf(world), deltaSeconds) ?? []);
+      applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.charge.liveStep(enemy, viewOf(world), deltaSeconds));
       continue;
     }
 
@@ -462,15 +384,19 @@ function applyEnemyEffects(world: World, enemy: Enemy, effects: readonly EnemyEf
   }
 }
 
-/** Runs a wind-up already committed to, and resolves whatever it was committed to when it expires. */
+/**
+ * Runs a wind-up already committed to, and resolves whatever it was committed to when it expires.
+ *
+ * No per-intent branch: the registry answers for every intent, so which family runs is a lookup. The
+ * one intent handled here is the absence of one, which is not a family's business.
+ */
 function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
-  const behavior = enemy.intent === "none" ? undefined : ENEMY_BEHAVIORS[enemy.intent];
-
-  if (behavior) {
-    applyEnemyEffects(world, enemy, behavior.telegraphStep(enemy, viewOf(world), deltaSeconds));
+  if (enemy.intent === "none") {
+    return;
   }
 
-  honeBlade(world, enemy, deltaSeconds);
+  const behavior = ENEMY_BEHAVIORS[enemy.intent];
+  applyEnemyEffects(world, enemy, behavior.telegraphStep(enemy, viewOf(world), deltaSeconds));
   // An enemy winding up neither moves nor turns, so the arc drawn on the floor stays a claim about a
   // piece of ground rather than sweeping after whoever it was aimed at.
   enemy.windupSeconds -= deltaSeconds;
@@ -479,44 +405,14 @@ function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
     return;
   }
 
-  const intent = enemy.intent;
+  // A shot has nothing left to run once it is away, so the chassis clears the commitment for it. A
+  // charge keeps its own, because what it is committed to outlives the wind-up.
+  const releasing = enemy.intent;
+  applyEnemyEffects(world, enemy, behavior.release(enemy, viewOf(world)));
 
-  if (intent === "shoot") {
-    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.shoot?.release(enemy, viewOf(world)) ?? []);
+  if (releasing === "shoot") {
     enemy.intent = "none";
-    return;
   }
-
-  if (intent === "charge") {
-    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.charge?.release(enemy, viewOf(world)) ?? []);
-    return;
-  }
-
-  if (intent === "melee") {
-    const toX = world.player.x - enemy.x;
-    const toY = world.player.y - enemy.y;
-    const distance = Math.hypot(toX, toY);
-    // Both halves of the shape the floor is showing. Distance alone would make a cut a full circle;
-    // with the facing locked, the cone is fixed in the world and stepping out of it works.
-    const offBearing = Math.abs(shortestTurn(Math.atan2(toY, toX) - enemy.facingAngle));
-    releaseBlade(world, enemy);
-
-    if (distance <= attackReach(enemy.archetype) + 0.16 && offBearing <= MELEE_CUT_HALF_ANGLE) {
-      hurtPlayer(world, attackDamage(enemy.archetype), enemy.x, enemy.y);
-    }
-
-    enemy.attackPoseSeconds = STRIKE_SECONDS;
-    enemy.attackCooldown = attackCooldown(enemy.archetype);
-    enemy.intent = "none";
-    return;
-  }
-
-  if (intent === "none") {
-    return;
-  }
-
-  intent satisfies never;
-  throw new Error("unknown enemy intent");
 }
 
 /**
@@ -755,17 +651,17 @@ function beginAttack(world: World, enemy: Enemy): boolean {
       return false;
     }
 
-    beginWindup(world, enemy, "melee");
+    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.melee.open(enemy, viewOf(world)));
     return true;
   }
 
   if (intent === "charge") {
-    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.charge?.open(enemy, viewOf(world)) ?? []);
+    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.charge.open(enemy, viewOf(world)));
     return true;
   }
 
   if (intent === "shoot") {
-    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.shoot?.open(enemy, viewOf(world)) ?? []);
+    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.shoot.open(enemy, viewOf(world)));
     return true;
   }
 

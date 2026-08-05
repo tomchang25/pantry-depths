@@ -1,4 +1,5 @@
 import { CHARGE_BEHAVIOR } from "@/core/enemy/behaviors/charge";
+import { MELEE_BEHAVIOR } from "@/core/enemy/behaviors/melee";
 import { SHOOT_BEHAVIOR } from "@/core/enemy/behaviors/shoot";
 import type { EnemyAttackSelf, EnemyView } from "@/core/enemy/behaviors/contract";
 import type { EnemyArchetype } from "@/core/combat/enemy-contract";
@@ -59,6 +60,26 @@ describe("enemy attack release", () => {
 
   it("sends nothing when the row carries no shot", () => {
     expect(SHOOT_BEHAVIOR.release(selfOf(archetypeOf()), VIEW)).toEqual([]);
+  });
+});
+
+describe("a released cut", () => {
+  /** A swordsman at the origin, facing east, reaching one cell. */
+  function swordsman(): EnemyAttackSelf {
+    return { ...selfOf(archetypeOf({ contactRange: 1, contactDamage: 9 })), intent: "melee" };
+  }
+
+  it("hits a player standing inside the cone", () => {
+    const effects = MELEE_BEHAVIOR.release(swordsman(), { playerX: 0.8, playerY: 0, maze: openMaze() });
+
+    expect(effects.map((effect) => effect.kind)).toEqual(["sparks", "playerHit"]);
+  });
+
+  it("misses a player at the same distance but outside the cone", () => {
+    // Behind the swordsman: within reach, well outside the arc the telegraph drew.
+    const effects = MELEE_BEHAVIOR.release(swordsman(), { playerX: -0.8, playerY: 0, maze: openMaze() });
+
+    expect(effects.map((effect) => effect.kind)).toEqual(["sparks"]);
   });
 });
 

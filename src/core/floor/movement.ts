@@ -91,3 +91,8 @@ export function unstick(maze: Maze, point: Point, radius: number, blocked: Block
 
   return point;
 }
+
+/** Radians wrapped to (-π, π], which is the only form a shortest turn can be measured in. */
+export function shortestTurn(angle: number): number {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
