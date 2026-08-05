@@ -32,8 +32,8 @@
     "mutations": 9
   },
   "src/core/combat/enemy-ai.ts": {
-    "params": 19,
-    "mutations": 3
+    "params": 22,
+    "mutations": 5
   },
   "src/core/damage/area.ts": {
     "params": 13,

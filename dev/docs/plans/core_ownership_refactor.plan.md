@@ -71,7 +71,6 @@ After this plan, reviewing a change to a hotspot decision means reading the slic
 
 | Child | Focus                                                                    | Form                       |
 | ----- | ------------------------------------------------------------------------ | -------------------------- |
-| 6     | Enemy contract, registry, shoot family, second spec file                 | This plan, Execution below |
 | 7     | Charge family                                                            | This plan, Execution below |
 | 8     | Melee family, chassis de-branched                                        | This plan, Execution below |
 | 9     | State module split: tick orchestrator, player movement, facade           | This plan, Execution below |
@@ -105,14 +104,6 @@ Landing order: 1 through 10. Every child ends with the narrow checks its spec na
 Perishable coordinates, recorded 2026-08-04 at commit 0d21f83 on branch `core-ownership-refactor`. Re-check against live code before executing each child; conflicts resolve in favor of the conceptual half. Each child ends with the narrow checks its spec names — `npm run typecheck`, `npm run lint`, `npm run check:boundaries`, `npm run check:ownership` from child 1 onward, and `npm run test` — followed by one commit on the branch following the commit rules. Formatting is kept clean by running the formatter's write mode over the files a child touched, which is a fix rather than a gate. `npm run verify` and `npm run check:governance` run once in child 10, before the branch merge.
 
 Raw-state census baseline (occurrences of the `World` token per module, `rg -c '\bWorld\b' src`): world.ts 20, simulation.ts 25, actions.ts 26, enemy-ai.ts 21, impacts.ts 15, death.ts 5, extraction.ts 6, tasks.ts 5, floor/rooms.ts 4, plus permanent holders outside core (runtime/surface.ts 10, runtime/scene-hooks.ts 5, runtime/dev-overlay.ts 1, app and presentation modules per the current count of 209 across 25 files). The checker records two numbers per file from the live tree: parameter-position uses (`world: World`) and direct mutations in the forms Requirement 2 lists, on paths rooted at the state parameter; child 1 writes the baseline table.
-
-### Child 6 — enemy contract, registry, shoot family
-
-- New `src/core/enemy/behaviors/contract.ts`: the narrow mutable self type (attack-relevant fields only: `intent`, `windupSeconds`, `windupTotal`, `aimX`, `aimY`, `facingAngle`, `attackPoseSeconds`, `attackCooldown`, `chargeX`, `chargeY`, `chargeSeconds`, `x`, `y`, read-only `archetype`); the seam type — `open(self, view)`, `telegraphStep(self, view, dt)`, `release(self, view)`, `liveStep(self, view, dt)`, each returning an ordered `EnemyEffect[]`; the view type (player position, floor, read-only-typed); the effect union (player hit {amount, from}, player shove {x, y}, shot spawn {spec}, structure hit {cell, damage}, hazard probe, stun self {seconds}, feedback {particles | cue}). No-op seams return empty arrays so the chassis calls all four unconditionally.
-- New `src/core/enemy/behaviors/registry.ts`: `Readonly<Record<WindupIntent, EnemyBehavior>>`, total over the intent vocabulary (enemy-contract.ts:54).
-- New `src/core/enemy/behaviors/shoot.ts`: rewrite `fireShot` (enemy-ai.ts:233) — self keeps its timer writes, the hazard push becomes a shot-spawn effect. Chassis applies it (id allocation stays chassis-side). Wire only the shoot rows through the registry; charge and melee branches stay inline until their children, shrinking the closed-union tails accordingly.
-- Named spec file `test/unit/core/enemy/behaviors/release.test.ts`, started here with the shoot case: a release with a shot row present yields exactly one shot-spawn effect aimed at the committed point; without a row, none.
-- Chassis begins: `enemy-ai.ts` gains the registry calls at the two dispatch sites (`beginAttack` 796, `stepWindup` 522) for the shoot intent, mapping effects to the owners (`stunSelf` maps to the relocated stun in `enemy-state`, structure hits to `damage/structure-damage`).
 
 ### Child 7 — charge family
 

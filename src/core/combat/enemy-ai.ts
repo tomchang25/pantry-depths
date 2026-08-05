@@ -33,6 +33,8 @@ import {
   type WindupIntent,
 } from "@/core/combat/enemy-contract";
 import { stunEnemy, type Enemy } from "@/core/enemy/enemy-state";
+import { ENEMY_BEHAVIORS } from "@/core/enemy/behaviors/registry";
+import type { EnemyEffect, EnemyView } from "@/core/enemy/behaviors/contract";
 import { hurtPlayer } from "@/core/damage/player-damage";
 import { checkHazards } from "@/core/damage/area";
 import { breadthFirstStep, randomReachableCell } from "@/core/floor/maze";
@@ -220,36 +222,75 @@ function beginWindup(world: World, enemy: Enemy, intent: WindupIntent): void {
   enemy.facingAngle = Math.atan2(enemy.aimY - enemy.y, enemy.aimX - enemy.x);
 }
 
-function fireShot(world: World, enemy: Enemy): void {
-  const shot = enemy.archetype.shot;
+/**
+ * What each named look actually is.
+ *
+ * The families ask for a preset and say where and how hard; the numbers behind it live here, so a
+ * presentation tweak is not an edit to a decision module.
+ */
+function throwSparks(world: World, effect: Extract<EnemyEffect, { kind: "sparks" }>): void {
+  const { intensity: heat, x, y, directionX, directionY } = effect;
 
-  if (!shot) {
+  if (effect.preset === "bladeHone") {
+    // Started out on the arc and aimed inward, so they close on the blade as it is raised.
+    burst(world.particles, "ember", x, y, 0.62, 1, {
+      speed: 1.4 + heat * 1.8,
+      spreadZ: 0.5,
+      gravity: -0.4,
+      drag: 2.4,
+      directionX,
+      directionY,
+      focus: 0.85,
+      size: 0.04,
+      life: 0.34,
+    });
     return;
   }
 
-  const dx = enemy.aimX - enemy.x;
-  const dy = enemy.aimY - enemy.y;
-  const length = Math.max(0.0001, Math.hypot(dx, dy));
-  world.hazards.push({
-    id: nextId(world, "hazard"),
-    kind: "bolt",
-    x: enemy.x,
-    y: enemy.y,
-    directionX: dx / length,
-    directionY: dy / length,
-    speed: shot.speed,
-    travelled: 0,
-    range: shot.range,
-    damage: shot.damage,
-    knockback: shot.knockback,
-    // A shot flies flat and hits what it touches: no curve, no radius.
-    arc: 0,
-    fall: 0,
-    plunge: 1,
-    blastRadius: 0,
-  });
-  enemy.attackPoseSeconds = STRIKE_SECONDS;
-  enemy.attackCooldown = attackCooldown(enemy.archetype);
+  if (effect.preset === "bladeRelease") {
+    burst(world.particles, "ember", x, y, 0.62, 12, {
+      speed: 5.5,
+      spreadZ: 0.7,
+      gravity: 1.2,
+      drag: 2.8,
+      directionX,
+      directionY,
+      focus: 0.45,
+      size: 0.05,
+      life: 0.3,
+    });
+    return;
+  }
+
+  if (effect.preset === "chargeStoke") {
+    burst(world.particles, "ember", x, y, 0.3, 1 + Math.round(heat * 2), {
+      speed: 0.7 + heat * 1.4,
+      spreadZ: 1.6 + heat * 1.8,
+      gravity: -1.4,
+      drag: 1.6,
+      size: 0.045,
+      life: 0.55,
+    });
+    return;
+  }
+
+  if (effect.preset === "chargeStall") {
+    burst(world.particles, "dust", x, y, 0.4, 10, {
+      speed: 2.6,
+      spreadZ: 1.6,
+      directionX,
+      directionY,
+      focus: 0.5,
+      gravity: 2.4,
+      drag: 2.2,
+      size: 0.14,
+      life: 0.7,
+    });
+    return;
+  }
+
+  effect.preset satisfies never;
+  throw new Error("unknown spark preset");
 }
 
 /**
@@ -444,8 +485,89 @@ export function stepEnemies(world: World, deltaSeconds: number): void {
   }
 }
 
+/** What one enemy can see of the world, handed to whichever family is answering. */
+function viewOf(world: World): EnemyView {
+  return { playerX: world.player.x, playerY: world.player.y, maze: world.maze };
+}
+
+/**
+ * The chassis's half of the behaviour contract: what each effect a family returns actually does.
+ *
+ * One branch, applied in the order the family returned them, so the whole of what an attack can cause
+ * is readable here rather than spread through the families that ask for it.
+ */
+function applyEnemyEffect(world: World, enemy: Enemy, effect: EnemyEffect): void {
+  if (effect.kind === "playerHit") {
+    hurtPlayer(world, effect.amount, effect.fromX, effect.fromY);
+    return;
+  }
+
+  if (effect.kind === "playerShove") {
+    world.player.pushX += effect.x;
+    world.player.pushY += effect.y;
+    return;
+  }
+
+  if (effect.kind === "spawnShot") {
+    world.hazards.push({
+      id: nextId(world, "hazard"),
+      kind: "bolt",
+      x: effect.x,
+      y: effect.y,
+      directionX: effect.directionX,
+      directionY: effect.directionY,
+      speed: effect.speed,
+      travelled: 0,
+      range: effect.range,
+      damage: effect.damage,
+      knockback: effect.knockback,
+      // A shot flies flat and hits what it touches: no curve, no radius.
+      arc: 0,
+      fall: 0,
+      plunge: 1,
+      blastRadius: 0,
+    });
+    return;
+  }
+
+  if (effect.kind === "structureHit") {
+    damageWall(world, effect.cell, effect.damage);
+    return;
+  }
+
+  if (effect.kind === "hazardProbe") {
+    checkHazards(world, enemy);
+    return;
+  }
+
+  if (effect.kind === "stunSelf") {
+    stunEnemy(enemy, effect.seconds);
+    return;
+  }
+
+  if (effect.kind === "sparks") {
+    throwSparks(world, effect);
+    return;
+  }
+
+  effect satisfies never;
+  throw new Error("unknown enemy effect");
+}
+
+function applyEnemyEffects(world: World, enemy: Enemy, effects: readonly EnemyEffect[]): void {
+  for (const effect of effects) {
+    applyEnemyEffect(world, enemy, effect);
+  }
+}
+
 /** Runs a wind-up already committed to, and resolves whatever it was committed to when it expires. */
 function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
+  const behavior = enemy.intent === "none" ? undefined : ENEMY_BEHAVIORS[enemy.intent];
+
+  if (behavior) {
+    applyEnemyEffects(world, enemy, behavior.telegraphStep(enemy, viewOf(world), deltaSeconds));
+  }
+
   stokeCharge(world, enemy, deltaSeconds);
   honeBlade(world, enemy, deltaSeconds);
   // An enemy winding up neither moves nor turns, so the arc drawn on the floor stays a claim about a
@@ -459,7 +581,7 @@ function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
   const intent = enemy.intent;
 
   if (intent === "shoot") {
-    fireShot(world, enemy);
+    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.shoot?.release(enemy, viewOf(world)) ?? []);
     enemy.intent = "none";
     return;
   }
@@ -742,7 +864,7 @@ function beginAttack(world: World, enemy: Enemy): boolean {
   }
 
   if (intent === "shoot") {
-    beginWindup(world, enemy, "shoot");
+    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.shoot?.open(enemy, viewOf(world)) ?? []);
     return true;
   }
 
