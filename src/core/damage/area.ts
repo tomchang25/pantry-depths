@@ -1,28 +1,33 @@
 /**
- * What happens where a thrown thing lands.
+ * What happens where a thrown thing lands, and what an area of effect covers.
  *
- * Throwing is not a damage button. A rock stops where it lands and scatters whoever is near it; a
- * bomb does the obvious; a stick pierces, which is what pinning one enemy to a wall means.
+ * The executor above the three damage owners and the only module that composes all of them. It decides
+ * who a radius reaches and what each arrival is worth; the owners apply it.
  *
- * A thrown body is the odd one out: it does not stop for anyone. It runs down whoever is in its two
- * tiles — hurting, stunning, and shoving them aside — and then takes a swing's worth of damage
- * itself for the landing, doubled into a wall. You are spending that enemy, not shooting with it.
+ * The two collaborators used to arrive as parameters, because reaching player damage and structure
+ * damage from here would have made an import cycle back when both lived inside the modules that call
+ * this one. Both are owners of their own now, below this module in the stack, so the injection is gone
+ * and the call direction is plain.
  */
 
-import { BLAST_WALL_DAMAGE, thrownImpactDamage } from "@/core/combat/actions";
-import { damageEnemy, killEnemy, stunEnemy } from "@/core/combat/death";
+import { thrownImpactDamage } from "@/core/combat/actions";
+import { damageEnemy, killEnemy } from "@/core/damage/enemy-damage";
+import { hurtPlayer } from "@/core/damage/player-damage";
+import { BLAST_WALL_DAMAGE, damageWall } from "@/core/damage/structure-damage";
+import { addVfx, raiseSfx } from "@/core/feedback/run-feedback";
+import { stunEnemy, type Enemy } from "@/core/enemy/enemy-state";
 import { hasBless } from "@/core/progression/bless";
 import { isBarricadeCell, isTrenchCell, isWaterCell, tileIndex } from "@/core/floor/maze";
 import { burst } from "@/core/combat/particles";
 
-import { addVfx, raiseSfx, type Enemy, type World } from "@/core/world/world";
+import type { World } from "@/core/world/world";
 
-/** How wide "near the impact" is for a rock or a thrown body. */
+/** How wide "near the impact" is for a rock or a thrown enemy. */
 export const IMPACT_RADIUS = 1.2;
 export const EXPLOSIVE_BODY_RADIUS = 2.4;
 export const ROCK_KNOCKBACK = 8;
 export const BODY_STUN_SECONDS = 1.6;
-/** How hard a flying body barges someone out of its lane. */
+/** How hard a flying enemy barges someone out of its lane. */
 export const BODY_SHOVE = 9;
 
 export const BOMB_CORE_RADIUS = 2.5;
@@ -37,10 +42,13 @@ export const CHAIN_MAX_HOPS = 6;
 
 export const DROWN_SECONDS = 1.1;
 
-/** How far a landing still shakes the view, in cells. Beyond it the floor has taken the whole thump. */
+/** How hard a shell scatters what it does not kill. Well under a bomb's, which is enough near a pool. */
+export const SHELL_PUSH = 7;
+
+/** How far a landing still shakes the view, in cells. Beyond it the floor has taken the whole impact. */
 const LANDING_HEARD_WITHIN = 9;
 
-/** Sends a body outward from a point. Knockback ignores water, which is what makes water lethal. */
+/** Sends an enemy outward from a point. Knockback ignores water, which is what makes water lethal. */
 export function knockBack(enemy: Enemy, fromX: number, fromY: number, force: number): void {
   const dx = enemy.x - fromX;
   const dy = enemy.y - fromY;
@@ -56,14 +64,14 @@ export function knockBack(enemy: Enemy, fromX: number, fromY: number, force: num
 }
 
 /**
- * Resolves a body arriving somewhere it did not choose to be.
+ * Resolves an enemy arriving somewhere it did not choose to be.
  *
- * Three hazards, one check, because they are reached the same way: nothing walks into any of them,
- * so anything standing in one was put there by a knockback, a throw, or a charge that overshot.
+ * Three hazards, one check, because they are reached the same way: nothing walks into any of them, so
+ * anything standing in one was put there by a knockback, a throw, or a charge that overshot.
  *
- * Two of the three take the body down rather than killing it where it stands, and they take the same
- * time to do it — the difference between a pool and a trench is what is on the way in and what the
- * ground is worth afterwards, not how long a body takes to disappear into it.
+ * Two of the three take it down rather than killing it where it stands, and they take the same time to
+ * do it — the difference between a pool and a trench is what is on the way in and what the ground is
+ * worth afterwards, not how long it takes to disappear.
  */
 export function checkHazards(world: World, enemy: Enemy): void {
   if (enemy.drowningSeconds > 0) {
@@ -89,9 +97,9 @@ export function checkHazards(world: World, enemy: Enemy): void {
 
   goUnder(enemy);
   raiseSfx(world, "waterEntry", { x: enemy.x, y: enemy.y });
-  // The moment of going in, wherever it was reached from — thrown, shoved, or a charge that
-  // overran. Everything else about a drowning is slow and quiet, so the entry is the only chance
-  // there is to show that something just hit the water.
+  // The moment of going in, wherever it was reached from — thrown, shoved, or a charge that overran.
+  // Everything else about drowning is slow and quiet, so the entry is the only chance to show that
+  // something just hit the water.
   burst(world.particles, "splash", enemy.x, enemy.y, 0.12, 16, {
     speed: 2.4,
     spreadZ: 2.8,
@@ -103,11 +111,11 @@ export function checkHazards(world: World, enemy: Enemy): void {
 }
 
 /**
- * A body starting the fall it does not come back from.
+ * Starts the fall an enemy does not come back from.
  *
- * Everything it was committing to goes with it: the push that put it there, the errand it was on,
- * the swing it was halfway through. A body on its way under is also immune to damage — see
- * `damageEnemy` — so this is the whole of what taking it out of the fight amounts to.
+ * Everything it was committed to goes with it: the push that put it there, the errand it was on, the
+ * attack it was halfway through. One on its way under is also immune to damage, so this is the whole
+ * of what taking it out of the fight amounts to.
  */
 function goUnder(enemy: Enemy): void {
   enemy.drowningSeconds = DROWN_SECONDS;
@@ -121,14 +129,13 @@ function goUnder(enemy: Enemy): void {
 /**
  * Anything that goes into a trench is gone, and the trench is exactly as it was.
  *
- * The difference from a pool, and the whole reason the trench exists: a body thrown into water buys
- * a third of a cell of ground, and a body thrown into a trench buys nothing at all. Dust rather than
- * a splash, because what a cut in the rock throws up is what was lying on its rim.
+ * The difference from a pool, and the reason the trench exists: one thrown into water buys a third of
+ * a cell of ground, and one thrown into a trench buys nothing. Dust rather than a splash, because what
+ * a cut in the rock throws up is what was lying on its rim.
  *
- * It goes down over the same second a drowning takes rather than dying where it landed. Killing it
- * on contact put a corpse on the lip of a hole nine tenths of a cell deep and called that a death in
- * a trench — the body never went anywhere. What it is worth downstream is unchanged: it counts, and
- * the trench keeps whatever it was carrying.
+ * It goes down over the same second a drowning takes rather than dying where it landed. Killing it on
+ * contact left a corpse on the lip of a hole nine tenths of a cell deep and called that a death in a
+ * trench. What it is worth downstream is unchanged: it counts, and the trench keeps what it carried.
  */
 function swallow(world: World, enemy: Enemy): void {
   goUnder(enemy);
@@ -160,8 +167,8 @@ function enemiesWithin(world: World, x: number, y: number, radius: number): Enem
 /**
  * Chain lightning: every enemy struck rolls to pass it on, and whoever it passes to rolls again.
  *
- * Written as a queue rather than recursion so the hop limit is a real bound on the whole cascade
- * rather than a bound on one branch of it.
+ * Written as a queue rather than recursion so the hop limit bounds the whole cascade rather than one
+ * branch of it.
  */
 export function chainLightning(world: World, seeds: readonly Enemy[]): void {
   const visited = new Set(seeds.map((enemy) => enemy.id));
@@ -199,17 +206,10 @@ export function chainLightning(world: World, seeds: readonly Enemy[]): void {
  * Damages every breakable wall whose cell centre falls inside a blast.
  *
  * `sparesEmplacements` is for a blast that came out of one. An emplacement that can be wrecked by
- * another emplacement's shell means a floor full of them quietly dismantles itself while the player
- * is somewhere else, and smashing one is supposed to be a thing the player goes and does.
+ * another emplacement's shell means a floor full of them quietly dismantles itself while the player is
+ * elsewhere, and smashing one is supposed to be something the player goes and does.
  */
-function shatterWalls(
-  world: World,
-  x: number,
-  y: number,
-  radius: number,
-  damageWall: (cell: { x: number; y: number }, damage: number) => void,
-  sparesEmplacements = false,
-): void {
+function shatterWalls(world: World, x: number, y: number, radius: number, sparesEmplacements = false): void {
   const minX = Math.floor(x - radius);
   const maxX = Math.floor(x + radius);
   const minY = Math.floor(y - radius);
@@ -219,9 +219,9 @@ function shatterWalls(
     for (let cellX = minX; cellX <= maxX; cellX += 1) {
       const tile = world.maze.tiles[tileIndex(world.maze, cellX, cellY)];
 
-      // Barricades included: a blast that flattens a stone wall but leaves the iron spikes in front
-      // of it standing would read as the spikes being scenery. An emplacement is the same argument
-      // and takes it too, unless the blast is one of its own.
+      // Barricades included: a blast that flattens a stone wall but leaves the iron spikes in front of
+      // it standing would read as the spikes being scenery. An emplacement is the same argument and
+      // takes it too, unless the blast is one of its own.
       const breakable =
         tile?.kind === "wood" ||
         tile?.kind === "stone" ||
@@ -233,18 +233,13 @@ function shatterWalls(
       }
 
       if (Math.hypot(cellX + 0.5 - x, cellY + 0.5 - y) <= radius) {
-        damageWall({ x: cellX, y: cellY }, BLAST_WALL_DAMAGE);
+        damageWall(world, { x: cellX, y: cellY }, BLAST_WALL_DAMAGE, true);
       }
     }
   }
 }
 
-export function detonate(
-  world: World,
-  x: number,
-  y: number,
-  damageWall: (cell: { x: number; y: number }, damage: number) => void,
-): void {
+export function detonate(world: World, x: number, y: number): void {
   raiseSfx(world, "detonation", { x, y });
   addVfx(world, { kind: "blast", x, y, radius: BOMB_CORE_RADIUS, age: 0, life: 0.42 });
 
@@ -261,41 +256,25 @@ export function detonate(
     knockBack(enemy, x, y, BOMB_PUSH);
   }
 
-  shatterWalls(world, x, y, BOMB_CORE_RADIUS, damageWall);
+  shatterWalls(world, x, y, BOMB_CORE_RADIUS);
 }
 
-/** How hard a shell scatters what it does not kill. Well under a bomb's, which is enough near a pool. */
-export const SHELL_PUSH = 7;
-
 /**
- * A shell coming down, and the one damage call in the demo that does not care whose side anyone is on.
+ * A shell coming down, and the one damage call that does not care whose side anyone is on.
  *
- * Deliberately no test for which body this is. The emplacement picked its mark from everything on the
- * floor without a preference, and the blast has to honour that or the whole point of it — a hazard
- * the player can position themselves against and bait a crowd onto — quietly becomes another enemy.
+ * Deliberately no test for which side this is. The emplacement picked its mark from everything on the
+ * floor without a preference, and the blast has to honour that or the point of it — a hazard the player
+ * can position themselves against and bait a crowd onto — quietly becomes another enemy.
  *
- * Anything it kills counts as the player's kill, because it goes out through the same exit every
- * other death does. Lining a crowd up under a mark is a way of playing this, not a way around it.
+ * Anything it kills counts as the player's kill, because it goes out through the same exit every other
+ * death does. Lining a crowd up under a mark is a way of playing this, not a way around it.
  *
- * It takes the floor down with it, too. A shot that kills a crowd but leaves the wall they were
- * standing against untouched makes the emplacement a thing that only ever produces corpses, and the
- * point of a hazard that ranges over the whole floor is that standing in the open near a wall is a
- * position with a cost. What it will not break is another emplacement — see `shatterWalls`.
- *
- * The player's half of that arrives as a parameter rather than an import, for the same reason the
- * blast takes its wall damage that way: enemy behaviour owns what a hit does to the player and this
- * module owns what a radius does to a crowd, and having each reach into the other makes a cycle the
- * boundary check refuses.
+ * It takes the floor down with it too. A shot that kills a crowd but leaves the wall they were standing
+ * against untouched makes the emplacement a thing that only produces corpses, and the point of a hazard
+ * ranging over the whole floor is that standing in the open near a wall has a cost. What it will not
+ * break is another emplacement.
  */
-export function shellImpact(
-  world: World,
-  x: number,
-  y: number,
-  damage: number,
-  radius: number,
-  hurtPlayer: (world: World, amount: number, fromX: number, fromY: number) => void,
-  damageWall: (cell: { x: number; y: number }, damage: number) => void,
-): void {
+export function shellImpact(world: World, x: number, y: number, damage: number, radius: number): void {
   raiseSfx(world, "shellLand", { x, y });
   addVfx(world, { kind: "blast", x, y, radius, age: 0, life: 0.36 });
   burst(world.particles, "dust", x, y, 0.2, 14, {
@@ -317,7 +296,7 @@ export function shellImpact(
     hurtPlayer(world, damage, x, y);
   }
 
-  shatterWalls(world, x, y, radius, damageWall, true);
+  shatterWalls(world, x, y, radius, true);
 }
 
 /** A rock landing: everyone in a small radius takes a swing's worth and gets scattered. */
@@ -339,10 +318,10 @@ export function rockImpact(world: World, x: number, y: number): void {
 }
 
 /**
- * Runs someone down with a flying body: hurt, stunned, and knocked to one side.
+ * Runs someone down with a flying enemy: hurt, stunned, and knocked to one side.
  *
- * The shove is perpendicular to the flight rather than along it. Pushing them the way the body is
- * already going would just herd them ahead of the throw, which is the opposite of clearing a path.
+ * The shove is perpendicular to the flight rather than along it. Pushing them the way the throw is
+ * already going would herd them ahead of it, which is the opposite of clearing a path.
  */
 export function bargeInto(
   world: World,
@@ -368,16 +347,16 @@ export function bargeInto(
  * The arrival itself, as distinct from what it costs whoever arrived.
  *
  * Dust off the floor and a jolt of the view, both scaled by what landed. The jolt falls away with
- * distance because it is the floor carrying it: a body dropped across the room is a thump you hear
- * about, and one dropped at your feet is one you feel.
+ * distance because it is the floor carrying it: something dropped across the room is an impact you
+ * hear about, and one dropped at your feet is one you feel.
  */
 function arrival(world: World, x: number, y: number, thud: number): void {
   if (thud <= 0) {
     return;
   }
 
-  // Nothing kicks dust off a pool. A body that came down in one has already thrown its splash on the
-  // way in, and the jolt below is still owed either way — the floor carries it just the same.
+  // Nothing kicks dust off a pool. Something that came down in one has already thrown its splash on
+  // the way in, and the jolt below is still owed either way — the floor carries it just the same.
   if (!isWaterCell(world.maze, Math.floor(x), Math.floor(y))) {
     burst(world.particles, "dust", x, y, 0.16, Math.round(4 + thud * 7), {
       speed: 1.5 * thud,
@@ -403,15 +382,15 @@ export type BodyLanding = Readonly<{
 }>;
 
 /**
- * What a thrown body suffers on arrival.
+ * What a thrown enemy suffers on arrival.
  *
- * The body is the thing that gets hurt here, not what it landed among: it takes a bare swing's worth
- * for the fall, doubled if a wall stopped it. Throwing an enemy is therefore a way to spend that
- * enemy — hardest into a wall — rather than a way to damage the ones it flew past.
+ * The thrown one is what gets hurt here, not what it landed among: it takes a bare swing's worth for
+ * the fall, doubled if a wall stopped it. Throwing an enemy is therefore a way to spend that enemy —
+ * hardest into a wall — rather than a way to damage the ones it flew past.
  *
- * A wall is also the one landing that decides how the body ends: at that speed there is nothing left
- * to fall over, so the death is the mark it leaves rather than a corpse on the floor. That is the
- * same end a javelin gives, and it comes through the same cause.
+ * A wall is also the one landing that decides how it ends: at that speed there is nothing left to fall
+ * over, so the death is the mark it leaves rather than a corpse on the floor. That is the same end a
+ * javelin gives, through the same cause.
  *
  * The blessed version keeps its detonation, which is the whole reason that blessing exists.
  */
@@ -444,9 +423,8 @@ export function bodyLanding(world: World, thrown: Enemy, landing: BodyLanding): 
 /**
  * Sinks anything already going under, and finishes it when the ground closes over.
  *
- * The cell decides which death it was rather than whatever put the body in it, because by now that
- * is the only thing still true about it: a body sinks where it landed, so the cell it went into is
- * the cell it dies in.
+ * The cell decides which death it was rather than whatever put it there, because by now that is the
+ * only thing still true: it sinks where it landed, so the cell it went into is the cell it dies in.
  */
 export function stepDrowning(world: World, deltaSeconds: number): void {
   for (const enemy of world.enemies.slice()) {

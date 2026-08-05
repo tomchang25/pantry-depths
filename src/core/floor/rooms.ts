@@ -22,7 +22,8 @@
 
 import { padRoomAt, type Room } from "@/core/floor/maze";
 import { burst } from "@/core/combat/particles";
-import { announce, awardBless, type World } from "@/core/world/world";
+import { announce } from "@/core/feedback/run-feedback";
+import { awardBless, type World } from "@/core/world/world";
 
 /** Unbroken seconds on the dais that claim the blessing. */
 export const BLESSING_HOLD_SECONDS = 5;

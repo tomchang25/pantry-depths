@@ -25,7 +25,7 @@ import {
 import { ENEMY_ARCHETYPES } from "@/content/enemies/enemy-archetypes";
 import type { EnemyAppearanceId } from "@/core/combat/enemy-contract";
 import { attackCooldown, attackWindup, isBoned, STRIKE_SECONDS } from "@/core/combat/enemy-contract";
-import { DROWN_SECONDS } from "@/core/combat/impacts";
+import { DROWN_SECONDS } from "@/core/damage/area";
 import type { MapCastKind } from "@/core/floor/room-contract";
 import { createEnemy, type Enemy } from "@/core/world/world";
 

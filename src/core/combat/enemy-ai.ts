@@ -14,7 +14,7 @@
  * back. An archetype with no attack reaches only three of the five.
  */
 
-import { damageWall } from "@/core/combat/actions";
+import { damageWall } from "@/core/damage/structure-damage";
 import {
   CHARGE_DAMAGE,
   CHARGE_DISTANCE,
@@ -32,27 +32,16 @@ import {
   STRIKE_SECONDS,
   type WindupIntent,
 } from "@/core/combat/enemy-contract";
-import { hasBless } from "@/core/progression/bless";
-import { stunEnemy } from "@/core/combat/death";
-import { checkHazards } from "@/core/combat/impacts";
+import { stunEnemy, type Enemy } from "@/core/enemy/enemy-state";
+import { hurtPlayer } from "@/core/damage/player-damage";
+import { checkHazards } from "@/core/damage/area";
 import { breadthFirstStep, randomReachableCell } from "@/core/floor/maze";
 import type { Cell } from "@/core/grid";
 import { burst } from "@/core/combat/particles";
 
 import { FLUNG, slideMove, unstick, WALKING } from "@/core/floor/movement";
-import {
-  announce,
-  endRun,
-  ENEMY_RADIUS,
-  hasLineOfSight,
-  markDamageFrom,
-  nextId,
-  randomAmmo,
-  type Enemy,
-  type World,
-  raiseSfx,
-  rollIdleSeconds,
-} from "@/core/world/world";
+import { nextId } from "@/core/world/ids";
+import { ENEMY_RADIUS, hasLineOfSight, rollIdleSeconds, type World } from "@/core/world/world";
 
 const REPATH_SECONDS = 0.4;
 const SEPARATION = 0.62;
@@ -398,70 +387,6 @@ function stepCharge(world: World, enemy: Enemy, deltaSeconds: number): void {
 
   if (enemy.chargeSeconds <= 0) {
     enemy.intent = "none";
-  }
-}
-
-/**
- * Applies damage to the player, letting a held enemy take a frontal hit when that blessing is held.
- * Exported because the hazard step needs the same rule.
- */
-export function hurtPlayer(world: World, amount: number, fromX?: number, fromY?: number): void {
-  world.hitFlash = 1;
-  // Flat rather than positional: this happened to the player, not somewhere across the room.
-  raiseSfx(world, "playerHurt");
-
-  // Above the two exits below, so a hit the hostage takes and one god mode absorbs both leave a mark.
-  if (fromX !== undefined && fromY !== undefined) {
-    markDamageFrom(world, amount, fromX, fromY);
-  }
-
-  const hostage = world.held?.kind === "enemy" ? world.held.enemy : undefined;
-  const frontal =
-    fromX === undefined || fromY === undefined
-      ? true
-      : (fromX - world.player.x) * Math.cos(world.player.angle) +
-          (fromY - world.player.y) * Math.sin(world.player.angle) >
-        0;
-
-  if (hostage && frontal && hasBless(world.bless, "hostageGuard")) {
-    hostage.hp -= amount;
-    hostage.hurtSeconds = 0.3;
-
-    if (hostage.hp <= 0) {
-      const salvage = randomAmmo();
-      world.held = { kind: "prop", prop: salvage, count: 1 };
-      world.deaths.push({
-        id: hostage.id,
-        appearance: hostage.appearance,
-        x: world.player.x,
-        y: world.player.y,
-        progress: 0,
-        cause: "slain",
-        directionX: 0,
-        directionY: 0,
-        archetypeId: hostage.archetype.id,
-        facingAngle: hostage.facingAngle,
-      });
-      world.kills += 1;
-      announce(
-        world,
-        `The hostage burst — left holding ${salvage === "stick" ? "a stake" : salvage === "rock" ? "a rock" : "a bomb"}`,
-      );
-    }
-
-    return;
-  }
-
-  // The only place the player loses points, so one gate is the whole cheat and the hit still reads.
-  if (world.godMode) {
-    return;
-  }
-
-  world.player.hp -= amount;
-
-  if (world.player.hp <= 0) {
-    world.player.hp = 0;
-    endRun(world, "dead");
   }
 }
 

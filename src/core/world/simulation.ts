@@ -5,16 +5,12 @@
 
 import { MELEE_CUT_START } from "@/core/combat/melee-contract";
 import type { SfxCueId } from "@/core/sfx-cues";
-import {
-  damageWall,
-  heldWeight,
-  playerSpeed,
-  resolveSwing,
-  thrownImpactDamage,
-  thrownWallDamage,
-} from "@/core/combat/actions";
+import { heldWeight, playerSpeed, resolveSwing, thrownImpactDamage, thrownWallDamage } from "@/core/combat/actions";
 import { isBoned } from "@/core/combat/enemy-contract";
-import { hurtPlayer, stepEnemies } from "@/core/combat/enemy-ai";
+import { stepEnemies } from "@/core/combat/enemy-ai";
+import { hurtPlayer } from "@/core/damage/player-damage";
+import { damageWall } from "@/core/damage/structure-damage";
+import { announce, raiseSfx, stainFloor } from "@/core/feedback/run-feedback";
 import { stepExtraction } from "@/core/world/extraction";
 import {
   bargeInto,
@@ -25,7 +21,7 @@ import {
   rockImpact,
   shellImpact,
   stepDrowning,
-} from "@/core/combat/impacts";
+} from "@/core/damage/area";
 import {
   blocksProjectile,
   blocksProjectileAt,
@@ -48,9 +44,10 @@ import {
   type PropFlightHit,
   type PropLanding,
 } from "@/core/prop-contract";
-import { damageEnemy, killEnemy } from "@/core/combat/death";
+import { damageEnemy, killEnemy } from "@/core/damage/enemy-damage";
+import type { Enemy } from "@/core/enemy/enemy-state";
+import { nextId } from "@/core/world/ids";
 import {
-  announce,
   bodyFootprint,
   crowdHere,
   dropProp,
@@ -58,7 +55,6 @@ import {
   MORTAR_DEAD_ZONE,
   MORTAR_IDLE_SECONDS,
   MORTAR_LOCK_SECONDS,
-  nextId,
   PLAYER_RADIUS,
   populateFloor,
   projectileGrounded,
@@ -66,12 +62,9 @@ import {
   SHELL_BLAST_RADIUS,
   SHELL_DAMAGE,
   spawnReinforcement,
-  stainFloor,
-  type Enemy,
   type Mortar,
   type Projectile,
   type World,
-  raiseSfx,
 } from "@/core/world/world";
 import type { Cell } from "@/core/grid";
 
@@ -284,7 +277,7 @@ function resolveLanding(world: World, projectile: Projectile, landing: PropLandi
   }
 
   if (landing === "detonate") {
-    detonate(world, projectile.x, projectile.y, (cell, damage) => damageWall(world, cell, damage, true));
+    detonate(world, projectile.x, projectile.y);
     return;
   }
 
@@ -601,9 +594,7 @@ function stepHazards(world: World, deltaSeconds: number): void {
       hazard.travelled += distance;
 
       if (hazard.travelled >= hazard.range) {
-        shellImpact(world, hazard.x, hazard.y, hazard.damage, hazard.blastRadius, hurtPlayer, (cell, damage) =>
-          damageWall(world, cell, damage, true),
-        );
+        shellImpact(world, hazard.x, hazard.y, hazard.damage, hazard.blastRadius);
         world.hazards.splice(world.hazards.indexOf(hazard), 1);
       }
 

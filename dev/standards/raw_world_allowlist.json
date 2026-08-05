@@ -32,20 +32,28 @@
     "mutations": 9
   },
   "src/core/combat/actions.ts": {
-    "params": 25,
-    "mutations": 37
-  },
-  "src/core/combat/death.ts": {
-    "params": 4,
-    "mutations": 6
+    "params": 22,
+    "mutations": 32
   },
   "src/core/combat/enemy-ai.ts": {
-    "params": 20,
-    "mutations": 9
+    "params": 19,
+    "mutations": 3
   },
-  "src/core/combat/impacts.ts": {
-    "params": 14,
+  "src/core/damage/area.ts": {
+    "params": 13,
     "mutations": 1
+  },
+  "src/core/damage/enemy-damage.ts": {
+    "params": 5,
+    "mutations": 8
+  },
+  "src/core/damage/player-damage.ts": {
+    "params": 1,
+    "mutations": 4
+  },
+  "src/core/damage/structure-damage.ts": {
+    "params": 3,
+    "mutations": 5
   },
   "src/core/floor/rooms.ts": {
     "params": 3,
@@ -64,8 +72,8 @@
     "mutations": 2
   },
   "src/core/world/world.ts": {
-    "params": 17,
-    "mutations": 38
+    "params": 11,
+    "mutations": 29
   },
   "src/presentation/scene-3d/floor-decals.ts": {
     "params": 2,

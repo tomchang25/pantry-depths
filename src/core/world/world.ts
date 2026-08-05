@@ -10,15 +10,14 @@ import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/combat/melee-con
 import { blessMaxHpGain, createBlessState, grantBless, type BlessState } from "@/core/progression/bless";
 import { coreBonus, type SealedReward } from "@/core/progression/sealed";
 import type { GameCatalog } from "@/core/catalog";
-import { attackCooldown, type EnemyArchetype, type WindupIntent } from "@/core/combat/enemy-contract";
+import { attackCooldown, type EnemyArchetype } from "@/core/combat/enemy-contract";
 import type { MapCastKind } from "@/core/floor/room-contract";
+import { announce, raiseSfx, type DamageMark, type SfxEvent, type Vfx } from "@/core/feedback/run-feedback";
 import {
   blocksProjectile,
   blocksWalk,
   buildFloor,
   gridArea,
-  holdsStains,
-  isInsideGrid,
   roll,
   standingRoom,
   tileIndex,
@@ -27,64 +26,14 @@ import {
 } from "@/core/floor/maze";
 import type { Cell } from "@/core/grid";
 import type { ResolvedMap } from "@/core/floor/map-contract";
-import type { SfxCueId } from "@/core/sfx-cues";
 import { createParticleField, type ParticleField } from "@/core/combat/particles";
 import type { ThrowKind } from "@/core/prop-contract";
 import type { PropKind } from "@/core/prop-kinds";
+import type { Enemy } from "@/core/enemy/enemy-state";
+import { nextId } from "@/core/world/ids";
 
-/** What an enemy is committed to. Built from the archetype, so no intent exists that a telegraph cannot draw. */
-export type Intent = "none" | WindupIntent;
-
-/**
- * What an enemy is doing about the player, as one of five exclusive answers: each wants the enemy
- * somewhere different, so a flag set would produce one both chasing and wandering at the average of
- * the two. Stun, hurt, drowning, and being held stay out: they interrupt and hand back, so storing
- * one here would mean storing the prior state as well, which is the same field twice.
- */
-export type EnemyMind = "idle" | "wander" | "chase" | "attack" | "retreat";
-
-export type Enemy = {
-  id: string;
-  archetype: EnemyArchetype;
-  appearance: EnemyAppearanceId;
-  x: number;
-  y: number;
-  hp: number;
-  maxHp: number;
-  stunSeconds: number;
-  hurtSeconds: number;
-  attackPoseSeconds: number;
-  attackCooldown: number;
-  pushX: number;
-  pushY: number;
-  repathSeconds: number;
-  waypoint: Cell | undefined;
-  /** What this enemy is doing about the player. Every movement decision is dispatched on it. */
-  mind: EnemyMind;
-  /** How long an idling enemy has left. A range, because one pass of creation would otherwise hold phase. */
-  idleSeconds: number;
-  /** Where a wandering enemy is walking. A cell rather than a heading, which shivers or walks into a wall. */
-  wanderCell: Cell | undefined;
-  /** Counts down through the telegraph; while above zero the enemy is committed and visibly winding up. */
-  windupSeconds: number;
-  windupTotal: number;
-  intent: Intent;
-  /**
-   * Where the wind-up is aimed, taken when it began and never revised. Reading the live position at
-   * resolution would make a wind-up a pause before an unavoidable hit.
-   */
-  aimX: number;
-  aimY: number;
-  chargeSeconds: number;
-  chargeX: number;
-  chargeY: number;
-  /** Above zero while drowning in a pool or a trench. The enemy stops acting, stops being a target, and dies. */
-  drowningSeconds: number;
-  /** World-space direction the authored eight-way sprite faces. */
-  facingAngle: number;
-  /** Recomputed by enemy movement each simulation step; presentation reads it for walk animation. */
-  moving: boolean;
-};
+/** The enemy record and its vocabularies live beside the behaviour that reads them, and are state here. */
+export type { Enemy, EnemyMind, Intent } from "@/core/enemy/enemy-state";
 
 /** A pickup lying on the floor. A stack is taken in one grab and spent one throw at a time. */
 export type Prop = {
@@ -167,13 +116,6 @@ export type Mortar = {
   aimY: number;
 };
 
-/** A transient effect without an identity: `Omit` over a union distributes into an unsatisfiable type. */
-export type VfxSpec =
-  | { kind: "blast"; x: number; y: number; radius: number; age: number; life: number }
-  | { kind: "arc"; fromX: number; fromY: number; toX: number; toY: number; age: number; life: number };
-
-export type Vfx = VfxSpec & { id: string };
-
 /**
  * How an enemy died, which picks the corpse animation. Causes with no signature arrive as `slain`,
  * and `splattered` covers both ways of ending against a wall. `swallowed` and `drowned` animate
@@ -223,24 +165,6 @@ export const THROW_SWING_SECONDS = 0.26;
 /** Where in the world a swing was aimed, so the arc can be drawn through it. */
 export type SwingTarget = { x: number; y: number; z: number; connected: boolean } | undefined;
 
-/**
- * A hit the player took, remembered long enough to point at where it came from. A world position, not
- * a screen angle, which would drag as the player turns. Severity scales loudness, never duration.
- */
-export type DamageMark = {
-  x: number;
-  y: number;
-  age: number;
-  life: number;
-  severity: number;
-};
-
-/** How long a direction mark stays up, and how many can be on screen before the oldest is dropped. */
-export const DAMAGE_MARK_SECONDS = 1.3;
-export const MAX_DAMAGE_MARKS = 8;
-/** The hit size that fills a mark out completely; anything heavier is already at full strength. */
-const DAMAGE_MARK_FULL = 20;
-
 /** `extracted` is the only ending that keeps anything; `dead` is the only one that loses it. */
 export type RunStatus = "playing" | "dead" | "extracted";
 
@@ -251,8 +175,8 @@ export type Altar = {
   y: number;
 };
 
-/** One sound a tick decided to make. An event, not a call: the rules layer may not reach the audio stack. */
-export type SfxEvent = Readonly<{ id: SfxCueId; at?: Readonly<{ x: number; y: number }> }>;
+/** The feedback channels declare their own shapes; the record below carries them, so they arrive here. */
+export type { DamageMark, SfxEvent, Vfx, VfxSpec } from "@/core/feedback/run-feedback";
 
 export type World = {
   /** The map this run plays. Descending draws a new floor from it rather than from somewhere else. */
@@ -359,11 +283,6 @@ export function randomAmmo(): PropKind {
 /** How long an enemy waits before choosing where to go. A range, so a room does not move in phase. */
 export function rollIdleSeconds(): number {
   return 2 + Math.random() * 2;
-}
-
-export function nextId(world: World, prefix: string): string {
-  world.nextId += 1;
-  return `${prefix}-${world.nextId}`;
 }
 
 function walkableCells(maze: Maze): Cell[] {
@@ -705,11 +624,6 @@ export function spawnReinforcement(world: World): boolean {
   return true;
 }
 
-/** Reports one sound. The event carries a position only when it has one; a flat sound has none. */
-export function raiseSfx(world: World, id: SfxCueId, at?: Readonly<{ x: number; y: number }>): void {
-  world.sfxCues.push(at ? { id, at } : { id });
-}
-
 export function awardBless(world: World): void {
   const granted = grantBless(world.catalog, world.bless);
   const healthGain = blessMaxHpGain(world.catalog, granted);
@@ -735,53 +649,6 @@ export function endRun(world: World, status: "dead" | "extracted"): void {
 /** How long the run has been going, which stops counting when the run does. */
 export function runClockSeconds(world: World): number {
   return world.finishedSeconds ?? world.elapsedSeconds;
-}
-
-export function announce(world: World, message: string, seconds = 2.2): void {
-  world.message = message;
-  world.messageSeconds = seconds;
-  // Deliberately silent: the line changes constantly, and a sound on it marked nothing new.
-}
-
-/** Ceiling on how dark one cell can get, so a long fight does not end in a solid red floor. */
-const MAX_STAIN = 0.72;
-
-export function stainFloor(world: World, x: number, y: number, amount: number): void {
-  const cellX = Math.floor(x);
-  const cellY = Math.floor(y);
-
-  if (!isInsideGrid(world.maze, cellX, cellY)) {
-    return;
-  }
-
-  // Refused here as well as at draw time, so a cell opened later does not reveal blood never visible on it.
-  if (!holdsStains(world.maze, cellX, cellY)) {
-    return;
-  }
-
-  const index = tileIndex(world.maze, cellX, cellY);
-  world.stains[index] = Math.min(MAX_STAIN, (world.stains[index] ?? 0) + amount);
-  world.stainsVersion += 1;
-}
-
-export function addVfx(world: World, effect: VfxSpec): void {
-  // Silent on purpose: a blast makes its own sound at its site, and one per arc hop is a drum roll.
-  world.vfx.push({ ...effect, id: nextId(world, "vfx") });
-}
-
-/** Records where a hit came from, so the frame can point at it until it fades. */
-export function markDamageFrom(world: World, amount: number, fromX: number, fromY: number): void {
-  world.damageMarks.push({
-    x: fromX,
-    y: fromY,
-    age: 0,
-    life: DAMAGE_MARK_SECONDS,
-    severity: Math.max(0.25, Math.min(1, amount / DAMAGE_MARK_FULL)),
-  });
-
-  if (world.damageMarks.length > MAX_DAMAGE_MARKS) {
-    world.damageMarks.shift();
-  }
 }
 
 /**

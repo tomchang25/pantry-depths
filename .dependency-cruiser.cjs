@@ -155,9 +155,9 @@ module.exports = {
       name: "feedback-is-the-bottom-owner",
       severity: "error",
       comment:
-        "Run feedback writes the presentation-feed fields on the state record. It sits under every other owner and reaches only the state module and the shared vocabularies at the root of the rules layer.",
+        "Run feedback writes the presentation-feed fields on the state record. It sits under every other owner and reaches only the state module, the floor's queries and geometry, and the shared vocabularies at the root of the rules layer.",
       from: { path: "^src/core/feedback/" },
-      to: { path: "^src/", pathNot: "^src/core/feedback/|^src/core/world/|^src/core/[^/]+\\.ts$" },
+      to: { path: "^src/", pathNot: "^src/core/feedback/|^src/core/world/|^src/core/floor/|^src/core/[^/]+\\.ts$" },
     },
     {
       name: "enemy-damage-owns-its-domain-alone",
@@ -186,9 +186,12 @@ module.exports = {
       name: "owners-do-not-import-their-consumers",
       severity: "error",
       comment:
-        "The owner stack is one-way. An owner that reached an executor would make the direction a cycle and put a second writer above the single one.",
-      from: { path: "^src/core/(feedback|damage)/" },
-      to: { path: "^src/core/(player|enemy|projectile|hazard)/|^src/core/world/step-world" },
+        "The owner stack is one-way. An owner that reached an executor would make the direction a cycle and put a second writer above the single one. Scoped to the four owners rather than the whole damage tree, because the area-impact module beside them is an executor and composes all three. The enemy state vocabulary is exempt on the other side: it is a record definition, not a consumer, and the owner of enemy damage is typed against it.",
+      from: { path: "^src/core/feedback/|^src/core/damage/(enemy|player|structure)-damage\\.ts$" },
+      to: {
+        path: "^src/core/(player|enemy|projectile|hazard)/|^src/core/world/step-world",
+        pathNot: "^src/core/enemy/enemy-state",
+      },
     },
     {
       name: "the-compatibility-facade-is-for-outside-the-rules",

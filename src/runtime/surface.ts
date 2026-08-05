@@ -48,9 +48,9 @@ import { bankedRewards, equippedCore, type ResolvedReward } from "@/core/progres
 import type { SceneHooks } from "@/runtime/scene-hooks";
 import { stepWorld, type PlayerInput } from "@/core/world/simulation";
 import type { PropKind } from "@/core/prop-kinds";
-import { killEnemy } from "@/core/combat/death";
+import { killEnemy } from "@/core/damage/enemy-damage";
+import { announce } from "@/core/feedback/run-feedback";
 import {
-  announce,
   awardBless,
   createWorld,
   crowdHere,

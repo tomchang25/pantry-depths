@@ -22,7 +22,8 @@ import { ENEMY_ARCHETYPES } from "@/content/enemies/enemy-archetypes";
 import type { MapCastKind } from "@/core/floor/room-contract";
 import { mainRoom } from "@/core/floor/maze";
 import type { SceneHooks } from "@/runtime/scene-hooks";
-import { announce, standCast, type World } from "@/core/world/world";
+import { announce } from "@/core/feedback/run-feedback";
+import { standCast, type World } from "@/core/world/world";
 
 /**
  * What the next reset stands up: each body as its room declares it, or every body as one chosen kind.

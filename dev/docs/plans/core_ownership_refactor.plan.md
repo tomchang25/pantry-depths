@@ -71,7 +71,6 @@ After this plan, reviewing a change to a hotspot decision means reading the slic
 
 | Child | Focus                                                                    | Form                       |
 | ----- | ------------------------------------------------------------------------ | -------------------------- |
-| 2     | Owners extracted: feedback, player damage, structure damage, hostage     | This plan, Execution below |
 | 3     | Player attack slice: contract, resolver, executor, first spec file       | This plan, Execution below |
 | 4     | Projectile, hazard, and emplacement modules extracted from the tick      | This plan, Execution below |
 | 5     | Player verbs dissolved: throw, shoot, carry, input entries, stats        | This plan, Execution below |
@@ -109,18 +108,6 @@ Landing order: 1 through 10. Every child ends with the narrow checks its spec na
 Perishable coordinates, recorded 2026-08-04 at commit 0d21f83 on branch `core-ownership-refactor`. Re-check against live code before executing each child; conflicts resolve in favor of the conceptual half. Each child ends with the narrow checks its spec names — `npm run typecheck`, `npm run lint`, `npm run check:boundaries`, `npm run check:ownership` from child 1 onward, and `npm run test` — followed by one commit on the branch following the commit rules. Formatting is kept clean by running the formatter's write mode over the files a child touched, which is a fix rather than a gate. `npm run verify` and `npm run check:governance` run once in child 10, before the branch merge.
 
 Raw-state census baseline (occurrences of the `World` token per module, `rg -c '\bWorld\b' src`): world.ts 20, simulation.ts 25, actions.ts 26, enemy-ai.ts 21, impacts.ts 15, death.ts 5, extraction.ts 6, tasks.ts 5, floor/rooms.ts 4, plus permanent holders outside core (runtime/surface.ts 10, runtime/scene-hooks.ts 5, runtime/dev-overlay.ts 1, app and presentation modules per the current count of 209 across 25 files). The checker records two numbers per file from the live tree: parameter-position uses (`world: World`) and direct mutations in the forms Requirement 2 lists, on paths rooted at the state parameter; child 1 writes the baseline table.
-
-### Child 2 — mutation owners
-
-Moves are mechanical relocations with import updates, with one declared exception: the hostage seam split below redistributes the statements of one branch across two owners, behavior-identical, judged by reading the two halves against the original. Comment rewrites to plain register ride along per moved region.
-
-- New `src/core/feedback/run-feedback.ts`: move `raiseSfx` (world.ts:709), `announce` (740), `stainFloor` (749), `addVfx` (767), `markDamageFrom` (773) with their constants. `world.ts` re-exports until child 9. `dropProp` (791) stays with the state module for now and gets its own file at child 9 — it cannot live under the floor tree, which must stay owner-free for the fences to allow it.
-- New `src/core/enemy/enemy-state.ts`: move the `Enemy` record type and related enemy-only types out of `world.ts` (fields referenced from the record at world.ts:257), and move `stunEnemy` (death.ts:228) here — it mutates only the body. `world.ts` re-exports the type names so outside-core importers are untouched.
-- Move `death.ts` → `src/core/damage/enemy-damage.ts` unchanged minus `stunEnemy`, plus the new hostage entry: `damageHeldHostage` takes the held body and the amount, applies the hostage statements from the player-hurt path (enemy-ai.ts:426–453: health, flinch, the death record push, the kill count, the salvage roll), and returns the outcome — survived, or killed with the salvage kind. It deliberately does not call the ordinary kill exit: the hostage path today skips the drop roll, lifesteal, and pool interaction, and preserving that is the behavior-preservation requirement, stated here so no executor "fixes" it in passing.
-- New `src/core/damage/player-damage.ts`: move `hurtPlayer` (enemy-ai.ts:408) minus the hostage statements now owned above; it consumes the hostage outcome to replace what the hand holds and to raise the burst announcement. Update importers: simulation.ts:17, the shell call site (simulation.ts:604), and enemy-ai call sites (348–408, 522–571).
-- New `src/core/damage/structure-damage.ts`: move `damageWall`, `damageBarricade`, `damageMortar` (actions.ts:281–469) and the wall-damage constants (actions.ts:50–52) — into the damage tree, not the floor, per the placement rule. Update importers: actions.ts, enemy-ai.ts:17, simulation.ts:9.
-- Move `impacts.ts` → `src/core/damage/area.ts`; replace the injected `hurtPlayer`/`damageWall` parameters of `shellImpact` (impacts.ts:290) and `detonate` (impacts.ts:242) with direct imports of the two new owners — the cycle they dodged no longer exists — and simplify the two call sites (simulation.ts:287, 604).
-- Update the census allowlist for the moved paths (counts unchanged or lower).
 
 ### Child 3 — player attack slice
 

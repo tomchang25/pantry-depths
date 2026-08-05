@@ -22,7 +22,7 @@ import {
   type EntityDisplay,
 } from "@/content/enemies/entity-display-schema";
 import { attackCooldown, isBoned, STRIKE_SECONDS, type EnemyAppearanceId } from "@/core/combat/enemy-contract";
-import { DROWN_SECONDS } from "@/core/combat/impacts";
+import { DROWN_SECONDS } from "@/core/damage/area";
 import { isTrenchCell } from "@/core/floor/maze";
 import { bodyFootprint, projectileHeight, type Death, type Enemy, type World } from "@/core/world/world";
 

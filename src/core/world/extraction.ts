@@ -17,7 +17,8 @@
 import { padRoomAt } from "@/core/floor/maze";
 
 import { bankReward, resolveReward, type ResolvedReward } from "@/core/progression/sealed";
-import { announce, endRun, raiseSfx, type World } from "@/core/world/world";
+import { announce, raiseSfx } from "@/core/feedback/run-feedback";
+import { endRun, type World } from "@/core/world/world";
 
 /** Unbroken seconds on the pad that end the run. The same five the blessing altar asks for. */
 export const EXTRACTION_HOLD_SECONDS = 5;
