@@ -28,7 +28,7 @@ import type { ResolvedMap } from "@/core/floor/map-contract";
 import { createParticleField, type ParticleField } from "@/core/combat/particles";
 import type { ThrowKind } from "@/core/prop-contract";
 import type { PropKind } from "@/core/prop-kinds";
-import type { Enemy } from "@/core/enemy/enemy-state";
+import { ENEMY_RADIUS, type Enemy } from "@/core/enemy/enemy-state";
 import { nextId } from "@/core/world/ids";
 
 /** The enemy record and its vocabularies live beside the behaviour that reads them, and are state here. */
@@ -254,8 +254,6 @@ export type World = {
  * wall's projected top climbs with the square of how close the camera is.
  */
 export const PLAYER_RADIUS = 0.32;
-/** Wall clearance for every enemy. One number, so each fits the doorway it must stand in. See `footprint`. */
-export const ENEMY_RADIUS = 0.3;
 export const PLAYER_SPEED = 3.4;
 export const REACH = 1.45;
 export const ALTAR_HITS = 3;

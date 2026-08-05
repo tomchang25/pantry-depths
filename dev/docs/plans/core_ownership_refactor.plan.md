@@ -71,7 +71,6 @@ After this plan, reviewing a change to a hotspot decision means reading the slic
 
 | Child | Focus                                                                    | Form                       |
 | ----- | ------------------------------------------------------------------------ | -------------------------- |
-| 7     | Charge family                                                            | This plan, Execution below |
 | 8     | Melee family, chassis de-branched                                        | This plan, Execution below |
 | 9     | State module split: tick orchestrator, player movement, facade           | This plan, Execution below |
 | 10    | Reward bank owner, census tightened, documentation, closing verification | This plan, Execution below |
@@ -104,11 +103,6 @@ Landing order: 1 through 10. Every child ends with the narrow checks its spec na
 Perishable coordinates, recorded 2026-08-04 at commit 0d21f83 on branch `core-ownership-refactor`. Re-check against live code before executing each child; conflicts resolve in favor of the conceptual half. Each child ends with the narrow checks its spec names — `npm run typecheck`, `npm run lint`, `npm run check:boundaries`, `npm run check:ownership` from child 1 onward, and `npm run test` — followed by one commit on the branch following the commit rules. Formatting is kept clean by running the formatter's write mode over the files a child touched, which is a fix rather than a gate. `npm run verify` and `npm run check:governance` run once in child 10, before the branch merge.
 
 Raw-state census baseline (occurrences of the `World` token per module, `rg -c '\bWorld\b' src`): world.ts 20, simulation.ts 25, actions.ts 26, enemy-ai.ts 21, impacts.ts 15, death.ts 5, extraction.ts 6, tasks.ts 5, floor/rooms.ts 4, plus permanent holders outside core (runtime/surface.ts 10, runtime/scene-hooks.ts 5, runtime/dev-overlay.ts 1, app and presentation modules per the current count of 209 across 25 files). The checker records two numbers per file from the live tree: parameter-position uses (`world: World`) and direct mutations in the forms Requirement 2 lists, on paths rooted at the state parameter; child 1 writes the baseline table.
-
-### Child 7 — charge family
-
-- New `src/core/enemy/behaviors/charge.ts`: rewrite `launchCharge` (269), `stokeCharge` (326), `stepCharge` (348). Self-mutation: charge vector, countdown, movement via the floor's slide helpers. Effects, in today's order (stepCharge 348–402): a hazard probe for the ground reached; on catching the player, one player hit and one player shove; on a stall, a structure hit, its dust feedback, then the self stun — the stun is an effect, not a self write, so the wall takes its damage first exactly as the inline code does today.
-- Extend the spec file: a catching frame yields exactly one player hit and one shove; a stalled frame yields the effect list ordered structure-hit, feedback, stun-self.
 
 ### Child 8 — melee family, chassis de-branched
 

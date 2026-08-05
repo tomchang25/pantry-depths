@@ -80,3 +80,12 @@ export function stunEnemy(enemy: Enemy, seconds: number): void {
   enemy.windupSeconds = 0;
   enemy.intent = "none";
 }
+
+/**
+ * Wall clearance for every enemy. One number, so each fits the doorway it must stand in.
+ *
+ * Deliberately not the drawn footprint: a large enemy with a large clearance wedges in corridor
+ * corners, and one that cannot get through a doorway cannot block one either — so the circle that
+ * decides what fits and the circle that decides what is in the way are different circles on purpose.
+ */
+export const ENEMY_RADIUS = 0.3;

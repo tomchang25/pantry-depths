@@ -16,12 +16,6 @@
 
 import { damageWall } from "@/core/damage/structure-damage";
 import {
-  CHARGE_DAMAGE,
-  CHARGE_DISTANCE,
-  CHARGE_KNOCKBACK,
-  CHARGE_SPEED,
-  CHARGE_WALL_DAMAGE,
-  CHARGE_WALL_STUN,
   DISENGAGE_RANGE,
   SIGHT_RANGE,
   attackCooldown,
@@ -32,7 +26,7 @@ import {
   STRIKE_SECONDS,
   type WindupIntent,
 } from "@/core/combat/enemy-contract";
-import { stunEnemy, type Enemy } from "@/core/enemy/enemy-state";
+import { ENEMY_RADIUS, stunEnemy, type Enemy } from "@/core/enemy/enemy-state";
 import { ENEMY_BEHAVIORS } from "@/core/enemy/behaviors/registry";
 import type { EnemyEffect, EnemyView } from "@/core/enemy/behaviors/contract";
 import { hurtPlayer } from "@/core/damage/player-damage";
@@ -44,7 +38,7 @@ import { burst } from "@/core/combat/particles";
 import { FLUNG, slideMove, unstick, WALKING } from "@/core/floor/movement";
 import { nextId } from "@/core/world/ids";
 import { hasLineOfSight } from "@/core/floor/maze";
-import { ENEMY_RADIUS, rollIdleSeconds, type World } from "@/core/world/world";
+import { rollIdleSeconds, type World } from "@/core/world/world";
 
 const REPATH_SECONDS = 0.4;
 const SEPARATION = 0.62;
@@ -294,20 +288,6 @@ function throwSparks(world: World, effect: Extract<EnemyEffect, { kind: "sparks"
 }
 
 /**
- * Sends a charge down the lane it committed to. The locked point sets only the direction; distance
- * stays the charger's own, so a missed charge overruns and ends facing the wrong way.
- */
-function launchCharge(enemy: Enemy): void {
-  const dx = enemy.aimX - enemy.x;
-  const dy = enemy.aimY - enemy.y;
-  const length = Math.max(0.0001, Math.hypot(dx, dy));
-  enemy.chargeX = dx / length;
-  enemy.chargeY = dy / length;
-  enemy.chargeSeconds = CHARGE_DISTANCE / CHARGE_SPEED;
-  enemy.attackCooldown = attackCooldown(enemy.archetype);
-}
-
-/**
  * Sparks drawn in along a sword's edge while it is raised, and thrown off when it goes. Converging
  * particles read as a wind-up in a way that departing ones do not. Rate-gated rather than burst every
  * frame, because at sixty frames a second one enemy would bury the particle field.
@@ -354,84 +334,6 @@ function releaseBlade(world: World, enemy: Enemy): void {
   });
 }
 
-function stokeCharge(world: World, enemy: Enemy, deltaSeconds: number): void {
-  if (enemy.intent !== "charge") {
-    return;
-  }
-
-  const progress = 1 - enemy.windupSeconds / Math.max(0.0001, enemy.windupTotal);
-
-  if (Math.random() > (4 + progress * 26) * deltaSeconds) {
-    return;
-  }
-
-  burst(world.particles, "ember", enemy.x, enemy.y, 0.3, 1 + Math.round(progress * 2), {
-    speed: 0.7 + progress * 1.4,
-    spreadZ: 1.6 + progress * 1.8,
-    gravity: -1.4,
-    drag: 1.6,
-    size: 0.045,
-    life: 0.55,
-  });
-}
-
-/** Runs a charge already in flight. Missing costs the charger the stun that makes it punishable. */
-function stepCharge(world: World, enemy: Enemy, deltaSeconds: number): void {
-  enemy.chargeSeconds -= deltaSeconds;
-  const before = { x: enemy.x, y: enemy.y };
-  const moved = slideMove(
-    world.maze,
-    before,
-    enemy.chargeX * CHARGE_SPEED * deltaSeconds,
-    enemy.chargeY * CHARGE_SPEED * deltaSeconds,
-    ENEMY_RADIUS,
-    FLUNG,
-  );
-  enemy.x = moved.x;
-  enemy.y = moved.y;
-  checkHazards(world, enemy);
-
-  if (Math.hypot(world.player.x - enemy.x, world.player.y - enemy.y) <= 0.95) {
-    hurtPlayer(world, CHARGE_DAMAGE, enemy.x, enemy.y);
-    // The shove is most of what a connected charge costs: it puts the player somewhere unchosen.
-    world.player.pushX += enemy.chargeX * CHARGE_KNOCKBACK;
-    world.player.pushY += enemy.chargeY * CHARGE_KNOCKBACK;
-    enemy.chargeSeconds = 0;
-    enemy.intent = "none";
-    return;
-  }
-
-  const stalled = Math.hypot(enemy.x - before.x, enemy.y - before.y) < CHARGE_SPEED * deltaSeconds * 0.5;
-
-  if (stalled) {
-    // The cell is probed a width along the lane rather than underfoot, because a stall stops just
-    // short of what caused it. The wall is spent before the stun, so a breakthrough ends in the opening.
-    const cell = {
-      x: Math.floor(enemy.x + enemy.chargeX * (ENEMY_RADIUS + 0.3)),
-      y: Math.floor(enemy.y + enemy.chargeY * (ENEMY_RADIUS + 0.3)),
-    };
-    damageWall(world, cell, CHARGE_WALL_DAMAGE);
-    burst(world.particles, "dust", enemy.x, enemy.y, 0.4, 10, {
-      speed: 2.6,
-      spreadZ: 1.6,
-      directionX: enemy.chargeX,
-      directionY: enemy.chargeY,
-      focus: 0.5,
-      gravity: 2.4,
-      drag: 2.2,
-      size: 0.14,
-      life: 0.7,
-    });
-    enemy.chargeSeconds = 0;
-    stunEnemy(enemy, CHARGE_WALL_STUN);
-    return;
-  }
-
-  if (enemy.chargeSeconds <= 0) {
-    enemy.intent = "none";
-  }
-}
-
 /**
  * One pass over every enemy, in two halves the decision freeze cuts between. The head is what
  * happened to the enemy: timers, knockback, settling out of geometry. The tail is what it decided.
@@ -459,7 +361,7 @@ export function stepEnemies(world: World, deltaSeconds: number): void {
     }
 
     if (enemy.chargeSeconds > 0) {
-      stepCharge(world, enemy, deltaSeconds);
+      applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.charge?.liveStep(enemy, viewOf(world), deltaSeconds) ?? []);
       continue;
     }
 
@@ -568,7 +470,6 @@ function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
     applyEnemyEffects(world, enemy, behavior.telegraphStep(enemy, viewOf(world), deltaSeconds));
   }
 
-  stokeCharge(world, enemy, deltaSeconds);
   honeBlade(world, enemy, deltaSeconds);
   // An enemy winding up neither moves nor turns, so the arc drawn on the floor stays a claim about a
   // piece of ground rather than sweeping after whoever it was aimed at.
@@ -587,7 +488,7 @@ function stepWindup(world: World, enemy: Enemy, deltaSeconds: number): void {
   }
 
   if (intent === "charge") {
-    launchCharge(enemy);
+    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.charge?.release(enemy, viewOf(world)) ?? []);
     return;
   }
 
@@ -859,7 +760,7 @@ function beginAttack(world: World, enemy: Enemy): boolean {
   }
 
   if (intent === "charge") {
-    beginWindup(world, enemy, "charge");
+    applyEnemyEffects(world, enemy, ENEMY_BEHAVIORS.charge?.open(enemy, viewOf(world)) ?? []);
     return true;
   }
 

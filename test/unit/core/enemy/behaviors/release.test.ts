@@ -1,8 +1,15 @@
+import { CHARGE_BEHAVIOR } from "@/core/enemy/behaviors/charge";
 import { SHOOT_BEHAVIOR } from "@/core/enemy/behaviors/shoot";
 import type { EnemyAttackSelf, EnemyView } from "@/core/enemy/behaviors/contract";
 import type { EnemyArchetype } from "@/core/combat/enemy-contract";
-import type { Maze } from "@/core/floor/maze";
+import type { Maze, Tile } from "@/core/floor/maze";
 import { describe, expect, it } from "vitest";
+
+/** An open square of floor, which is all a charge needs to travel across. */
+function openMaze(size = 16): Maze {
+  const tiles: Tile[] = Array.from({ length: size * size }, () => ({ kind: "open", hp: 0, maxHp: 0, bodies: 0 }));
+  return { width: size, height: size, tiles } as unknown as Maze;
+}
 
 const SHOT = { speed: 7, damage: 12, range: 9, knockback: 2 };
 
@@ -52,5 +59,30 @@ describe("enemy attack release", () => {
 
   it("sends nothing when the row carries no shot", () => {
     expect(SHOOT_BEHAVIOR.release(selfOf(archetypeOf()), VIEW)).toEqual([]);
+  });
+});
+
+describe("a charge in flight", () => {
+  /** A charger mid-lane, running east across open floor. */
+  function charger(): EnemyAttackSelf {
+    return { ...selfOf(archetypeOf()), x: 4, y: 4, intent: "charge", chargeX: 1, chargeY: 0, chargeSeconds: 1 };
+  }
+
+  it("probes the ground, then hits and shoves the player it caught", () => {
+    const view: EnemyView = { playerX: 4.2, playerY: 4, maze: openMaze() };
+    const effects = CHARGE_BEHAVIOR.liveStep(charger(), view, 0.016);
+
+    expect(effects.map((effect) => effect.kind)).toEqual(["hazardProbe", "playerHit", "playerShove"]);
+  });
+
+  it("spends the wall before the stun that punishes the miss", () => {
+    // Nowhere to travel: the charge covers none of the ground it meant to, which is a stall.
+    const stuck: EnemyView = { playerX: 40, playerY: 40, maze: openMaze() };
+    const self = charger();
+    self.chargeX = 0;
+    self.chargeY = 0;
+    const effects = CHARGE_BEHAVIOR.liveStep(self, stuck, 0.016);
+
+    expect(effects.map((effect) => effect.kind)).toEqual(["hazardProbe", "structureHit", "sparks", "stunSelf"]);
   });
 });

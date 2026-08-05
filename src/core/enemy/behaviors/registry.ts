@@ -9,8 +9,10 @@
 
 import type { WindupIntent } from "@/core/combat/enemy-contract";
 import type { EnemyBehavior } from "@/core/enemy/behaviors/contract";
+import { CHARGE_BEHAVIOR } from "@/core/enemy/behaviors/charge";
 import { SHOOT_BEHAVIOR } from "@/core/enemy/behaviors/shoot";
 
 export const ENEMY_BEHAVIORS: Readonly<Partial<Record<WindupIntent, EnemyBehavior>>> = {
   shoot: SHOOT_BEHAVIOR,
+  charge: CHARGE_BEHAVIOR,
 };
