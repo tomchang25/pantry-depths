@@ -8,16 +8,16 @@ Read `dev/foundation/core/agent_rules/foundation_startup.md`, then `dev/foundati
 
 This file describes how to operate the repository. It deliberately says nothing about what the game is or should be: the code under `src/` is the only authority on that, and a description kept here would drift out of date and then be believed.
 
-| Fact           | Value                                                                    |
-| -------------- | ------------------------------------------------------------------------ |
-| Effective root | Repository root; the foundation is at `dev/foundation/`                  |
-| Platform       | `web-react`, with a declared no-React deviation (see structure addendum) |
-| Profiles       | None                                                                     |
-| Language       | TypeScript, no UI framework                                              |
-| Toolchain      | Vite, Vitest, Prettier, oxlint, dependency-cruiser                       |
-| Dev server     | `http://localhost:5273` (`strictPort`)                                   |
-| Branch-merge gate | `npm run verify`                                                      |
-| Path alias     | `@/*` → `src/*`, required for every cross-layer import                   |
+| Fact              | Value                                                                    |
+| ----------------- | ------------------------------------------------------------------------ |
+| Effective root    | Repository root; the foundation is at `dev/foundation/`                  |
+| Platform          | `web-react`, with a declared no-React deviation (see structure addendum) |
+| Profiles          | None                                                                     |
+| Language          | TypeScript, no UI framework                                              |
+| Toolchain         | Vite, Vitest, Prettier, oxlint, dependency-cruiser                       |
+| Dev server        | `http://localhost:5273` (`strictPort`)                                   |
+| Branch-merge gate | `npm run verify`                                                         |
+| Path alias        | `@/*` → `src/*`, required for every cross-layer import                   |
 
 `dev/docs/design/` and `dev/docs/reports/` are frozen; see `dev/standards/frozen_reference_directories.md`. Delivery scope lives in `dev/docs/plans/` and `TODO.md`.
 

@@ -72,6 +72,7 @@ Check both preconditions before the first child, and report which one failed rat
 
 1. The plan declares `Goal-Executable: yes` and satisfies the three conditions in `dev/standards/work_lifecycle.addendum.md`.
 2. The user has authorized continuous execution of that plan's children, in as many words, per the standing authorization above.
+
 Then, for each unshipped child in the plan's landing order:
 
 1. Run the complete `/implement` Phase 2 for that child — implementation modeling, the spec, and lifecycle tracking. Both stops are skipped.
