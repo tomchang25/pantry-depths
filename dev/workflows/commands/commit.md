@@ -14,7 +14,7 @@ The one amend it carries is the narrow message correction defined under Amending
 2. Re-read `dev/foundation/core/workflows/commands/commit-msg.md` and the standards it references.
 3. Inspect state read-only: `git status`, `git diff --cached`, `git diff`. If staged and unstaged changes disagree about what the commit should contain, say so and ask instead of guessing.
 4. If the changes bundle unrelated work, propose a split before committing anything.
-5. Choose verification per `dev/agent_rules/test_operations.md` — `npm run verify` before delivering a change, plus `npm run check:governance` when a governance, startup, or planning document changed — and report what ran.
+5. Do not run verification merely because `/commit` was invoked. Follow `dev/agent_rules/test_operations.md`: `npm run verify` is reserved for immediately before a branch merge, and any earlier narrow check needs an explicit user request or an approved spec that names it.
 6. Compose the message, then self-check every line against the Subject, Body, and Limits rules before running the commit.
 7. Write the message to a scratch file outside the repository and commit with `git commit -F <path>`, per Delivering The Message. Never pass it with `-m` and never assemble it in a shell — the message goes through no quoting on the way to Git.
 8. Read the subject back with `git log -1 --pretty=format:'%s'` and confirm it is the single line intended. Printing `git log -1` is not this check; the check is looking at what came back. Then report `git log -1` and `git status`.

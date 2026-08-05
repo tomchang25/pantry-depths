@@ -16,7 +16,7 @@ This file describes how to operate the repository. It deliberately says nothing 
 | Language       | TypeScript, no UI framework                                              |
 | Toolchain      | Vite, Vitest, Prettier, oxlint, dependency-cruiser                       |
 | Dev server     | `http://localhost:5273` (`strictPort`)                                   |
-| Aggregate gate | `npm run verify`                                                         |
+| Branch-merge gate | `npm run verify`                                                      |
 | Path alias     | `@/*` → `src/*`, required for every cross-layer import                   |
 
 `dev/docs/design/` and `dev/docs/reports/` are frozen; see `dev/standards/frozen_reference_directories.md`. Delivery scope lives in `dev/docs/plans/` and `TODO.md`.

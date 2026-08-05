@@ -1,14 +1,18 @@
 # Test Operations
 
-This file is the authoritative project-local test and validation contract for Pantry Depths. Every agent-run static check, unit test, build, browser check, or delivery gate follows this file.
+This file is the authoritative project-local test and validation contract for Pantry Depths. Every agent-run static check, unit test, build, browser check, or branch-merge gate follows this file.
 
-## The Gate
+## When Verification Runs
 
-`npm run verify` before delivering a change. That is the whole gate.
+This project supersedes the foundation's finish-verification default. Routine edits, implementation, staging, commits, closeout, and delivery do not trigger a test, build, or validation command.
 
-It runs, in order and stopping on first failure: `format:check` → `typecheck` → `lint` → `check:boundaries` → `test` → `build`. Pass criterion is exit code 0 with no stage skipped. Never pipe a stage through a filter that replaces its exit status — a layer's result is the exit code of its command, never a filtered view of its output.
+- Run `npm run verify` immediately before performing a branch merge. That is the only automatic aggregate gate.
+- Outside a branch merge, run a validation layer only when the user explicitly requests it or the current approved implementation spec names it. Choose the narrowest relevant layer; do not substitute the aggregate gate.
+- If neither trigger exists, run no validation command and report none.
 
-Run `npm run check:governance` as well whenever a governance, startup, or planning document changes. It is outside `verify` and passes when it prints both `governance: OK` and `foundation: OK`.
+`npm run verify` runs, in order and stopping on first failure: `format:check` → `typecheck` → `lint` → `check:boundaries` → `test` → `build`. Pass criterion is exit code 0 with no stage skipped. Never pipe a stage through a filter that replaces its exit status — a layer's result is the exit code of its command, never a filtered view of its output.
+
+When the branch being merged changes a governance, startup, or planning document, also run `npm run check:governance` immediately before the merge. It is outside `verify` and passes when it prints both `governance: OK` and `foundation: OK`. Editing or committing one of those documents does not run it earlier unless explicitly requested.
 
 ## Two Tracks, Two Disciplines
 
@@ -70,7 +74,7 @@ Deleting a test alongside the code it covered is a normal part of a change, not 
 
 ## Individual Layers
 
-Use these when iterating; `verify` is what proves the change is deliverable.
+These layers are available when an explicit trigger above exists. The aggregate command is reserved for the branch-merge gate.
 
 | Layer            | Command                    | Notes                                                                             |
 | ---------------- | -------------------------- | --------------------------------------------------------------------------------- |

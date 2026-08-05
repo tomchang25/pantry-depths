@@ -27,6 +27,6 @@ The track is chosen per piece of work, at the moment the work is scoped. It is n
 
 ## What The Track Never Relaxes
 
-- **`npm run verify` gates delivery.** Sandbox code sits in `src/`, so format, typecheck, lint, boundary check, and build apply at full strength; they are cheap and they are the reason a sandbox experiment stays open-able next week.
+- **The branch-merge gate still applies.** Sandbox work does not run `npm run verify` for ordinary edits or delivery, but it does not bypass the aggregate gate immediately before its branch is merged.
 - **Production exclusion.** A sandbox experiment is development-only, entered through the `/debug` hub, and never reachable from the production module graph.
 - **The `/goal` stop guards.** Continuous execution comes by default on this track, but every stop condition in `dev/agent_rules/implement_operations.md` applies unchanged. Speed is bought with disposability, never with silence about a decision the user owns.

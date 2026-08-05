@@ -10,7 +10,7 @@ This project inherits the shared default without override: agents treat Git as r
 
 Re-read this section immediately before composing each commit message. A read earlier in the same session does not satisfy this step.
 
-Follow `dev/foundation/core/workflows/commands/commit-msg.md` and the standards it references for format and content.
+Follow `dev/foundation/core/workflows/commands/commit-msg.md` and the standards it references for format and content when composing a commit message. A Git-generated merge commit message may remain as generated.
 
 A commit message is a changelog entry: it records what changed in the game or its tooling, in words a reader who has not seen the plan can follow. Every rule below is a consequence of that sentence.
 
@@ -27,7 +27,6 @@ A commit message is a changelog entry: it records what changed in the game or it
 - No reasoning, no prior behaviour, no trailing full stops. Reasoning, alternatives, and verification narrative belong in the plan, spec, or change report.
 - Self-check each line as someone who has not read the plan: if they must learn the feature's vocabulary before they can tell what kind of thing changed, rewrite it with neutral nouns.
 - Register governs every word of the message, subject noun phrases included. The game's fiction vocabulary — body, mind, owes, pays, goes under, and the like — names the mechanism instead: enemy, AI state, drowning.
-- The hook rejects a denylist of those words. A rejection is rewritten, never bypassed; a word that keeps blocking legitimate technical phrasing is removed from the list instead.
 
 ### Limits
 
@@ -41,25 +40,6 @@ Write the message to a scratch file outside the repository and commit with `git 
 The reason is that this environment offers two shells whose multi-line string syntax is incompatible — PowerShell here-strings and POSIX heredocs — and picking the wrong one does not fail. On 2026-08-04 a here-string was handed to the Bash tool, which read its `@` delimiters as ordinary text: the commit succeeded, the subject became a single `@`, and the real subject landed on line two where `git log --oneline` does not show it. A message delivered as a file passes through no quoting at all, so the question of which syntax applies never comes up.
 
 The scratch file is not a project artifact. Do not write it inside the working tree and do not stage it.
-
-## Message Structure Is Machine-Checked
-
-`dev/tools/githooks/commit-msg` rejects a commit whose message is structurally broken. It exists because the failure above is silent: a mangled message is still a valid commit, and `git commit` reports success. It rejects
-
-- an empty subject, or a subject that is only shell quoting debris;
-- a second line that is not blank, which is how a displaced subject announces itself;
-- a subject that is not in conventional commit form;
-- an authorship or generator trailer, which the Limits section bans and an agent's own defaults supply anyway;
-- a subject of 40 words or more, or a message of 400 or more;
-- any word on the fiction-vocabulary denylist the hook carries, matched case-insensitively at word boundaries across the whole message.
-
-The denylist is the only register rule the hook enforces, and it enforces it because a word list is a match rather than a judgement. Everything else about register — whether a bullet is a changelog entry or a piece of narration — is a judgement no hook can make, and the sections above remain the contract for it. Passing the hook is not evidence that a message is acceptable.
-
-The list lives in the hook rather than here, so the rule and its enforcement cannot drift apart. It starts conservative and changes on evidence: a rejection is answered by rewording, and an entry that keeps blocking legitimate technical phrasing is deleted from the list.
-
-Git locates the hook through per-clone configuration, so a fresh clone installs it once with `git config core.hooksPath dev/tools/githooks`.
-
-Never commit with `--no-verify`. A message the hook rejects is a message to rewrite; an agent that cannot make one pass reports the rejection rather than bypassing it.
 
 ## Amending
 
