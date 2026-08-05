@@ -41,7 +41,8 @@ import { burst } from "@/core/combat/particles";
 
 import { FLUNG, slideMove, unstick, WALKING } from "@/core/floor/movement";
 import { nextId } from "@/core/world/ids";
-import { ENEMY_RADIUS, hasLineOfSight, rollIdleSeconds, type World } from "@/core/world/world";
+import { hasLineOfSight } from "@/core/floor/maze";
+import { ENEMY_RADIUS, rollIdleSeconds, type World } from "@/core/world/world";
 
 const REPATH_SECONDS = 0.4;
 const SEPARATION = 0.62;

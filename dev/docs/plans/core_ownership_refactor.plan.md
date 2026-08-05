@@ -71,7 +71,6 @@ After this plan, reviewing a change to a hotspot decision means reading the slic
 
 | Child | Focus                                                                    | Form                       |
 | ----- | ------------------------------------------------------------------------ | -------------------------- |
-| 4     | Projectile, hazard, and emplacement modules extracted from the tick      | This plan, Execution below |
 | 5     | Player verbs dissolved: throw, shoot, carry, input entries, stats        | This plan, Execution below |
 | 6     | Enemy contract, registry, shoot family, second spec file                 | This plan, Execution below |
 | 7     | Charge family                                                            | This plan, Execution below |
@@ -107,16 +106,6 @@ Landing order: 1 through 10. Every child ends with the narrow checks its spec na
 Perishable coordinates, recorded 2026-08-04 at commit 0d21f83 on branch `core-ownership-refactor`. Re-check against live code before executing each child; conflicts resolve in favor of the conceptual half. Each child ends with the narrow checks its spec names — `npm run typecheck`, `npm run lint`, `npm run check:boundaries`, `npm run check:ownership` from child 1 onward, and `npm run test` — followed by one commit on the branch following the commit rules. Formatting is kept clean by running the formatter's write mode over the files a child touched, which is a fix rather than a gate. `npm run verify` and `npm run check:governance` run once in child 10, before the branch merge.
 
 Raw-state census baseline (occurrences of the `World` token per module, `rg -c '\bWorld\b' src`): world.ts 20, simulation.ts 25, actions.ts 26, enemy-ai.ts 21, impacts.ts 15, death.ts 5, extraction.ts 6, tasks.ts 5, floor/rooms.ts 4, plus permanent holders outside core (runtime/surface.ts 10, runtime/scene-hooks.ts 5, runtime/dev-overlay.ts 1, app and presentation modules per the current count of 209 across 25 files). The checker records two numbers per file from the live tree: parameter-position uses (`world: World`) and direct mutations in the forms Requirement 2 lists, on paths rooted at the state parameter; child 1 writes the baseline table.
-
-### Child 4 — projectile, hazard, emplacement modules
-
-Mechanical extraction from `simulation.ts` and `world.ts`; call order inside the tick unchanged. These modules stay allowlisted whole-state executors per Non-Goal 3.
-
-- New `src/core/projectile/flight.ts`: move `flightHeight`, `flightDepth`, `projectileHeight`, `projectileGrounded`, `hazardHeight` (world.ts:812–842); `world.ts` re-exports (presentation reads these).
-- New `src/core/projectile/step-projectiles.ts`: move `stepProjectiles` (simulation.ts:497) with its family — `landThrownEnemy` 203, `strikeWithProp` 232, `resolveLanding` 270, `finishProjectile` 316, `skewerWithJavelin` 340, `cleaveThrough` 378, `pinToWall` 413, `bargeThrough` 424, `hitsSomeone` 448, `stoppedInFlight` 466, `spendsWall` 492, `recordTrail` 649, and the wall-stop cue table 304.
-- New `src/core/projectile/spawn.ts`: move `spawnProjectile` (actions.ts:471) and `throwRange` (actions.ts:70).
-- New `src/core/hazard/step-hazards.ts`: move `stepHazards` (simulation.ts:590); new `src/core/hazard/mortars.ts`: move `stepMortars`, `fireShell`, `pickMortarTarget`, `shellArc` and shell constants (simulation.ts:673–793).
-- Move `hasLineOfSight` (world.ts:848) into `src/core/floor/maze.ts` beside its predicate; `world.ts` re-exports.
 
 ### Child 5 — player verbs dissolved
 

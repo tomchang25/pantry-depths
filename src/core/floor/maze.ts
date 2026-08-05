@@ -1141,3 +1141,24 @@ export function breadthFirstStep(maze: Maze, from: Cell, to: Cell): Cell | undef
 
   return cellFromIndex(maze, cursor);
 }
+
+/**
+ * Whether an attack can be made along this line. Asks the projectile question rather than the vision
+ * one, so a shooter behind a barricade holds fire and walks until it has an angle.
+ */
+export function hasLineOfSight(maze: Maze, fromX: number, fromY: number, toX: number, toY: number): boolean {
+  const distance = Math.hypot(toX - fromX, toY - fromY);
+  const steps = Math.ceil(distance * 8);
+
+  for (let step = 1; step <= steps; step += 1) {
+    const t = step / steps;
+    const x = fromX + (toX - fromX) * t;
+    const y = fromY + (toY - fromY) * t;
+
+    if (blocksProjectile(maze, Math.floor(x), Math.floor(y))) {
+      return false;
+    }
+  }
+
+  return true;
+}

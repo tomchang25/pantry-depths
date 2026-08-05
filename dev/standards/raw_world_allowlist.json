@@ -59,6 +59,14 @@
     "params": 3,
     "mutations": 3
   },
+  "src/core/hazard/mortars.ts": {
+    "params": 3,
+    "mutations": 2
+  },
+  "src/core/hazard/step-hazards.ts": {
+    "params": 1,
+    "mutations": 4
+  },
   "src/core/player/melee/execute-melee.ts": {
     "params": 5,
     "mutations": 4
@@ -67,13 +75,17 @@
     "params": 7,
     "mutations": 0
   },
+  "src/core/projectile/step-projectiles.ts": {
+    "params": 12,
+    "mutations": 4
+  },
   "src/core/world/extraction.ts": {
     "params": 5,
     "mutations": 3
   },
   "src/core/world/simulation.ts": {
-    "params": 24,
-    "mutations": 42
+    "params": 8,
+    "mutations": 32
   },
   "src/core/world/tasks.ts": {
     "params": 4,

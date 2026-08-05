@@ -14,7 +14,6 @@ import { attackCooldown, type EnemyArchetype } from "@/core/combat/enemy-contrac
 import type { MapCastKind } from "@/core/floor/room-contract";
 import { announce, raiseSfx, type DamageMark, type SfxEvent, type Vfx } from "@/core/feedback/run-feedback";
 import {
-  blocksProjectile,
   blocksWalk,
   buildFloor,
   gridArea,
@@ -673,58 +672,4 @@ export function dropProp(world: World, kind: PropKind, x: number, y: number, cou
   }
 
   world.props.push({ id: nextId(world, "prop"), kind, count, x: placedX, y: placedY });
-}
-
-/** The one flight curve, shared by everything airborne. `fall` returns it to the floor at the range's end. */
-export function flightHeight(travelled: number, range: number, arc: number, fall: number, plunge: number): number {
-  return Math.max(0, flightDepth(travelled, range, arc, fall, plunge));
-}
-
-/**
- * The same curve unclamped, which is the only way to notice a throw aimed into the ground:
- * `flightHeight` clamps at zero, so a downward throw would flatten and carry on with no landing.
- */
-export function flightDepth(travelled: number, range: number, arc: number, fall: number, plunge: number): number {
-  const s = Math.min(1, Math.max(0, travelled / Math.max(0.0001, range)));
-  return 0.5 + arc * s - fall * s ** (2 * plunge);
-}
-
-/**
- * Height of a projectile above the floor, in cells; collision reads it. Every throw leaves the hand
- * along the aim line. `plunge` bends the curve without moving either end, because the flown fraction
- * is one at the landing point: below one it descends for most of the flight, above one it drops late.
- */
-export function projectileHeight(projectile: Projectile): number {
-  return flightHeight(projectile.travelled, projectile.range, projectile.arc, projectile.fall, projectile.plunge);
-}
-
-/** Whether this throw has reached the floor. Only a weapon that stops where it lands asks. */
-export function projectileGrounded(projectile: Projectile): boolean {
-  return flightDepth(projectile.travelled, projectile.range, projectile.arc, projectile.fall, projectile.plunge) <= 0;
-}
-
-/** Height of a shell above the floor. A bolt's curve is flat, so this answers its fixed carry height. */
-export function hazardHeight(hazard: Hazard): number {
-  return flightHeight(hazard.travelled, hazard.range, hazard.arc, hazard.fall, hazard.plunge);
-}
-
-/**
- * Whether an attack can be made along this line. Asks the projectile question rather than the vision
- * one, so a shooter behind a barricade holds fire and walks until it has an angle.
- */
-export function hasLineOfSight(maze: Maze, fromX: number, fromY: number, toX: number, toY: number): boolean {
-  const distance = Math.hypot(toX - fromX, toY - fromY);
-  const steps = Math.ceil(distance * 8);
-
-  for (let step = 1; step <= steps; step += 1) {
-    const t = step / steps;
-    const x = fromX + (toX - fromX) * t;
-    const y = fromY + (toY - fromY) * t;
-
-    if (blocksProjectile(maze, Math.floor(x), Math.floor(y))) {
-      return false;
-    }
-  }
-
-  return true;
 }

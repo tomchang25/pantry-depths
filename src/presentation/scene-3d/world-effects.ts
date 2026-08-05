@@ -27,7 +27,8 @@ import { attackReach, MELEE_CUT_HALF_ANGLE } from "@/core/combat/enemy-contract"
 import { extractionShare } from "@/core/world/extraction";
 import { blocksProjectile } from "@/core/floor/maze";
 import type { PropKind } from "@/core/prop-kinds";
-import { projectileHeight, type Enemy, type World } from "@/core/world/world";
+import { projectileHeight } from "@/core/projectile/flight";
+import type { Enemy, World } from "@/core/world/world";
 
 import { WALL_HEIGHT } from "./floor-meshes";
 import { SceneLighting } from "./scene-lighting";
