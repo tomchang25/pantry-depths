@@ -25,7 +25,7 @@
    - `src/content/sfx/sfx-cue-schema.ts` 的 `SFX_CUE_IDS` 加 id
    - `src/content/sfx/sfx-cues.json` 加一列（`volumeDb`、限流、pitch 抖動）
    - `src/content/sfx/sfx-cue-definitions.ts` 加 import 與 `SAMPLE_URLS` 對映
-5. **驗證**:`npm run verify`（先讀 `dev/agent_rules/test_operations.md`）。聲音對不對只能靠玩。
+5. **驗證**：一般 edit 與 commit 不自動跑驗證；只有 branch merge 前依 `dev/agent_rules/test_operations.md` 跑 `npm run verify`。若使用者或 approved spec 明確要求較早檢查，才跑指定的窄層；聲音對不對只能靠玩。
 6. **提醒使用者重啟 dev server**。`vite.config.ts` 刻意不 watch canonical authored 檔（`sfx-cues.json` 在白名單裡），workbench 經 authoring endpoint 存檔會自行 invalidate，但直接改檔繞過了它——開著的 dev server 會繼續供應快取的舊表，配上已更新的 schema，載入驗證器就會以 `must name a cue` 大聲失敗。這是驗證器盡責，不是壞掉；重啟即恢復一致。
 
 ## 授權原則

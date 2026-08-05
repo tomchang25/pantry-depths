@@ -41,10 +41,10 @@ frozen source documents (never walked back up)
 -> active plan or standalone sketch
 -> focused implementation spec
 -> implementation
--> verification
 -> closeout
+-> branch-merge verification
 ```
 
 `TODO.md` is the forward-work authority and owns anything no plan does.
 
-Child sketches remain optional and are opened only when an implementation boundary needs exploration. Every child still requires an implementation spec before source mutation and verification against `dev/agent_rules/test_operations.md` before it is called delivered. The approved minimal slime and gameplay sprite manifest is part of the Presentation Port rather than a separate delivery stream.
+Child sketches remain optional and are opened only when an implementation boundary needs exploration. Every child still requires an implementation spec before source mutation, but ordinary implementation and delivery do not trigger repository-wide verification. Narrow evidence runs only when the user or approved spec names it, and `npm run verify` runs once immediately before the branch merge. The approved minimal slime and gameplay sprite manifest is part of the Presentation Port rather than a separate delivery stream.

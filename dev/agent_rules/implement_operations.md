@@ -24,7 +24,7 @@ For sandbox work the spec is a short architectural note: what is being built, wh
 1. Name the owning modules and the direction of the change. Do not enumerate every file, signature, or call site — those are discovered during implementation.
 2. State the load-bearing decisions and the ones deliberately left open. Detail that cannot change the agreed shape does not belong in the note.
 3. Lifecycle tracking is one pointer or none.
-4. Verification is `dev/agent_rules/test_operations.md`, which for this track means `npm run verify` and opening the experiment's debug tool. Sandbox coverage stays inside the budget that file states.
+4. Verification is `dev/agent_rules/test_operations.md`. Sandbox edits and delivery do not trigger `npm run verify`; a narrow check or opening the experiment's debug tool runs only when the user requests it or the approved spec names it. Sandbox coverage stays inside the budget that file states.
 
 ## Explicit Second-Confirmation Bypass
 
@@ -35,7 +35,7 @@ This rule supersedes only the foundation statements that the Phase 2 implementat
 1. Phase 1 target confirmation remains mandatory. Never infer it from the original `/implement` invocation, and never bypass it.
 2. In the reply that confirms the Phase 1 target, the user may also explicitly instruct the agent to skip the second confirmation and implement immediately after the spec is complete. The request must clearly name that intent; a generic `confirm`, `continue`, or `go ahead` authorizes Phase 2 only.
 3. The bypass applies only to the current confirmed target and the current `/implement` flow. It is not a standing preference and does not carry to another target or a later invocation.
-4. Phase 2 still performs the complete implementation-modeling pass, writes or updates the English implementation spec, updates lifecycle tracking, runs the required documentation checks, and prepares the user-language preview. The agent may present that preview as a progress update and continue into implementation without waiting for another reply.
+4. Phase 2 still performs the complete implementation-modeling pass, writes or updates the English implementation spec, updates lifecycle tracking, and prepares the user-language preview. The agent may present that preview as a progress update and continue into implementation without waiting for another reply.
 5. Direct continuation is allowed only while the spec's Goal, Summary, scope, compatibility promises, and observable result faithfully remain within the Phase 1 confirmation. If modeling exposes an unresolved user-authority decision, contradicts locked behavior, expands the confirmed scope, or makes the target no longer tightly bounded, stop and ask for confirmation instead.
 6. The bypass does not waive a renewed confirmation required by a material implementation-time deviation, nor any destructive-action approval, external authorization, human asset approval, or verification obligation.
 
@@ -49,7 +49,7 @@ This rule supersedes only the two statements above that Phase 1 target confirmat
 
 1. The plan carries an `Execution` half per `dev/standards/work_lifecycle.addendum.md`, and that half has a subsection answering this child's implementation shape.
 2. The user has approved the plan and, in as many words, authorized continuous execution of its children. A generic `go`, `continue`, or `LGTM` on one child authorizes nothing beyond that child.
-3. Both stops are then skipped for every child the authorization named. Phase 2 still performs the complete implementation-modeling pass, writes its spec, updates lifecycle tracking, and runs the required documentation checks; Phase 4 begins immediately afterwards.
+3. Both stops are then skipped for every child the authorization named. Phase 2 still performs the complete implementation-modeling pass, writes its spec, and updates lifecycle tracking; Phase 4 begins immediately afterwards.
 4. The authorization is spent when the named children ship, when the plan's Requirements change, or when any guard below fires. It never becomes a standing preference for the repository.
 
 Every guard on the bypass above continues to apply unchanged, and clause 5 there is what keeps this honest: stop and ask when modeling exposes an unresolved user-authority decision, contradicts locked behavior, expands the approved scope, or requires a destructive action, an external authorization, or a human asset approval. **An authorization to work through a plan is never an authorization to decide something the plan left open.**
@@ -68,16 +68,14 @@ Everything else stands unchanged. The plan still carries its `Execution` half an
 
 `/goal` is the project-local loop over the standing authorization above. It relaxes nothing. It names an owner for the one thing that authorization left unowned: carrying execution from one child to the next. The authorization removes both stops, but `/implement` still ends when its child ends, so a plan of four children took four invocations and put the user back in the loop three times without asking them anything.
 
-Check all three preconditions before the first child, and report which one failed rather than proceeding on two of three:
+Check both preconditions before the first child, and report which one failed rather than proceeding on one of two:
 
 1. The plan declares `Goal-Executable: yes` and satisfies the three conditions in `dev/standards/work_lifecycle.addendum.md`.
 2. The user has authorized continuous execution of that plan's children, in as many words, per the standing authorization above.
-3. The verification gate passes before the first child, so any failure during the run is attributable to the run.
-
 Then, for each unshipped child in the plan's landing order:
 
-1. Run the complete `/implement` Phase 2 for that child — implementation modeling, the spec, lifecycle tracking, the documentation checks. Both stops are skipped.
-2. Implement it, then run the verification its spec names. The gate runs at least once per child and never only once for the whole plan; a plan verified only at the end cannot say which child broke it.
+1. Run the complete `/implement` Phase 2 for that child — implementation modeling, the spec, and lifecycle tracking. Both stops are skipped.
+2. Implement it, then run only the narrow verification that its approved spec explicitly names. `npm run verify` is not a per-child gate and remains reserved for the branch merge.
 3. Close the child out: record the outcome, cut its overview row and its `Execution` subsection, archive its spec.
 4. Report the child in one short paragraph and continue to the next without waiting for a reply.
 

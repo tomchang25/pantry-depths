@@ -13,7 +13,7 @@ Before answering any repository-specific question or doing any work, follow the 
 
 ## Required contracts
 
-- Read `dev/agent_rules/test_operations.md` before any test, build, validation, or delivery operation.
+- Read `dev/agent_rules/test_operations.md` before any test, build, validation, or branch merge operation. Routine edits, commits, and delivery do not require validation.
 - Read `dev/agent_rules/git_operations.md` before any Git mutation. Do not commit, push, rewrite history, or change remote configuration unless the user requests it.
 
 ## Register
@@ -22,4 +22,4 @@ Code comments and commit messages use plain technical register: state the constr
 
 ## Tests are gated, never a reflex
 
-Read `dev/agent_rules/test_operations.md` before any test, build, validation, or delivery operation. The short version: new unit tests exist only when an implementation spec named them beforehand, browser tests are proposed after delivery rather than written during it, the sandbox track's budget is machine-enforced, and the game's feel — presentation, input, animation — is still judged by a person playing it, because a test can only assert what the code does, never what it should feel like.
+Read `dev/agent_rules/test_operations.md` before any test, build, validation, or branch merge operation. The short version: `npm run verify` runs only immediately before a branch merge; routine edits, commits, and delivery do not trigger it. New unit tests exist only when an implementation spec named them beforehand, browser tests are proposed after delivery rather than written during it, the sandbox track's budget is machine-enforced, and the game's feel — presentation, input, animation — is still judged by a person playing it, because a test can only assert what the code does, never what it should feel like.
