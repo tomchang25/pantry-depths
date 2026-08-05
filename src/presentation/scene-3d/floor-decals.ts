@@ -18,7 +18,7 @@
 
 import { attackReach, CHARGE_DISTANCE, MELEE_CUT_HALF_ANGLE } from "@/core/combat/enemy-contract";
 import { blocksFlung } from "@/core/floor/maze";
-import { MORTAR_LOCK_SECONDS, SHELL_BLAST_RADIUS, type World } from "@/core/world/world";
+import { MORTAR_LOCK_SECONDS, SHELL_BLAST_RADIUS, type World } from "@/core/world";
 
 import { SCENE_DECAL_LANE, SCENE_DECAL_RADIAL, SCENE_DECAL_SECTOR, type SceneDecal } from "./scene-lighting";
 

@@ -16,7 +16,7 @@
 
 import * as THREE from "three";
 
-import type { World } from "@/core/world/world";
+import type { World } from "@/core/world";
 
 import { createFinishingPass, type FinishingPass } from "./finishing-pass";
 import { collectFloorDecals } from "./floor-decals";

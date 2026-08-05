@@ -14,11 +14,12 @@
  * interrupted can be finished — so the hold is broken by stepping off the pad and by nothing else.
  */
 
+import { endRun } from "@/core/world/run-transition";
 import { padRoomAt } from "@/core/floor/maze";
 
 import { bankReward, resolveReward, type ResolvedReward } from "@/core/progression/sealed";
 import { announce, raiseSfx } from "@/core/feedback/run-feedback";
-import { endRun, type World } from "@/core/world/world";
+import { type World } from "@/core/world/world";
 
 /** Unbroken seconds on the pad that end the run. The same five the blessing altar asks for. */
 export const EXTRACTION_HOLD_SECONDS = 5;

@@ -9,6 +9,7 @@
  * flight path a snapshot-and-effect contract is future work the plan deliberately excludes.
  */
 
+import { dropProp } from "@/core/world/props";
 import type { SfxCueId } from "@/core/sfx-cues";
 import { isBoned } from "@/core/combat/enemy-contract";
 import { damageEnemy, killEnemy } from "@/core/damage/enemy-damage";
@@ -27,7 +28,7 @@ import {
   type PropFlightHit,
   type PropLanding,
 } from "@/core/prop-contract";
-import { bodyFootprint, dropProp, type Projectile, type World } from "@/core/world/world";
+import { bodyFootprint, type Projectile, type World } from "@/core/world/world";
 import type { Cell } from "@/core/grid";
 
 /** A thrown object's own reach. The target's footprint is added, so size decides how easy it is to hit. */

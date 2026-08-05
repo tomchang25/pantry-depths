@@ -30,7 +30,7 @@ import { parseMapSource, type MapSource } from "@/content/maps/map-schema";
 import { MAP_SLOTS, type MapSlot } from "@/core/floor/map-contract";
 import { ROOM_LIBRARY } from "@/content/rooms/room-library";
 import { GAME_CATALOG } from "@/content/catalog";
-import { createWorld, type World } from "@/core/world/world";
+import { createWorld, type World } from "@/core/world";
 
 /** What a slot with nothing in it is worth in a select, which cannot hold an absence. */
 const NO_ROOM = "";

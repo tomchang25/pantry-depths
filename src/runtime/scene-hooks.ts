@@ -14,7 +14,7 @@
  * game, and it is why adding a scene cannot change how the game plays.
  */
 
-import type { World } from "@/core/world/world";
+import type { World } from "@/core/world";
 
 /**
  * A button on the instrument panel, run once.

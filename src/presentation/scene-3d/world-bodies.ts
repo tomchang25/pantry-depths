@@ -25,7 +25,7 @@ import { attackCooldown, isBoned, STRIKE_SECONDS, type EnemyAppearanceId } from 
 import { DROWN_SECONDS } from "@/core/damage/area";
 import { isTrenchCell } from "@/core/floor/maze";
 import { projectileHeight } from "@/core/projectile/flight";
-import { bodyFootprint, type Death, type Enemy, type World } from "@/core/world/world";
+import { bodyFootprint, type Death, type Enemy, type World } from "@/core/world";
 
 import type { SceneLighting } from "./scene-lighting";
 import { createSceneSprites, WARN_BLADE_STEPS, type SceneSpriteId } from "./scene-sprites";

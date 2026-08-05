@@ -7,12 +7,12 @@
 
 import type { EnemyAppearanceId } from "@/core/combat/enemy-contract";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/combat/melee-contract";
-import { blessMaxHpGain, createBlessState, grantBless, type BlessState } from "@/core/progression/bless";
+import { createBlessState, type BlessState } from "@/core/progression/bless";
 import { coreBonus, type SealedReward } from "@/core/progression/sealed";
 import type { GameCatalog } from "@/core/catalog";
 import { attackCooldown, type EnemyArchetype } from "@/core/combat/enemy-contract";
 import type { MapCastKind } from "@/core/floor/room-contract";
-import { announce, raiseSfx, type DamageMark, type SfxEvent, type Vfx } from "@/core/feedback/run-feedback";
+import { announce, type DamageMark, type SfxEvent, type Vfx } from "@/core/feedback/run-feedback";
 import {
   blocksWalk,
   buildFloor,
@@ -619,55 +619,4 @@ export function spawnReinforcement(world: World): boolean {
 
   world.enemies.push(createEnemy(world, cell.x + 0.5, cell.y + 0.5));
   return true;
-}
-
-export function awardBless(world: World): void {
-  const granted = grantBless(world.catalog, world.bless);
-  const healthGain = blessMaxHpGain(world.catalog, granted);
-
-  world.player.maxHp += healthGain;
-  world.player.hp = Math.min(world.player.maxHp, world.player.hp + healthGain);
-  world.pendingCard = granted.id;
-  raiseSfx(world, "rewardGain");
-  announce(world, `Blessing gained: ${granted.name}`, 3);
-}
-
-/** Ends the run. One door out of `playing`, so the clock and any pad cannot be released by only one exit. */
-export function endRun(world: World, status: "dead" | "extracted"): void {
-  if (status === "dead") {
-    raiseSfx(world, "playerDeath");
-  }
-
-  world.status = status;
-  world.finishedSeconds = world.elapsedSeconds;
-  world.soakSeconds = 0;
-}
-
-/** How long the run has been going, which stops counting when the run does. */
-export function runClockSeconds(world: World): number {
-  return world.finishedSeconds ?? world.elapsedSeconds;
-}
-
-/**
- * Puts one loose prop on the floor, at the point asked for or the nearest side that is not masonry.
- * A throw ends inside the cell it struck, so a surviving prop is nudged back out to stay retrievable.
- */
-export function dropProp(world: World, kind: PropKind, x: number, y: number, count = 1): void {
-  let placedX = x;
-  let placedY = y;
-
-  if (blocksWalk(world.maze, Math.floor(x), Math.floor(y))) {
-    for (const offset of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
-      const candidateX = x + Math.cos(offset) * 0.55;
-      const candidateY = y + Math.sin(offset) * 0.55;
-
-      if (!blocksWalk(world.maze, Math.floor(candidateX), Math.floor(candidateY))) {
-        placedX = candidateX;
-        placedY = candidateY;
-        break;
-      }
-    }
-  }
-
-  world.props.push({ id: nextId(world, "prop"), kind, count, x: placedX, y: placedY });
 }

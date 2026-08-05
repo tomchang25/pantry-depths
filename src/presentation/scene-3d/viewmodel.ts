@@ -35,7 +35,7 @@ import {
 } from "@/content/viewmodel/melee-viewmodel";
 import type { EnemyAppearanceId } from "@/core/combat/enemy-contract";
 import type { PropKind } from "@/core/prop-kinds";
-import { bodyFootprint, type World } from "@/core/world/world";
+import { bodyFootprint, type World } from "@/core/world";
 
 import { createSceneSprites, type SceneSpriteId } from "./scene-sprites";
 

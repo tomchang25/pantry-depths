@@ -71,7 +71,6 @@ After this plan, reviewing a change to a hotspot decision means reading the slic
 
 | Child | Focus                                                                    | Form                       |
 | ----- | ------------------------------------------------------------------------ | -------------------------- |
-| 9     | State module split: tick orchestrator, player movement, facade           | This plan, Execution below |
 | 10    | Reward bank owner, census tightened, documentation, closing verification | This plan, Execution below |
 
 Landing order: 1 through 10. Every child ends with the narrow checks its spec names — the typecheck, the linter, the boundary check, the census from child 1 onward, and the unit run — because the project reserves the aggregate gate for a branch merge, and a ten-child refactor validated only once at the end could not say which child broke it. The aggregate gate and the governance check run once at the close, before the merge. The judgement reserved for a person playing — that the game feels unchanged — is deliberately not a per-child gate, because it is exactly the judgement the continuous-execution guards forbid the loop to make; it is the plan's closing acceptance criterion, made once on the branch when the loop is done.
@@ -102,13 +101,6 @@ Landing order: 1 through 10. Every child ends with the narrow checks its spec na
 Perishable coordinates, recorded 2026-08-04 at commit 0d21f83 on branch `core-ownership-refactor`. Re-check against live code before executing each child; conflicts resolve in favor of the conceptual half. Each child ends with the narrow checks its spec names — `npm run typecheck`, `npm run lint`, `npm run check:boundaries`, `npm run check:ownership` from child 1 onward, and `npm run test` — followed by one commit on the branch following the commit rules. Formatting is kept clean by running the formatter's write mode over the files a child touched, which is a fix rather than a gate. `npm run verify` and `npm run check:governance` run once in child 10, before the branch merge.
 
 Raw-state census baseline (occurrences of the `World` token per module, `rg -c '\bWorld\b' src`): world.ts 20, simulation.ts 25, actions.ts 26, enemy-ai.ts 21, impacts.ts 15, death.ts 5, extraction.ts 6, tasks.ts 5, floor/rooms.ts 4, plus permanent holders outside core (runtime/surface.ts 10, runtime/scene-hooks.ts 5, runtime/dev-overlay.ts 1, app and presentation modules per the current count of 209 across 25 files). The checker records two numbers per file from the live tree: parameter-position uses (`world: World`) and direct mutations in the forms Requirement 2 lists, on paths rooted at the state parameter; child 1 writes the baseline table.
-
-### Child 9 — state module split, facade
-
-- New `src/core/player/movement.ts`: move `stepPlayer` (simulation.ts:133) and `crowdPace` (110).
-- New `src/core/world/step-world.ts`: move `stepWorld` (848), `descend` (820), `stepRunLevel` (836), `stepVfx` (657), `stepDamageMarks` (796), `stepDeaths` (806), `DEATH_SECONDS` and remaining tick constants; delete `simulation.ts`; runtime import updates are import-path-only.
-- Split `world.ts` into single-role files: `src/core/world/state.ts` (the record, component types, rule constants, pure reads, and the id allocator — the record's own bookkeeping); `src/core/world/run-transition.ts` (`endRun` 725, `runClockSeconds` 736); `src/core/world/props.ts` (`dropProp` 791 — prop placement; under the world tree because the floor tree must stay owner-free); `src/core/progression/award-bless.ts` (`awardBless` 713 — a progression grant, not run state); `src/core/world/create-world.ts` (`createWorld` 589); `src/core/world/populate-floor.ts` (`populateFloor` 512, `createEnemy` 445, `spawnReinforcement` 690, `flattenFloorForTesting` 662, `collectMortars` 422 and the spawn helpers); `src/core/world/index.ts` — the compatibility facade re-exporting what the outside layers import today, forbidden to core by the rule declared in child 1, which starts biting here. Core-internal imports all name concrete modules in this child.
-- Census updates for every renamed path.
 
 ### Child 10 — reward bank, census tightened, closing
 

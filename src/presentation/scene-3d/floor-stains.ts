@@ -14,7 +14,7 @@
  */
 
 import { holdsStains, tileIndex, type Maze } from "@/core/floor/maze";
-import type { World } from "@/core/world/world";
+import type { World } from "@/core/world";
 
 import * as THREE from "three";
 

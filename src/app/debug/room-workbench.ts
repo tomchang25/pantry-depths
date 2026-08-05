@@ -37,7 +37,7 @@ import {
 } from "@/core/floor/room-contract";
 import { PROP_KINDS, type PropKind } from "@/core/prop-kinds";
 import { GAME_CATALOG } from "@/content/catalog";
-import { createWorld, type World } from "@/core/world/world";
+import { createWorld, type World } from "@/core/world";
 
 /** The name the throwaway preview map wears. It is never written, and no file is ever called this. */
 const PREVIEW_MAP = "room-preview";

@@ -16,7 +16,7 @@
 import { GAME_CATALOG } from "@/content/catalog";
 import { MAPS } from "@/content/maps/map-library";
 import { blocksVision, mainRoom } from "@/core/floor/maze";
-import { createWorld, type World } from "@/core/world/world";
+import { createWorld, type World } from "@/core/world";
 import { SceneRenderer, type ScenePoint } from "@/presentation/scene-3d/scene-renderer";
 
 export type RenderPanelTiming = Readonly<{

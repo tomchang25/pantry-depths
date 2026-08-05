@@ -47,20 +47,15 @@ import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/floor/
 import { LEVEL_CARD_PREFIX, runLevel } from "@/core/world/run-level";
 import { bankedRewards, equippedCore, type ResolvedReward } from "@/core/progression/sealed";
 import type { SceneHooks } from "@/runtime/scene-hooks";
-import { stepWorld, type PlayerInput } from "@/core/world/simulation";
+import { stepWorld } from "@/core/world";
+import type { PlayerInput } from "@/core/player/movement";
 import type { PropKind } from "@/core/prop-kinds";
 import { killEnemy } from "@/core/damage/enemy-damage";
 import { announce } from "@/core/feedback/run-feedback";
-import {
-  awardBless,
-  createWorld,
-  crowdHere,
-  dropProp,
-  flattenFloorForTesting,
-  runClockSeconds,
-  spawnReinforcement,
-  type World,
-} from "@/core/world/world";
+import { awardBless } from "@/core/world";
+import { dropProp } from "@/core/world";
+import { runClockSeconds } from "@/core/world";
+import { createWorld, crowdHere, flattenFloorForTesting, spawnReinforcement, type World } from "@/core/world";
 import { SceneRenderer } from "@/presentation/scene-3d/scene-renderer";
 import {
   playSfx,

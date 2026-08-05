@@ -28,7 +28,7 @@ import { extractionShare } from "@/core/world/extraction";
 import { blocksProjectile } from "@/core/floor/maze";
 import type { PropKind } from "@/core/prop-kinds";
 import { projectileHeight } from "@/core/projectile/flight";
-import type { Enemy, World } from "@/core/world/world";
+import type { Enemy, World } from "@/core/world";
 
 import { WALL_HEIGHT } from "./floor-meshes";
 import { SceneLighting } from "./scene-lighting";

@@ -9,10 +9,11 @@
  * through a returned outcome. What stays here is the hand: this module puts the salvage in it.
  */
 
+import { endRun } from "@/core/world/run-transition";
 import { damageHeldHostage } from "@/core/damage/enemy-damage";
 import { announce, markDamageFrom, raiseSfx } from "@/core/feedback/run-feedback";
 import { hasBless } from "@/core/progression/bless";
-import { endRun, type World } from "@/core/world/world";
+import { type World } from "@/core/world/world";
 
 /**
  * Applies damage to the player, letting the carried enemy take a frontal hit when that blessing is
