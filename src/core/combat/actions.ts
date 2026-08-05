@@ -6,38 +6,16 @@
  */
 
 import { chooseMeleeAttackId } from "@/core/combat/melee-contract";
-import { blessBonus, hasBless } from "@/core/progression/bless";
-import { canCarry, isBoned } from "@/core/combat/enemy-contract";
-
-import { takeSealed } from "@/core/world/extraction";
-import { blocksProjectile, tileAt } from "@/core/floor/maze";
-import type { Cell } from "@/core/grid";
+import { canCarry } from "@/core/combat/enemy-contract";
 import type { PropKind } from "@/core/prop-kinds";
 import { burst } from "@/core/combat/particles";
-import { coreBase, coreBonus } from "@/core/progression/sealed";
-import { propBehaviour, propWeight, throwWeight, type ThrowKind, type ThrowWeight } from "@/core/prop-contract";
-import { damageEnemy } from "@/core/damage/enemy-damage";
-import { MELEE_WALL_DAMAGE, THROWN_WALL_DAMAGE, damageWall } from "@/core/damage/structure-damage";
+import { propBehaviour, throwWeight, type ThrowKind } from "@/core/prop-contract";
 import { announce, raiseSfx } from "@/core/feedback/run-feedback";
+import { executeMelee } from "@/core/player/melee/execute-melee";
 import { stunEnemy, type Enemy } from "@/core/enemy/enemy-state";
 import { nextId } from "@/core/world/ids";
-import {
-  PLAYER_SPEED,
-  REACH,
-  SWING_SECONDS,
-  THROW_SWING_SECONDS,
-  type Held,
-  type Prop,
-  type World,
-} from "@/core/world/world";
+import { REACH, SWING_SECONDS, THROW_SWING_SECONDS, type Prop, type World } from "@/core/world/world";
 
-const BASE_MELEE_DAMAGE = 25;
-const HEAVY_MELEE_DAMAGE = 45;
-const HEAVY_MELEE_REACH = 2.1;
-const HEAVY_MELEE_KNOCKBACK = 9;
-/** Half-angle of the player's melee sweep, shared with the attack authoring preview. */
-export const MELEE_HALF_ANGLE = 0.85;
-const MELEE_ARC = Math.cos(MELEE_HALF_ANGLE);
 const GRAB_ARC = Math.cos(1);
 
 /** How far ahead a projectile leaves the hand; the aim cap subtracts it so the landing matches. */
@@ -97,54 +75,6 @@ const THROW_CALLS: Readonly<Record<PropKind, string>> = {
   crossbowSpent: "Threw the stock!",
   crossbowBolt: "Bolt away!",
 };
-
-export function meleeReach(world: World): number {
-  const base = coreBase(world.catalog)?.meleeReach ?? REACH;
-  return (
-    (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_REACH : base) +
-    blessBonus(world.bless, "meleeReach") +
-    coreBonus("meleeReach")
-  );
-}
-
-export function meleeDamage(world: World): number {
-  const base = coreBase(world.catalog)?.meleeDamage ?? BASE_MELEE_DAMAGE;
-  return (
-    (hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_DAMAGE : base) +
-    blessBonus(world.bless, "meleeDamage") +
-    coreBonus("meleeDamage")
-  );
-}
-
-/**
- * How fast the player walks, before whatever they are carrying slows them down.
- *
- * An accessor rather than the constant, for the same reason the two above are: the modifier layer has
- * to be consulted somewhere, and one place per axis is the only arrangement where a new source of
- * modifiers reaches every axis at once.
- */
-export function playerSpeed(world: World): number {
-  return PLAYER_SPEED + blessBonus(world.bless, "moveSpeed");
-}
-
-/** The damage a thrown object does on contact — the same as a bare swing, blessings aside. */
-export function thrownImpactDamage(world: World): number {
-  return meleeDamage(world);
-}
-
-export function thrownWallDamage(world: World, kind: ThrowKind): number {
-  return kind === "enemy" ? THROWN_WALL_DAMAGE : propBehaviour(world.catalog, kind).wallDamage;
-}
-
-/** What the hands are currently carrying weighs, for whatever wants to charge the player for it. */
-export function heldWeight(world: World, held: Held): ThrowWeight | undefined {
-  if (!held) {
-    return undefined;
-  }
-
-  return held.kind === "enemy" ? held.enemy.archetype.weight : propWeight(world.catalog, held.prop);
-}
-
 function facing(world: World): Readonly<{ x: number; y: number }> {
   return { x: Math.cos(world.player.angle), y: Math.sin(world.player.angle) };
 }
@@ -188,43 +118,6 @@ function nearestEnemyAhead(
 
   return best;
 }
-
-/**
- * Everything one swing sweeps through, nearest first.
- *
- * The blade does not stop at the first body it meets. A sword swung through a doorway full of slimes
- * that killed exactly one of them was the demo's most reliable disappointment: the arc visibly passes
- * through all of them, so hitting one is the drawing calling the rules a liar.
- *
- * Nearest ends up at the front without a sort — each strictly closer find is moved there — because
- * that one is what the arc is drawn through. The order of the rest is arbitrary and nothing reads it.
- */
-function sweepAhead(world: World, reach: number, arc: number): readonly Enemy[] {
-  const struck: Enemy[] = [];
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  for (const enemy of world.enemies) {
-    if (enemy.drowningSeconds > 0) {
-      continue;
-    }
-
-    const distance = inFront(world, enemy.x, enemy.y, reach, arc);
-
-    if (distance === undefined) {
-      continue;
-    }
-
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      struck.unshift(enemy);
-    } else {
-      struck.push(enemy);
-    }
-  }
-
-  return struck;
-}
-
 function nearestPropAhead(world: World): Prop | undefined {
   let best: Prop | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
@@ -239,29 +132,6 @@ function nearestPropAhead(world: World): Prop | undefined {
   }
 
   return best;
-}
-
-/**
- * The breakable thing the player is looking at within arm's length.
- *
- * Barricades count even though you can see over them: the same predicate that stops a thrown rock
- * is the one that decides what a swing lands on, so the two can never disagree.
- */
-export function wallAhead(world: World, reach = REACH): Cell | undefined {
-  const direction = facing(world);
-  const steps = Math.max(4, Math.round(reach * 4));
-
-  for (let step = 1; step <= steps; step += 1) {
-    const along = (step / steps) * reach;
-    const x = Math.floor(world.player.x + direction.x * along);
-    const y = Math.floor(world.player.y + direction.y * along);
-
-    if (blocksProjectile(world.maze, x, y)) {
-      return { x, y };
-    }
-  }
-
-  return undefined;
 }
 
 function spawnProjectile(world: World, kind: ThrowKind, payload: Enemy | undefined): void {
@@ -366,152 +236,6 @@ function shootHeld(world: World): void {
   announce(world, left > 0 ? `Bolt away! (${left} left)` : "Last bolt — only the stock now");
 }
 
-function strikeAltar(world: World): boolean {
-  if (world.altar.hp <= 0) {
-    return false;
-  }
-
-  if (inFront(world, world.altar.x, world.altar.y, meleeReach(world), MELEE_ARC) === undefined) {
-    return false;
-  }
-
-  world.altar.hp -= 1;
-  world.terrainVersion += 1;
-  // Debris leaves the stone towards whoever hit it, the same way a wall sheds it: a burst thrown
-  // evenly out of the middle of a solid plinth reads as the plinth exploding rather than as a blow
-  // landing on the near face of it.
-  const towardX = world.player.x - world.altar.x;
-  const towardY = world.player.y - world.altar.y;
-  const reach = Math.max(0.0001, Math.hypot(towardX, towardY));
-  const faceX = world.altar.x + (towardX / reach) * 0.34;
-  const faceY = world.altar.y + (towardY / reach) * 0.34;
-
-  if (world.altar.hp > 0) {
-    burst(world.particles, "stoneChip", faceX, faceY, 0.62, 11, {
-      speed: 2.8,
-      spreadZ: 1.8,
-      directionX: towardX / reach,
-      directionY: towardY / reach,
-      focus: 0.5,
-      size: 0.06,
-      life: 1,
-    });
-    // Gold with the grey: what is being broken open is the light in it, not only the masonry.
-    burst(world.particles, "ember", faceX, faceY, 0.66, 7, { speed: 2.2, spreadZ: 2, size: 0.045, life: 0.7 });
-    announce(world, `The altar cracks — ${world.altar.hp} more`, 1.4);
-    return true;
-  }
-
-  // The last blow: the whole structure's worth of stone rather than a face's worth, and the light
-  // leaving it all at once.
-  raiseSfx(world, "wallBreakStone", { x: world.altar.x, y: world.altar.y });
-  burst(world.particles, "stoneChip", world.altar.x, world.altar.y, 0.6, 26, {
-    speed: 3.4,
-    spreadZ: 3,
-    size: 0.085,
-    life: 1.5,
-  });
-  burst(world.particles, "ember", world.altar.x, world.altar.y, 0.62, 20, {
-    speed: 3.2,
-    spreadZ: 3.4,
-    size: 0.05,
-    life: 1.1,
-  });
-  burst(world.particles, "dust", world.altar.x, world.altar.y, 0.5, 8, {
-    speed: 0.9,
-    spreadZ: 1,
-    gravity: 1.4,
-    drag: 2.4,
-    size: 0.16,
-    life: 0.9,
-  });
-  takeSealed(world, "cursed");
-  return true;
-}
-
-/**
- * One swing, against everything in front of it.
- *
- * Full damage and a full shove to every body in the arc, with no falloff and no cap on how many. The
- * swing already costs the player the whole of its animation whether it meets one enemy or six, so
- * charging the same time for a sixth of the result is what made a crowd the thing to back away from
- * rather than the thing to swing into.
- *
- * Also records where it landed. The arc is drawn through the nearest of them, so a swing at something
- * on the left visibly goes left — the difference between an attack animation and a canned one.
- */
-function melee(world: World): void {
-  const reach = meleeReach(world);
-  const struck = sweepAhead(world, reach, MELEE_ARC);
-  const nearest = struck[0];
-
-  if (nearest) {
-    const direction = facing(world);
-    const knockback = hasBless(world.bless, "heavyStrike") ? HEAVY_MELEE_KNOCKBACK : 3;
-    const damage = meleeDamage(world);
-    // Read before the loop: a body that dies in it is spliced out of the world, and the arc still
-    // has to be drawn through where the swing actually went.
-    const targetX = nearest.x;
-    const targetY = nearest.y;
-
-    for (const enemy of struck) {
-      enemy.pushX += direction.x * knockback;
-      enemy.pushY += direction.y * knockback;
-      raiseSfx(world, isBoned(enemy.archetype) ? "meleeHitBone" : "meleeHitFlesh", { x: enemy.x, y: enemy.y });
-      damageEnemy(world, enemy, damage, "cleaved");
-      burst(world.particles, "blood", enemy.x, enemy.y, 0.36, 6, {
-        speed: 2,
-        spreadZ: 2.2,
-        size: 0.055,
-        life: 0.9,
-        directionX: direction.x,
-        directionY: direction.y,
-        focus: 0.4,
-      });
-    }
-
-    world.swingTarget = { x: targetX, y: targetY, z: 0.34, connected: true };
-    world.impact = 1;
-
-    if (struck.length > 1) {
-      announce(world, `Cleaves ${struck.length}!`, 1.2);
-    }
-
-    return;
-  }
-
-  if (strikeAltar(world)) {
-    raiseSfx(world, "meleeHitAltar", { x: world.altar.x, y: world.altar.y });
-    world.swingTarget = { x: world.altar.x, y: world.altar.y, z: 0.6, connected: true };
-    world.impact = 1;
-    return;
-  }
-
-  // A rubble pile is not a target. Swinging through one reaches whatever is behind it, so the only
-  // way a pile leaves the floor is by being carried away three pieces at a time.
-  const cell = wallAhead(world, reach);
-
-  if (cell) {
-    // Timber and stone answer a blade differently, and the barricade is timber by construction.
-    const kind = tileAt(world.maze, cell.x, cell.y)?.kind;
-    const wooden = kind === "wood" || kind === "barricade";
-    raiseSfx(world, wooden ? "meleeHitWallWood" : "meleeHitWallStone", { x: cell.x + 0.5, y: cell.y + 0.5 });
-    world.swingTarget = { x: cell.x + 0.5, y: cell.y + 0.5, z: 0.55, connected: true };
-    world.impact = 1;
-    damageWall(world, cell, MELEE_WALL_DAMAGE);
-    return;
-  }
-
-  // Swung at nothing: the arc still plays, aimed straight ahead at arm's length.
-  const direction = facing(world);
-  world.swingTarget = {
-    x: world.player.x + direction.x * reach,
-    y: world.player.y + direction.y * reach,
-    z: 0.5,
-    connected: false,
-  };
-}
-
 /**
  * Left button: one of the eight cuts, or a throw of whatever is in the hand.
  *
@@ -555,19 +279,13 @@ export function primaryAction(world: World): void {
   world.swingResolved = false;
 }
 
-/**
- * The blade arrives.
- *
- * Called by the simulation partway through the animation rather than by the press, which is the only
- * reason the arm's three quarters of a second is not a lie. Everything the hit does — the damage, the
- * shove, the blood, and the point the arc is drawn through — happens here.
- */
+/** The blade arrives. What it lands on is decided by the attack slice; this is only the gate. */
 export function resolveSwing(world: World): void {
   if (world.status !== "playing") {
     return;
   }
 
-  melee(world);
+  executeMelee(world);
 }
 
 function dropHeld(world: World): void {

@@ -32,8 +32,8 @@
     "mutations": 9
   },
   "src/core/combat/actions.ts": {
-    "params": 22,
-    "mutations": 32
+    "params": 12,
+    "mutations": 23
   },
   "src/core/combat/enemy-ai.ts": {
     "params": 19,
@@ -58,6 +58,14 @@
   "src/core/floor/rooms.ts": {
     "params": 3,
     "mutations": 3
+  },
+  "src/core/player/melee/execute-melee.ts": {
+    "params": 5,
+    "mutations": 4
+  },
+  "src/core/player/stats.ts": {
+    "params": 7,
+    "mutations": 0
   },
   "src/core/world/extraction.ts": {
     "params": 5,

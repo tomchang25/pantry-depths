@@ -9,7 +9,7 @@ import {
   type MeleeViewmodelPose,
 } from "@/content/viewmodel/melee-viewmodel";
 import { MELEE_CUT_START, MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/combat/melee-contract";
-import { MELEE_HALF_ANGLE } from "@/core/combat/actions";
+import { MELEE_HALF_ANGLE } from "@/core/player/melee/contract";
 import { mountDevOverlay, type DevOverlayModel } from "@/runtime/dev-overlay";
 import { mountHud, type HudModel, type HudOverlayRosterEntry } from "@/ui/hud";
 

@@ -5,7 +5,8 @@
 
 import { MELEE_CUT_START } from "@/core/combat/melee-contract";
 import type { SfxCueId } from "@/core/sfx-cues";
-import { heldWeight, playerSpeed, resolveSwing, thrownImpactDamage, thrownWallDamage } from "@/core/combat/actions";
+import { resolveSwing } from "@/core/combat/actions";
+import { heldWeight, playerSpeed, thrownImpactDamage, thrownWallDamage } from "@/core/player/stats";
 import { isBoned } from "@/core/combat/enemy-contract";
 import { stepEnemies } from "@/core/combat/enemy-ai";
 import { hurtPlayer } from "@/core/damage/player-damage";

@@ -10,7 +10,7 @@
  * and the call direction is plain.
  */
 
-import { thrownImpactDamage } from "@/core/combat/actions";
+import { thrownImpactDamage } from "@/core/player/stats";
 import { damageEnemy, killEnemy } from "@/core/damage/enemy-damage";
 import { hurtPlayer } from "@/core/damage/player-damage";
 import { BLAST_WALL_DAMAGE, damageWall } from "@/core/damage/structure-damage";
