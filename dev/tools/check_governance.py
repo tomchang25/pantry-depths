@@ -31,6 +31,8 @@ CONTRACTS: dict[str, list[str]] = {
     "dev/agent_rules/agent_startup.md": [
         "git_operations.md",
         "test_operations.md",
+        "## Implementation Defaults",
+        "save_migrations.md",
         "implement_operations.md",
         "frozen_reference_directories.md",
         "sandbox_track.md",
