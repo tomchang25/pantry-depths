@@ -25,7 +25,6 @@ A brief lives here too and is the one kind of line `/implement` cannot take: it 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
 - [humanoid_block_bodies] Draft plan for one rig, one clip set and one part vocabulary across every humanoid, with death clips first - [ref plans/humanoid_block_bodies.plan.md]
 - [slime_bodies] Draft plan for what a slime is made of, blocked on choosing between a fluid body and a hopping block one - [ref plans/slime_bodies.plan.md]
-- [core_ownership_refactor] Restructure the rules layer into resolvers, executors, and mutation owners behind machine-enforced boundaries; absorbs the enemy behavior split - [ref plans/core_ownership_refactor.plan.md]
 
 ---
 
@@ -49,6 +48,16 @@ One line, no rationale, no backing document.
 ## Draft
 
 Not scheduled. Do not start without a decision.
+
+### The Two Flight Paths Still Hold The Whole Run
+
+The ownership refactor put the player's attack and the three enemy attack families behind fences: each reads a declared slice and returns typed effects, and the boundary checker makes the rest unreachable. Two paths were deliberately left out of that and remain whole-state executors on the access census — the projectile resolution, which is the second-largest decision surface in the rules layer, and the enemy fire and emplacement cycle beside it.
+
+That was a scope decision, not an accident. Both were relocated into modules of their own and funnelled through the damage owners, which is most of the readability win; giving them contracts as well would have doubled a ten-child plan. What it costs is that changing what a throw does on impact — which enemies it runs through, what a landing is worth, what a wall spends — is still a change to a module holding everything.
+
+What makes it a decision rather than a queue is that a projectile's decisions are less separable than a swing's. A swing decides once, against a snapshot; a throw decides every step of a flight, and its snapshot would have to be rebuilt per step or made mutable, which is the shape the contract exists to avoid. Whether that is a resolver per step, a resolver per landing, or something else is the question, and answering it wrong produces more ceremony than the current shape for no reading benefit.
+
+Not scheduled. What would force it is the next change to what a thrown weapon does that turns out to be unreviewable.
 
 ### A Room Whose Size Is Its Own
 

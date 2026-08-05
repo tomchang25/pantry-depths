@@ -68,6 +68,10 @@ It is a census and not a boundary, and the distinction is load-bearing: the muta
 
 An allowlist entry naming a module that no longer exists is reported, not failed: modules move constantly while the ratchet is being tightened, and a stale entry is a note about work still to do.
 
+**If the census proves leaky, the escalation is named and unbought:** a deep-read-only state type, a mutation-port layer the executors write through, or a syntax-tree write checker. None was worth its cost while the executor set is small and reviewable; the first executor that quietly widens access without the count moving is the evidence that buys one.
+
+**Two paths are executors by decision rather than by omission.** The projectile resolution and the enemy fire and emplacement cycle hold the whole run state and sit on the allowlist. Narrowing them to a snapshot-and-effect contract is real work that has not been done, not an oversight to be tidied opportunistically — see the tracker.
+
 ## One Renderer
 
 `src/presentation/` held two for a while — the Canvas 2D raycaster the game drew through, and the Three.js runtime in `src/presentation/scene-3d/` that was replacing it — each with its own procedural surfaces and its own artwork. That is over. The raycaster, the interim projection tree at `src/demo/` that fed it, the shared image pipeline, and the baked enemy atlases only they read were deleted on 2026-08-04, and `scene-3d/` is the only thing that draws the game.
