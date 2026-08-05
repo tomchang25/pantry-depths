@@ -24,9 +24,24 @@ CONTRACTS: dict[str, list[str]] = {
     # The register section is the one rule the root entry points own rather than route to, and it
     # is the only placement that reaches a session with no read step. Dropped from either file, it
     # fails nothing else and the register regenerates from the corpus.
-    "AGENTS.md": ["foundation_startup.md", "platform_startup.md", "dev/agent_rules/agent_startup.md", "## Register"],
-    "CLAUDE.md": ["foundation_startup.md", "platform_startup.md", "dev/agent_rules/agent_startup.md", "## Register"],
+    "AGENTS.md": [
+        "foundation_startup.md",
+        "platform_startup.md",
+        "dev/agent_rules/agent_startup.md",
+        "## Register",
+        "a retired rule is deleted",
+    ],
+    "CLAUDE.md": [
+        "foundation_startup.md",
+        "platform_startup.md",
+        "dev/agent_rules/agent_startup.md",
+        "## Register",
+        "a retired rule is deleted",
+    ],
     "dev/standards/code_style.addendum.md": ["## Comment Register"],
+    # The entry-format contract is what keeps structure declarations from regrowing narrative
+    # sections; dropping it fails nothing else while the corpus rebuilds the old style.
+    "dev/standards/project_structure.addendum.md": ["project_structure_standard.md", "## Entry Format"],
     "dev/README.md": ["foundation_startup.md", "work_lifecycle.md", "dev/agent_rules/git_operations.md"],
     "dev/agent_rules/agent_startup.md": [
         "git_operations.md",
@@ -60,6 +75,7 @@ CONTRACTS: dict[str, list[str]] = {
         "Goal-Executable: yes",
         "## The Brief",
         "dev/docs/briefs/",
+        "## Lifting From Archives",
     ],
     "dev/docs/README.md": ["briefs/"],
     ".claude/commands/goal.md": [

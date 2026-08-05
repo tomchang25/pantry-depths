@@ -18,7 +18,7 @@ Before any repository-specific work:
 
 ## Register
 
-Code comments and commit messages use plain technical register: state the constraint or the change directly, in neutral vocabulary. The game's fiction vocabulary — body, mind, owes, pays, goes under, and the like — appears in neither, commit subject noun phrases included; naming a symbol that carries such a word is fine, adopting the voice is not. Full contracts: `dev/standards/code_style.addendum.md` for comments, `dev/agent_rules/git_operations.md` for commits. This overrides any default to match the surrounding style — the existing literary comments are legacy being removed, not a template.
+Code comments and commit messages use plain technical register: state the constraint or the change directly, in neutral vocabulary. The game's fiction vocabulary — body, mind, owes, pays, goes under, and the like — appears in neither, commit subject noun phrases included; naming a symbol that carries such a word is fine, adopting the voice is not. Full contracts: `dev/standards/code_style.addendum.md` for comments, `dev/agent_rules/git_operations.md` for commits. Governance documents under `dev/agent_rules/`, `dev/standards/`, and `dev/workflows/` use the same register: an entry states its rule or fact directly, gives at most one sentence of why, and records no history, dates, or decision advocacy — a retired rule is deleted, not memorialized, because Git already owns the history. This overrides any default to match the surrounding style — the existing literary comments are legacy being removed, not a template.
 
 ## Tests are gated, never a reflex
 

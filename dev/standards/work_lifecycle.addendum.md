@@ -14,17 +14,9 @@ This supersedes only the foundation's default expectation that a probe is the no
 
 No probe currently exists in this repository, so adopting this narrowing costs no migration.
 
-## Declared Deviation: The Demo Tool-Chain Plan Carries Code Coordinates
+## Lifting From Archives Carries The Constraint Only
 
-`dev/foundation/core/workflows/plan_standard.md` requires a plan to be written in English and to name no file paths, line numbers, function names, or class names. `dev/docs/archived/pantry_demo_workbench.plan.md` conforms to neither requirement, deliberately and with no expiry.
-
-That plan is archived and the deviation is spent: it covered exactly one document, that document takes no more edits, and the section stays only so a reader who opens it knows the Chinese and the coordinates were registered rather than overlooked. No plan since has needed it — the general relaxation below is what a plan uses instead.
-
-**Why:** that plan's subject is the tooling built around an existing codebase, and most of its decisions are statements about specific modules — which one is kept as a skeleton, which one is written beside its predecessor rather than edited in place, which import boundary forces an authored file into one directory rather than another. Rewritten to refer to systems by role, those decisions stop being checkable: "the offline generator" and "the authoring endpoint" name nothing a reader can open. The standard's stated purpose for the ban is that a plan should stay valid as the codebase changes, and this plan accepts the opposite trade — it goes stale when the code moves, and that is the signal it is meant to give.
-
-The language follows the same reasoning: it is the author's working document, and the audience is one person who writes in Chinese.
-
-This deviation is scoped to that one document. Every other plan in this repository follows the standard as written, and a new plan does not inherit the exemption by pointing at this section — the general relaxation below is what a new plan uses instead, and it is narrower: it keeps the reviewable half clean and confines the coordinates to a declared section.
+`dev/foundation/core/standards/governance_structure_standard.md` requires closeout, when archiving an artifact, to lift still-needed content and its context into each referencing document. This narrows what moves: a durable document receives the constraint or rule itself, with at most one sentence of why. The events that produced it, dates, and the state of the code at the time stay in the archive and in Git history. The lift replaces the pointer — a durable document still never references the archive — and it never adds a narrative section.
 
 ## Every Plan May Carry An Execution Half
 
