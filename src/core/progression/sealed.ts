@@ -17,32 +17,19 @@
 
 import type { GameCatalog } from "@/core/catalog";
 import { rollCoreModifiers } from "@/core/progression/modifiers";
+import { equippedCore } from "@/core/progression/rewards-bank";
 import {
   findCore,
   type BlessId,
   type CoreCurse,
   type CoreDefinition,
   type ModifierAxis,
-  type ModifierRolls,
+  type ResolvedCore,
+  type ResolvedFragment,
   type StackingBlessId,
+  type ResolvedReward,
+  type SealedReward,
 } from "@/core/progression/progression-contract";
-
-export type SealedReward = Readonly<{ source: CoreCurse }>;
-
-export type ResolvedFragment = Readonly<{
-  kind: "fragment";
-  source: CoreCurse;
-  effects: readonly (BlessId | StackingBlessId)[];
-}>;
-
-export type ResolvedCore = Readonly<{
-  kind: "core";
-  source: CoreCurse;
-  core: CoreDefinition;
-  rolls: ModifierRolls;
-}>;
-
-export type ResolvedReward = ResolvedFragment | ResolvedCore;
 
 export function sealReward(source: CoreCurse): SealedReward {
   return { source };
@@ -85,42 +72,6 @@ export function resolveReward(catalog: GameCatalog, reward: SealedReward): Resol
   return Math.random() < catalog.coreShare[reward.source]
     ? rollCore(catalog, reward.source)
     : rollFragment(catalog, reward.source);
-}
-
-/**
- * Everything extracted so far, across every run this page has seen.
- *
- * Deliberately outside the world: a run is destroyed by death and rebuilt by restart, and the whole
- * point of extracting is that what came out survives both. Nothing persists it further — reloading is
- * a fresh cellar, which is honest about the demo not having a save.
- */
-const bank: ResolvedReward[] = [];
-
-export function bankReward(reward: ResolvedReward): void {
-  bank.push(reward);
-}
-
-export function bankedRewards(): readonly ResolvedReward[] {
-  return bank;
-}
-
-/**
- * The core a new run swings with: the last one extracted.
- *
- * No preparation screen exists to choose from the bank, so the most recent extraction is the choice.
- * That keeps a core a decision made before a run rather than during one, which is what a core is, and
- * it makes the rolls a run walked out with the rolls the next run has to live with.
- */
-export function equippedCore(): ResolvedCore | undefined {
-  for (let index = bank.length - 1; index >= 0; index -= 1) {
-    const entry = bank[index];
-
-    if (entry?.kind === "core") {
-      return entry;
-    }
-  }
-
-  return undefined;
 }
 
 /** What the equipped core adds to one axis, or nothing when no core has ever been carried out. */

@@ -8,7 +8,8 @@
 import type { EnemyAppearanceId } from "@/core/combat/enemy-contract";
 import { MELEE_SWING_SECONDS, type MeleeAttackId } from "@/core/combat/melee-contract";
 import { createBlessState, type BlessState } from "@/core/progression/bless";
-import { coreBonus, type SealedReward } from "@/core/progression/sealed";
+import { coreBonus } from "@/core/progression/sealed";
+import type { SealedReward } from "@/core/progression/progression-contract";
 import type { GameCatalog } from "@/core/catalog";
 import { attackCooldown, type EnemyArchetype } from "@/core/combat/enemy-contract";
 import type { MapCastKind } from "@/core/floor/room-contract";

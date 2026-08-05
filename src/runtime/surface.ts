@@ -21,12 +21,7 @@ import {
 import { blessBonus, blessStackCount, hasBless } from "@/core/progression/bless";
 import { mountDevOverlay, type DevOverlayCommand } from "@/runtime/dev-overlay";
 import { GAME_CATALOG } from "@/content/catalog";
-import {
-  EXTRACTION_HOLD_SECONDS,
-  extractionShare,
-  lastExtractedRewards,
-  SEALED_CARD_PREFIX,
-} from "@/core/world/extraction";
+import { EXTRACTION_HOLD_SECONDS, extractionShare, SEALED_CARD_PREFIX } from "@/core/world/extraction";
 import {
   mountHud,
   type HudBlessIcon,
@@ -45,7 +40,8 @@ import { mapNamed, stepMap } from "@/runtime/maps";
 import { POOL_FILL_BODIES, padRoomAt, type TaskKind } from "@/core/floor/maze";
 import { BLESSING_HOLD_SECONDS, HOT_SPRING_HEAL_PER_SECOND } from "@/core/floor/rooms";
 import { LEVEL_CARD_PREFIX, runLevel } from "@/core/world/run-level";
-import { bankedRewards, equippedCore, type ResolvedReward } from "@/core/progression/sealed";
+import { bankedRewards, equippedCore, lastExtractedRewards } from "@/core/progression/rewards-bank";
+import type { ResolvedReward } from "@/core/progression/progression-contract";
 import type { SceneHooks } from "@/runtime/scene-hooks";
 import { stepWorld } from "@/core/world";
 import type { PlayerInput } from "@/core/player/movement";

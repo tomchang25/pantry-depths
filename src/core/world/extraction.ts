@@ -17,7 +17,8 @@
 import { endRun } from "@/core/world/run-transition";
 import { padRoomAt } from "@/core/floor/maze";
 
-import { bankReward, resolveReward, type ResolvedReward } from "@/core/progression/sealed";
+import { resolveReward } from "@/core/progression/sealed";
+import { bankReward, recordExtraction } from "@/core/progression/rewards-bank";
 import { announce, raiseSfx } from "@/core/feedback/run-feedback";
 import { type World } from "@/core/world/world";
 
@@ -32,9 +33,6 @@ export const EXTRACTION_HOLD_SECONDS = 5;
  * pops a card; the thing you are risking the run to carry out has more claim to one than that.
  */
 export const SEALED_CARD_PREFIX = "sealed:";
-
-/** What the last extraction opened, kept so the run-end screen can show it after the world is frozen. */
-let lastResolved: readonly ResolvedReward[] = [];
 
 export function takeSealed(world: World, source: "clean" | "cursed"): void {
   world.carried.push({ source });
@@ -56,7 +54,7 @@ function extract(world: World): void {
     bankReward(reward);
   }
 
-  lastResolved = resolved;
+  recordExtraction(resolved);
   world.carried = [];
   endRun(world, "extracted");
   announce(world, "Out, with everything you were carrying", 6);
@@ -87,14 +85,4 @@ export function stepExtraction(world: World, seconds: number): void {
  */
 export function extractionShare(world: World): number {
   return Math.min(1, world.maze.progress.extractionSeconds / EXTRACTION_HOLD_SECONDS);
-}
-
-/**
- * What the last extraction opened, for the run-end screen to show after the world is frozen.
- *
- * An accessor rather than an export of the variable, because the display half that builds the
- * overlay lives outside core and reads this after the run has ended.
- */
-export function lastExtractedRewards(): readonly ResolvedReward[] {
-  return lastResolved;
 }

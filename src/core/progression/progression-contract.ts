@@ -108,3 +108,21 @@ export function findBless(
     catalog.blessStackingCatalog.find((candidate) => candidate.id === id)
   );
 }
+
+/** A reward taken but not opened. What it becomes is rolled when the run gets out with it. */
+export type SealedReward = Readonly<{ source: CoreCurse }>;
+
+export type ResolvedFragment = Readonly<{
+  kind: "fragment";
+  source: CoreCurse;
+  effects: readonly (BlessId | StackingBlessId)[];
+}>;
+
+export type ResolvedCore = Readonly<{
+  kind: "core";
+  source: CoreCurse;
+  core: CoreDefinition;
+  rolls: ModifierRolls;
+}>;
+
+export type ResolvedReward = ResolvedFragment | ResolvedCore;

@@ -17,7 +17,8 @@
 import { takeSealed } from "@/core/world/extraction";
 import { roomAt, type FloorProgress, type Task, type TaskKind } from "@/core/floor/maze";
 import { announce } from "@/core/feedback/run-feedback";
-import { awardBless, type World } from "@/core/world/world";
+import { awardBless } from "@/core/progression/award-bless";
+import type { World } from "@/core/world/world";
 
 /** How each task reads on the message line and in the panel. Second person, because it is being asked of the player. */
 export const TASK_LABELS: Readonly<Record<TaskKind, string>> = {
