@@ -1,0 +1,110 @@
+{
+  "src/app/debug/body-preview.ts": {
+    "params": 0,
+    "mutations": 6
+  },
+  "src/app/debug/carried-workbench.ts": {
+    "params": 0,
+    "mutations": 6
+  },
+  "src/app/debug/floor-preview.ts": {
+    "params": 3,
+    "mutations": 1
+  },
+  "src/app/debug/map-workbench.ts": {
+    "params": 1,
+    "mutations": 0
+  },
+  "src/app/debug/prop-workbench.ts": {
+    "params": 0,
+    "mutations": 4
+  },
+  "src/app/debug/render-panel.ts": {
+    "params": 3,
+    "mutations": 10
+  },
+  "src/app/debug/room-workbench.ts": {
+    "params": 1,
+    "mutations": 0
+  },
+  "src/app/scene/soundstage.ts": {
+    "params": 3,
+    "mutations": 9
+  },
+  "src/core/combat/actions.ts": {
+    "params": 25,
+    "mutations": 37
+  },
+  "src/core/combat/death.ts": {
+    "params": 4,
+    "mutations": 6
+  },
+  "src/core/combat/enemy-ai.ts": {
+    "params": 20,
+    "mutations": 9
+  },
+  "src/core/combat/impacts.ts": {
+    "params": 14,
+    "mutations": 1
+  },
+  "src/core/floor/rooms.ts": {
+    "params": 3,
+    "mutations": 3
+  },
+  "src/core/world/extraction.ts": {
+    "params": 5,
+    "mutations": 3
+  },
+  "src/core/world/simulation.ts": {
+    "params": 24,
+    "mutations": 42
+  },
+  "src/core/world/tasks.ts": {
+    "params": 4,
+    "mutations": 2
+  },
+  "src/core/world/world.ts": {
+    "params": 17,
+    "mutations": 38
+  },
+  "src/presentation/scene-3d/floor-decals.ts": {
+    "params": 2,
+    "mutations": 0
+  },
+  "src/presentation/scene-3d/floor-stains.ts": {
+    "params": 1,
+    "mutations": 0
+  },
+  "src/presentation/scene-3d/scene-renderer.ts": {
+    "params": 8,
+    "mutations": 0
+  },
+  "src/presentation/scene-3d/viewmodel.ts": {
+    "params": 5,
+    "mutations": 0
+  },
+  "src/presentation/scene-3d/world-bodies.ts": {
+    "params": 5,
+    "mutations": 0
+  },
+  "src/presentation/scene-3d/world-effects.ts": {
+    "params": 13,
+    "mutations": 0
+  },
+  "src/presentation/scene-3d/world-structures.ts": {
+    "params": 7,
+    "mutations": 0
+  },
+  "src/runtime/dev-overlay.ts": {
+    "params": 0,
+    "mutations": 3
+  },
+  "src/runtime/scene-hooks.ts": {
+    "params": 4,
+    "mutations": 0
+  },
+  "src/runtime/surface.ts": {
+    "params": 7,
+    "mutations": 8
+  }
+}

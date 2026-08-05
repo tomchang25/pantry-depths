@@ -19,8 +19,9 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "check:boundaries": "depcruise src dev/tools --config .dependency-cruiser.cjs",
+    "check:ownership": "node dev/tools/check-ownership.mjs",
     "check:governance": "python dev/tools/check_governance.py && python dev/foundation/tools/verify_consumer.py --root .",
-    "verify": "npm run format:check && npm run typecheck && npm run lint && npm run check:boundaries && npm run test && npm run build"
+    "verify": "npm run check:ownership && npm run format:check && npm run typecheck && npm run lint && npm run check:boundaries && npm run test && npm run build"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",

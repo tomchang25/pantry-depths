@@ -117,6 +117,89 @@ module.exports = {
     },
 
     {
+      name: "melee-decision-is-fenced",
+      severity: "error",
+      comment:
+        "The player attack resolver decides from a snapshot and returns effects. It may reach its own folder, the attack vocabulary, the floor's queries and geometry, and the grid, and nothing else. The executor beside it is exempt: holding raw state on the slice's behalf is its job. Declared ahead of the directory, as the rules for layers not yet earned are.",
+      from: { path: "^src/core/player/melee/", pathNot: "^src/core/player/melee/execute-melee\\.ts$" },
+      to: {
+        path: "^src/",
+        pathNot: "^src/core/player/melee/|^src/core/combat/melee-contract|^src/core/floor/|^src/core/grid",
+      },
+    },
+    {
+      name: "enemy-behaviors-are-fenced",
+      severity: "error",
+      comment:
+        "An attack family mutates its own narrow self and returns effects for everything else. It may reach its own folder, the enemy state vocabulary, the enemy contract, the floor's queries and geometry, and the grid.",
+      from: { path: "^src/core/enemy/behaviors/" },
+      to: {
+        path: "^src/",
+        pathNot:
+          "^src/core/enemy/behaviors/|^src/core/enemy/enemy-state|^src/core/combat/enemy-contract|^src/core/floor/|^src/core/grid",
+      },
+    },
+    {
+      name: "decision-modules-never-reach-state-or-owners",
+      severity: "error",
+      comment:
+        "The specific half of the two fences above, named separately so the failure says which wall was hit. Type-only imports included, because tsPreCompilationDeps is on: without that, the run state type would reach a decision module through a signature with no rule firing.",
+      from: {
+        path: "^src/core/(player/melee|enemy/behaviors)/",
+        pathNot: "^src/core/player/melee/execute-melee\\.ts$",
+      },
+      to: { path: "^src/core/(world|damage|feedback|progression)/|^src/core/combat/particles" },
+    },
+
+    {
+      name: "feedback-is-the-bottom-owner",
+      severity: "error",
+      comment:
+        "Run feedback writes the presentation-feed fields on the state record. It sits under every other owner and reaches only the state module and the shared vocabularies at the root of the rules layer.",
+      from: { path: "^src/core/feedback/" },
+      to: { path: "^src/", pathNot: "^src/core/feedback/|^src/core/world/|^src/core/[^/]+\\.ts$" },
+    },
+    {
+      name: "enemy-damage-owns-its-domain-alone",
+      severity: "error",
+      comment: "The enemy damage and death owner sits directly above feedback and composes no other owner.",
+      from: { path: "^src/core/damage/enemy-damage\\.ts$" },
+      to: { path: "^src/core/damage/", pathNot: "^src/core/damage/enemy-damage\\.ts$" },
+    },
+    {
+      name: "structure-damage-owns-its-domain-alone",
+      severity: "error",
+      comment:
+        "The structure damage owner sits beside enemy damage and composes no other owner. It lives in the damage tree rather than beside the floor so that the fenced decision modules may keep importing the floor's queries.",
+      from: { path: "^src/core/damage/structure-damage\\.ts$" },
+      to: { path: "^src/core/damage/", pathNot: "^src/core/damage/structure-damage\\.ts$" },
+    },
+    {
+      name: "player-damage-composes-only-enemy-damage",
+      severity: "error",
+      comment:
+        "A hit the held enemy absorbs is enemy damage and must keep its single writer, so player damage composes that one owner through a returned outcome. It reaches no other.",
+      from: { path: "^src/core/damage/player-damage\\.ts$" },
+      to: { path: "^src/core/damage/", pathNot: "^src/core/damage/(player-damage|enemy-damage)\\.ts$" },
+    },
+    {
+      name: "owners-do-not-import-their-consumers",
+      severity: "error",
+      comment:
+        "The owner stack is one-way. An owner that reached an executor would make the direction a cycle and put a second writer above the single one.",
+      from: { path: "^src/core/(feedback|damage)/" },
+      to: { path: "^src/core/(player|enemy|projectile|hazard)/|^src/core/world/step-world" },
+    },
+    {
+      name: "the-compatibility-facade-is-for-outside-the-rules",
+      severity: "error",
+      comment:
+        "The state module's facade exists so the layers outside this refactor keep their imports. A rules-layer module reaching it would launder the fences above through a re-export, so inside the rules every import names the concrete module.",
+      from: { path: "^src/core/" },
+      to: { path: "^src/core/world/index" },
+    },
+
+    {
       name: "game-layer-does-not-import-tooling",
       severity: "error",
       comment:

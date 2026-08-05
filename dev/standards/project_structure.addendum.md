@@ -25,18 +25,46 @@ Making the tick deterministic later retires this deviation.
 
 The standard names `presentation/` and `shared/` as earned layers that are created only when the owning work exists. This table is the current truth of which layers exist and what each holds.
 
-| Layer               | Directory | Status                                                                                                                                                                                                 |
-| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/app/`          | Present   | Route boundary, bootstrap, the debug tool surface, and the development scene surface. The ordinary route mounts the game.                                                                              |
-| `src/core/`         | Present   | The rules: contracts and vocabulary, floor assembly, the world and its tick, the minds, actions, impacts, extraction, progression state. Reads authored tables only through the injected game catalog. |
-| `src/content/`      | Present   | Authored data by feature: maps, rooms, enemies, combat tables, sfx, presentation assets, viewmodel definitions.                                                                                        |
-| `src/presentation/` | Present   | Earned by the renderer port: the audio stack, and the Three.js runtime in `scene-3d/` that draws the game.                                                                                             |
-| `src/runtime/`      | Present   | The frame loop, input, mounting, the cue drain, the stage dressing, and the address-bar map question.                                                                                                  |
-| `src/ui/`           | Present   | The plain-DOM HUD, its icons, and its stylesheet — see the No React deviation above.                                                                                                                   |
-| `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                                                                                                                |
-| `src/shared/`       | Absent    | Earned layer. Create only on demonstrated cross-feature ownership.                                                                                                                                     |
+| Layer               | Directory | Status                                                                                                                                                                                                                                                |
+| ------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/`          | Present   | Route boundary, bootstrap, the debug tool surface, and the development scene surface. The ordinary route mounts the game.                                                                                                                             |
+| `src/core/`         | Present   | The rules: contracts and vocabulary, floor assembly, the world and its tick, enemy behavior, actions, impacts, extraction, progression state. Reads authored tables only through the injected game catalog. Roles and directions inside it are below. |
+| `src/content/`      | Present   | Authored data by feature: maps, rooms, enemies, combat tables, sfx, presentation assets, viewmodel definitions.                                                                                                                                       |
+| `src/presentation/` | Present   | Earned by the renderer port: the audio stack, and the Three.js runtime in `scene-3d/` that draws the game.                                                                                                                                            |
+| `src/runtime/`      | Present   | The frame loop, input, mounting, the cue drain, the stage dressing, and the address-bar map question.                                                                                                                                                 |
+| `src/ui/`           | Present   | The plain-DOM HUD, its icons, and its stylesheet — see the No React deviation above.                                                                                                                                                                  |
+| `src/platform/`     | Absent    | Not expected in V1. No persistence, desktop shell, or distribution API.                                                                                                                                                                               |
+| `src/shared/`       | Absent    | Earned layer. Create only on demonstrated cross-feature ownership.                                                                                                                                                                                    |
 
 A scaffolded empty directory is not a claim that the layer is earned. It carries a `.gitkeep` and nothing else; the first real module in it is still the change that has to justify the placement.
+
+## Roles Inside The Rules Layer
+
+The platform standard treats `src/core/` as one layer with one boundary. Inside it, three roles are told apart by path, and the boundary rules key on those paths. This section and `.dependency-cruiser.cjs` are the two halves of one contract; changing either alone leaves them disagreeing.
+
+| Role               | Reads                       | Writes                                         | Reaches                                            |
+| ------------------ | --------------------------- | ---------------------------------------------- | -------------------------------------------------- |
+| **Resolver**       | Its snapshot and view types | Nothing — it returns typed effects             | Its contract, floor queries and geometry, the grid |
+| **Executor**       | Raw run state               | Through owners and feedback, by convention     | Owners, resolvers, contracts                       |
+| **Mutation owner** | Raw run state               | Its own domain, as that domain's single writer | Owners strictly below it, feedback, state          |
+
+Two of those are hard walls and one is not, which is worth stating plainly. Resolver and behavior purity, and the direction between owners, are machine-checked. The executor discipline of writing only through owners is a reviewed convention backed by the access census below; a wall there would need a deep-read-only state type or a syntax-tree write checker, and neither is bought.
+
+**The owner stack is one-way.** Run feedback — sound cues, announcements, visual effects, stains, damage direction marks — is the bottom and reaches only the state module and the vocabularies at the root of the layer. Enemy damage and structure damage sit above it and compose no other owner. Player damage sits above those and composes exactly one, enemy damage, because a hit the held enemy absorbs is enemy damage and must keep its single writer; the composition runs through a returned outcome rather than a shared field. The area-impact executor is the only module that composes all three. No owner imports sideways, upward, or into an executor.
+
+**Two placement rules keep the stack honest.** Every mutation owner lives under a tree the fenced decision modules cannot import — which is why structure damage lives in `src/core/damage/` rather than beside the floor it mutates: the floor tree stays queries and geometry precisely so the fenced trees may import it. And where one module mixes queries with its own mutators, an import rule cannot separate its exports, so the contract types close the gap: every floor view a snapshot or behavior view carries is read-only-typed, and a mutating entry does not typecheck against it.
+
+**The fenced trees** are `src/core/player/melee/` — excepting its executor, which holds raw state on the slice's behalf — and `src/core/enemy/behaviors/`. Neither may import run state, an owner, an executor, the particle field, or progression, type-only imports included. Both are declared ahead of the directories existing, exactly as the rules for unearned layers are.
+
+**The compatibility facade** at `src/core/world/index.ts` exists for the layers outside the rules — runtime, presentation, interface, app — and for tests. No module inside `src/core/` may import it, or the fences above would launder through a re-export.
+
+## The Raw-State Access Census
+
+`dev/tools/check-ownership.mjs` counts, per source module, how many bindings take the whole run state and how many direct mutations are made through it: assignments and compound assignments on any state-rooted path, increments and decrements, and the mutating collection calls. `dev/standards/raw_world_allowlist.json` records the permitted counts, and the check fails on any increase or any counted module missing from the list. `npm run check:ownership` runs it, and it is the first stage of `npm run verify` — the position the command surface standard sanctions for a consumer-verification stage.
+
+It is a census and not a boundary, and the distinction is load-bearing: the mutation count is rooted at the state parameter's ordinary name, so an alias assigned to a local escapes it, as anything short of a syntax-tree pass would. The hard limits stay on module paths and contract types. What the census buys is a direction of travel that cannot quietly reverse. The one boundary it does hold outright is the fenced trees naming the state type at all, which is cheap by token because those trees are small.
+
+An allowlist entry naming a module that no longer exists is reported, not failed: modules move constantly while the ratchet is being tightened, and a stale entry is a note about work still to do.
 
 ## One Renderer
 

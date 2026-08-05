@@ -71,7 +71,6 @@ After this plan, reviewing a change to a hotspot decision means reading the slic
 
 | Child | Focus                                                                    | Form                       |
 | ----- | ------------------------------------------------------------------------ | -------------------------- |
-| 1     | Boundary rules, owner direction rules, the census and its command        | This plan, Execution below |
 | 2     | Owners extracted: feedback, player damage, structure damage, hostage     | This plan, Execution below |
 | 3     | Player attack slice: contract, resolver, executor, first spec file       | This plan, Execution below |
 | 4     | Projectile, hazard, and emplacement modules extracted from the tick      | This plan, Execution below |
@@ -110,20 +109,6 @@ Landing order: 1 through 10. Every child ends with the narrow checks its spec na
 Perishable coordinates, recorded 2026-08-04 at commit 0d21f83 on branch `core-ownership-refactor`. Re-check against live code before executing each child; conflicts resolve in favor of the conceptual half. Each child ends with the narrow checks its spec names — `npm run typecheck`, `npm run lint`, `npm run check:boundaries`, `npm run check:ownership` from child 1 onward, and `npm run test` — followed by one commit on the branch following the commit rules. Formatting is kept clean by running the formatter's write mode over the files a child touched, which is a fix rather than a gate. `npm run verify` and `npm run check:governance` run once in child 10, before the branch merge.
 
 Raw-state census baseline (occurrences of the `World` token per module, `rg -c '\bWorld\b' src`): world.ts 20, simulation.ts 25, actions.ts 26, enemy-ai.ts 21, impacts.ts 15, death.ts 5, extraction.ts 6, tasks.ts 5, floor/rooms.ts 4, plus permanent holders outside core (runtime/surface.ts 10, runtime/scene-hooks.ts 5, runtime/dev-overlay.ts 1, app and presentation modules per the current count of 209 across 25 files). The checker records two numbers per file from the live tree: parameter-position uses (`world: World`) and direct mutations in the forms Requirement 2 lists, on paths rooted at the state parameter; child 1 writes the baseline table.
-
-### Child 1 — gates
-
-No `src` behavior change. Required reading before executing: `dev/foundation/platforms/web-react/standards/command_surface_standard.md` (a verification stage is added). Deliverables:
-
-- `.dependency-cruiser.cjs`: add intra-core rules, declared ahead of the folders they fence (the existing absent-layer rules are the precedent):
-  - `src/core/player/melee/` except `execute-melee.ts` may import only `@/core/player/melee/`, `@/core/combat/melee-contract`, `@/core/floor/`, `@/core/grid`.
-  - `src/core/enemy/behaviors/` may import only itself, `@/core/enemy/enemy-state`, `@/core/combat/enemy-contract`, `@/core/floor/`, `@/core/grid`.
-  - Neither fenced tree imports `@/core/world/`, `@/core/damage/` (structure damage included — the owner lives there, not under the floor), `@/core/feedback/`, `@/core/combat/particles`, or `@/core/progression/` — including type-only, so the run state type cannot be smuggled in through a signature. The floor tree stays importable because it holds queries and geometry, not owners; its own mutating entries are refused by the read-only view types the contracts define, since an import rule cannot separate exports inside one module.
-  - Owner direction: `@/core/feedback/` imports nothing in core except the state module and shared vocabularies; `@/core/damage/enemy-damage` and `@/core/damage/structure-damage` import neither each other nor `@/core/damage/player-damage` nor `@/core/damage/area`; `@/core/damage/player-damage` may import `@/core/damage/enemy-damage` and not the other two; `@/core/damage/area` may import all three plus feedback; no module under `@/core/(feedback|damage)/` imports `@/core/(player|enemy|projectile|hazard)/` or the tick.
-  - Facade rule, declared now and biting at child 9: no `src/core/` module imports `@/core/world/index`; only `src/(runtime|presentation|ui|app)/` and `test/` may.
-- New `dev/tools/check-ownership.mjs` (Node, no Python — the daily gate must not grow a Python dependency): the census check. Counts the two numbers per file — whole-state parameters, and direct mutations covering assignments and compound assignments on `world`-rooted paths (nested included), increment and decrement, and the mutating collection calls Requirement 2 lists — compares against `dev/standards/raw_world_allowlist.json` (new; file → {params, mutations}), fails on any increase or any unlisted file, and fails if the `World` token appears at all under the two fenced folders. Census, not boundary — the hard walls are the cruiser rules above.
-- `package.json`: new script `check:ownership` running the checker; `verify` gains it as a stage after `check:boundaries`. This is the command-surface change the required reading governs.
-- `dev/standards/project_structure.addendum.md`: extend the core row of the layer table with the role vocabulary (resolvers, executors, owners), the owner direction stack, and the two fenced folders, keeping the cruiser header's two-sources rule satisfied in the same change.
 
 ### Child 2 — mutation owners
 
