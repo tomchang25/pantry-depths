@@ -25,7 +25,7 @@ A brief lives here too and is the one kind of line `/implement` cannot take: it 
 - `dev/docs/briefs/boss_encounter.brief.md` — the floor's last fight, and why its shape is blocked on a rendering decision the project has not made.
 - [first_five_minutes] Queued plan to rebuild the ordinary blow and the room it lands in, judged in a scene that is only the fight - [ref plans/first_five_minutes.plan.md]
 - [floor] Spec to make rooms own exact or random interactive-structure declarations, replacing room roles and unconditional floor fixtures - [ref plans/floor_declared_fixtures.implementation_spec.md]
-- [humanoid_block_bodies] Draft plan for one rig, one clip set and one part vocabulary across every humanoid, with death clips first - [ref plans/humanoid_block_bodies.plan.md]
+- [humanoid_block_bodies] Queued plan for authored runtime-assembled humanoids driven by one animation rig, shared pose layers and detachable body groups - [ref plans/humanoid_block_bodies.plan.md]
 - [slime_bodies] Draft plan for what a slime is made of, blocked on choosing between a fluid body and a hopping block one - [ref plans/slime_bodies.plan.md]
 
 ---
@@ -35,7 +35,6 @@ A brief lives here too and is the one kind of line `/implement` cannot take: it 
 One line, no rationale, no backing document.
 
 - [register_containment] Rewrite the comments of the twenty-two rules-layer modules the register sweep left, which still hold the layer at 24% comment lines
-- [scene_3d] Hand a dying body its own armature instead of spawning a shapeless lump, so a dead skeleton is at least that skeleton until real death clips exist
 
 ---
 
@@ -43,7 +42,7 @@ One line, no rationale, no backing document.
 
 One line, no rationale, no backing document.
 
-- [three_scene] Bodies carried by a javelin fly at the wrong angle, and the impaled pose that would fix it needs an authored model and clip
+Nothing currently tracked.
 
 ---
 
@@ -144,16 +143,6 @@ The rest of what decides how a body looks is still literals in `src/demo/demo-sc
 What makes this a decision rather than a queue is the soft-body profile. It is three numbers that have to move together and one of them is a colour, so it is not the same shape as the two that moved; and the simulation gives every body one collision radius regardless, so authoring a per-body footprint invites the question of whether collision should read it too. Answer that first, because doing it wrong means the drawn size and the bumped size drift apart in opposite directions.
 
 Not scheduled. What would force it is a second authored body, or wanting bodies that differ in width rather than height.
-
-### Every Clip But Idle And Walk Reads Wrong
-
-Four skeletons ship with seven private clips each and one shared death set, and every pose in them is provisional by agreement. What the two re-bake passes owned was the clip tables, the per-clip dimensions, the weapon-per-type generator and a bake that runs end to end; whether a pose actually reads was always a separate judgement, expected to replace keyframes rather than confirm them.
-
-That judgement has now been made once and stopped at its first finding: standing and walking are right, and every other clip has a problem of its own. The problems themselves are deliberately not written down here, because they have not been stated yet — this exists so the gap is a known one rather than something the next person rediscovers by looking at a wind-up and wondering.
-
-The bar is three things, and all three are answered in the entity workbench, which can already reach every clip at the length the simulation gives it. A body winding up, striking and recovering have to be three states told apart by the body alone. A body that has just attacked has to visibly be recovering rather than idling, at every type's cooldown length — six seconds and 1.8 both. And every clip has to be scrubbable at its own frame count, with a three-second wind-up holding its final pose rather than crawling through four frames.
-
-Not scheduled. What would force it is showing the demo to anybody.
 
 ### A Reload The Shooters Can Be Caught In
 

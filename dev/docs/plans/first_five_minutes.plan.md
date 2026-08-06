@@ -50,9 +50,9 @@ Regions, deaths, the riot and the remaining verbs follow in that order because e
 
 ### The bodies this plan does not own
 
-Death clips and detachable parts belong to the humanoid block bodies plan, which owns the rig, the shared clip table and the part vocabulary. This plan does not take them over and does not duplicate their requirements. What it does is pull two of that plan's children to the front of its landing order — the ways of dying, and parts that come off — because three children here cannot land without them.
+Death treatments and detachable parts belong to the humanoid block bodies plan, which owns the rig, shared movement set, pose layers and part vocabulary. This plan does not take them over and does not duplicate their requirements. Its damage, death, occupation and legless-body children consume the production boundaries established by that plan after the corresponding body children land.
 
-That dependency is the reason this plan does not declare itself goal-executable. Two of its children inherit a shape that is still open in the plan that owns it, and an open shape is a stop.
+The body pipeline shape is settled. These dependencies are landing-order constraints rather than design questions, so the affected children can proceed directly to implementation specs once their body prerequisites ship.
 
 ### Occupation and the riot
 
@@ -67,12 +67,12 @@ The riot is an alarm that spreads rather than a state every enemy enters at once
 | 1   | The arena                 | One scene that is only the fight, and the measuring stick every later child is judged in                     | Spec-ready    |
 | 2   | The ordinary blow         | Hit stop, spray raised where damage is applied, melee shake, and the kick — all inside existing shapes       | Spec-ready    |
 | 3   | Where the blow landed     | A hit gains a point and a region, and every effect moves to that point                                       | Spec-ready    |
-| 4   | Damage that shows         | Head and both arms accumulate; a broken arm detaches and drops what it held, a broken head kills             | Sketch needed |
-| 5   | The ways of dying         | Death clips per cause, bone ash as a second floor material, and the deaths a kick causes                     | Sketch needed |
+| 4   | Damage that shows         | Head and both arms accumulate; a broken arm detaches and drops what it held, a broken head kills             | Spec-ready    |
+| 5   | The ways of dying         | Death treatments per cause, bone ash as a second floor material, and the deaths a kick causes                | Spec-ready    |
 | 6   | The room was doing something | Arrangement instead of patrol, the riot that spreads, and enemies that can hurt each other                | Spec-ready    |
-| 7   | The rest of the verbs     | Charged throw, immunity and attack while carrying a body, and what a legless skeleton does                    | Sketch needed |
+| 7   | The rest of the verbs     | Charged throw, immunity and attack while carrying a body, and what a legless skeleton does                    | Spec-ready    |
 
-Landing order is the table order. Children 4, 5 and 7 need sketches because each depends on the body pipeline's shape rather than on anything settled here; child 6 is spec-ready because it is deliberately scoped to the half that needs no new clip.
+Landing order is the table order. Children 4, 5 and 7 begin only after the corresponding humanoid body children land, but their implementation shape is settled and needs no separate sketch. Child 6 remains independent for its arrangement and riot behavior; its optional occupation clip uses the shared movement set when available.
 
 ## Non-Goals
 
@@ -129,7 +129,7 @@ Keep the sweep. The multi-target behaviour is deliberate and its reason is in th
 
 `MeleeEffect`'s `enemyHit` gains the contact point and region; `landing` stops being computed from `nearest.x/nearest.y` at the fixed heights at lines 20–23 and carries the real point instead. Consumers are `execute-melee.ts` and the arc drawing in `src/presentation/scene-3d/`.
 
-Region geometry: the block bodies name their parts already (see the humanoid block bodies plan, "Parts are tagged but not addressable"). The cheap first resolution is height plus lateral offset against the body's authored scale in `src/content/enemies/entity-display.json`, not a mesh query.
+Region geometry: the humanoid body definitions own authored region bounds (see the humanoid block bodies plan, "A body record is the visual authority"). The cheap first resolution is height plus lateral offset against those bounds and the body's authored scale in `src/content/enemies/entity-display.json`, not a mesh query.
 
 Hurt direction: `damageEnemy` already takes `direction`. Nothing reads it for anything but death scatter today.
 
@@ -141,11 +141,11 @@ Arm break drops what the arm held — the drop tables are already in `src/core/d
 
 Head break kills. `DeathCause` lives in `src/core/world/world.ts`; `deathViolence` in `enemy-damage.ts:94` is the exhaustive switch every new cause must answer.
 
-Detaching the part on the drawing side is the humanoid block bodies plan's child 4. That plan is currently a draft in `dev/docs/plans/humanoid_block_bodies.plan.md`; its children 1 and 4 need scoping before this one can be specced.
+Detaching the part on the drawing side is the humanoid block bodies plan's child 6. This child begins after that production detach boundary ships; it owns the region damage, break decision and gameplay weapon drop that consume it.
 
 ### Child 5 — The ways of dying
 
-Death clips are the humanoid block bodies plan's child 1, which closes the regression named in its requirement 2 — the rig ships seven clips and none is terminal. The tracker chore `[scene_3d]` names the same gap from the other side.
+Death treatments are the humanoid block bodies plan's child 7. This child begins after that shared movement and structural mapping ships, then selects the treatment from the cause already recorded by the rules.
 
 Bone ash: `stainFloor` is in `src/core/feedback/run-feedback.ts`, the grid is `src/presentation/scene-3d/floor-stains.ts`, and the two call sites are `enemy-damage.ts:181` and `src/core/world/step-world.ts:122` (particle landings). Ash is a second material in the same channel, not a floor decal — the tracker entry "What A Fight Writes On The Floor" states that boundary and it holds.
 
@@ -165,4 +165,4 @@ Enemy-on-enemy damage: the three attack families are behind contracts in `src/co
 
 **Hostage.** `damageHeldHostage` in `src/core/damage/enemy-damage.ts:261` already absorbs damage on the player's behalf and returns the salvage. Full immunity while carrying, and the ability to swing while carrying, are changes in `src/core/damage/player-damage.ts` and the input gate.
 
-**A legless skeleton.** Hop, crawl, being carried, and struggling while carried are four clips. All four are the humanoid block bodies plan's clip table, and carrying already exists in `src/core/player/carry.ts` gated by `canCarry` in `src/core/combat/enemy-contract.ts`.
+**A legless skeleton.** Hop, crawl, being carried, and struggling while carried use the humanoid block bodies plan's child 7 movement set. This child supplies the gameplay state and transitions that select those clips; carrying already exists in `src/core/player/carry.ts` gated by `canCarry` in `src/core/combat/enemy-contract.ts`.
