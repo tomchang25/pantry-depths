@@ -89,7 +89,7 @@ Two paths are whole-state executors by decision: the projectile resolution and t
 
 - **Development-only, entered through the debug hub.** An experiment gets one catalog entry in `src/app/debug/` whose deferred loader crosses into the experiment's folder, so it inherits the debug namespace's production exclusion. Nothing under `src/sandbox/` is production-reachable.
 - **Import directions, machine-checked by the boundary rules:** an experiment imports its own folder, `src/core/`, and `src/content/`, and nothing else in `src/`. Nothing imports `src/sandbox/` except `src/app/debug/`. Experiments never import each other — a module two experiments want is a graduation candidate, not grounds for a sandbox commons.
-- **Graduation is a move, never an in-place promotion.** An experiment that earns permanence moves into the layer that owns the behavior, as formal-track work under the full ceremony, and its sandbox folder is deleted in the same change; the other ending is deleting the folder outright. The import boundary never opens so the rest of `src/` can reach into the sandbox.
+- **Graduation is a move, never an in-place promotion.** An experiment that earns permanence moves into the layer that owns the behavior under the formal-track lifecycle, and its sandbox folder is deleted in the same change; the other ending is deleting the folder outright. The import boundary never opens so the rest of `src/` can reach into the sandbox.
 
 ## Declared Deviation: Development Namespaces Beyond `/debug`
 

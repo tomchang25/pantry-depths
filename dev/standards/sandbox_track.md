@@ -22,11 +22,12 @@ The track is chosen per piece of work, at the moment the work is scoped. It is n
 | ------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | The `src/sandbox/` tree, import boundaries, debug-hub wiring, production exclusion, graduation    | `dev/standards/project_structure.addendum.md` |
 | Test discipline per track: the browser-test ban, the sandbox unit-test budget, the machine guards | `dev/agent_rules/test_operations.md`          |
-| Ceremony: the light `/implement` phases, minimal tracking, approval-as-authorization, `/goal`     | `dev/agent_rules/implement_operations.md`     |
-| Lifecycle routing and the `Goal-Executable: yes` default for sandbox plans                        | `dev/standards/work_lifecycle.addendum.md`    |
+| The short `/implement` handoff and minimal tracking                                                | `dev/agent_rules/implement_operations.md`     |
+| Lifecycle routing                                                                                  | `dev/standards/work_lifecycle.addendum.md`    |
+| Continuous execution across plan children                                                         | `dev/workflows/continuous_plan_execution.md`  |
 
 ## What The Track Never Relaxes
 
 - **The branch-merge gate still applies.** Sandbox work does not run `npm run verify` for ordinary edits or delivery, but it does not bypass the aggregate gate immediately before its branch is merged.
 - **Production exclusion.** A sandbox experiment is development-only, entered through the `/debug` hub, and never reachable from the production module graph.
-- **The `/goal` stop guards.** Continuous execution comes by default on this track, but every stop condition in `dev/agent_rules/implement_operations.md` applies unchanged. Speed is bought with disposability, never with silence about a decision the user owns.
+- **User-authority boundaries.** The foundation `/implement` conditional stops and `dev/workflows/continuous_plan_execution.md` apply unchanged.

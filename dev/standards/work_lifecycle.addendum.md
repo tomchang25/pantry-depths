@@ -10,7 +10,7 @@ When a direction has been chosen, the forward artifact is a sketch for a plan ch
 
 This supersedes only the foundation's default expectation that a probe is the normal way to park work that is not yet ready for a spec. Every other lifecycle rule stands unchanged: the implementation spec remains the only executable handoff, the transition gates still apply, and the artifact standards still define what a correct probe, sketch, plan, or spec contains.
 
-**Why:** the probe slot was collecting half-complete drafts — documents that already knew their direction and were really provisional implementation-facing context, which is exactly what a sketch models and what the sketch standard permits codebase evidence for. Two artifacts with overlapping jobs meant a judgement call at every fork with no behavioral difference at the other end. Meanwhile `/implement`'s Phase 1 decision scan already forces the "state the problem and confirm the target before designing" step in conversation, so the probe's remaining unique job is narrow: hold a genuinely undirected observation.
+The probe's remaining role is to hold a genuinely undirected observation; a document that already knows its direction uses a sketch or plan.
 
 No probe currently exists in this repository, so adopting this narrowing costs no migration.
 
@@ -37,24 +37,6 @@ Three rules keep the second half from rotting into a lie:
 **A child whose `Execution` subsection already answers its implementation shape skips the sketch and goes straight to a spec through `/implement`.** That is the point of the relaxation. A child still needs a sketch when its shape is genuinely open — when the plan recorded the target but not the approach, or when an earlier child changed the ground under it.
 
 This relaxation is general and has no expiry. It does not extend to sketches, implementation specs, reviews, or closeouts, each of which keeps its own standard as written.
-
-## A Plan May Declare Itself Goal-Executable
-
-A plan whose children are meant to be worked through continuously — one approval, then every child in landing order with no further stop — says so in one line directly under its title: `Goal-Executable: yes`.
-
-The line is a claim about the document, not an authorization. It says the plan is shaped so that running it end to end cannot silently swallow a decision. The authorization is still a sentence from the user, granted under `dev/agent_rules/implement_operations.md`; a plan that declares itself goal-executable and is never authorized is executed one stop at a time like any other.
-
-A plan may make the claim only when all three of these hold, and whoever writes the declaration checks all three first:
-
-1. **Every child has an `Execution` subsection.** A child whose shape is genuinely open needs a sketch, and a sketch is a stop. A plan carrying such a child is not goal-executable until that child is resolved or cut.
-2. **The document contains no unanswered question** — not in the Requirements, not in the Design, and not parked in an open-questions section, of which a goal-executable plan has none. An unanswered question is a stop that was written down instead of taken.
-3. **Every acceptance criterion can be judged in one sitting**: by the project's verification gate, by opening the thing and looking, or by playing it. A criterion needing a measurement nobody has taken is condition 2 in disguise.
-
-**Why the claim lives in the document rather than only in the conversation:** those three conditions are properties of the plan, and they are the whole of what makes continuous execution safe. Written down, they give the reviewer one thing to check before saying go, and give the executor one thing to re-check when a child turns out harder than the plan thought. If any condition stops holding mid-flight, the declaration is void for the rest of that plan and the ordinary stops return — the guards on the second-confirmation bypass already say this, and the declaration does not weaken any of them.
-
-Nothing else about the plan changes. Both halves keep their contracts, the child overview table is unchanged, and the `Execution` half stays perishable, forward-only, and subordinate to the conceptual half.
-
-**Sandbox-track plans declare it by default.** A plan whose surface is `src/sandbox/` (`dev/standards/sandbox_track.md`) is written to satisfy the three conditions and carries `Goal-Executable: yes` from its first draft; a sandbox plan that cannot satisfy them is evidence the work is not sandbox-shaped and belongs on the formal track. What the declaration buys on that track is owned by `dev/agent_rules/implement_operations.md`: approval of a sandbox plan is itself the continuous-execution authorization.
 
 ## The Brief
 
@@ -83,7 +65,7 @@ It fills a real gap. The probe is narrowed above to genuinely undirected observa
 | The direction is chosen and the work needs its own requirements, non-goals, and children | Plan                                                                                                                                              |
 | The slice is ready to execute                                                            | Implementation spec, via `/implement`                                                                                                             |
 | The change is a chore, copy edit, or configuration tweak                                 | Compact implementation note                                                                                                                       |
-| The work is a sandbox experiment under `src/sandbox/`                                    | Short note via `/implement`; a plan only when it has real children, then `Goal-Executable: yes` by default — see `dev/standards/sandbox_track.md` |
+| The work is a sandbox experiment under `src/sandbox/`                                    | Short note via `/implement`; use a plan only when the experiment has independently reviewable children — see `dev/standards/sandbox_track.md` |
 
 A sketch whose direction later turns out to be wrong is rewritten or deleted, not converted back into a probe.
 

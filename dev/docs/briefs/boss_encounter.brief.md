@@ -119,4 +119,4 @@ voxel 資料
 
 - 讀 `CLAUDE.md` 的啟動鏈。
 - 測試走 `dev/agent_rules/test_operations.md` 的 gate：formal track 的新 unit test 必須先在 implementation spec 點名，browser test 一律交付後才提案；「demo 不寫測試」的舊機器規則已隨遷移退役。感覺層面——畫面、手感、動畫——仍由人玩來判定。
-- 產出是一份 plan。若要被 `/goal` 一路跑完，`dev/standards/work_lifecycle.addendum.md` 的三個條件必須成立 —— 特別是「文件裡不能有任何未答的問題」，也就是上面剩的兩題要先答完。
+- 產出是一份 plan。若要交給 native goal 連續執行，先解決上面兩個未答問題，再依 `dev/workflows/continuous_plan_execution.md` 推進 children。

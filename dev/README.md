@@ -48,6 +48,7 @@ Project rows:
 | Work                                                                         | Required reading                                                                                  |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Run `/implement`                                                             | `dev/agent_rules/implement_operations.md` after the canonical `/implement` workflow               |
+| Use a native goal or equivalent request to execute a plan across children     | `dev/workflows/continuous_plan_execution.md`                                                       |
 | Sandbox-track work under `src/sandbox/`                                      | `dev/standards/sandbox_track.md`                                                                  |
 | Add or replace a game sound, or touch the audio library                      | `dev/skills/sfx_sourcing.md`                                                                      |
 | Read, cite, or edit anything under `dev/docs/design/` or `dev/docs/reports/` | `dev/standards/frozen_reference_directories.md` — the short answer is do not                      |
