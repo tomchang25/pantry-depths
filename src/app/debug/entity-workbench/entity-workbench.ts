@@ -1,7 +1,13 @@
 import { createDebugPage } from "@/app/debug/debug-shell";
 import { BLOCK_WEAPONS, WEAPON_CLIPS, type BlockClip, type BlockWeapon } from "@/presentation/scene-3d/block-clips";
-import { BlockRuntime } from "./block-runtime";
+import { BlockRuntime, type BlockFigure } from "./block-runtime";
 import "./entity-workbench.css";
+
+const FIGURE_LABELS: Readonly<Record<BlockFigure, string>> = {
+  loaded: "Skeleton (baked)",
+  skeleton: "Skeleton (procedural)",
+  zombie: "Zombie (procedural)",
+};
 
 const WEAPON_LABELS: Readonly<Record<BlockWeapon, string>> = {
   sword: "Sword",
@@ -73,7 +79,7 @@ export function renderEntityWorkbench(mount: HTMLElement): void {
   const { page, content } = createDebugPage({
     title: "Entity Workbench",
     description:
-      "One body on a turntable: every weapon, every clip, scrubbed frame by frame, and the two ways it comes apart. How it reads at playing distance is the Placement Workbench's question.",
+      "Three figures on one turntable, sharing one clip set: every weapon, every clip, scrubbed frame by frame, and the two ways each comes apart. How they read at playing distance is the Placement Workbench's question.",
     width: "wide",
   });
 
@@ -132,6 +138,13 @@ function mountRigViewer(content: HTMLElement): void {
   statusTitle.textContent = "Live diagnostics";
   metrics.className = "entity-workbench__metrics";
 
+  const figureField = createSelectRow(
+    "Body",
+    (Object.keys(FIGURE_LABELS) as BlockFigure[]).map((figure) => ({
+      label: FIGURE_LABELS[figure],
+      value: figure,
+    })),
+  );
   const weaponField = createSelectRow(
     "Weapon",
     BLOCK_WEAPONS.map((weapon) => ({ label: WEAPON_LABELS[weapon], value: weapon })),
@@ -167,6 +180,7 @@ function mountRigViewer(content: HTMLElement): void {
   breakRow.append(burstButton, bisectButton);
   controls.append(
     controlsTitle,
+    figureField.row,
     weaponField.row,
     clipField.row,
     transport,
@@ -233,6 +247,9 @@ function mountRigViewer(content: HTMLElement): void {
     runtime.setClip(available[0]!);
   }
 
+  figureField.select.addEventListener("change", () => runtime.setFigure(figureField.select.value as BlockFigure), {
+    signal: abortController.signal,
+  });
   weaponField.select.addEventListener(
     "change",
     () => {

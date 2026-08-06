@@ -4,9 +4,18 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 import blockUrl from "@/content/enemies/assets/skeleton-blocky.glb?url";
 import { HOLDING_CLIPS, WEAPON_CLIPS, type BlockClip, type BlockWeapon } from "@/presentation/scene-3d/block-clips";
+import { BLOCKY_JOINTS, createBlockyRig, type BlockyBody } from "./blocky-bodies";
 import { AFTER_THROW_CLIPS, ARC_CLIP, HAND_BONE, THROW_RELEASE, THROWN_WEAPONS, WEAPON_BONE } from "./block-contracts";
 import { SwingArc } from "./block-vfx";
 import { bisectPieces, burstPieces, Scatter } from "./destruction";
+
+/**
+ * Which figure the stage is showing.
+ *
+ * `loaded` is the exported rig read out of the glTF. The other two are assembled in code against
+ * the same joint contract, which is what lets one clip set drive all three.
+ */
+export type BlockFigure = "loaded" | BlockyBody;
 
 export type BlockStatus = Readonly<{
   detail: string;
@@ -51,6 +60,10 @@ export class BlockRuntime {
   private scatter: Scatter | undefined;
   private clip: BlockClip = "idle";
   private readonly clips = new Map<string, THREE.AnimationClip>();
+  private figure: BlockFigure = "loaded";
+  /** Every figure that has been built, kept so switching back does not rebuild one. */
+  private readonly figures = new Map<BlockFigure, THREE.Object3D>();
+  private disposables: THREE.Material[] = [];
   private readonly controls: OrbitControls;
   private current: THREE.AnimationAction | undefined;
   private readonly fill: THREE.DirectionalLight;
@@ -135,6 +148,12 @@ export class BlockRuntime {
     this.controls.dispose();
     this.arc.dispose();
     this.mixer?.stopAllAction();
+
+    // Only the procedural figures' materials. The loaded one's belong to the glTF and go with it.
+    for (const material of this.disposables) {
+      material.dispose();
+    }
+
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -248,11 +267,60 @@ export class BlockRuntime {
 
   private async load(): Promise<void> {
     const gltf = await new GLTFLoader().loadAsync(blockUrl);
-    // Half a turn: glTF is Y-up and Blender is Z-up, so the conversion sends the body's own forward
-    // to −Z and an unturned import faces away from every camera in this scene.
+    // Half a turn: glTF is Y-up and Blender is Z-up, so the conversion sends the figure's own
+    // forward to −Z and an unturned import faces away from every camera in this scene.
     gltf.scene.rotation.y = Math.PI;
-    gltf.scene.updateMatrixWorld(true);
-    gltf.scene.traverse((object) => {
+
+    // The clips come off this file whichever figure is showing. Every track in every one of them
+    // names a joint, and the procedural figures carry those same seven names at the same rest
+    // transforms, so one clip set drives all three without a remap.
+    for (const clip of gltf.animations) {
+      this.clips.set(clip.name, clip);
+    }
+
+    this.figures.set("loaded", gltf.scene);
+    this.mount("loaded");
+    this.callbacks.onReady();
+  }
+
+  /** Swap which figure the stage is showing. The clip, weapon and speed all survive the swap. */
+  setFigure(figure: BlockFigure): void {
+    if (figure === this.figure) {
+      return;
+    }
+
+    this.restoreBody();
+    this.arc.clear();
+    this.mount(figure);
+    this.reset();
+  }
+
+  private mount(figure: BlockFigure): void {
+    const previous = this.figures.get(this.figure);
+
+    if (previous) {
+      this.scene.remove(previous);
+    }
+
+    let root = this.figures.get(figure);
+
+    if (!root) {
+      const rig = createBlockyRig(figure as BlockyBody);
+      this.disposables.push(...rig.materials);
+      this.figures.set(figure, rig.root);
+      root = rig.root;
+    }
+
+    this.figure = figure;
+    this.scene.add(root);
+    root.updateMatrixWorld(true);
+
+    this.bones.clear();
+    this.weaponParts.clear();
+    this.handBone = undefined;
+    this.weaponTip = undefined;
+
+    root.traverse((object) => {
       if (object instanceof THREE.Mesh) {
         object.castShadow = true;
         object.receiveShadow = true;
@@ -274,19 +342,17 @@ export class BlockRuntime {
         this.handBone = object;
       }
 
-      if (object instanceof THREE.Bone) {
+      // Collected by name rather than by type. The loaded figure's joints are bones and the
+      // procedural ones are plain objects, and nothing downstream cares which: the mixer binds by
+      // name, and a break reparents whatever object it is handed.
+      if ((BLOCKY_JOINTS as readonly string[]).includes(object.name)) {
         this.bones.set(object.name, object);
       }
     });
 
-    for (const clip of gltf.animations) {
-      this.clips.set(clip.name, clip);
-    }
-
-    this.scene.add(gltf.scene);
-    this.mixer = new THREE.AnimationMixer(gltf.scene);
+    this.mixer = new THREE.AnimationMixer(root);
+    this.current = undefined;
     this.setWeapon(this.weapon);
-    this.callbacks.onReady();
   }
 
   /** Put the mixer exactly on `elapsed`, which is what makes scrubbing and holding the same code. */
